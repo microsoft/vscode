@@ -26,6 +26,23 @@ declare module 'vscode' {
 		constructor(host: string, port: number, connectionToken?: string);
 	}
 
+	export interface ManagedMessagePassing {
+		onDidReceiveMessage: Event<Uint8Array>;
+		onDidClose: Event<Error | undefined>;
+		onDidEnd: Event<void>;
+
+		dataHandler: (data: Uint8Array) => void;
+		endHandler: () => void;
+		drainHandler?: () => void;
+	}
+
+	export class ManagedResolvedAuthority {
+		readonly makeConnection: () => Thenable<ManagedMessagePassing>;
+		readonly connectionToken: string | undefined;
+
+		constructor(makeConnection: () => Thenable<ManagedMessagePassing>, connectionToken?: string);
+	}
+
 	export interface ResolvedOptions {
 		extensionHostEnv?: { [key: string]: string | null };
 
@@ -109,7 +126,7 @@ declare module 'vscode' {
 		Output = 2
 	}
 
-	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
+	export type ResolverResult = (ResolvedAuthority | ManagedResolvedAuthority) & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;

@@ -8,7 +8,7 @@ import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { asPromise, Barrier, IntervalTimer, timeout } from 'vs/base/common/async';
-import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -25,8 +25,8 @@ import type * as vscode from 'vscode';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
-import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ResolvedAuthority as ExtHostResolvedAuthority } from 'vs/workbench/api/common/extHostTypes';
+import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix, TunnelInformation, MessagePassingType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
@@ -79,6 +79,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	readonly _serviceBrand: undefined;
 
+	private static remoteSocketIdCounter = 0;
+
 	abstract readonly extensionRuntime: ExtensionRuntime;
 
 	private readonly _onDidChangeRemoteConnectionData = this._register(new Emitter<void>());
@@ -118,6 +120,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private _started: boolean;
 	private _isTerminating: boolean = false;
 	private _remoteConnectionData: IRemoteConnectionData | null;
+	private readonly _managedSocketFactories: Map<number, () => Thenable<vscode.ManagedMessagePassing>>;
+	private readonly _managedRemoteSockets: Map<number, {
+		object: vscode.ManagedMessagePassing;
+		disposer: DisposableStore;
+	}>;
 
 	constructor(
 		@IInstantiationService instaService: IInstantiationService,
@@ -191,6 +198,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._resolvers = Object.create(null);
 		this._started = false;
 		this._remoteConnectionData = this._initData.remote.connectionData;
+		this._managedSocketFactories = new Map();
+		this._managedRemoteSockets = new Map();
 	}
 
 	public getRemoteConnectionData(): IRemoteConnectionData | null {
@@ -822,30 +831,44 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
 			performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
 			intervalLogger.dispose();
-			logInfo(`returned ${result.host}:${result.port}`);
+
+			const tunnelInformation: TunnelInformation = {
+				environmentTunnels: result.environmentTunnels,
+				features: result.tunnelFeatures
+			};
 
 			// Split merged API result into separate authority/options
-			const authority: ResolvedAuthority = {
-				authority: remoteAuthority,
-				host: result.host,
-				port: result.port,
-				connectionToken: result.connectionToken
-			};
 			const options: ResolvedOptions = {
 				extensionHostEnv: result.extensionHostEnv,
 				isTrusted: result.isTrusted,
 				authenticationSession: result.authenticationSessionForInitializingExtensions ? { id: result.authenticationSessionForInitializingExtensions.id, providerId: result.authenticationSessionForInitializingExtensions.providerId } : undefined
 			};
 
+			logInfo(`returned ${result instanceof ExtHostResolvedAuthority ? `${result.host}:${result.port}` : 'managed authority'}`);
+
+			let authority: ResolvedAuthority;
+			if (result instanceof ExtHostResolvedAuthority) {
+				authority = {
+					authority: remoteAuthority,
+					messaging: { type: MessagePassingType.WebSocket, host: result.host, port: result.port },
+					connectionToken: result.connectionToken
+				};
+			} else {
+				const factoryId = AbstractExtHostExtensionService.remoteSocketIdCounter++;
+				this._managedSocketFactories.set(factoryId, result.makeConnection);
+				authority = {
+					authority: remoteAuthority,
+					messaging: { type: MessagePassingType.Managed, id: factoryId },
+					connectionToken: result.connectionToken
+				};
+			}
+
 			return {
 				type: 'ok',
 				value: {
 					authority,
 					options,
-					tunnelInformation: {
-						environmentTunnels: result.environmentTunnels,
-						features: result.tunnelFeatures
-					}
+					tunnelInformation,
 				}
 			};
 		} catch (err) {
@@ -864,6 +887,47 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			}
 			throw err;
 		}
+	}
+
+	public async $openRemoteSocket(factoryId: number): Promise<number> {
+		const factory = this._managedSocketFactories.get(factoryId);
+		if (!factory) {
+			throw new Error(`No socket factory with id ${factoryId}`);
+		}
+
+		const id = AbstractExtHostExtensionService.remoteSocketIdCounter++;
+		const socket = await factory();
+		const disposable = new DisposableStore();
+
+		this._managedRemoteSockets.set(id, { object: socket, disposer: disposable });
+		disposable.add(toDisposable(() => this._managedRemoteSockets.delete(id)));
+		disposable.add(socket.onDidEnd(() => {
+			this._mainThreadExtensionsProxy.$onDidRemoteSocketEnd(id);
+			disposable.dispose();
+		}));
+		disposable.add(socket.onDidClose(e => {
+			this._mainThreadExtensionsProxy.$onDidRemoteSocketClose(id, e?.stack ?? e?.message);
+			disposable.dispose();
+		}));
+		disposable.add(socket.onDidReceiveMessage(e => this._mainThreadExtensionsProxy.$onDidRemoteSocketHaveData(id, VSBuffer.wrap(e))));
+
+		return id;
+	}
+
+	public $remoteSocketDrain(id: number): Promise<void> {
+		return this._managedRemoteSockets.get(id)?.object.drainHandler?.() ?? Promise.resolve();
+	}
+
+	public $remoteSocketEnd(id: number): void {
+		const socket = this._managedRemoteSockets.get(id);
+		if (socket) {
+			socket.object.endHandler();
+			socket.disposer.dispose();
+		}
+	}
+
+	public $remoteSocketWrite(id: number, buffer: VSBuffer): void {
+		this._managedRemoteSockets.get(id)?.object.dataHandler(buffer.buffer);
 	}
 
 	public async $getCanonicalURI(remoteAuthority: string, uriComponents: UriComponents): Promise<UriComponents | null> {

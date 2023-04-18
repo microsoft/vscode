@@ -5,29 +5,18 @@
 
 import * as net from 'net';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { makeRawSocketHeaders } from 'vs/platform/remote/common/managedSocket';
 import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { WebSocketMessagingPassing } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
-export const nodeSocketFactory = new class implements ISocketFactory {
-	connect(host: string, port: number, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {
+export const nodeSocketFactory = new class implements ISocketFactory<WebSocketMessagingPassing> {
+	connect({ host, port }: WebSocketMessagingPassing, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {
 		const errorListener = (err: any) => callback(err, undefined);
 
 		const socket = net.createConnection({ host: host, port: port }, () => {
 			socket.removeListener('error', errorListener);
 
-			// https://tools.ietf.org/html/rfc6455#section-4
-			const buffer = Buffer.alloc(16);
-			for (let i = 0; i < 16; i++) {
-				buffer[i] = Math.round(Math.random() * 256);
-			}
-			const nonce = buffer.toString('base64');
-
-			const headers = [
-				`GET ws://${/:/.test(host) ? `[${host}]` : host}:${port}${path}?${query}&skipWebSocketFrames=true HTTP/1.1`,
-				`Connection: Upgrade`,
-				`Upgrade: websocket`,
-				`Sec-WebSocket-Key: ${nonce}`
-			];
-			socket.write(headers.join('\r\n') + '\r\n\r\n');
+			socket.write(makeRawSocketHeaders(path, query, debugLabel));
 
 			const onData = (data: Buffer) => {
 				const strData = data.toString();

@@ -113,7 +113,7 @@ suite('ConfigurationEditing', () => {
 		const uriIdentityService = new UriIdentityService(fileService);
 		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
-		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
+		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);

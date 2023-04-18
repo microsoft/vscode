@@ -29,7 +29,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, MessagePassingType, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { getRemoteName, parseAuthorityWithPort } from 'vs/platform/remote/common/remoteHosts';
 import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
@@ -277,15 +277,22 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
-			const { host, port } = parseAuthorityWithPort(remoteAuthority);
-			return {
-				authority: {
-					authority: remoteAuthority,
-					host,
-					port,
-					connectionToken: undefined
-				}
-			};
+			try {
+				const { host, port } = parseAuthorityWithPort(remoteAuthority);
+				return {
+					authority: {
+						authority: remoteAuthority,
+						messaging: {
+							type: MessagePassingType.WebSocket,
+							host,
+							port
+						},
+						connectionToken: undefined
+					}
+				};
+			} catch {
+				// continue
+			}
 		}
 
 		const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
@@ -391,7 +398,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			performance.mark(`code/willResolveAuthority/${authorityPrefix}`);
 			const result = await this._resolveAuthority(remoteAuthority);
 			performance.mark(`code/didResolveAuthorityOK/${authorityPrefix}`);
-			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority.host}:${result.authority.port}' after ${sw.elapsed()} ms`);
+			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority}' after ${sw.elapsed()} ms`);
 			return result;
 		} catch (err) {
 			performance.mark(`code/didResolveAuthorityError/${authorityPrefix}`);
@@ -631,7 +638,7 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 			case ExtensionHostKind.Remote: {
 				const remoteAgentConnection = this._remoteAgentService.getConnection();
 				if (remoteAgentConnection) {
-					return this._instantiationService.createInstance(RemoteExtensionHost, runningLocation, this._createRemoteExtensionHostDataProvider(runningLocations, remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+					return this._instantiationService.createInstance(RemoteExtensionHost, runningLocation, this._createRemoteExtensionHostDataProvider(runningLocations, remoteAgentConnection.remoteAuthority));
 				}
 				return null;
 			}

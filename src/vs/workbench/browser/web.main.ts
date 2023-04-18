@@ -18,7 +18,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, MessagePassingType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -84,6 +84,8 @@ import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/brow
 import { timeout } from 'vs/base/common/async';
 import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 import { LogService } from 'vs/platform/log/common/logService';
+import { IRemoteSocketFactoryCollection, RemoteSocketFactoryCollection } from 'vs/platform/remote/common/remoteSocketFactoryCollection';
+import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 
 export class BrowserMain extends Disposable {
 
@@ -253,7 +255,8 @@ export class BrowserMain extends Disposable {
 
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider, productService, logService);
+		const expectResolverExtension = !!environmentService.remoteAuthority?.includes('+') && !environmentService.options.webSocketFactory;
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!expectResolverExtension, connectionToken, this.configuration.resourceUriProvider, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
@@ -292,7 +295,10 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.configuration.webSocketFactory, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService));
+		const socketFactories = new RemoteSocketFactoryCollection();
+		socketFactories.register(MessagePassingType.WebSocket, () => new BrowserSocketFactory(this.configuration.webSocketFactory));
+		serviceCollection.set(IRemoteSocketFactoryCollection, socketFactories);
+		const remoteAgentService = this._register(new RemoteAgentService(socketFactories, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, bufferLogger, logService, loggerService, logsPath);

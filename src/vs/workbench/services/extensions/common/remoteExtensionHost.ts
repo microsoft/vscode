@@ -16,8 +16,9 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IConnectionOptions, IRemoteExtensionHostStartParams, ISocketFactory, connectRemoteAgentExtensionHost } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IConnectionOptions, IRemoteExtensionHostStartParams, connectRemoteAgentExtensionHost } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteSocketFactoryCollection } from 'vs/platform/remote/common/remoteSocketFactoryCollection';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -61,7 +62,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	constructor(
 		public readonly runningLocation: RemoteRunningLocation,
 		private readonly _initDataProvider: IRemoteExtensionHostDataProvider,
-		private readonly _socketFactory: ISocketFactory,
+		@IRemoteSocketFactoryCollection private readonly socketFactories: IRemoteSocketFactoryCollection,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -84,21 +85,26 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	}
 
 	public start(): Promise<IMessagePassingProtocol> {
-		const options: IConnectionOptions = {
-			commit: this._productService.commit,
-			quality: this._productService.quality,
-			socketFactory: this._socketFactory,
-			addressProvider: {
-				getAddress: async () => {
-					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
-					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
-				}
-			},
-			signService: this._signService,
-			logService: this._logService,
-			ipcLogger: null
-		};
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
+			const socketFactory = this.socketFactories.create(resolverResult.authority.messaging);
+			if (!socketFactory) {
+				throw new Error('No socket factory found for remote authority');
+			}
+
+			const options: IConnectionOptions = {
+				commit: this._productService.commit,
+				quality: this._productService.quality,
+				socketFactory,
+				addressProvider: {
+					getAddress: async () => {
+						const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
+						return { connectTo: authority.messaging, connectionToken: authority.connectionToken };
+					}
+				},
+				signService: this._signService,
+				logService: this._logService,
+				ipcLogger: null
+			};
 
 			const startParams: IRemoteExtensionHostStartParams = {
 				language: platform.language,

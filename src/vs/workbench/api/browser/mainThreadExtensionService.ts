@@ -16,7 +16,7 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteConnectionData, MessagePassingType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtHostContext, ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -25,7 +25,7 @@ import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/exten
 import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { ActivationKind, ExtensionActivationReason, IExtensionService, IInternalExtensionService, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
-import { extHostNamedCustomer, IExtHostContext, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext, IInternalExtHostContext, IManagedSocketCallbacks } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
@@ -34,6 +34,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 
 	private readonly _extensionHostKind: ExtensionHostKind;
 	private readonly _internalExtensionService: IInternalExtensionService;
+	private readonly _managedSocketCallbacks: IManagedSocketCallbacks;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -50,6 +51,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 
 		const internalExtHostContext = (<IInternalExtHostContext>extHostContext);
 		this._internalExtensionService = internalExtHostContext.internalExtensionService;
+		this._managedSocketCallbacks = internalExtHostContext.managedSocketCallbacks;
 		internalExtHostContext._setExtensionHostProxy(
 			new ExtensionHostProxy(extHostContext.getProxy(ExtHostContext.ExtHostExtensionService))
 		);
@@ -57,6 +59,18 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	}
 
 	public dispose(): void {
+	}
+
+	$onDidRemoteSocketHaveData(id: number, data: VSBuffer): void {
+		this._managedSocketCallbacks.onDidRemoteSocketHaveData(id, data);
+	}
+
+	$onDidRemoteSocketClose(id: number, error: string | undefined): void {
+		this._managedSocketCallbacks.onDidRemoteSocketClose(id, error ? new Error(error) : undefined);
+	}
+
+	$onDidRemoteSocketEnd(id: number): void {
+		this._managedSocketCallbacks.onDidRemoteSocketEnd(id);
 	}
 
 	$getExtension(extensionId: string) {
@@ -199,8 +213,15 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 		private readonly _actual: ExtHostExtensionServiceShape
 	) { }
 
-	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
-		return this._actual.$resolveAuthority(remoteAuthority, resolveAttempt);
+	async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+		const resolved = await this._actual.$resolveAuthority(remoteAuthority, resolveAttempt);
+		if (resolved.type === 'ok') {
+			resolved.value.authority.toString = function () {
+				return this.messaging.type === MessagePassingType.Managed ? `ManagedSocket#${this.messaging.id}` : `${this.messaging.host}:${this.messaging.type}`;
+			};
+		}
+
+		return resolved;
 	}
 	async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null> {
 		const uriComponents = await this._actual.$getCanonicalURI(remoteAuthority, uri);
@@ -235,5 +256,17 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	}
 	test_down(size: number): Promise<VSBuffer> {
 		return this._actual.$test_down(size);
+	}
+	openRemoteSocket(factoryId: number): Promise<number> {
+		return this._actual.$openRemoteSocket(factoryId);
+	}
+	remoteSocketWrite(socketId: number, buffer: VSBuffer): void {
+		return this._actual.$remoteSocketWrite(socketId, buffer);
+	}
+	remoteSocketEnd(socketId: number): void {
+		return this._actual.$remoteSocketEnd(socketId);
+	}
+	remoteSocketDrain(socketId: number): Promise<void> {
+		return this._actual.$remoteSocketDrain(socketId);
 	}
 }

@@ -782,7 +782,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private async localLocalhost(id: string, origin: string) {
 		const authority = this._environmentService.remoteAuthority;
 		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
-		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
+		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect({
+			connectionToken: resolveAuthority.authority.connectionToken,
+			connectTo: resolveAuthority.authority.messaging,
+		}, origin) : undefined;
 		return this._send('did-load-localhost', {
 			id,
 			origin,

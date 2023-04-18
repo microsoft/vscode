@@ -621,7 +621,10 @@ export class TunnelModel extends Disposable {
 		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
 			const addressProvider: IAddressProvider | undefined = authority ? {
-				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
+				getAddress: async () => {
+					const r = await this.remoteAuthorityResolverService.resolveAuthority(authority);
+					return { connectTo: r.authority.messaging, connectionToken: r.authority.connectionToken };
+				}
 			} : undefined;
 
 			const key = makeAddress(tunnelProperties.remote.host, tunnelProperties.remote.port);

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
@@ -15,8 +16,15 @@ export interface IExtHostContext extends IRPCProtocol {
 	readonly extensionHostKind: ExtensionHostKind;
 }
 
+export interface IManagedSocketCallbacks {
+	onDidRemoteSocketHaveData(id: number, data: VSBuffer): void;
+	onDidRemoteSocketEnd(id: number): void;
+	onDidRemoteSocketClose(id: number, error: Error | undefined): void;
+}
+
 export interface IInternalExtHostContext extends IExtHostContext {
 	readonly internalExtensionService: IInternalExtensionService;
+	readonly managedSocketCallbacks: IManagedSocketCallbacks;
 	_setExtensionHostProxy(extensionHostProxy: IExtensionHostProxy): void;
 	_setAllMainProxyIdentifiers(mainProxyIdentifiers: ProxyIdentifier<any>[]): void;
 }

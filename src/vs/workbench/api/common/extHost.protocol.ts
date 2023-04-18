@@ -1237,6 +1237,10 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
 	$setPerformanceMarks(marks: performance.PerformanceMark[]): Promise<void>;
 	$asBrowserUri(uri: UriComponents): Promise<UriComponents>;
+
+	$onDidRemoteSocketHaveData(id: number, data: VSBuffer): void;
+	$onDidRemoteSocketClose(id: number, error: string | undefined): void;
+	$onDidRemoteSocketEnd(id: number): void;
 }
 
 export interface SCMProviderFeatures {
@@ -1593,6 +1597,11 @@ export interface ExtHostExtensionServiceShape {
 	$test_latency(n: number): Promise<number>;
 	$test_up(b: VSBuffer): Promise<number>;
 	$test_down(size: number): Promise<VSBuffer>;
+
+	$openRemoteSocket(factoryId: number): Promise<number>;
+	$remoteSocketWrite(socketId: number, buffer: VSBuffer): void;
+	$remoteSocketEnd(socketId: number): void;
+	$remoteSocketDrain(socketId: number): Promise<void>;
 }
 
 export interface FileSystemEvents {

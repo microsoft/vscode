@@ -42,4 +42,9 @@ export interface IExtensionHostProxy {
 	test_latency(n: number): Promise<number>;
 	test_up(b: VSBuffer): Promise<number>;
 	test_down(size: number): Promise<VSBuffer>;
+
+	openRemoteSocket(factoryId: number): Promise<number>;
+	remoteSocketWrite(socketId: number, buffer: VSBuffer): void;
+	remoteSocketEnd(socketId: number): void;
+	remoteSocketDrain(socketId: number): Promise<void>;
 }
