@@ -73,6 +73,7 @@ class ComputeDocumentColorsOptions {
 
 class ComputeColorPresentationsOptions {
 	type: RequestType = RequestType.colorPresentations;
+	source: undefined;
 	constructor(public readonly color: number[], public readonly range: IRange) { }
 }
 
@@ -104,9 +105,11 @@ async function _findColorData(options: ComputeDocumentColorsOptions | ComputeCol
 			defaultDocumentColorProvider = provider;
 		} else {
 			try {
-				if (state.requestType === RequestType.documentColors && options instanceof ComputeDocumentColorsOptions) {
+				if (state.requestType === RequestType.documentColors) {
+					options = options as ComputeDocumentColorsOptions;
 					validDocumentColorProviderFound ||= await _computeDocumentColors(provider, state.colorData, options.source, model, token);
-				} else if (state.requestType === RequestType.colorPresentations && options instanceof ComputeColorPresentationsOptions) {
+				} else if (state.requestType === RequestType.colorPresentations) {
+					options = options as ComputeColorPresentationsOptions;
 					validDocumentColorProviderFound ||= await _computeColorPresentations(provider, state.colorData, model, _getColorInfo(options.color, options.range));
 				}
 			} catch (e) {
@@ -120,9 +123,11 @@ async function _findColorData(options: ComputeDocumentColorsOptions | ComputeCol
 	if (!defaultDocumentColorProvider || !isDefaultColorDecoratorsEnabled) {
 		return [];
 	} else {
-		if (state.requestType === RequestType.documentColors && options instanceof ComputeDocumentColorsOptions) {
+		if (state.requestType === RequestType.documentColors) {
+			options = options as ComputeDocumentColorsOptions;
 			await _computeDocumentColors(defaultDocumentColorProvider, state.colorData, options.source, model, token);
-		} else if (state.requestType === RequestType.colorPresentations && options instanceof ComputeColorPresentationsOptions) {
+		} else if (state.requestType === RequestType.colorPresentations) {
+			options = options as ComputeColorPresentationsOptions;
 			await _computeColorPresentations(defaultDocumentColorProvider, state.colorData, model, _getColorInfo(options.color, options.range));
 		}
 		return state.colorData;
