@@ -114,7 +114,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		this._diffEditor.onDidUpdateDiff(updateHiddenAreasOriginal, undefined, this._sessionStore);
 		updateHiddenAreasOriginal();
 
-		super.show(new Position(range.endLineNumber, 1), lineHeightDiff + lineHeightPadding);
+		super.show(new Position(range.endLineNumber, range.endColumn), lineHeightDiff + lineHeightPadding);
 	}
 
 	override hide(): void {
