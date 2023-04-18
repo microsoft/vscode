@@ -15,6 +15,7 @@ enum MimeType {
 	png = 'image/png',
 	tiff = 'image/tiff',
 	webp = 'image/webp',
+	uriList = 'text/uri-list',
 }
 
 const imageExtToMime: ReadonlyMap<string, string> = new Map<string, string>([
@@ -282,13 +283,14 @@ export function notebookImagePasteSetup(): vscode.Disposable {
 		vscode.languages.registerDocumentPasteEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, new CopyPasteEditProvider(), {
 			pasteMimeTypes: [
 				MimeType.png,
+				MimeType.uriList
 			],
 		}),
 		vscode.languages.registerDocumentDropEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, new DropEditProvider(), {
 			id: '',
 			dropMimeTypes: [
 				...Object.values(imageExtToMime),
-				'text/uri-list',
+				MimeType.uriList
 			],
 		})
 	);
