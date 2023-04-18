@@ -482,7 +482,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				}]
 			]));
 			const diff = merged1.diff(merged2, undefined)!;
-			deepStrictEqual([...diff.added.entries()], [[]]);
+			deepStrictEqual([...diff.added.entries()], []);
 			deepStrictEqual([...diff.removed.entries()], [
 				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'B' }]]
 			]);
