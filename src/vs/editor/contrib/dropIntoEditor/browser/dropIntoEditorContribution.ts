@@ -36,6 +36,10 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 
 	public static readonly ID = 'editor.contrib.dropIntoEditorController';
 
+	public static get(editor: ICodeEditor): DropIntoEditorController | null {
+		return editor.getContribution<DropIntoEditorController>(DropIntoEditorController.ID);
+	}
+
 	private operationIdPool = 0;
 	private _currentOperation?: { readonly id: number; readonly promise: CancelablePromise<void> };
 
@@ -60,6 +64,10 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 
 		registerDefaultDropProviders(this._languageFeaturesService, workspaceContextService);
+	}
+
+	public clearWidgets() {
+		this._postDropWidgetManager.clear();
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { toAction } from 'vs/base/common/actions';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -25,7 +26,7 @@ interface DropEditSet {
 class PostDropWidget extends Disposable implements IContentWidget {
 	private static readonly ID = 'editor.widget.postDropWidget';
 
-	readonly allowEditorOverflow = false;
+	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = true;
 
 	private domNode!: HTMLElement;
@@ -107,7 +108,10 @@ export class PostDropWidgetManager extends Disposable {
 	) {
 		super();
 
-		this._register(_editor.onDidChangeModelContent(() => this.clear()));
+		this._register(Event.any(
+			_editor.onDidChangeModel,
+			_editor.onDidChangeModelContent,
+		)(() => this.clear()));
 	}
 
 	public show(range: Range, edits: DropEditSet, onDidSelectEdit: (newIndex: number) => void) {
@@ -119,6 +123,6 @@ export class PostDropWidgetManager extends Disposable {
 	}
 
 	public clear() {
-		this._currentWidget?.clear();
+		this._currentWidget.clear();
 	}
 }
