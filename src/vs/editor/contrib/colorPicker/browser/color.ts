@@ -73,7 +73,6 @@ class ComputeDocumentColorsOptions {
 
 class ComputeColorPresentationsOptions {
 	type: RequestType = RequestType.colorPresentations;
-	source: undefined;
 	constructor(public readonly color: number[], public readonly range: IRange) { }
 }
 
