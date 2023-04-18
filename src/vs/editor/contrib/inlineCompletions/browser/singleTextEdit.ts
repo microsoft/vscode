@@ -140,7 +140,11 @@ export class SingleTextEdit {
 			}
 		}
 
-		return new GhostText(lineNumber, parts, 0);
+		const result = new GhostText(lineNumber, parts, 0);
+		if (result.isEmpty()) {
+			return undefined;
+		}
+		return result;
 	}
 }
 
