@@ -27,8 +27,9 @@ import { getErrorMessage } from 'vs/base/common/errors';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IProfileTemplateInfo } from 'vs/base/common/product';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const CREATE_EMPTY_PROFILE_ACTION_ID = 'workbench.profiles.actions.createEmptyProfile';
 const CREATE_EMPTY_PROFILE_ACTION_TITLE = {
@@ -41,6 +42,11 @@ const CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE = {
 	value: localize('save profile as', "Create from Current Profile..."),
 	original: 'Create from Current Profile...'
 };
+
+interface IProfileTemplateInfo {
+	readonly name: string;
+	readonly url: string;
+}
 
 type IProfileTemplateQuickPickItem = IQuickPickItem & IProfileTemplateInfo;
 
@@ -63,7 +69,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IProductService private readonly productService: IProductService,
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		@IRequestService private readonly requestService: IRequestService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -491,7 +498,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					id: CREATE_FROM_CURRENT_PROFILE_ACTION_ID,
 					label: CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE.value,
 				}];
-				const profileTemplateQuickPickItems = that.getProfileTemplatesQuickPickItems();
+				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
 				if (profileTemplateQuickPickItems.length) {
 					quickPickItems.push({
 						type: 'separator',
@@ -591,7 +598,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const quickInputService = accessor.get(IQuickInputService);
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 				const notificationService = accessor.get(INotificationService);
-				const profileTemplateQuickPickItems = that.getProfileTemplatesQuickPickItems();
+				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
 				if (profileTemplateQuickPickItems.length) {
 					const pick = await quickInputService.pick(profileTemplateQuickPickItems,
 						{
@@ -628,9 +635,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		}));
 	}
 
-	private getProfileTemplatesQuickPickItems(): IProfileTemplateQuickPickItem[] {
+	private async getProfileTemplatesQuickPickItems(): Promise<IProfileTemplateQuickPickItem[]> {
 		const quickPickItems: IProfileTemplateQuickPickItem[] = [];
-		const profileTemplates = [...(this.productService.profileTemplates ?? []), ...(this.environmentService.options?.additionalProfileTemplates ?? [])];
+		const profileTemplates = await this.getProfileTemplatesFromProduct();
 		for (const template of profileTemplates) {
 			quickPickItems.push({
 				label: localize('create from template', "Create {0} Profile...", template.name),
@@ -638,6 +645,22 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			});
 		}
 		return quickPickItems;
+	}
+
+	private async getProfileTemplatesFromProduct(): Promise<IProfileTemplateInfo[]> {
+		if (this.productService.profileTemplatesUrl) {
+			try {
+				const context = await this.requestService.request({ type: 'GET', url: this.productService.profileTemplatesUrl }, CancellationToken.None);
+				if (context.res.statusCode === 200) {
+					return (await asJson<IProfileTemplateInfo[]>(context)) || [];
+				} else {
+					this.logService.error('Could not get profile templates.', context.res.statusCode);
+				}
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+		return [];
 	}
 
 	private async reportWorkspaceProfileInfo(): Promise<void> {
