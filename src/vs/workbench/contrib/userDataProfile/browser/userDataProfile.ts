@@ -28,6 +28,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProfileTemplateInfo } from 'vs/base/common/product';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 const CREATE_EMPTY_PROFILE_ACTION_ID = 'workbench.profiles.actions.createEmptyProfile';
 const CREATE_EMPTY_PROFILE_ACTION_TITLE = {
@@ -62,6 +63,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IProductService private readonly productService: IProductService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -628,13 +630,12 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private getProfileTemplatesQuickPickItems(): IProfileTemplateQuickPickItem[] {
 		const quickPickItems: IProfileTemplateQuickPickItem[] = [];
-		if (this.productService.profileTemplates) {
-			for (const template of this.productService.profileTemplates) {
-				quickPickItems.push({
-					label: localize('create from template', "Create {0} Profile...", template.name),
-					...template
-				});
-			}
+		const profileTemplates = [...(this.productService.profileTemplates ?? []), ...(this.environmentService.options?.additionalProfileTemplates ?? [])];
+		for (const template of profileTemplates) {
+			quickPickItems.push({
+				label: localize('create from template', "Create {0} Profile...", template.name),
+				...template
+			});
 		}
 		return quickPickItems;
 	}
