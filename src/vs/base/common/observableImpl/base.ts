@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from 'vs/base/common/lifecycle';
 import type { derived } from 'vs/base/common/observableImpl/derived';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
 
@@ -25,9 +26,9 @@ export interface IObservable<T, TChange = void> {
 	/**
 	 * Subscribes the reader to this observable and returns the current value of this observable.
 	 */
-	read(reader: IReader): T;
+	read(reader: IReader | undefined): T;
 
-	map<TNew>(fn: (value: T) => TNew): IObservable<TNew>;
+	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 
 	readonly debugName: string;
 }
@@ -100,19 +101,19 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	public abstract removeObserver(observer: IObserver): void;
 
 	/** @sealed */
-	public read(reader: IReader): T {
-		reader.subscribeTo(this);
+	public read(reader: IReader | undefined): T {
+		reader?.subscribeTo(this);
 		return this.get();
 	}
 
 	/** @sealed */
-	public map<TNew>(fn: (value: T) => TNew): IObservable<TNew> {
+	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew> {
 		return _derived(
 			() => {
 				const name = getFunctionName(fn);
 				return name !== undefined ? name : `${this.debugName} (mapped)`;
 			},
-			(reader) => fn(this.read(reader))
+			(reader) => fn(this.read(reader), reader)
 		);
 	}
 
@@ -204,19 +205,19 @@ export class ObservableValue<T, TChange = void>
 	extends BaseObservable<T, TChange>
 	implements ISettableObservable<T, TChange>
 {
-	private value: T;
+	protected _value: T;
 
 	constructor(public readonly debugName: string, initialValue: T) {
 		super();
-		this.value = initialValue;
+		this._value = initialValue;
 	}
 
 	public get(): T {
-		return this.value;
+		return this._value;
 	}
 
 	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
-		if (this.value === value) {
+		if (this._value === value) {
 			return;
 		}
 
@@ -227,8 +228,8 @@ export class ObservableValue<T, TChange = void>
 			return;
 		}
 
-		const oldValue = this.value;
-		this.value = value;
+		const oldValue = this._value;
+		this._setValue(value);
 		getLogger()?.handleObservableChanged(this, { oldValue, newValue: value, change, didChange: true });
 
 		for (const observer of this.observers) {
@@ -238,7 +239,30 @@ export class ObservableValue<T, TChange = void>
 	}
 
 	override toString(): string {
-		return `${this.debugName}: ${this.value}`;
+		return `${this.debugName}: ${this._value}`;
+	}
+
+	protected _setValue(newValue: T): void {
+		this._value = newValue;
 	}
 }
 
+export function disposableObservableValue<T extends IDisposable | undefined, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange> & IDisposable {
+	return new DisposableObservableValue(name, initialValue);
+}
+
+export class DisposableObservableValue<T extends IDisposable | undefined, TChange = void> extends ObservableValue<T, TChange> implements IDisposable {
+	protected override _setValue(newValue: T): void {
+		if (this._value === newValue) {
+			return;
+		}
+		if (this._value) {
+			this._value.dispose();
+		}
+		this._value = newValue;
+	}
+
+	public dispose(): void {
+		this._value?.dispose();
+	}
+}

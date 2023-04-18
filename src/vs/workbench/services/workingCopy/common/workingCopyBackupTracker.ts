@@ -340,7 +340,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// associated editor.
 		const restoredBackups = new Set<IWorkingCopyIdentifier>();
 		for (const unrestoredBackup of this.unrestoredBackups) {
-			const canHandleUnrestoredBackup = handler.handles(unrestoredBackup);
+			const canHandleUnrestoredBackup = await handler.handles(unrestoredBackup);
 			if (!canHandleUnrestoredBackup) {
 				continue;
 			}

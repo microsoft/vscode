@@ -485,11 +485,15 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 
 	getAriaLabel(element: InteractiveTreeItem): string {
 		if (isRequestVM(element)) {
-			return localize('interactiveRequest', "Request: {0}", element.messageText);
+			return element.messageText;
 		}
 
 		if (isResponseVM(element)) {
-			return localize('interactiveResponse', "Response: {0}", element.response.value);
+			return element.response.value;
+		}
+
+		if (isWelcomeVM(element)) {
+			return element.content.map(c => 'value' in c ? c.value : c.map(followup => followup.message).join('\n')).join('\n');
 		}
 
 		return '';

@@ -25,7 +25,6 @@ import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -102,7 +101,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
-		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 	) {
@@ -303,7 +301,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const language = model.getLanguageId();
 		const languageName = this.languageService.getLanguageName(language);
 		if (importantRecommendations.size &&
-			this.promptRecommendedExtensionForFileType(languageName && isImportantRecommendationForLanguage && language !== PLAINTEXT_LANGUAGE_ID ? languageName : basename(uri), language, [...importantRecommendations])) {
+			this.promptRecommendedExtensionForFileType(languageName && isImportantRecommendationForLanguage && language !== PLAINTEXT_LANGUAGE_ID ? localize('languageName', "{0} language", languageName) : basename(uri), language, [...importantRecommendations])) {
 			return;
 		}
 
@@ -332,16 +330,11 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		return true;
 	}
 
-	private async promptImportantExtensionsInstallNotification(recommendations: string[], name: string, language: string): Promise<void> {
+	private async promptImportantExtensionsInstallNotification(extensions: string[], name: string, language: string): Promise<void> {
 		try {
-			const treatmentMessage = await this.tasExperimentService.getTreatment<string>('languageRecommendationMessage');
-			const message = treatmentMessage ? treatmentMessage.replace('{0}', () => name)
-				: recommendations.length > 1
-					? localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name)
-					: localize('singleRecommended', "Do you want to install the recommended extension for {0}?", name);
-			const result = await this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(recommendations, message, recommendations.map(extensionId => `@id:${extensionId}`).join(' '), RecommendationSource.FILE);
+			const result = await this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification({ extensions, name, source: RecommendationSource.FILE });
 			if (result === RecommendationsNotificationResult.Accepted) {
-				this.addToPromptedRecommendations(language, recommendations);
+				this.addToPromptedRecommendations(language, extensions);
 			}
 		} catch (error) { /* Ignore */ }
 	}

@@ -109,7 +109,6 @@ import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 import 'vs/workbench/contrib/localization/electron-sandbox/localization.contribution';
 
 // Explorer
-import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';
 import 'vs/workbench/contrib/files/electron-sandbox/fileActions.contribution';
 
 // CodeEditor Contributions

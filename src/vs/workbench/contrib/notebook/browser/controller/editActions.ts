@@ -22,12 +22,15 @@ import { CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID,
 import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellEditState, CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -155,6 +158,36 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		if (!context.notebookEditor.hasModel()) {
 			return;
+		}
+
+		let confirmation: IConfirmationResult;
+		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService);
+		const runState = notebookExecutionStateService.getCellExecution(context.cell.uri)?.state;
+		const configService = accessor.get(IConfigurationService);
+
+		if (runState === NotebookCellExecutionState.Executing && configService.getValue(NotebookSetting.confirmDeleteRunningCell)) {
+			const dialogService = accessor.get(IDialogService);
+			const primaryButton = localize('confirmDeleteButton', "Delete");
+
+			confirmation = await dialogService.confirm({
+				type: 'question',
+				message: localize('confirmDeleteButtonMessage', "This cell is running, are you sure you want to delete it?"),
+				primaryButton: primaryButton,
+				checkbox: {
+					label: localize('doNotAskAgain', "Do not ask me again")
+				}
+			});
+
+		} else {
+			confirmation = { confirmed: true };
+		}
+
+		if (!confirmation.confirmed) {
+			return;
+		}
+
+		if (confirmation.checkboxChecked === true) {
+			await configService.updateValue(NotebookSetting.confirmDeleteRunningCell, false);
 		}
 
 		runDeleteAction(context.notebookEditor, context.cell);
