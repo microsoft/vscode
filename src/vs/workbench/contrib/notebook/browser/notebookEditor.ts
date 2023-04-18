@@ -32,7 +32,7 @@ import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/noteb
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelView';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_EDITOR_ID, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
@@ -43,6 +43,9 @@ import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensio
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { streamToBuffer } from 'vs/base/common/buffer';
+import { coalesce } from 'vs/base/common/arrays';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -85,6 +88,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -238,7 +242,9 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 					throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
 				}
 
-				throw createEditorOpenError(new Error(localize('fail.noEditor.extensionMissing', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType)), [
+				const backup = await this._workingCopyBackupService.resolve({ resource: input.resource, typeId: NotebookWorkingCopyTypeIdentifier.create(input.viewType) });
+
+				throw createEditorOpenError(new Error(localize('fail.noEditor.extensionMissing', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType)), coalesce([
 					toAction({
 						id: 'workbench.notebook.action.installOrEnableMissing', label: localize('notebookOpenInstallOrEnableMissingViewType', "Install and enable extension for '{0}'", input.viewType), run: async () => {
 							const d = this._notebookService.onAddViewType(viewType => {
@@ -256,8 +262,14 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 								await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
 							}
 						}
-					})
-				], { allowDialog: true });
+					}),
+					backup ? toAction({
+						id: 'workbench.notebook.action.openBackup', label: localize('notebookOpenBackup', "Open As Text"), run: async () => {
+							const contents = await streamToBuffer(backup.value);
+							this._editorService.openEditor({ resource: undefined, contents: contents.toString() });
+						}
+					}) : undefined
+				]), { allowDialog: true });
 
 			}
 
