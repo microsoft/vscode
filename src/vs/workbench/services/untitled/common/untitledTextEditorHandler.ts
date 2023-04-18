@@ -108,7 +108,7 @@ export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable imple
 		return editor instanceof UntitledTextEditorInput && isEqual(workingCopy.resource, editor.resource);
 	}
 
-	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput | Promise<EditorInput> {
+	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
 		let editorInputResource: URI;
 
 		// If the untitled has an associated resource,

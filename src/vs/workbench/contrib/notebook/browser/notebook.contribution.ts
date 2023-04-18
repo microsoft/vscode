@@ -648,7 +648,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 		return editor instanceof NotebookEditorInput && editor.viewType === this._getViewType(workingCopy) && isEqual(workingCopy.resource, editor.resource);
 	}
 
-	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput | Promise<EditorInput> {
+	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
 		return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!);
 	}
 

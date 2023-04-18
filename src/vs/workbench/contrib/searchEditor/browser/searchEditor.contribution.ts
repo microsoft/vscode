@@ -588,7 +588,7 @@ class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbe
 		return editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri);
 	}
 
-	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput | Promise<EditorInput> {
+	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
 		const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'model', modelUri: workingCopy.resource });
 		input.setDirty(true);
 

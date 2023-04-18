@@ -99,7 +99,7 @@ export class FileEditorWorkingCopyEditorHandler extends Disposable implements IW
 		return isEqual(workingCopy.resource, editor.resource);
 	}
 
-	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput | Promise<EditorInput> {
+	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
 		return this.textEditorService.createTextEditor({ resource: workingCopy.resource, forceFile: true });
 	}
 }
