@@ -108,8 +108,8 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			const hiddenRangesOriginal = invertRange(combinedRange, this._originalModel);
 			this._diffEditor.getOriginalEditor().setHiddenAreas(hiddenRangesOriginal, InteractiveEditorDiffWidget._hideId);
 
-			const hiddenRangesModified = invertRange(combinedRange, modified);
-			this._diffEditor.getModifiedEditor().setHiddenAreas(hiddenRangesModified, InteractiveEditorDiffWidget._hideId);
+			// const hiddenRangesModified = invertRange(combinedRange, modified);
+			// this._diffEditor.getModifiedEditor().setHiddenAreas(hiddenRangesModified, InteractiveEditorDiffWidget._hideId);
 		};
 		this._diffEditor.onDidUpdateDiff(updateHiddenAreasOriginal, undefined, this._sessionStore);
 		updateHiddenAreasOriginal();

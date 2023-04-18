@@ -528,6 +528,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 
 			this._recorder.addExchange(session, request, reply);
+			this._zone.widget.updateToolbar(true);
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
@@ -628,7 +629,6 @@ export class InteractiveEditorController implements IEditorContribution {
 				);
 			}
 
-			this._zone.widget.updateToolbar(true);
 
 			if (editResponse.singleCreateFileEdit) {
 				this._zone.widget.showCreatePreview(editResponse.singleCreateFileEdit.uri, await Promise.all(editResponse.singleCreateFileEdit.edits));

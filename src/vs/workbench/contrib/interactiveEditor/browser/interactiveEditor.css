@@ -108,15 +108,14 @@
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	font-size: 12px;
-	padding-left: 10px;
 	white-space: nowrap;
-	margin-top: auto;
-	display: flex;
+	/* margin-top: auto; */
 }
 
 .monaco-editor .interactive-editor .status .label {
 	overflow: hidden;
 	font-size: 12px;
+	margin-left: auto;
 }
 
 .monaco-editor .interactive-editor .status .label.message>span>p {
@@ -127,7 +126,11 @@
 	display: -webkit-box;
 }
 
-.monaco-editor .interactive-editor .status .link .codicon {
+.monaco-editor .interactive-editor .status .link .status-link  {
+	padding-left: 10px;
+}
+
+.monaco-editor .interactive-editor .status .link  .status-link .codicon {
 	line-height: unset;
 	font-size: 12px;
 	padding-right: 4px;
