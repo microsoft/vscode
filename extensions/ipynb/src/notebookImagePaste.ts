@@ -283,14 +283,14 @@ export function notebookImagePasteSetup(): vscode.Disposable {
 		vscode.languages.registerDocumentPasteEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, new CopyPasteEditProvider(), {
 			pasteMimeTypes: [
 				MimeType.png,
-				MimeType.uriList
+				MimeType.uriList,
 			],
 		}),
 		vscode.languages.registerDocumentDropEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, new DropEditProvider(), {
-			id: '',
+			id: 'imageAttachment',
 			dropMimeTypes: [
 				...Object.values(imageExtToMime),
-				MimeType.uriList
+				MimeType.uriList,
 			],
 		})
 	);
