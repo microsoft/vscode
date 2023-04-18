@@ -106,6 +106,7 @@ class StatusLink extends Disposable {
 		const codicon = renderLabelWithIcons('$(comment-discussion)' + localize('viewInChat', 'View in Chat'));
 		reset(linkNode, ...codicon);
 		this._domNode = append(container, linkNode);
+		this._domNode.classList.add('status-link');
 		this._register(addDisposableListener(this._domNode, 'click', () => this._onClicked.fire()));
 	}
 
