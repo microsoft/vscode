@@ -37,6 +37,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -94,18 +95,25 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 };
 
 class StatusLink extends Disposable {
-	public domNode: HTMLAnchorElement;
+
+	private readonly _domNode: HTMLAnchorElement;
 	private readonly _onClicked = this._register(new Emitter<void>());
 	public readonly onClicked = this._onClicked.event;
-
-	constructor(container: HTMLDivElement) {
+	constructor(container: HTMLElement) {
 		super();
 		const linkNode = document.createElement('a');
-		linkNode.innerText = 'View in chat';
-		this.domNode = append(container, linkNode);
-		this.domNode.onclick = () => {
-			this._onClicked.fire();
-		};
+		const codicon = renderLabelWithIcons('$(comment-discussion)' + localize('viewInChat', 'View in Chat'));
+		reset(linkNode, ...codicon);
+		this._domNode = append(container, linkNode);
+		this._register(addDisposableListener(this._domNode, 'click', () => this._onClicked.fire()));
+	}
+
+	show(): void {
+		this._domNode.style.display = 'flex';
+	}
+
+	hide(): void {
+		this._domNode.style.display = 'none';
 	}
 }
 
@@ -133,8 +141,8 @@ class InteractiveEditorWidget {
 			h('div.previewCreate.hidden@previewCreate'),
 			h('div.status@status', [
 				h('div.actions.hidden@statusToolbar'),
-				h('div.label@statusLabel'),
-				h('div.link@statusLink'),
+				h('span.label@statusLabel'),
+				h('span.link@statusLink'),
 			]),
 		]
 	);
@@ -165,6 +173,7 @@ class InteractiveEditorWidget {
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
 
 	private _statusLink: StatusLink;
+	private readonly _statusLinkListener = this._store.add(new MutableDisposable());
 
 	constructor(
 		parentEditor: ICodeEditor,
@@ -386,34 +395,42 @@ class InteractiveEditorWidget {
 	}
 
 	showLink(): void {
-		this._statusLink.domNode.style.display = 'inline';
+		this._statusLink.show();
 	}
 
 	hideLink(): void {
-		this._statusLink.domNode.style.display = 'none';
+		this._statusLink.hide();
 	}
 
-	updateMessage(message: string, isMessageReply: boolean = false, classes?: string[], resetAfter?: number) {
-		const isTempMessage = typeof resetAfter === 'number';
+	updateMessage(message: string | HTMLElement, ops: { linkListener?: () => void; isMessageReply?: boolean; classes?: string[]; resetAfter?: number } = {}) {
+		this._statusLinkListener.clear();
+		if (ops.isMessageReply) {
+			this._statusLink.show();
+			this._statusLinkListener.value = this._statusLink.onClicked(() => ops.linkListener?.());
+		} else {
+			this._statusLink.hide();
+		}
+		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const messageNow = this._elements.statusLabel.innerText;
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
 				if (messageNow) {
-					this.updateMessage(messageNow, isMessageReply, classes);
+					this.updateMessage(messageNow, { ...ops, classes });
 				} else {
 					reset(this._elements.statusLabel);
 				}
-			}, resetAfter);
+			}, ops.resetAfter);
 		}
 
 		this._elements.status.classList.toggle('hidden', false);
 
 		reset(this._elements.statusLabel, message);
-		this._elements.statusLabel.className = `label ${(classes ?? []).join(' ')}`;
-		if (isMessageReply) {
+		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
+		if (ops.isMessageReply) {
 			this._elements.statusLabel.classList.add('message');
 		}
+		console.log('this._elements.statusLabel : ', this._elements.statusLabel);
 		if (isTempMessage) {
 			this._elements.statusLabel.dataset['state'] = 'temp';
 		} else {

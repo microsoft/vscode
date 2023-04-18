@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -265,8 +266,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
 
-	private _onStatusLinkClickListener: IDisposable | null = null;
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -300,16 +299,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	private _getMode(): EditMode {
 		return this._configurationService.getValue('interactiveEditor.editMode');
-	}
-
-	updateLinkAndMessage(message: string, isMessageReply: boolean = false, classes?: string[] | undefined, resetAfter?: number | undefined): void {
-		if (isMessageReply) {
-			this._zone.widget.showLink();
-		} else {
-			this._onStatusLinkClickListener?.dispose();
-			this._zone.widget.hideLink();
-		}
-		this._zone.widget.updateMessage(message, isMessageReply, classes, resetAfter);
 	}
 
 	async run(initialRange?: Range): Promise<void> {
@@ -387,7 +376,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
 		}
 
-		this.updateLinkAndMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
+		this._zone.widget.updateMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
 
 		// CANCEL when input changes
 		this._editor.onDidChangeModel(this.cancelSession, this, store);
@@ -515,7 +504,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
-					this.updateLinkAndMessage(toErrorMessage(e), false, ['error']);
+					this._zone.widget.updateMessage(toErrorMessage(e), { classes: ['error'] });
 					// statusWidget
 					continue;
 				}
@@ -533,7 +522,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				this.updateLinkAndMessage(localize('empty', "No results, please refine your input and try again."), false, ['warn']);
+				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), { classes: ['warn'] });
 				continue;
 			}
 
@@ -542,15 +531,9 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				const messageReply = reply.message.value;
-				this.updateLinkAndMessage(messageReply, true);
-				if (!this._zone.widget.isStatusLabelOverflowing()) {
-					this._onStatusLinkClickListener?.dispose();
-					this._zone.widget.hideLink();
-				}
-				this._onStatusLinkClickListener = this._zone.widget.statusLink.onClicked(() => {
-					this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply);
-				});
+				const messageReply = reply.message;
+				const renderedMarkdown = renderMarkdown(messageReply, { inline: true });
+				this._zone.widget.updateMessage(renderedMarkdown.element, { linkListener: () => this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply.value), isMessageReply: true });
 				continue;
 			}
 
@@ -639,7 +622,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				}
 				const linesChanged = addRemoveCount + lineSet.size;
 
-				this.updateLinkAndMessage(linesChanged === 1
+				this._zone.widget.updateMessage(linesChanged === 1
 					? localize('lines.1', "Generated reply and changed 1 line.")
 					: localize('lines.N', "Generated reply and changed {0} lines.", linesChanged)
 				);
@@ -750,7 +733,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
 			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
-			this.updateLinkAndMessage('Thank you for your feedback!', false, undefined, 1250);
+			this._zone.widget.updateMessage('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
