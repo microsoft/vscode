@@ -113,7 +113,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 
 			// Verify the entries get applied to the environment as expected
 			const env: IProcessEnvironment = { A: 'foo' };
-			await environmentVariableService.mergedCollection.applyToProcessEnvironment(env);
+			await environmentVariableService.mergedCollection.applyToProcessEnvironment(env, undefined);
 			deepStrictEqual(env, { A: 'a2:a3:a1' });
 		});
 	});
