@@ -84,13 +84,13 @@ async function _computeColorData(options: ComputeColorPresentationsOptions | Com
 async function _findColorData<T extends ComputeDocumentColorsOptions | ComputeColorPresentationsOptions>(options: T, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean): Promise<T extends ComputeDocumentColorsOptions ? IExtColorData[] | IColorData[] : IColorPresentation[]>;
 async function _findColorData(options: ComputeDocumentColorsOptions | ComputeColorPresentationsOptions, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean): Promise<IExtColorData[] | IColorData[] | IColorPresentation[]> {
 	let validDocumentColorProviderFound = false;
-	let defaultDocumentColorProvider: DefaultDocumentColorProvider | undefined;
+	let defaultProvider: DefaultDocumentColorProvider | undefined;
 	const colorData: IColorData[] | IExtColorData[] | IColorPresentation[] = [];
 	const documentColorProviders = colorProviderRegistry.ordered(model);
 	for (let i = documentColorProviders.length - 1; i >= 0; i--) {
 		const provider = documentColorProviders[i];
 		if (provider instanceof DefaultDocumentColorProvider) {
-			defaultDocumentColorProvider = provider;
+			defaultProvider = provider;
 		} else {
 			try {
 				validDocumentColorProviderFound ||= await _computeColorData(options, provider, colorData, model, token);
@@ -102,12 +102,11 @@ async function _findColorData(options: ComputeDocumentColorsOptions | ComputeCol
 	if (validDocumentColorProviderFound) {
 		return colorData;
 	}
-	if (!defaultDocumentColorProvider || !isDefaultColorDecoratorsEnabled) {
-		return [];
-	} else {
-		await _computeColorData(options, defaultDocumentColorProvider, colorData, model, token);
+	if (defaultProvider && isDefaultColorDecoratorsEnabled) {
+		await _computeColorData(options, defaultProvider, colorData, model, token);
 		return colorData;
 	}
+	return [];
 }
 
 async function _findDocumentColors<T extends Source>(source: T, registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean): Promise<T extends Source.Extension ? IExtColorData[] : IColorData[]>;
