@@ -284,7 +284,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Register File System Providers depending on IndexedDB support
-		// Regiseter them early because they are needed for the profiles initialization
+		// Register them early because they are needed for the profiles initialization
 		await this.registerIndexedDBFileSystemProviders(environmentService, fileService, bufferLogger, logService, loggerService, logsPath);
 
 		// URI Identity
