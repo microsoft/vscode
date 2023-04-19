@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { toAction } from 'vs/base/common/actions';
+import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./postDropWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -15,7 +15,6 @@ import { DocumentOnDropEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 
 interface DropEditSet {
@@ -30,6 +29,7 @@ class PostDropWidget extends Disposable implements IContentWidget {
 	readonly suppressMouseDown = true;
 
 	private domNode!: HTMLElement;
+	private button!: Button;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -57,17 +57,16 @@ class PostDropWidget extends Disposable implements IContentWidget {
 	private create(): void {
 		this.domNode = dom.$('.post-drop-widget');
 
-		const button = this._register(new Button(this.domNode, {
+		this.button = this._register(new Button(this.domNode, {
 			title: localize('postDropWidgetTile', "Drop options..."),
 			supportIcons: true,
-			...defaultButtonStyles,
 		}));
-		button.label = '$(clippy)';
+		this.button.label = '$(insert)';
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, e => {
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => {
-					const pos = dom.getDomNodePagePosition(button.element);
+					const pos = dom.getDomNodePagePosition(this.button.element);
 					return { x: pos.left + pos.width, y: pos.top + pos.height };
 				},
 				getActions: () => {

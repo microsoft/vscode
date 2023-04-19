@@ -135,15 +135,15 @@ export function createUriListSnippet(document: vscode.TextDocument, uris: readon
 
 	let label: string;
 	if (insertedImageCount > 0 && insertedLinkCount > 0) {
-		label = vscode.l10n.t('Insert Markdown images and links');
+		label = vscode.l10n.t('Insert Markdown Images and Links');
 	} else if (insertedImageCount > 0) {
 		label = insertedImageCount > 1
-			? vscode.l10n.t('Insert Markdown images')
-			: vscode.l10n.t('Insert Markdown image');
+			? vscode.l10n.t('Insert Markdown Images')
+			: vscode.l10n.t('Insert Markdown Image');
 	} else {
 		label = insertedLinkCount > 1
-			? vscode.l10n.t('Insert Markdown links')
-			: vscode.l10n.t('Insert Markdown link');
+			? vscode.l10n.t('Insert Markdown Links')
+			: vscode.l10n.t('Insert Markdown Link');
 	}
 
 	return { snippet, label };
