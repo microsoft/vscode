@@ -94,6 +94,8 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 
+	private static readonly roamableWorkspaceInputKey = 'scmInputHistory';
+
 	private historyNavigator: HistoryNavigator2<string>;
 	private didChangeHistory: boolean;
 
@@ -191,9 +193,34 @@ class SCMInput implements ISCMInput {
 				if (history.length === 0 || (history.length === 1 && history[0] === '')) {
 					storageService.remove(key, StorageScope.APPLICATION);
 				} else {
-					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+					const timestamp = new Date().getTime();
+					storageService.store(key, JSON.stringify({ timestamp: timestamp, history }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+					storageService.store(SCMInput.roamableWorkspaceInputKey,
+						JSON.stringify({
+							absoluteUris: [this.repository.provider.rootUri!.toString()],
+							timestamp: timestamp,
+							history
+						}),
+						StorageScope.ROAMABLE_WORKSPACE,
+						StorageTarget.USER
+					);
 				}
 				this.didChangeHistory = false;
+			});
+
+			this.storageService.onDidChangeValue((e) => {
+				if (e.scope === StorageScope.ROAMABLE_WORKSPACE && e.target === StorageTarget.USER && e.key === SCMInput.roamableWorkspaceInputKey) {
+					const value = this.storageService.get(e.key, StorageScope.ROAMABLE_WORKSPACE);
+					if (value) {
+						const deserializedHistory = JSON.parse(value);
+						if (deserializedHistory.convertedUris[0] === this.repository.provider.rootUri!.toString()) {
+							for (const item of deserializedHistory.history) {
+								this.historyNavigator.add(item);
+							}
+							this._value = deserializedHistory.history[deserializedHistory.history.length - 1];
+						}
+					}
+				}
 			});
 		}
 	}

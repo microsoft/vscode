@@ -58,6 +58,9 @@ export class Memento {
 
 				return applicationMemento.getMemento();
 			}
+
+			case StorageScope.ROAMABLE_WORKSPACE:
+				throw new Error('Not implemented');
 		}
 	}
 

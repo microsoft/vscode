@@ -79,7 +79,7 @@ export interface EditSession {
 	version: number;
 	machine?: string;
 	folders: Folder[];
-	state: { [key: string]: unknown };
+	state: { [key: string]: string };
 }
 
 export const EDIT_SESSIONS_SIGNED_IN_KEY = 'editSessionsSignedIn';

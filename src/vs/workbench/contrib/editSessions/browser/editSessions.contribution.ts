@@ -62,7 +62,6 @@ import { CancellationError } from 'vs/base/common/errors';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IExtensionsViewPaneContainer, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { EditSessionRegistry } from 'vs/platform/workspace/browser/editSessionsStorageService';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -641,23 +640,29 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			}
 		}
 
-		EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
-			const state = editSession.state[key];
-			if (state) {
-				contributedStateHandlers.push(() => contrib.resumeState(state, (incomingUri: URI) => {
-					for (const absoluteUri of incomingFolderUrisToIdentifiers.keys()) {
-						if (isEqualOrParent(incomingUri, URI.parse(absoluteUri))) {
-							const [workspaceFolderUri, match] = incomingFolderUrisToIdentifiers.get(absoluteUri)!;
-							if (match === EditSessionIdentityMatch.Complete) {
-								const relativeFilePath = relativePath(URI.parse(absoluteUri), incomingUri);
-								return relativeFilePath ? joinPath(URI.parse(workspaceFolderUri), relativeFilePath) : incomingUri;
-							}
-
-						}
+		const resolveUri = (incomingUri: URI) => {
+			for (const absoluteUri of incomingFolderUrisToIdentifiers.keys()) {
+				if (isEqualOrParent(incomingUri, URI.parse(absoluteUri))) {
+					const [workspaceFolderUri, match] = incomingFolderUrisToIdentifiers.get(absoluteUri)!;
+					if (match === EditSessionIdentityMatch.Complete) {
+						const relativeFilePath = relativePath(URI.parse(absoluteUri), incomingUri);
+						return relativeFilePath ? joinPath(URI.parse(workspaceFolderUri), relativeFilePath) : incomingUri;
 					}
-					return incomingUri;
-				}));
+
+				}
 			}
+			return incomingUri;
+		};
+
+		Object.entries(editSession.state).forEach(([key, state]) => {
+			try {
+				const deserializedState = JSON.parse(state);
+				if (typeof deserializedState === 'object' && deserializedState && 'absoluteUris' in deserializedState) {
+					const convertedUris = deserializedState.absoluteUris.map((uri: string) => resolveUri(URI.parse(uri)));
+					state = JSON.stringify({ ...deserializedState, convertedUris });
+				}
+				this.storageService.store(key, state, StorageScope.ROAMABLE_WORKSPACE, StorageTarget.USER);
+			} catch (ex) { }
 		});
 
 		return { changes, conflictingChanges, contributedStateHandlers };
@@ -748,9 +753,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 
 		// Look through all registered contributions to gather additional state
-		const contributedData: { [key: string]: unknown } = {};
-		EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
-			contributedData[key] = contrib.getStateToStore();
+		const contributedData: { [key: string]: string } = {};
+		this.storageService.keys(StorageScope.ROAMABLE_WORKSPACE, StorageTarget.USER).forEach((key) => {
+			const state = this.storageService.get(key, StorageScope.ROAMABLE_WORKSPACE);
+			if (typeof state === 'string') {
+				contributedData[key] = state;
+			}
 		});
 
 		if (!hasEdits) {
