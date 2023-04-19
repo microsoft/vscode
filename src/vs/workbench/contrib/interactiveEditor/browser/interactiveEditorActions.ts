@@ -22,6 +22,8 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { isObject } from 'vs/base/common/types';
+import { Range } from 'vs/editor/common/core/range';
 
 export class StartSessionAction extends EditorAction2 {
 
@@ -40,8 +42,26 @@ export class StartSessionAction extends EditorAction2 {
 		});
 	}
 
+	_isInteractivEditorOptions(options: any): boolean {
+		const { initialRange, message, autoSend } = options;
+		console.log('initialRange : ', initialRange);
+		console.log('message : ', message);
+		console.log('autoSend : ', autoSend);
+		if (
+			typeof message !== 'undefined' && typeof message !== 'string'
+			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
+			|| typeof initialRange !== 'undefined' && !Range.isIRange(initialRange)) {
+			return false;
+		}
+		return true;
+	}
+
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
-		InteractiveEditorController.get(editor)?.run();
+		console.log('_args : ', _args);
+		const options = _args[0];
+		if (isObject(options) && this._isInteractivEditorOptions(options)) {
+			InteractiveEditorController.get(editor)?.run(options);
+		}
 	}
 }
 
