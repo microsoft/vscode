@@ -239,8 +239,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly _reviewPane: DiffReview;
 
-	private _configService: IConfigurationService;
-
 	constructor(
 		domElement: HTMLElement,
 		options: Readonly<editorBrowser.IDiffEditorConstructionOptions>,
@@ -253,12 +251,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		@INotificationService notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		codeEditorService.willCreateDiffEditor();
-		this._configService = configurationService;
-		this._register(this._configService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('accessibility.verbosity.diff-editor')) {
 				this.updateOptions(this._options);
 			}
@@ -1296,7 +1293,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _updateAriaLabel(options: IEditorConstructionOptions): void {
 		let ariaLabel = options.ariaLabel;
-		if (this._configService.getValue('accessibility.verbosity.diff-editor')) {
+		if (this._configurationService.getValue('accessibility.verbosity.diff-editor')) {
 			ariaLabel += ariaNavigationTip;
 		} else if (ariaLabel) {
 			ariaLabel = ariaLabel.replaceAll(ariaNavigationTip, '');
