@@ -55,8 +55,9 @@ export class StartSessionAction extends EditorAction2 {
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
 		let options: InteractiveEditorRunOptions | undefined;
-		if (this._isInteractivEditorOptions(_args[0])) {
-			options = _args[0];
+		const arg = _args[0];
+		if (arg && this._isInteractivEditorOptions(arg)) {
+			options = arg;
 		}
 		InteractiveEditorController.get(editor)?.run(options);
 	}
