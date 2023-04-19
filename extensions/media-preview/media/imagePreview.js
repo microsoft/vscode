@@ -370,7 +370,8 @@
 			canvas.getContext('2d').drawImage(image, 0, 0);
 			canvas.toBlob(async (blob) => {
 				try {
-					await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+					await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+					canvas.remove();
 				} catch (e) {
 					console.error(e);
 				}
