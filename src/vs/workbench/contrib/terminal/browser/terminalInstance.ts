@@ -523,6 +523,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration('accessibility.verbosity.terminal')) {
+				this._setAriaLabel(this.xterm?.raw, this._instanceId, this.title);
+			}
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);

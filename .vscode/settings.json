@@ -125,5 +125,7 @@
 	],
 	"application.experimental.rendererProfiling": true,
 	"editor.experimental.asyncTokenization": true,
-	"editor.experimental.asyncTokenizationVerification": true
+	"editor.experimental.asyncTokenizationVerification": true,
+	"verbosity.diff-editor": false,
+	"verbosity.terminal": false
 }
