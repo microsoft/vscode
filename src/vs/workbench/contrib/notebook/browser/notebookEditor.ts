@@ -45,6 +45,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { streamToBuffer } from 'vs/base/common/buffer';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -88,6 +89,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -254,10 +256,15 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 							});
 							const extensionInfo = this._extensionsWorkbenchService.local.find(e => e.identifier.id === knownProvider);
 
-							if (extensionInfo) {
-								await this._extensionsWorkbenchService.setEnablement(extensionInfo, extensionInfo.enablementState === EnablementState.DisabledWorkspace ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
-							} else {
-								await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
+							try {
+								if (extensionInfo) {
+									await this._extensionsWorkbenchService.setEnablement(extensionInfo, extensionInfo.enablementState === EnablementState.DisabledWorkspace ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
+								} else {
+									await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
+								}
+							} catch (ex) {
+								this.logService.error(`Failed to install or enable extension ${knownProvider}`, ex);
+								d.dispose();
 							}
 						}
 					}),
@@ -306,7 +313,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 			this._handlePerfMark(perf, input);
 		} catch (e) {
-			console.warn(e);
+			this.logService.warn('NotebookEditorWidget#setInput failed', e);
 			if (isEditorOpenError(e)) {
 				throw e;
 			}
