@@ -210,6 +210,10 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 	}
 
 	layout(height: number, width: number): number {
+		return this._layout(height, width);
+	}
+
+	private _layout(height: number, width: number, allowRecurse = true): number {
 		const followupsHeight = this.followupsContainer.offsetHeight;
 
 		const inputPartBorder = 1;
@@ -222,7 +226,14 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		const editorBorder = 2;
 		const editorPadding = 8;
 		const executeToolbarWidth = 25;
+
+		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		this._inputEditor.layout({ width: width - inputPartPadding - editorBorder - editorPadding - executeToolbarWidth, height: inputEditorHeight });
+
+		if (allowRecurse && initialEditorScrollWidth < 10) {
+			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
+			return this._layout(height, width, false);
+		}
 
 		return inputPartHeight;
 	}

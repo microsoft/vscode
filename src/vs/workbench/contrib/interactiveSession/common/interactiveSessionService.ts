@@ -12,12 +12,13 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IInteractiveSessionModel, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSession {
-	id: number;
+	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
 	requesterUsername: string;
 	requesterAvatarIconUri?: URI;
 	responderUsername: string;
 	responderAvatarIconUri?: URI;
 	inputPlaceholder?: string;
+	onDidChangeState?: Event<any>;
 	dispose?(): void;
 }
 
@@ -157,20 +158,19 @@ export interface IInteractiveSessionService {
 	registerProvider(provider: IInteractiveProvider): IDisposable;
 	getProviderIds(): string[];
 	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): InteractiveSessionModel | undefined;
-	retrieveSession(sessionId: number): IInteractiveSessionModel | undefined;
+	retrieveSession(sessionId: string): IInteractiveSessionModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): Promise<boolean>;
-	cancelCurrentRequestForSession(sessionId: number): void;
-	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
-	clearSession(sessionId: number): void;
-	acceptNewSessionState(sessionId: number, state: any): void;
+	sendRequest(sessionId: string, message: string | IInteractiveSessionReplyFollowup): Promise<boolean>;
+	cancelCurrentRequestForSession(sessionId: string): void;
+	getSlashCommands(sessionId: string, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
+	clearSession(sessionId: string): void;
 	addInteractiveRequest(context: any): void;
-	addCompleteRequest(sessionId: number, message: string, response: IInteractiveSessionCompleteResponse): void;
-	sendInteractiveRequestToProvider(sessionId: number, message: IInteractiveSessionDynamicRequest): void;
-	releaseSession(sessionId: number): void;
+	addCompleteRequest(sessionId: string, message: string, response: IInteractiveSessionCompleteResponse): void;
+	sendInteractiveRequestToProvider(sessionId: string, message: IInteractiveSessionDynamicRequest): void;
+	releaseSession(sessionId: string): void;
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
 	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;
