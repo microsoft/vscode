@@ -153,26 +153,14 @@ export function registerInteractiveSessionCodeBlockActions() {
 			}
 
 			const languageService = accessor.get(ILanguageService);
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-
 			const focusRange = notebookEditor.getFocus();
 			const next = Math.max(focusRange.end - 1, 0);
 			insertCell(languageService, notebookEditor, next, CellKind.Code, 'below', context.code, true);
-
-			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
-				providerId: context.element.providerId,
-				action: {
-					kind: 'insert',
-					responseId: context.element.providerResponseId,
-					codeBlockIndex: context.codeBlockIndex,
-					totalCharacters: context.code.length,
-				}
-			});
+			this.notifyUserAction(accessor, context);
 		}
 
 		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, context: IInteractiveSessionCodeBlockActionContext) {
 			const bulkEditService = accessor.get(IBulkEditService);
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
 
 			const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
 			await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
@@ -180,6 +168,11 @@ export function registerInteractiveSessionCodeBlockActions() {
 				text: context.code,
 			})]);
 
+			this.notifyUserAction(accessor, context);
+		}
+
+		private notifyUserAction(accessor: ServicesAccessor, context: IInteractiveSessionCodeBlockActionContext) {
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
 			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
 				providerId: context.element.providerId,
 				action: {
