@@ -36,7 +36,7 @@ interface CompletionContext {
 	readonly dotAccessorContext?: DotAccessorContext;
 
 	readonly enableCallCompletions: boolean;
-	readonly useCodeSnippetsOnMethodSuggest: boolean;
+	readonly completeFunctionCalls: boolean;
 
 	readonly wordRange: vscode.Range | undefined;
 	readonly line: string;
@@ -91,7 +91,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		this.preselect = tsEntry.isRecommended;
 		this.position = position;
-		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
+		this.useCodeSnippet = completionContext.completeFunctionCalls && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
 		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext);
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
@@ -295,10 +295,22 @@ class MyCompletionItem extends vscode.CompletionItem {
 			// Noop
 		}
 
+		const line = document.lineAt(position.line);
 		// Don't complete function call if there is already something that looks like a function call
 		// https://github.com/microsoft/vscode/issues/18131
-		const after = document.lineAt(position.line).text.slice(position.character);
-		return after.match(/^[a-z_$0-9]*\s*\(/gi) === null;
+
+		const after = line.text.slice(position.character);
+		if (after.match(/^[a-z_$0-9]*\s*\(/gi)) {
+			return false;
+		}
+
+		// Don't complete function call if it looks like a jsx tag.
+		const before = line.text.slice(0, position.character);
+		if (before.match(/<\s*[\w]*$/gi)) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private getCodeActions(
@@ -633,7 +645,7 @@ class ApplyCompletionCodeActionCommand implements Command {
 }
 
 interface CompletionConfiguration {
-	readonly useCodeSnippetsOnMethodSuggest: boolean;
+	readonly completeFunctionCalls: boolean;
 	readonly nameSuggestions: boolean;
 	readonly pathSuggestions: boolean;
 	readonly autoImportSuggestions: boolean;
@@ -641,7 +653,7 @@ interface CompletionConfiguration {
 }
 
 namespace CompletionConfiguration {
-	export const useCodeSnippetsOnMethodSuggest = 'suggest.completeFunctionCalls';
+	export const completeFunctionCalls = 'suggest.completeFunctionCalls';
 	export const nameSuggestions = 'suggest.names';
 	export const pathSuggestions = 'suggest.paths';
 	export const autoImportSuggestions = 'suggest.autoImports';
@@ -653,7 +665,7 @@ namespace CompletionConfiguration {
 	): CompletionConfiguration {
 		const config = vscode.workspace.getConfiguration(modeId, resource);
 		return {
-			useCodeSnippetsOnMethodSuggest: config.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
+			completeFunctionCalls: config.get<boolean>(CompletionConfiguration.completeFunctionCalls, false),
 			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
 			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
 			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, true),
@@ -782,10 +794,10 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			isMemberCompletion,
 			dotAccessorContext,
 			isInValidCommitCharacterContext: this.isInValidCommitCharacterContext(document, position),
-			enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest,
+			enableCallCompletions: !completionConfiguration.completeFunctionCalls,
 			wordRange,
 			line: line.text,
-			useCodeSnippetsOnMethodSuggest: completionConfiguration.useCodeSnippetsOnMethodSuggest,
+			completeFunctionCalls: completionConfiguration.completeFunctionCalls,
 			useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
 		};
 

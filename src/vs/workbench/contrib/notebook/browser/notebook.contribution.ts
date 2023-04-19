@@ -19,7 +19,7 @@ import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -51,7 +51,7 @@ import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/ser
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -553,9 +553,7 @@ class NotebookEditorManager implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
-		@INotebookService notebookService: INotebookService,
-		@IEditorGroupsService editorGroups: IEditorGroupsService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@IEditorGroupsService editorGroups: IEditorGroupsService
 	) {
 		// OPEN notebook editor for models that have turned dirty without being visible in an editor
 		type E = IResolvedNotebookEditorModel;
@@ -564,20 +562,6 @@ class NotebookEditorManager implements IWorkbenchContribution {
 			(last, current) => !last ? [current] : [...last, current],
 			100
 		)(this._openMissingDirtyNotebookEditors, this));
-
-		// CLOSE notebook editor for models that have no more serializer
-		const listener = notebookService.onWillRemoveViewType(e => {
-			for (const group of editorGroups.groups) {
-				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e && !input.isDirty());
-				group.closeEditors(staleInputs);
-			}
-		});
-
-		this._disposables.add(listener);
-		// don't react to view types disposing if the workbench is shutting down anyway
-		Event.once(lifecycleService.onWillShutdown)((e) => {
-			listener.dispose();
-		});
 
 		// CLOSE editors when we are about to open conflicting notebooks
 		this._disposables.add(_notebookEditorModelService.onWillFailWithConflict(e => {
@@ -609,29 +593,53 @@ class NotebookEditorManager implements IWorkbenchContribution {
 	}
 }
 
-class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@INotebookService private readonly _notebookService: INotebookService
 	) {
 		super();
 
 		this._installHandler();
 	}
 
+	async handles(workingCopy: IWorkingCopyIdentifier): Promise<boolean> {
+		const viewType = this.handlesSync(workingCopy);
+		if (!viewType) {
+			return false;
+		}
+
+		return this._notebookService.canResolve(viewType);
+	}
+
+	private handlesSync(workingCopy: IWorkingCopyIdentifier): string /* viewType */ | undefined {
+		const viewType = this._getViewType(workingCopy);
+		if (!viewType || viewType === 'interactive') {
+			return undefined;
+		}
+
+		return viewType;
+	}
+
+	isOpen(workingCopy: IWorkingCopyIdentifier, editor: EditorInput): boolean {
+		if (!this.handlesSync(workingCopy)) {
+			return false;
+		}
+
+		return editor instanceof NotebookEditorInput && editor.viewType === this._getViewType(workingCopy) && isEqual(workingCopy.resource, editor.resource);
+	}
+
+	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
+		return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!);
+	}
+
 	private async _installHandler(): Promise<void> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 
-		this._register(this._workingCopyEditorService.registerHandler({
-			handles: workingCopy => {
-				const viewType = this._getViewType(workingCopy);
-				return typeof viewType === 'string' && viewType !== 'interactive';
-			},
-			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this._getViewType(workingCopy) && isEqual(workingCopy.resource, editor.resource),
-			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!)
-		}));
+		this._register(this._workingCopyEditorService.registerHandler(this));
 	}
 
 	private _getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
@@ -912,22 +920,37 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: false
 		},
-		[NotebookSetting.experimentalFindInMarkdownMode]: {
-			markdownDescription: nls.localize('notebook.experimental.findInMarkdownMode', "Customize the Find Widget behavior for searching within markdown cells. When both are enabled, the Find Widget will search either the content or preview based on the current state of the markdown cell. Toggle the boolean values to control the Find Widget's scope for each mode as needed."),
+		[NotebookSetting.confirmDeleteRunningCell]: {
+			markdownDescription: nls.localize('notebook.confirmDeleteRunningCell', "Control whether a confirmation prompt is required to delete a running cell."),
+			type: 'boolean',
+			default: true
+		},
+		[NotebookSetting.findScope]: {
+			markdownDescription: nls.localize('notebook.findScope', "Customize the Find Widget behavior for searching within notebook cells. When both markup source and markup preview are enabled, the Find Widget will search either the source code or preview based on the current state of the cell."),
 			type: 'object',
 			properties: {
-				source: {
+				markupSource: {
 					type: 'boolean',
 					default: true
 				},
-				preview: {
+				markupPreview: {
 					type: 'boolean',
-					default: false
+					default: true
+				},
+				codeSource: {
+					type: 'boolean',
+					default: true
+				},
+				codeOutput: {
+					type: 'boolean',
+					default: true
 				}
 			},
 			default: {
-				source: true,
-				preview: false
+				markupSource: true,
+				markupPreview: true,
+				codeSource: true,
+				codeOutput: true
 			},
 			tags: ['notebookLayout']
 		}

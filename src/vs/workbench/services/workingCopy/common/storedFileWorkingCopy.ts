@@ -20,7 +20,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { hash } from 'vs/base/common/hash';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { isWindows } from 'vs/base/common/platform';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
@@ -1068,6 +1068,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 			const canSaveElevated = this.elevatedFileService.isSupported(this.resource);
+
+			// Error with Actions
+			if (isErrorWithActions(error)) {
+				primaryActions.push(...error.actions);
+			}
 
 			// Save Elevated
 			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {

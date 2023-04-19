@@ -621,19 +621,29 @@ export enum InlineCompletionTriggerKind {
 }
 
 export interface InlineCompletionContext {
+
 	/**
 	 * How the completion was triggered.
 	 */
 	readonly triggerKind: InlineCompletionTriggerKind;
-
 	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
 }
 
-export interface SelectedSuggestionInfo {
-	range: IRange;
-	text: string;
-	isSnippetText: boolean;
-	completionKind: CompletionItemKind;
+export class SelectedSuggestionInfo {
+	constructor(
+		public readonly range: IRange,
+		public readonly text: string,
+		public readonly completionKind: CompletionItemKind,
+		public readonly isSnippetText: boolean,
+	) {
+	}
+
+	public equals(other: SelectedSuggestionInfo) {
+		return Range.lift(this.range).equalsRange(other.range)
+			&& this.text === other.text
+			&& this.completionKind === other.completionKind
+			&& this.isSnippetText === other.isSnippetText;
+	}
 }
 
 export interface InlineCompletion {
@@ -681,6 +691,13 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	 * A list of commands associated with the inline completions of this list.
 	 */
 	readonly commands?: Command[];
+
+	readonly suppressSuggestions?: boolean | undefined;
+
+	/**
+	 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
+	 */
+	readonly enableForwardStability?: boolean | undefined;
 }
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {

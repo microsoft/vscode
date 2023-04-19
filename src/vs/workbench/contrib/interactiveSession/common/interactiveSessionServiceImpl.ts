@@ -286,10 +286,9 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	retrieveSession(sessionId: number): InteractiveSessionModel | undefined {
 		if (this._releasedSessions.has(sessionId)) {
 			this._releasedSessions.delete(sessionId);
-			return this._sessionModels.get(sessionId);
 		}
 
-		return undefined;
+		return this._sessionModels.get(sessionId);
 	}
 
 	async sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup): Promise<boolean> {

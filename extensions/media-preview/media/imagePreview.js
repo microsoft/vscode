@@ -327,21 +327,40 @@
 		}
 
 		switch (e.data.type) {
-			case 'setScale':
+			case 'setScale': {
 				updateScale(e.data.scale);
 				break;
-
-			case 'setActive':
+			}
+			case 'setActive': {
 				setActive(e.data.value);
 				break;
-
-			case 'zoomIn':
+			}
+			case 'zoomIn': {
 				zoomIn();
 				break;
-
-			case 'zoomOut':
+			}
+			case 'zoomOut': {
 				zoomOut();
 				break;
+			}
+			case 'copyImage': {
+				copyImage();
+				break;
+			}
 		}
 	});
+
+	document.addEventListener('copy', () => {
+		copyImage();
+	});
+
+	async function copyImage() {
+		try {
+			await navigator.clipboard.write([new ClipboardItem({
+				'image/png': fetch(image.src).then(request => request.blob())
+			})]);
+		} catch (e) {
+			console.error(e);
+		}
+	}
 }());

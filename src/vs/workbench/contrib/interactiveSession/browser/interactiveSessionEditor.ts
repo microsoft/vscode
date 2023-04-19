@@ -79,7 +79,7 @@ export class InteractiveSessionEditor extends EditorPane {
 
 		const editorModel = await input.resolve();
 		if (!editorModel) {
-			throw new Error('idk man something happened');
+			throw new Error('Failed to get model for interactive session editor');
 		}
 
 		if (!this.parentElement) {
