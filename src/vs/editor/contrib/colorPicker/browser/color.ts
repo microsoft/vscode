@@ -15,6 +15,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
 export async function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean = true): Promise<IColorData[]> {
 	return _findDocumentColors(Source.InBuiltCode, registry, model, token, isDefaultColorDecoratorsEnabled);
@@ -50,11 +51,7 @@ async function _computeDocumentColors(provider: DocumentColorProvider, colors: I
 	const documentColors = await provider.provideDocumentColors(model, token);
 	if (Array.isArray(documentColors)) {
 		for (const colorInfo of documentColors) {
-			if (source === Source.Extension) {
-				colors.push({ range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] });
-			} else {
-				colors.push({ colorInfo, provider });
-			}
+			colors.push(source === Source.Extension ? { range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] } : { colorInfo, provider });
 		}
 	}
 	return Array.isArray(documentColors);
@@ -122,21 +119,24 @@ async function _findColorPresentations(colorProviderRegistry: LanguageFeatureReg
 	return _findColorData(new ComputeColorPresentationsOptions(color, range), colorProviderRegistry, model, CancellationToken.None, isDefaultColorDecoratorsEnabled);
 }
 
-CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (accessor, ...args) {
-
-	const [resource] = args;
-	if (!(resource instanceof URI)) {
-		throw illegalArgument();
-	}
+function _setupColorCommand(accessor: ServicesAccessor, resource: URI): { model: ITextModel; colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>; isDefaultColorDecoratorsEnabled: boolean } {
 	const { colorProvider: colorProviderRegistry } = accessor.get(ILanguageFeaturesService);
 	const model = accessor.get(IModelService).getModel(resource);
 	if (!model) {
 		throw illegalArgument();
 	}
 	const isDefaultColorDecoratorsEnabled = accessor.get(IConfigurationService).getValue<boolean>('editor.defaultColorDecorators', { resource });
+	return { model, colorProviderRegistry, isDefaultColorDecoratorsEnabled };
+}
+
+CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (accessor, ...args) {
+	const [resource] = args;
+	if (!(resource instanceof URI)) {
+		throw illegalArgument();
+	}
+	const { model, colorProviderRegistry, isDefaultColorDecoratorsEnabled } = _setupColorCommand(accessor, resource);
 	return _findDocumentColors(Source.Extension, colorProviderRegistry, model, CancellationToken.None, isDefaultColorDecoratorsEnabled);
 });
-
 
 CommandsRegistry.registerCommand('_executeColorPresentationProvider', function (accessor, ...args) {
 	const [color, context] = args;
@@ -144,11 +144,6 @@ CommandsRegistry.registerCommand('_executeColorPresentationProvider', function (
 	if (!(uri instanceof URI) || !Array.isArray(color) || color.length !== 4 || !Range.isIRange(range)) {
 		throw illegalArgument();
 	}
-	const { colorProvider: colorProviderRegistry } = accessor.get(ILanguageFeaturesService);
-	const model = accessor.get(IModelService).getModel(uri);
-	if (!model) {
-		throw illegalArgument();
-	}
-	const isDefaultColorDecoratorsEnabled = accessor.get(IConfigurationService).getValue<boolean>('editor.defaultColorDecorators', { resource: uri });
+	const { model, colorProviderRegistry, isDefaultColorDecoratorsEnabled } = _setupColorCommand(accessor, uri);
 	return _findColorPresentations(colorProviderRegistry, model, range, color, isDefaultColorDecoratorsEnabled);
 });
