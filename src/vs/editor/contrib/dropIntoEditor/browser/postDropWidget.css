@@ -4,5 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 .post-drop-widget .monaco-button {
-	padding: 0;
+	box-shadow:  0 0 8px 2px var(--vscode-widget-shadow);
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 4px;
+	padding: 2px;
+	color: var(--vscode-input-foreground);
+	background-color:  var(--vscode-editorWidget-background);
+}
+
+.post-drop-widget .monaco-button:hover {
+	background-color: var(--vscode-inputOption-hoverBackground) !important;
+}
+
+.post-drop-widget .monaco-button .codicon {
+	margin: 0;
 }
