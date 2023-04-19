@@ -125,7 +125,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.createHeader(this._commentDetailsContainer);
 		this._body = document.createElement(`div`);
 		this._body.classList.add('comment-body', MOUSE_CURSOR_TEXT_CSS_CLASS_NAME);
-		this._body.setAttribute('style', 'max-height: 20em;');
 
 		this.createScroll(this._commentDetailsContainer, this._body);
 		this.updateCommentBody(this.comment.body);
