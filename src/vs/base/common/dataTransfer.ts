@@ -50,7 +50,7 @@ export class VSDataTransfer {
 	/**
 	 * Check if this data transfer contains data for a given mime type.
 	 *
-	 * This uses exact matching and does support wildcards.
+	 * This uses exact matching and does not support wildcards.
 	 */
 	public has(mimeType: string): boolean {
 		return this._entries.has(this.toKey(mimeType));
@@ -60,11 +60,18 @@ export class VSDataTransfer {
 	 * Check if this data transfer contains data matching a given mime type glob.
 	 *
 	 * This allows matching for wildcards, such as `image/*`.
+	 *
+	 * Use the special `files` mime type to match any file in the data transfer.
 	 */
 	public matches(mimeTypeGlob: string): boolean {
 		// Exact match
 		if (this.has(mimeTypeGlob)) {
 			return true;
+		}
+
+		// Special `files` mime type matches any file
+		if (mimeTypeGlob.toLowerCase() === 'files') {
+			return Iterable.some(this.values(), item => item.asFile());
 		}
 
 		// Anything glob
