@@ -32,7 +32,7 @@ export enum VersionIdChangeReason {
 }
 
 export class InlineCompletionsModel extends Disposable {
-	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._debounceValue));
+	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this.textModelVersionId, this._debounceValue));
 	private readonly _isActive = observableValue('isActive', false);
 
 	private _isAcceptingPartialWord = false;
@@ -118,12 +118,9 @@ export class InlineCompletionsModel extends Disposable {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return []; }
 
-		const versionId = this.textModelVersionId.read(reader);
-		const inlineCompletions = c.getInlineCompletions(versionId);
-
 		const model = this.textModel;
 		const cursorPosition = model.validatePosition(this.cursorPosition.read(reader));
-		const filteredCompletions = inlineCompletions.filter(c => c.isVisible(model, cursorPosition));
+		const filteredCompletions = c.inlineCompletions.filter(c => c.isVisible(model, cursorPosition, reader));
 		return filteredCompletions;
 	});
 
@@ -165,20 +162,19 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	public readonly ghostText = derived('ghostText', (reader) => {
-		const versionId = this.textModelVersionId.read(reader);
 		const model = this.textModel;
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		if (suggestItem) {
 			const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.read(reader);
 			const candidateInlineCompletion = suggestWidgetInlineCompletions
-				? suggestWidgetInlineCompletions.getInlineCompletions(versionId)
+				? suggestWidgetInlineCompletions.inlineCompletions
 				: [this.currentInlineCompletion.read(reader)].filter(isDefined);
 
 			const suggestCompletion = suggestItem.toSingleTextEdit().removeCommonPrefix(model);
 
 			const augmentedCompletion = mapFind(candidateInlineCompletion, c => {
-				let r = c.toSingleTextEdit();
+				let r = c.toSingleTextEdit(reader);
 				r = r.removeCommonPrefix(model, Range.fromPositions(r.range.getStartPosition(), suggestItem.range.getEndPosition()));
 				return r.augments(suggestCompletion) ? r : undefined;
 			});
@@ -202,7 +198,7 @@ export class InlineCompletionsModel extends Disposable {
 			const item = this.currentInlineCompletion.read(reader);
 			if (!item) { return undefined; }
 
-			const replacement = item.toSingleTextEdit();
+			const replacement = item.toSingleTextEdit(reader);
 			const mode = this._inlineSuggestMode.read(reader);
 			const cursor = this.cursorPosition.read(reader);
 			return replacement.computeGhostText(model, mode, cursor);
@@ -255,7 +251,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const ghostText = this.ghostText.get();
-		const completion = this.currentInlineCompletion.get()?.toInlineCompletion();
+		const completion = this.currentInlineCompletion.get()?.toInlineCompletion(undefined);
 		if (!ghostText || !completion) {
 			return;
 		}
@@ -303,7 +299,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const ghostText = this.ghostText.get();
-		const completion = this.currentInlineCompletion.get()?.toInlineCompletion();
+		const completion = this.currentInlineCompletion.get()?.toInlineCompletion(undefined);
 		if (!ghostText || !completion) {
 			return;
 		}
