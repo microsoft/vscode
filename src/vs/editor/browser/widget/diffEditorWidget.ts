@@ -283,7 +283,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			diffCodeLens: false,
 			renderOverviewRuler: true,
 			diffWordWrap: 'inherit',
-			diffAlgorithm: 'smart',
+			diffAlgorithm: 'advanced',
 		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
@@ -2759,7 +2759,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
-		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['smart', 'experimental']),
+		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 	};
 }
 

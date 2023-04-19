@@ -413,7 +413,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	}
 
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
-		const diffAlgorithm: ILinesDiffComputer = algorithm === 'experimental' ? linesDiffComputers.experimental : linesDiffComputers.smart;
+		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.advanced : linesDiffComputers.legacy;
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
@@ -598,7 +598,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			const originalLines = original.split(/\r\n|\n|\r/);
 			const modifiedLines = text.split(/\r\n|\n|\r/);
 
-			const diff = linesDiffComputers.experimental.computeDiff(originalLines, modifiedLines, options);
+			const diff = linesDiffComputers.advanced.computeDiff(originalLines, modifiedLines, options);
 
 			const start = Range.lift(range).getStartPosition();
 
