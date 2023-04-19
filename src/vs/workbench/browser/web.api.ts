@@ -260,6 +260,11 @@ export interface IWorkbenchConstructionOptions {
 	//#region Profile options
 
 	/**
+	 * Profile to use for the workbench.
+	 */
+	readonly profile?: { readonly name: string; readonly contents?: string | UriComponents };
+
+	/**
 	 * URI of the profile to preview.
 	 */
 	readonly profileToPreview?: UriComponents;

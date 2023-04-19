@@ -92,8 +92,9 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
-registerSingleton(IUserDataInitializationService, UserDataInitializationService, InstantiationType.Delayed);
+registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
 registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
 
 

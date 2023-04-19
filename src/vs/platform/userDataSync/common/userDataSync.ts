@@ -424,7 +424,7 @@ export interface IUserDataSyncResourceError extends IUserDataSyncResource {
 	readonly error: UserDataSyncError;
 }
 
-export interface IUserDataInitializer {
+export interface IUserDataSyncResourceInitializer {
 	initialize(userData: IUserData): Promise<void>;
 }
 
