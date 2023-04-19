@@ -37,6 +37,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
+		// preload all sounds so there's no delay
+		for (const audioCue of AudioCue.allAudioCues) {
+			playAudio(FileAccess.asBrowserUri(
+				`vs/platform/audioCues/browser/media/${audioCue.sound.fileName}`
+			).toString(true), 0).then(sound => { { this.sounds.set(sound.src, sound); } });
+		}
 	}
 
 	public async playAudioCue(cue: AudioCue, allowManyInParallel = false): Promise<void> {
@@ -68,20 +74,19 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 
 		this.playingSounds.add(sound);
-
-		const url = FileAccess.asBrowserUri(
-			`vs/platform/audioCues/browser/media/${sound.fileName}`
-		).toString(true);
+		const url = FileAccess.asBrowserUri(`vs/platform/audioCues/browser/media/${sound.fileName}`).toString(true);
 
 		try {
 			const sound = this.sounds.get(url);
 			if (sound) {
+				// preloaded
 				sound.volume = this.getVolumeInPercent() / 100;
 				await sound.play();
-				return;
+			} else {
+				// not yet preloaded
+				const playedSound = await playAudio(url, this.getVolumeInPercent() / 100);
+				this.sounds.set(url, playedSound);
 			}
-			const playedSound = await playAudio(url, this.getVolumeInPercent() / 100);
-			this.sounds.set(url, playedSound);
 		} catch (e) {
 			console.error('Error while playing sound', e);
 		} finally {
