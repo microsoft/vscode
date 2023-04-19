@@ -39,7 +39,7 @@
 	"format.semicolons.ignore": "Don't insert or remove any semicolons.",
 	"format.semicolons.insert": "Insert semicolons at statement ends.",
 	"format.semicolons.remove": "Remove unnecessary semicolons.",
-	"format.indentSwitchCase": "Indent case clauses in switch statements.",
+	"format.indentSwitchCase": "Indent case clauses in switch statements. Requires using TypeScript 5.1+ in the workspace.",
 	"javascript.validate.enable": "Enable/disable JavaScript validation.",
 	"goToProjectConfig.title": "Go to Project Configuration",
 	"javascript.referencesCodeLens.enabled": "Enable/disable references CodeLens in JavaScript files.",
