@@ -58,6 +58,7 @@ import { defaultInsertColor, defaultRemoveColor, diffDiagonalFill, diffInserted,
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { getThemeTypeSelector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -238,6 +239,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly _reviewPane: DiffReview;
 
+	private _configService: IConfigurationService;
+
 	constructor(
 		domElement: HTMLElement,
 		options: Readonly<editorBrowser.IDiffEditorConstructionOptions>,
@@ -249,11 +252,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 		codeEditorService.willCreateDiffEditor();
-
+		this._configService = configurationService;
 		this._documentDiffProvider = this._register(instantiationService.createInstance(WorkerBasedDocumentDiffProvider, options));
 		this._register(this._documentDiffProvider.onDidChange(e => this._beginUpdateDecorationsSoon()));
 
@@ -1272,7 +1276,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.originalAriaLabel) {
 			result.ariaLabel = options.originalAriaLabel;
 		}
-		result.ariaLabel += ariaNavigationTip;
+		if (this._configService.getValue('accessibility.verbose.diff-editor')) {
+			result.ariaLabel += ariaNavigationTip;
+		}
 		result.readOnly = !this._options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';

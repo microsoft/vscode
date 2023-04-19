@@ -507,7 +507,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
-		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService, configurationService);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
