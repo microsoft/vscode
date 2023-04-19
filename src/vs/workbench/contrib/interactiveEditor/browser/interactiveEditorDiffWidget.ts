@@ -44,7 +44,9 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			renderMarginRevertIcon: false,
 			diffCodeLens: false,
 			scrollBeyondLastLine: false,
-			stickyScroll: { enabled: false }
+			stickyScroll: { enabled: false },
+			renderOverviewRuler: false,
+			diffAlgorithm: 'experimental'
 		}, {
 			originalEditor: { contributions: [] },
 			modifiedEditor: { contributions: [] }
