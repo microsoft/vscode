@@ -992,7 +992,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId(VIEW_ID);
-		if (view) {
+		if (view !== null) {
 			const explorerView = view as ExplorerView;
 			explorerView.collapseAll();
 		}
