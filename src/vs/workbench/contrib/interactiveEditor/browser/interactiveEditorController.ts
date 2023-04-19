@@ -358,13 +358,12 @@ export class InteractiveEditorController implements IEditorContribution {
 		const blockDecoration = this._editor.createDecorationsCollection();
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 
-		const optionsRange = options?.initialRange ?? (session.wholeRange ? Range.lift(session.wholeRange) : selection);
-		let initialRange = Range.lift(optionsRange);
-		if (initialRange.isEmpty()) {
-			initialRange = new Range(optionsRange.startLineNumber, 1, optionsRange.startLineNumber, textModel.getLineMaxColumn(optionsRange.startLineNumber));
+		let optionsRange = Range.lift(options?.initialRange) ?? (session.wholeRange ? Range.lift(session.wholeRange) : selection);
+		if (optionsRange.isEmpty()) {
+			optionsRange = new Range(optionsRange.startLineNumber, 1, optionsRange.startLineNumber, textModel.getLineMaxColumn(optionsRange.startLineNumber));
 		}
 		wholeRangeDecoration.set([{
-			range: initialRange,
+			range: optionsRange,
 			options: InteractiveEditorController._decoWholeRange
 		}]);
 
@@ -467,7 +466,6 @@ export class InteractiveEditorController implements IEditorContribution {
 				this.accept();
 			}
 			const input = await inputPromise;
-
 			roundStore.clear();
 
 			if (!input) {
