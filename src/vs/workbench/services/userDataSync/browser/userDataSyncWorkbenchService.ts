@@ -22,7 +22,6 @@ import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Action } from 'vs/base/common/actions';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
@@ -592,16 +591,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Report when there are successive auth failures during settings sync' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
 		await this.update();
-
-		if (this.userDataSyncEnablementService.isEnabled()) {
-			this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('successive auth failures', "Settings sync is suspended because of successive authorization failures. Please sign in again to continue synchronizing"),
-				actions: {
-					primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
-				}
-			});
-		}
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
