@@ -13,7 +13,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 	private onDidChangeEventEmitter = new Emitter<void>();
 	public readonly onDidChange: Event<void> = this.onDidChangeEventEmitter.event;
 
-	private diffAlgorithm: DiffAlgorithmName | IDocumentDiffProvider = 'smart';
+	private diffAlgorithm: DiffAlgorithmName | IDocumentDiffProvider = 'advanced';
 	private diffAlgorithmOnDidChangeSubscription: IDisposable | undefined = undefined;
 
 	constructor(
@@ -61,5 +61,5 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 }
 
 interface IWorkerBasedDocumentDiffProviderOptions {
-	readonly diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
+	readonly diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
 }

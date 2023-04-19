@@ -30,7 +30,7 @@ class DefaultTextDropProvider implements DocumentOnDropEditProvider {
 
 		const text = await textEntry.asString();
 		return {
-			label: localize('defaultDropProvider.text.label', "Insert plain text"),
+			label: localize('defaultDropProvider.text.label', "Insert Plain Text"),
 			insertText: text
 		};
 	}
@@ -63,13 +63,13 @@ class UriListDropProvider implements DocumentOnDropEditProvider {
 		if (uriCount > 0) {
 			// Dropping at least one generic uri (such as https) so use most generic label
 			label = entries.length > 1
-				? localize('defaultDropProvider.uriList.uris', "Insert uris")
-				: localize('defaultDropProvider.uriList.uri', "Insert uri");
+				? localize('defaultDropProvider.uriList.uris', "Insert Uris")
+				: localize('defaultDropProvider.uriList.uri', "Insert Uri");
 		} else {
 			// All the paths are file paths
 			label = entries.length > 1
-				? localize('defaultDropProvider.uriList.paths', "Insert paths")
-				: localize('defaultDropProvider.uriList.path', "Insert path");
+				? localize('defaultDropProvider.uriList.paths', "Insert Paths")
+				: localize('defaultDropProvider.uriList.path', "Insert Path");
 		}
 
 		return { insertText, label };
@@ -103,8 +103,8 @@ class RelativePathDropProvider implements DocumentOnDropEditProvider {
 		return {
 			insertText: relativeUris.join(' '),
 			label: entries.length > 1
-				? localize('defaultDropProvider.uriList.relativePaths', "Insert relative paths")
-				: localize('defaultDropProvider.uriList.relativePath', "Insert relative path")
+				? localize('defaultDropProvider.uriList.relativePaths', "Insert Relative Paths")
+				: localize('defaultDropProvider.uriList.relativePath', "Insert Relative Path")
 		};
 	}
 }

@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import type { derived } from 'vs/base/common/observableImpl/derived';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
 
-export interface IObservable<T, TChange = void> {
+export interface IObservable<T, TChange = unknown> {
 	readonly TChange: TChange;
 
 	/**

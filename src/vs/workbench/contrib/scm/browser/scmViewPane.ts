@@ -2100,11 +2100,14 @@ class SCMInputWidget {
 		this.validationDisposable = this.contextViewService.showContextView({
 			getAnchor: () => this.editorContainer,
 			render: container => {
+				this.editorContainer.style.borderBottomLeftRadius = '0';
+				this.editorContainer.style.borderBottomRightRadius = '0';
+
 				const validationContainer = append(container, $('.scm-editor-validation-container'));
 				validationContainer.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
 				validationContainer.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
 				validationContainer.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
-				validationContainer.style.width = `${this.editorContainer.clientWidth}px`;
+				validationContainer.style.width = `${this.editorContainer.clientWidth + 2}px`;
 				const element = append(validationContainer, $('.scm-editor-validation'));
 
 				const message = this.validation!.message;
@@ -2116,6 +2119,8 @@ class SCMInputWidget {
 					disposables.add(tracker.onDidFocus(() => (this.validationHasFocus = true)));
 					disposables.add(tracker.onDidBlur(() => {
 						this.validationHasFocus = false;
+						this.editorContainer.style.borderBottomLeftRadius = '2px';
+						this.editorContainer.style.borderBottomRightRadius = '2px';
 						this.contextViewService.hideContextView();
 					}));
 
@@ -2124,6 +2129,8 @@ class SCMInputWidget {
 						actionHandler: {
 							callback: (link) => {
 								openLinkFromMarkdown(this.openerService, link, message.isTrusted);
+								this.editorContainer.style.borderBottomLeftRadius = '2px';
+								this.editorContainer.style.borderBottomRightRadius = '2px';
 								this.contextViewService.hideContextView();
 							},
 							disposables: disposables
@@ -2136,6 +2143,8 @@ class SCMInputWidget {
 				const actionbar = new ActionBar(actionsContainer);
 				const action = new Action('scmInputWidget.validationMessage.close', localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => {
 					this.contextViewService.hideContextView();
+					this.editorContainer.style.borderBottomLeftRadius = '2px';
+					this.editorContainer.style.borderBottomRightRadius = '2px';
 				});
 				disposables.add(actionbar);
 				actionbar.push(action, { icon: true, label: false });
@@ -2144,6 +2153,8 @@ class SCMInputWidget {
 			},
 			onHide: () => {
 				this.validationHasFocus = false;
+				this.editorContainer.style.borderBottomLeftRadius = '2px';
+				this.editorContainer.style.borderBottomRightRadius = '2px';
 				disposables.dispose();
 			},
 			anchorAlignment: AnchorAlignment.LEFT

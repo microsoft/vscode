@@ -89,7 +89,6 @@ export interface IProductConfiguration {
 	readonly tasConfig?: {
 		endpoint: string;
 		telemetryEventName: string;
-		featuresTelemetryPropertyName: string;
 		assignmentContextTelemetryPropertyName: string;
 	};
 
