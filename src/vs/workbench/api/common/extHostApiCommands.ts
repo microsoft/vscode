@@ -6,7 +6,7 @@
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
@@ -464,18 +464,7 @@ const newCommands: ApiCommand[] = [
 			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
 		],
 		ApiCommandResult.Void
-	),
-	// --- saving
-	new ApiCommand(
-		'vscode.save', '_workbench.save', 'Saves the editor identified by the given resource and returns the resulting resource or undefined if save was not successful.',
-		[ApiCommandArgument.Uri.with('uri', 'The resource of the editor to save.')],
-		new ApiCommandResult<Array<UriComponents>, { uri: URI } | undefined>('The resulting saved editor.', v => (v[0] ? { uri: URI.revive(v[0]) } : undefined))
-	),
-	new ApiCommand(
-		'vscode.saveAs', '_workbench.saveAs', 'Saves the editor identified by the given resource to a new file name as provided by the user and returns the resulting resource or undefined if save was not successful or cancelled.',
-		[ApiCommandArgument.Uri.with('uri', 'The resource of the editor to save as.')],
-		new ApiCommandResult<Array<UriComponents>, { uri: URI } | undefined>('The resulting saved as editor.', v => (v[0] ? { uri: URI.revive(v[0]) } : undefined))
-	),
+	)
 ];
 
 //#endregion

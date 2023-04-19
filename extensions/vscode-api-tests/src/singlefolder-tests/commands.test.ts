@@ -164,36 +164,4 @@ suite('vscode API - commands', () => {
 
 		return closeAllEditors();
 	});
-
-	test('api-command: vscode.save', async function () {
-		let error: unknown = undefined;
-		try {
-			await commands.executeCommand<{ uri: Uri } | undefined>('vscode.save');
-		} catch (e) {
-			error = e;
-		}
-		assert.ok(error);
-
-		assert.ok(workspace.workspaceFolders);
-		assert.ok(workspace.workspaceFolders.length > 0);
-		const uri = Uri.parse(workspace.workspaceFolders[0].uri.toString() + '/far.js');
-
-		await commands.executeCommand('vscode.open', uri);
-		assert.strictEqual(window.tabGroups.all.length, 1);
-		assert.strictEqual(window.tabGroups.all[0].activeTab?.group.viewColumn, ViewColumn.One);
-
-		let result = await commands.executeCommand<{ uri: Uri }>('vscode.save', uri);
-		assert.strictEqual(result.uri.toString(), uri.toString());
-
-		const invalidUri = Uri.parse(workspace.workspaceFolders[0].uri.toString() + '/far-invalid.js');
-		result = await commands.executeCommand<{ uri: Uri }>('vscode.save', invalidUri);
-		assert.strictEqual(result, undefined);
-
-		const otherUri = Uri.parse(workspace.workspaceFolders[0].uri.toString() + '/lorem.txt');
-		await commands.executeCommand('vscode.open', otherUri);
-		await commands.executeCommand('vscode.open', uri);
-
-		result = await commands.executeCommand<{ uri: Uri }>('vscode.save', otherUri);
-		assert.strictEqual(result.uri.toString(), otherUri.toString());
-	});
 });

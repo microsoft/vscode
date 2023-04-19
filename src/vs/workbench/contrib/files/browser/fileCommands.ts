@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { assertType } from 'vs/base/common/types';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
@@ -471,25 +470,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: '_workbench.save',
-	handler: async (accessor, arg: unknown) => {
-		assertType(URI.isUri(arg));
-
-		const editorService = accessor.get(IEditorService);
-
-		return saveResultToUris(await doSaveEditors(accessor, [...editorService.findEditors(arg, { supportSideBySide: SideBySideEditor.PRIMARY })], { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ }));
-	}
-});
-
-function saveResultToUris(result: ISaveEditorsResult): URI[] {
-	if (!result.success) {
-		return [];
-	}
-
-	return coalesce(result.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
-}
-
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -508,17 +488,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
 	handler: async accessor => {
 		await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
-	}
-});
-
-CommandsRegistry.registerCommand({
-	id: '_workbench.saveAs',
-	handler: async (accessor, arg: unknown) => {
-		assertType(URI.isUri(arg));
-
-		const editorService = accessor.get(IEditorService);
-
-		return saveResultToUris(await doSaveEditors(accessor, [...editorService.findEditors(arg, { supportSideBySide: SideBySideEditor.PRIMARY })], { reason: SaveReason.EXPLICIT, saveAs: true }));
 	}
 });
 
