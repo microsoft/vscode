@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Mimes } from 'vs/base/common/mime';
@@ -23,79 +24,112 @@ class DefaultTextDropProvider implements DocumentOnDropEditProvider {
 
 	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
 		const textEntry = dataTransfer.get('text') ?? dataTransfer.get(Mimes.text);
-		if (textEntry) {
-			const text = await textEntry.asString();
-			return {
-				label: localize('defaultDropProvider.text.label', "Drop as plain text"),
-				insertText: text
-			};
+		if (!textEntry) {
+			return undefined;
 		}
 
-		return undefined;
+		const text = await textEntry.asString();
+		return {
+			label: localize('defaultDropProvider.text.label', "Insert plain text"),
+			insertText: text
+		};
 	}
 }
 
-class DefaultUriListDropProvider implements DocumentOnDropEditProvider {
+class UriListDropProvider implements DocumentOnDropEditProvider {
 
 	readonly id = 'uri';
+	readonly dropMimeTypes = [Mimes.uriList];
+
+	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
+		const entries = await extractUriList(dataTransfer);
+		if (!entries.length || token.isCancellationRequested) {
+			return;
+		}
+
+		let uriCount = 0;
+		const insertText = entries
+			.map(({ uri, originalText }) => {
+				if (uri.scheme === Schemas.file) {
+					return uri.fsPath;
+				} else {
+					uriCount++;
+					return originalText;
+				}
+			})
+			.join(' ');
+
+		let label: string;
+		if (uriCount > 0) {
+			// Dropping at least one generic uri (such as https) so use most generic label
+			label = entries.length > 1
+				? localize('defaultDropProvider.uriList.uris', "Insert uris")
+				: localize('defaultDropProvider.uriList.uri', "Insert uri");
+		} else {
+			// All the paths are file paths
+			label = entries.length > 1
+				? localize('defaultDropProvider.uriList.paths', "Insert paths")
+				: localize('defaultDropProvider.uriList.path', "Insert path");
+		}
+
+		return { insertText, label };
+	}
+}
+
+class RelativePathDropProvider implements DocumentOnDropEditProvider {
+
+	readonly id = 'relativePath';
 	readonly dropMimeTypes = [Mimes.uriList];
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) { }
 
-	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
-		const urlListEntry = dataTransfer.get(Mimes.uriList);
-		if (urlListEntry) {
-			const urlList = await urlListEntry.asString();
-			const entry = this.getUriListInsertText(urlList);
-			if (entry) {
-				return {
-					label: entry.count > 1
-						? localize('defaultDropProvider.uri.label', "Drop as uri")
-						: localize('defaultDropProvider.uriList.label', "Drop as uri list"),
-					insertText: entry.snippet
-				};
-			}
-		}
-
-		return undefined;
-	}
-
-	private getUriListInsertText(strUriList: string): { snippet: string; count: number } | undefined {
-		const entries: { readonly uri: URI; readonly originalText: string }[] = [];
-		for (const entry of UriList.parse(strUriList)) {
-			try {
-				entries.push({ uri: URI.parse(entry), originalText: entry });
-			} catch {
-				// noop
-			}
-		}
-
-		if (!entries.length) {
+	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
+		const entries = await extractUriList(dataTransfer);
+		if (!entries.length || token.isCancellationRequested) {
 			return;
 		}
 
-		const snippet = entries
-			.map(({ uri, originalText }) => {
-				const root = this._workspaceContextService.getWorkspaceFolder(uri);
-				if (root) {
-					const rel = relativePath(root.uri, uri);
-					if (rel) {
-						return rel;
-					}
-				}
+		const relativeUris = coalesce(entries.map(({ uri }) => {
+			const root = this._workspaceContextService.getWorkspaceFolder(uri);
+			return root ? relativePath(root.uri, uri) : undefined;
+		}));
 
-				return uri.scheme === Schemas.file ? uri.fsPath : originalText;
-			})
-			.join(' ');
+		if (!relativeUris.length) {
+			return;
+		}
 
-		return { snippet, count: entries.length };
+		return {
+			insertText: relativeUris.join(' '),
+			label: entries.length > 1
+				? localize('defaultDropProvider.uriList.relativePaths', "Insert relative paths")
+				: localize('defaultDropProvider.uriList.relativePath', "Insert relative path")
+		};
 	}
+}
+
+async function extractUriList(dataTransfer: VSDataTransfer): Promise<{ readonly uri: URI; readonly originalText: string }[]> {
+	const urlListEntry = dataTransfer.get(Mimes.uriList);
+	if (!urlListEntry) {
+		return [];
+	}
+
+	const strUriList = await urlListEntry.asString();
+	const entries: { readonly uri: URI; readonly originalText: string }[] = [];
+	for (const entry of UriList.parse(strUriList)) {
+		try {
+			entries.push({ uri: URI.parse(entry), originalText: entry });
+		} catch {
+			// noop
+		}
+	}
+	return entries;
 }
 
 
 let registeredDefaultProviders = false;
+
 export function registerDefaultDropProviders(
 	languageFeaturesService: ILanguageFeaturesService,
 	workspaceContextService: IWorkspaceContextService,
@@ -104,6 +138,7 @@ export function registerDefaultDropProviders(
 		registeredDefaultProviders = true;
 
 		languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultTextDropProvider());
-		languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultUriListDropProvider(workspaceContextService));
+		languageFeaturesService.documentOnDropEditProvider.register('*', new UriListDropProvider());
+		languageFeaturesService.documentOnDropEditProvider.register('*', new RelativePathDropProvider(workspaceContextService));
 	}
 }
