@@ -356,9 +356,25 @@
 
 	async function copyImage() {
 		try {
-			await navigator.clipboard.write([new ClipboardItem({
-				'image/png': fetch(image.src).then(request => request.blob())
-			})]);
+			if (!document.hasFocus()) {
+				// copyImage is called at the same time as webview.reveal, which means this function is running whilst the webview is gaining focus.
+				// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
+				// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
+				setTimeout(copyImage, 10);
+				return;
+			}
+
+			const canvas = document.createElement('canvas');
+			canvas.width = image.naturalWidth;
+			canvas.height = image.naturalHeight;
+			canvas.getContext('2d').drawImage(image, 0, 0);
+			canvas.toBlob(async (blob) => {
+				try {
+					await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+				} catch (e) {
+					console.error(e);
+				}
+			}, 'image/png');
 		} catch (e) {
 			console.error(e);
 		}
