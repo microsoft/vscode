@@ -518,7 +518,7 @@ export class GitHubServer implements IGitHubServer {
 			try {
 				const json = await result.json();
 				this._logger.info('Got account info!');
-				return { id: json.id, accountName: json.login };
+				return { id: json.id, accountName: json.display_login ?? json.login };
 			} catch (e) {
 				this._logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
 				throw e;
