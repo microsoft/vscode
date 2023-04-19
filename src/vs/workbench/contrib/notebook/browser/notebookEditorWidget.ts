@@ -90,6 +90,7 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { Schemas } from 'vs/base/common/network';
+import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 
 const $ = DOM.$;
 
@@ -966,11 +967,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._onDidScroll.fire();
 
 			if (e.scrollTop !== e.oldScrollTop) {
-				this._renderedEditors.forEach((editor, cell) => {
-					if (this.getActiveCell() === cell && editor) {
-						SuggestController.get(editor)?.cancelSuggestWidget();
-					}
-				});
+				this.clearActiveCellWidgets();
 			}
 		}));
 
@@ -1892,6 +1889,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.visibility = 'hidden';
 		this._overlayContainer.style.left = '-50000px';
 		this._notebookTopToolbarContainer.style.display = 'none';
+		this.clearActiveCellWidgets();
+	}
+
+	private clearActiveCellWidgets() {
+		this._renderedEditors.forEach((editor, cell) => {
+			if (this.getActiveCell() === cell && editor) {
+				SuggestController.get(editor)?.cancelSuggestWidget();
+				DropIntoEditorController.get(editor)?.clearWidgets();
+			}
+		});
 	}
 
 	private editorHasDomFocus(): boolean {

@@ -1154,6 +1154,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				this._diffComputationResult = {
 					identical: result.identical,
 					quitEarly: result.quitEarly,
+					changes2: result.changes,
 					changes: result.changes.map(m => {
 						// TODO don't do this translation, but use the diff result directly
 						let originalStartLineNumber: number;
