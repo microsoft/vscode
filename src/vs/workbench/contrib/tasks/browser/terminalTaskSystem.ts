@@ -264,6 +264,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = instantiationService.createInstance(TaskTerminalStatus));
+		this._reconnectToTerminals();
 	}
 
 	public get onDidStateChange(): Event<ITaskEvent> {
