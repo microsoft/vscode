@@ -12,7 +12,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { IMirrorTextModel, IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
+import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
 import { DiffAlgorithmName, IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
@@ -26,6 +26,7 @@ import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -57,7 +58,7 @@ export interface IRawModelData {
 /**
  * @internal
  */
-export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
+export interface ICommonModel extends ILinkComputerTarget, IDocumentColorComputerTarget, IMirrorModel {
 	uri: URI;
 	version: number;
 	eol: string;
@@ -73,6 +74,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
 	offsetAt(position: IPosition): number;
 	positionAt(offset: number): IPosition;
+	findMatches(regex: RegExp): RegExpMatchArray[];
 }
 
 /**
@@ -105,6 +107,22 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public getValue(): string {
 		return this.getText();
+	}
+
+	public findMatches(regex: RegExp): RegExpMatchArray[] {
+		const matches = [];
+		for (let i = 0; i < this._lines.length; i++) {
+			const line = this._lines[i];
+			const offsetToAdd = this.offsetAt(new Position(i + 1, 1));
+			const iteratorOverMatches = line.matchAll(regex);
+			for (const match of iteratorOverMatches) {
+				if (match.index || match.index === 0) {
+					match.index = match.index + offsetToAdd;
+				}
+				matches.push(match);
+			}
+		}
+		return matches;
 	}
 
 	public getLinesContent(): string[] {
@@ -638,6 +656,16 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		}
 
 		return computeLinks(model);
+	}
+
+	// --- BEGIN default document colors -----------------------------------------------------------
+
+	public async computeDefaultDocumentColors(modelUrl: string): Promise<IColorInformation[] | null> {
+		const model = this._getModel(modelUrl);
+		if (!model) {
+			return null;
+		}
+		return computeDefaultDocumentColors(model);
 	}
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------

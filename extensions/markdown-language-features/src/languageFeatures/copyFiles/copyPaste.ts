@@ -55,7 +55,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
 			if (workspaceFolder) {
 				const snippet = createUriListSnippet(document, [file.uri]);
-				return snippet ? new vscode.DocumentPasteEdit(snippet) : undefined;
+				return snippet ? new vscode.DocumentPasteEdit(snippet.snippet) : undefined;
 			}
 		}
 
@@ -73,7 +73,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		workspaceEdit.createFile(uri, { contents: file });
 
-		const pasteEdit = new vscode.DocumentPasteEdit(snippet);
+		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet);
 		pasteEdit.additionalEdit = workspaceEdit;
 		return pasteEdit;
 	}

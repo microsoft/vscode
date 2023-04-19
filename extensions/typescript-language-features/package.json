@@ -514,6 +514,12 @@
             "%format.semicolons.remove%"
           ]
         },
+        "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
+        },
         "javascript.validate.enable": {
           "type": "boolean",
           "default": true,

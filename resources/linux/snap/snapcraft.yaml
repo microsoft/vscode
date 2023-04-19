@@ -76,10 +76,6 @@ apps:
   @@NAME@@:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --no-sandbox
     common-id: @@NAME@@.desktop
-    environment:
-      GTK_USE_PORTAL: 1
 
   url-handler:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url --no-sandbox
-    environment:
-      GTK_USE_PORTAL: 1
