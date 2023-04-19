@@ -584,7 +584,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	matches(): Match[] {
 		const cellMatches: MatchInNotebook[] = Array.from(this._cellMatches.values()).flatMap((e) => e.matches());
-		return [...this._textMatches.values(), ...cellMatches];
+		const cellOutputMatches: MatchInNotebook[] = this.getCellOutputMatches(); // TODO: implement
+		return [...this._textMatches.values(), ...cellMatches, ...cellOutputMatches];
 	}
 
 	textMatches(): Match[] {
@@ -709,6 +710,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	// #region strictly notebook methods
+	getCellOutputMatches(): MatchInNotebook[] {
+
+		return [];
+	}
+
 	bindNotebookEditorWidget(widget: NotebookEditorWidget) {
 		if (this._notebookEditorWidget === widget) {
 			return;
@@ -1176,7 +1182,7 @@ export class FolderMatch extends Disposable {
 			this.doAddFile(fileMatch);
 			added = true;
 		}
-		if (fileMatch.count() === 0) {
+		if (fileMatch.count() === 0 && this.matches().length === 0) {
 			this.doRemoveFile([fileMatch], false, false);
 			added = false;
 			removed = true;

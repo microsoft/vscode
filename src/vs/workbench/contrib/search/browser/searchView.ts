@@ -566,6 +566,9 @@ export class SearchView extends ViewPane {
 
 	private onSearchResultsChanged(event?: IChangeEvent): void {
 		if (this.isVisible()) {
+			if (this.editorService.activeEditor && this.editorService.activeEditor.shortTitle === event?.elements[0].name()) {
+				return;
+			}
 			return this.refreshAndUpdateCount(event);
 		} else {
 			this.changedWhileHidden = true;

@@ -75,6 +75,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * custom confirmation on close behavior.
 	 */
 	readonly closeHandler?: IEditorCloseHandler;
+	shortTitle: string | undefined;
 
 	/**
 	 * Unique type identifier for this input. Every editor input of the
