@@ -29,23 +29,30 @@ export interface IColorData {
 	provider: DocumentColorProvider;
 }
 
+interface IExtColorData { range: IRange; color: [number, number, number, number] }
+
+type IColorType = IExtColorData | IColorData | IColorPresentation;
+
 enum Source {
 	InBuiltCode,
 	Extension
 }
 
-type IExtColorData = { range: IRange; color: [number, number, number, number] };
+class ComputeDocumentColorsOptions {
+	constructor(public readonly source: Source) { }
+}
 
-async function _computeDocumentColors(provider: DocumentColorProvider, colors: IExtColorData[] | IColorData[], source: Source, model: ITextModel, token: CancellationToken): Promise<boolean> {
+class ComputeColorPresentationsOptions {
+	constructor(public readonly color: number[], public readonly range: IRange) { }
+}
+
+async function _computeDocumentColors(provider: DocumentColorProvider, colors: IColorType[], source: Source, model: ITextModel, token: CancellationToken): Promise<boolean> {
 	const documentColors = await provider.provideDocumentColors(model, token);
-	colors = source === Source.Extension ? colors as IExtColorData[] : colors as IColorData[];
 	if (Array.isArray(documentColors)) {
 		for (const colorInfo of documentColors) {
 			if (source === Source.Extension) {
-				colors = colors as IExtColorData[];
 				colors.push({ range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] });
 			} else {
-				colors = colors as IColorData[];
 				colors.push({ colorInfo, provider });
 			}
 		}
@@ -53,27 +60,12 @@ async function _computeDocumentColors(provider: DocumentColorProvider, colors: I
 	return Array.isArray(documentColors);
 }
 
-async function _computeColorPresentations(provider: DocumentColorProvider, colors: IColorPresentation[], model: ITextModel, colorInfo: IColorInformation): Promise<boolean> {
+async function _computeColorPresentations(provider: DocumentColorProvider, colors: IColorType[], model: ITextModel, colorInfo: IColorInformation): Promise<boolean> {
 	const documentColors = await provider.provideColorPresentations(model, colorInfo, CancellationToken.None);
 	if (Array.isArray(documentColors)) {
 		colors.push(...documentColors);
 	}
 	return Array.isArray(documentColors);
-}
-
-enum RequestType {
-	colorPresentations,
-	documentColors
-}
-
-class ComputeDocumentColorsOptions {
-	type: RequestType = RequestType.documentColors;
-	constructor(public readonly source: Source) { }
-}
-
-class ComputeColorPresentationsOptions {
-	type: RequestType = RequestType.colorPresentations;
-	constructor(public readonly color: number[], public readonly range: IRange) { }
 }
 
 function _getColorInfo(color: number[], range: IRange): IColorInformation {
@@ -84,19 +76,19 @@ function _getColorInfo(color: number[], range: IRange): IColorInformation {
 	};
 }
 
+async function _computeColorData(options: ComputeColorPresentationsOptions | ComputeDocumentColorsOptions, provider: DocumentColorProvider, colorData: IColorType[], model: ITextModel, token: CancellationToken) {
+	if (options instanceof ComputeDocumentColorsOptions) {
+		return await _computeDocumentColors(provider, colorData, options.source, model, token);
+	} else {
+		return await _computeColorPresentations(provider, colorData, model, _getColorInfo(options.color, options.range));
+	}
+}
+
 async function _findColorData<T extends ComputeDocumentColorsOptions | ComputeColorPresentationsOptions>(options: T, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean): Promise<T extends ComputeDocumentColorsOptions ? IExtColorData[] | IColorData[] : IColorPresentation[]>;
 async function _findColorData(options: ComputeDocumentColorsOptions | ComputeColorPresentationsOptions, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean): Promise<IExtColorData[] | IColorData[] | IColorPresentation[]> {
 	let validDocumentColorProviderFound = false;
 	let defaultDocumentColorProvider: DefaultDocumentColorProvider | undefined;
-	// Used for dynamic determination of the type of the final color data
-	const state: {
-		requestType: RequestType.colorPresentations;
-		colorData: IColorPresentation[];
-	} | {
-		requestType: RequestType.documentColors;
-		colorData: IExtColorData[] | IColorData[];
-	} = { requestType: options.type, colorData: [] };
-
+	const colorData: IColorData[] | IExtColorData[] | IColorPresentation[] = [];
 	const documentColorProviders = colorProviderRegistry.ordered(model);
 	for (let i = documentColorProviders.length - 1; i >= 0; i--) {
 		const provider = documentColorProviders[i];
@@ -104,32 +96,20 @@ async function _findColorData(options: ComputeDocumentColorsOptions | ComputeCol
 			defaultDocumentColorProvider = provider;
 		} else {
 			try {
-				if (state.requestType === RequestType.documentColors) {
-					options = options as ComputeDocumentColorsOptions;
-					validDocumentColorProviderFound ||= await _computeDocumentColors(provider, state.colorData, options.source, model, token);
-				} else if (state.requestType === RequestType.colorPresentations) {
-					options = options as ComputeColorPresentationsOptions;
-					validDocumentColorProviderFound ||= await _computeColorPresentations(provider, state.colorData, model, _getColorInfo(options.color, options.range));
-				}
+				validDocumentColorProviderFound ||= await _computeColorData(options, provider, colorData, model, token);
 			} catch (e) {
 				onUnexpectedExternalError(e);
 			}
 		}
 	}
 	if (validDocumentColorProviderFound) {
-		return state.colorData;
+		return colorData;
 	}
 	if (!defaultDocumentColorProvider || !isDefaultColorDecoratorsEnabled) {
 		return [];
 	} else {
-		if (state.requestType === RequestType.documentColors) {
-			options = options as ComputeDocumentColorsOptions;
-			await _computeDocumentColors(defaultDocumentColorProvider, state.colorData, options.source, model, token);
-		} else if (state.requestType === RequestType.colorPresentations) {
-			options = options as ComputeColorPresentationsOptions;
-			await _computeColorPresentations(defaultDocumentColorProvider, state.colorData, model, _getColorInfo(options.color, options.range));
-		}
-		return state.colorData;
+		validDocumentColorProviderFound ||= await _computeColorData(options, defaultDocumentColorProvider, colorData, model, token);
+		return colorData;
 	}
 }
 
