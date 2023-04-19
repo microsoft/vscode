@@ -380,7 +380,7 @@ export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]):
 	return cloneAndChange(data, value => {
 
 		// If it's a trusted value it means it's okay to skip cleaning so we don't clean it
-		if (value instanceof TelemetryTrustedValue || value.hasOwnProperty('isTrustedTelemetryValue')) {
+		if (value instanceof TelemetryTrustedValue || Object.hasOwnProperty.call(value, 'isTrustedTelemetryValue')) {
 			return value.value;
 		}
 
