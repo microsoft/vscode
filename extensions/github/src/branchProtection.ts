@@ -5,7 +5,7 @@
 
 import { EventEmitter, Memento, Uri, workspace } from 'vscode';
 import { getOctokit } from './auth';
-import { API, BranchProtection, BranchProtectionProvider, Repository } from './typings/git';
+import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git';
 import { DisposableStore, getRepositoryFromUrl } from './util';
 
 interface RepositoryRuleset {
@@ -136,7 +136,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 		try {
 			const octokit = await getOctokit();
-			for await (const response of octokit.paginate.iterator('GET /repos/{owner}/{repo}/rulesets', { ...repository })) {
+			for await (const response of octokit.paginate.iterator('GET /repos/{owner}/{repo}/rulesets', { ...repository, includes_parents: true })) {
 				if (response.status !== 200) {
 					continue;
 				}
@@ -199,7 +199,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 				return;
 			}
 
-			this.branchProtection = [{ remote: remote.name, branches: [HEAD.name] }];
+			this.branchProtection = [{ remote: remote.name, rules: [{ include: [HEAD.name] }] }];
 			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 		} catch (err) {
 			// todo@lszomoru - add logging
@@ -228,28 +228,29 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 				// Repository rulesets
 				const rulesets = await this.getRepositoryRulesets(repository);
 
-				const branches: string[] = [];
+				const parseRef = (ref: string): string => {
+					if (ref.startsWith('refs/heads/')) {
+						return ref.substring(11);
+					} else if (ref === '~DEFAULT_BRANCH') {
+						return response.data.default_branch;
+					} else if (ref === '~ALL') {
+						return '**/*';
+					}
+
+					return ref;
+				};
+
+				const rules: BranchProtectionRule[] = [];
 				for (const ruleset of rulesets) {
-					const refs = ruleset.conditions.ref_name.include
-						.map(r => {
-							if (r.startsWith('refs/heads/')) {
-								return r.substring(11);
-							} else if (r === '~DEFAULT_BRANCH') {
-								return response.data.default_branch;
-							} else if (r === '~ALL') {
-								return '**/*';
-							}
-
-							return r;
-						});
-
-					branches.push(...refs);
+					rules.push({
+						include: ruleset.conditions.ref_name.include.map(r => parseRef(r)),
+						exclude: ruleset.conditions.ref_name.exclude.map(r => parseRef(r))
+					});
 				}
 
-				branchProtection.push({ remote: remote.name, branches });
+				branchProtection.push({ remote: remote.name, rules });
 			}
 
-			console.log('branchProtection: ', branchProtection);
 			this.branchProtection = branchProtection;
 			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 
