@@ -21,7 +21,7 @@ import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser'
 import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
@@ -225,6 +225,12 @@ class LastEditorState {
 
 type EditMode = 'live' | 'livePreview' | 'preview';
 
+export interface InteractiveEditorRunOptions {
+	initialRange?: IRange;
+	message?: string;
+	autoSend?: boolean;
+}
+
 export class InteractiveEditorController implements IEditorContribution {
 
 	static ID = 'interactiveEditor';
@@ -301,7 +307,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return this._configurationService.getValue('interactiveEditor.editMode');
 	}
 
-	async run(initialRange?: Range): Promise<void> {
+	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
 
 		const editMode = this._getMode();
 
@@ -352,23 +358,17 @@ export class InteractiveEditorController implements IEditorContribution {
 		const blockDecoration = this._editor.createDecorationsCollection();
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 
-		if (!initialRange) {
-			initialRange = session.wholeRange ? Range.lift(session.wholeRange) : selection;
-		}
-		if (initialRange.isEmpty()) {
-			initialRange = new Range(
-				initialRange.startLineNumber, 1,
-				initialRange.startLineNumber, textModel.getLineMaxColumn(initialRange.startLineNumber)
-			);
+		let optionsRange = Range.lift(options?.initialRange) ?? (session.wholeRange ? Range.lift(session.wholeRange) : selection);
+		if (optionsRange.isEmpty()) {
+			optionsRange = new Range(optionsRange.startLineNumber, 1, optionsRange.startLineNumber, textModel.getLineMaxColumn(optionsRange.startLineNumber));
 		}
 		wholeRangeDecoration.set([{
-			range: initialRange,
+			range: optionsRange,
 			options: InteractiveEditorController._decoWholeRange
 		}]);
 
-
 		let placeholder = session.placeholder ?? '';
-		let value = '';
+		let value = options?.message ?? '';
 
 		const store = new DisposableStore();
 
@@ -457,14 +457,14 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
+
 			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
-
-
 			this._ctxLastFeedbackKind.reset();
-
 			// reveal the line after the whole range to ensure that the input box is visible
 			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
-
+			if (options?.autoSend && round === 1) {
+				this.accept();
+			}
 			const input = await inputPromise;
 			roundStore.clear();
 
@@ -476,7 +476,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				InteractiveEditorController._promptHistory.unshift(input);
 			}
 
-			const refer = session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
+			const refer = session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
 				this._editor.setSelection(wholeRange);
