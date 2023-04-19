@@ -37,7 +37,7 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
-		() => this.model.get()?.currentInlineCompletion.get()?.toSingleTextEdit(),
+		() => this.model.get()?.currentInlineCompletion.get()?.toSingleTextEdit(undefined),
 		(tx) => this.updateObservables(tx, VersionIdChangeReason.Other)
 	));
 
