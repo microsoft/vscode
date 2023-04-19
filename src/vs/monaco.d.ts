@@ -1530,6 +1530,14 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Vertical Lane in the glyph margin of the editor.
+	 */
+	export enum GlyphMarginLane {
+		Left = 1,
+		Right = 2
+	}
+
+	/**
 	 * Position in the minimap to render the decoration.
 	 */
 	export enum MinimapPosition {
@@ -1550,6 +1558,13 @@ declare namespace monaco.editor {
 		darkColor?: string | ThemeColor;
 	}
 
+	export interface IModelDecorationGlyphMarginOptions {
+		/**
+		 * The position in the glyph margin.
+		 */
+		position: GlyphMarginLane;
+	}
+
 	/**
 	 * Options for rendering a model decoration in the overview ruler.
 	 */
@@ -1561,11 +1576,11 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Options for rendering a model decoration in the overview ruler.
+	 * Options for rendering a model decoration in the minimap.
 	 */
 	export interface IModelDecorationMinimapOptions extends IDecorationOptions {
 		/**
-		 * The position in the overview ruler.
+		 * The position in the minimap.
 		 */
 		position: MinimapPosition;
 	}
@@ -1625,6 +1640,11 @@ declare namespace monaco.editor {
 		 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 		 */
 		glyphMarginClassName?: string | null;
+		/**
+		 * If set and the decoration has {@link glyphMarginClassName} set, render this decoration
+		 * with the specified {@link IModelDecorationGlyphMarginOptions} in the glyph margin.
+		 */
+		glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
@@ -2951,6 +2971,7 @@ declare namespace monaco.editor {
 	export interface IModelDecorationsChangedEvent {
 		readonly affectsMinimap: boolean;
 		readonly affectsOverviewRuler: boolean;
+		readonly affectsGlyphMargin: boolean;
 	}
 
 	export interface IModelOptionsChangedEvent {
@@ -4038,6 +4059,10 @@ declare namespace monaco.editor {
 		 * The width of the glyph margin.
 		 */
 		readonly glyphMarginWidth: number;
+		/**
+		 * The number of decoration lanes to render in the glyph margin.
+		 */
+		readonly glyphMarginDecorationLaneCount: number;
 		/**
 		 * Left position for the line numbers.
 		 */

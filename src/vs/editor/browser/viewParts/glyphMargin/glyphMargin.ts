@@ -18,23 +18,60 @@ export class DecorationToRender {
 	public endLineNumber: number;
 	public className: string;
 	public readonly zIndex: number;
+	public readonly decorationLane: number;
 
-	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex?: number) {
+	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex?: number, decorationLane?: number) {
 		this.startLineNumber = +startLineNumber;
 		this.endLineNumber = +endLineNumber;
 		this.className = String(className);
 		this.zIndex = zIndex ?? 0;
+		this.decorationLane = decorationLane ?? 1;
+	}
+}
+
+export class RenderedDecoration {
+	constructor(
+		public readonly className: string,
+		public readonly zIndex: number,
+	) { }
+}
+
+export class LineRenderedDecorations {
+
+	private readonly lanes: RenderedDecoration[][] = [];
+
+	public add(lane: number, decoration: RenderedDecoration) {
+		while (lane >= this.lanes.length) {
+			this.lanes.push([]);
+		}
+		this.lanes[lane].push(decoration);
+	}
+
+	public getLaneDecorations(laneIndex: number): RenderedDecoration[] {
+		if (laneIndex < this.lanes.length) {
+			return this.lanes[laneIndex];
+		}
+		return [];
+	}
+
+	public isEmpty(): boolean {
+		for (const lane of this.lanes) {
+			if (lane.length > 0) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
 export abstract class DedupOverlay extends DynamicViewOverlay {
 
-	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[]): [string, number][][] {
+	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[], decorationLaneCount: number): LineRenderedDecorations[] {
 
-		const output: [string, number][][] = [];
+		const output: LineRenderedDecorations[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			output[lineIndex] = [];
+			output[lineIndex] = new LineRenderedDecorations();
 		}
 
 		if (decorations.length === 0) {
@@ -59,6 +96,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			const zIndex = d.zIndex;
 			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
 			const endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
+			const lane = Math.min(d.decorationLane, decorationLaneCount);
 
 			if (prevClassName === className) {
 				startLineIndex = Math.max(prevEndLineIndex + 1, startLineIndex);
@@ -69,7 +107,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			}
 
 			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].push([className, zIndex]);
+				output[i].add(lane, new RenderedDecoration(className, zIndex));
 			}
 		}
 
@@ -84,6 +122,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 	private _glyphMargin: boolean;
 	private _glyphMarginLeft: number;
 	private _glyphMarginWidth: number;
+	private _glyphMarginDecorationLaneCount: number;
 	private _renderResult: string[] | null;
 
 	constructor(context: ViewContext) {
@@ -97,6 +136,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		this._glyphMargin = options.get(EditorOption.glyphMargin);
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
+		this._glyphMarginDecorationLaneCount = layoutInfo.glyphMarginDecorationLaneCount;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -117,6 +157,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		this._glyphMargin = options.get(EditorOption.glyphMargin);
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
+		this._glyphMarginDecorationLaneCount = layoutInfo.glyphMarginDecorationLaneCount;
 		return true;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -151,8 +192,9 @@ export class GlyphMarginOverlay extends DedupOverlay {
 			const d = decorations[i];
 			const glyphMarginClassName = d.options.glyphMarginClassName;
 			const zIndex = d.options.zIndex;
+			const lane = d.options.glyphMargin?.position;
 			if (glyphMarginClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName, zIndex);
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName, zIndex, lane);
 			}
 		}
 		return r;
@@ -167,31 +209,40 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		const decorationsToRender = this._getDecorations(ctx);
-		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, decorationsToRender);
+		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, decorationsToRender, this._glyphMarginDecorationLaneCount);
 
 		const lineHeight = this._lineHeight.toString();
-		const left = this._glyphMarginLeft.toString();
 		const width = this._glyphMarginWidth.toString();
-		const common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
+		const common = '" style="width:' + width + 'px' + ';height:' + lineHeight + 'px;';
 
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const renderInfo = toRender[lineIndex];
 
-			if (renderInfo.length === 0) {
+			if (renderInfo.isEmpty()) {
 				output[lineIndex] = '';
 			} else {
-				// Sort decorations to render in descending order by zIndex
-				renderInfo.sort(([_, aIndex], [__, bIndex]) => {
-					return bIndex - aIndex;
-				});
-
-				output[lineIndex] = (
-					'<div class="cgmr codicon '
-					+ renderInfo[0][0]
-					+ common
-				);
+				let css = '';
+				for (let lane = 1; lane <= this._glyphMarginDecorationLaneCount; lane += 1) {
+					const decorations = renderInfo.getLaneDecorations(lane);
+					if (decorations.length === 0) {
+						continue;
+					}
+					decorations.sort((a, b) => {
+						// Sort decorations to render in descending order by zIndex
+						return b.zIndex - a.zIndex;
+					});
+					const winningDecoration: RenderedDecoration = decorations[0];
+					const left = (this._glyphMarginLeft + (lane - 1) * this._lineHeight).toString();
+					css += (
+						'<div class="cgmr codicon '
+						+ winningDecoration.className // TODO@joyceerhl Implement overflow for remaining decorations
+						+ common
+						+ 'left:' + left + 'px;"></div>'
+					);
+				}
+				output[lineIndex] = css;
 			}
 		}
 

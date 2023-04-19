@@ -560,6 +560,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		MouseTargetType: standaloneEnums.MouseTargetType,
 		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
+		GlyphMarginLane: standaloneEnums.GlyphMarginLane,
 		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
 		RenderMinimap: standaloneEnums.RenderMinimap,
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
