@@ -463,7 +463,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private doRegisterConfigurations(configurations: IConfigurationNode[], validate: boolean, bucket: Set<string>): void {
-
+		console.log(configurations.map(c => c.id));
 		configurations.forEach(configuration => {
 
 			this.validateAndRegisterProperties(configuration, validate, configuration.extensionInfo, configuration.restrictedProperties, undefined, bucket);
@@ -501,6 +501,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, extensionInfo: IExtensionInfo | undefined, restrictedProperties: string[] | undefined, scope: ConfigurationScope = ConfigurationScope.WINDOW, bucket: Set<string>): void {
 		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
 		const properties = configuration.properties;
+		if (configuration.id === 'accessibility') {
+			console.log('configuration');
+		}
 		if (properties) {
 			for (const key in properties) {
 				const property: IRegisteredConfigurationPropertySchema = properties[key];

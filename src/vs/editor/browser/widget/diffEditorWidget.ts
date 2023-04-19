@@ -1276,7 +1276,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.originalAriaLabel) {
 			result.ariaLabel = options.originalAriaLabel;
 		}
-		if (this._configService.getValue('accessibility.verbose.diff-editor')) {
+		if (this._configService.getValue('accessibility.verbosity.diff-editor')) {
 			result.ariaLabel += ariaNavigationTip;
 		}
 		result.readOnly = !this._options.originalEditable;
@@ -1296,7 +1296,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.modifiedAriaLabel) {
 			result.ariaLabel = options.modifiedAriaLabel;
 		}
-		result.ariaLabel += ariaNavigationTip;
+		if (this._configService.getValue('accessibility.verbosity.diff-editor')) {
+			result.ariaLabel += ariaNavigationTip;
+		}
 		result.wordWrapOverride1 = this._options.diffWordWrap;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
