@@ -502,10 +502,6 @@ pub struct EditorTroubleshooting {
 	#[clap(long)]
 	pub disable_gpu: bool,
 
-	/// Max memory size for a window (in Mbytes).
-	#[clap(long, value_name = "memory")]
-	pub max_memory: Option<usize>,
-
 	/// Shows all telemetry events which the editor collects.
 	#[clap(long)]
 	pub telemetry: bool,
@@ -533,9 +529,6 @@ impl EditorTroubleshooting {
 		}
 		if self.disable_gpu {
 			target.push("--disable-gpu".to_string());
-		}
-		if let Some(memory) = &self.max_memory {
-			target.push(format!("--max-memory={}", memory));
 		}
 		if self.telemetry {
 			target.push("--telemetry".to_string());

@@ -306,9 +306,14 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	) {
 		super();
 
-		const findInMarkdownMode = this._configurationService.getValue<{ source: boolean; preview: boolean }>(NotebookSetting.experimentalFindInMarkdownMode) ?? { source: true, preview: false };
+		const findScope = this._configurationService.getValue<{
+			markupSource: boolean;
+			markupPreview: boolean;
+			codeSource: boolean;
+			codeOutput: boolean;
+		}>(NotebookSetting.findScope) ?? { markupSource: true, markupPreview: true, codeSource: true, codeOutput: true };
 
-		this._filters = new NotebookFindFilters(findInMarkdownMode.source, findInMarkdownMode.preview, true, true);
+		this._filters = new NotebookFindFilters(findScope.markupSource, findScope.markupPreview, findScope.codeSource, findScope.codeOutput);
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {
