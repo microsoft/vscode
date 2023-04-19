@@ -832,7 +832,7 @@ class LiveStrategy extends EditModeStrategy {
 	}
 
 	cancel(): void {
-		while (this._model.getAlternativeVersionId() !== this._versionId) {
+		while (this._model.getAlternativeVersionId() !== this._versionId && this._model.canUndo()) {
 			this._model.undo();
 		}
 	}
