@@ -225,7 +225,7 @@ class LastEditorState {
 
 type EditMode = 'live' | 'livePreview' | 'preview';
 
-interface InteractivEditorOptions {
+export interface InteractiveEditorRunOptions {
 	initialRange?: IRange;
 	message?: string;
 	autoSend?: boolean;
@@ -307,7 +307,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return this._configurationService.getValue('interactiveEditor.editMode');
 	}
 
-	async run(options: InteractivEditorOptions = {}): Promise<void> {
+	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
 
 		const editMode = this._getMode();
 
@@ -358,7 +358,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		const blockDecoration = this._editor.createDecorationsCollection();
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 
-		const optionsRange = options.initialRange ? options.initialRange : (session.wholeRange ? Range.lift(session.wholeRange) : selection);
+		const optionsRange = options?.initialRange ?? (session.wholeRange ? Range.lift(session.wholeRange) : selection);
 		let initialRange = Range.lift(optionsRange);
 		if (initialRange.isEmpty()) {
 			initialRange = new Range(optionsRange.startLineNumber, 1, optionsRange.startLineNumber, textModel.getLineMaxColumn(optionsRange.startLineNumber));
@@ -369,7 +369,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}]);
 
 		let placeholder = session.placeholder ?? '';
-		let value = options.message ?? '';
+		let value = options?.message ?? '';
 
 		const store = new DisposableStore();
 
@@ -463,7 +463,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctxLastFeedbackKind.reset();
 			// reveal the line after the whole range to ensure that the input box is visible
 			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
-			if (options.autoSend && round === 1) {
+			if (options?.autoSend && round === 1) {
 				this.accept();
 			}
 			const input = await inputPromise;
