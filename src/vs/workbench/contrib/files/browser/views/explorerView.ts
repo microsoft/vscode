@@ -991,7 +991,10 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const explorerView = viewsService.getViewWithId(VIEW_ID) as ExplorerView;
-		explorerView.collapseAll();
+		const view = viewsService.getViewWithId(VIEW_ID);
+		if (view !== null) {
+			const explorerView = view as ExplorerView;
+			explorerView.collapseAll();
+		}
 	}
 });
