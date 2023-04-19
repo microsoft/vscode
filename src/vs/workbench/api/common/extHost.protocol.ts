@@ -354,6 +354,7 @@ export interface IDocumentFilterDto {
 	pattern?: string | IRelativePattern;
 	exclusive?: boolean;
 	notebookType?: string;
+	isBuiltin?: boolean;
 }
 
 export interface ISignatureHelpProviderMetadataDto {
