@@ -103,7 +103,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 			const classNames = toRender[lineIndex];
 			let lineOutput = '';
 			for (let i = 0, len = classNames.length; i < len; i++) {
-				lineOutput += '<div class="cldr ' + classNames[i][0] + common;
+				lineOutput += '<div class="cldr ' + classNames[i][0].className + common;
 			}
 			output[lineIndex] = lineOutput;
 		}

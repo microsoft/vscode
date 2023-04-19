@@ -29,11 +29,18 @@ export class DecorationToRender {
 	}
 }
 
+export class RenderedDecoration {
+	constructor(
+		public readonly className: string,
+		public readonly zIndex: number,
+	) { }
+}
+
 export abstract class DedupOverlay extends DynamicViewOverlay {
 
-	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[], decorationLaneCount: number): [string, number][][][] {
+	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[], decorationLaneCount: number): RenderedDecoration[][][] {
 
-		const output: [string, number][][][] = [];
+		const output: RenderedDecoration[][][] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			output[lineIndex] = [[]];
@@ -73,7 +80,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 
 			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
 				output[i][lane] = (output[i][lane] ?? []);
-				output[i][lane].push([className, zIndex]);
+				output[i][lane].push(new RenderedDecoration(className, zIndex));
 			}
 		}
 
@@ -195,14 +202,14 @@ export class GlyphMarginOverlay extends DedupOverlay {
 					if (!decorations) {
 						continue;
 					}
-					decorations.sort(([_, aIndex], [__, bIndex]) => {
+					decorations.sort((a, b) => {
 						// Sort decorations to render in descending order by zIndex
-						return bIndex - aIndex;
+						return b.zIndex - a.zIndex;
 					});
 					const left = (this._glyphMarginLeft + (lane - 1) * this._lineHeight).toString();
 					css += (
 						'<div class="cgmr codicon '
-						+ decorations[0][0] // TODO@joyceerhl Implement overflow for remaining decorations
+						+ decorations[0].className // TODO@joyceerhl Implement overflow for remaining decorations
 						+ common
 						+ 'left:' + left + 'px;"></div>'
 					);

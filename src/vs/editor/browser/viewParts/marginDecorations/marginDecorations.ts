@@ -81,7 +81,7 @@ export class MarginViewLineDecorationsOverlay extends DedupOverlay {
 			const classNames = toRender[lineIndex];
 			let lineOutput = '';
 			for (let i = 0, len = classNames.length; i < len; i++) {
-				lineOutput += '<div class="cmdr ' + classNames[i][0] + '" style=""></div>';
+				lineOutput += '<div class="cmdr ' + classNames[i][0].className + '" style=""></div>';
 			}
 			output[lineIndex] = lineOutput;
 		}
