@@ -481,13 +481,13 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 					])
 				}]
 			]));
-			const diff = merged1.diff(merged2, undefined)!;
-			deepStrictEqual([...diff.added.entries()], []);
+			const diff = merged1.diff(merged2, scope1)!;
+			strictEqual(diff.added.size, 0);
 			deepStrictEqual([...diff.removed.entries()], [
 				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'B' }]]
 			]);
 			deepStrictEqual([...diff.changed.entries()], [
-				['A', [{ extensionIdentifier: 'ext1', value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]]
+				['A', [{ extensionIdentifier: 'ext1', value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: scope1, variable: 'A' }]]
 			]);
 		});
 	});
