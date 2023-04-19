@@ -28,6 +28,10 @@ import { randomPath } from 'vs/base/common/extpath';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/node/state';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { Promises, timeout } from 'vs/base/common/async';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 const processExplorerWindowState = 'issue.processExplorerWindowState';
@@ -67,7 +71,8 @@ export class IssueMainService implements IIssueMainService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IProductService private readonly productService: IProductService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		this.registerListeners();
 	}
@@ -192,6 +197,41 @@ export class IssueMainService implements IIssueMainService {
 			}
 
 			this.safeSend(event, 'vscode:pidToNameResponse', pidToNames);
+		});
+
+		validatedIpcMain.on('vscode:getIssueReporterUriRequest', async (event, extensionId: string) => {
+			try {
+				const res = await this.getIssueReporterUri(extensionId, CancellationToken.None);
+				this.safeSend(event, 'vscode:getIssueReporterUriResponse', { extensionId, uri: res.toString(true) });
+			} catch (e) {
+				this.logService.error(e);
+				this.safeSend(event, 'vscode:getIssueReporterUriResponse', { extensionId, error: e.message ?? e.toString() ?? 'Unknown Error' });
+			}
+		});
+	}
+
+	async getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI> {
+		if (!this.issueReporterParentWindow) {
+			throw new Error('Issue reporter window not available');
+		}
+		const window = this.windowsMainService.getWindowById(this.issueReporterParentWindow.id);
+		if (!window) {
+			throw new Error('Window not found');
+		}
+		const replyChannel = `vscode:triggerIssueUriRequestHandlerResponse${window.id}`;
+		return Promises.withAsyncBody<URI>(async (resolve, reject) => {
+			window.sendWhenReady('vscode:triggerIssueUriRequestHandler', token, { replyChannel, extensionId });
+
+			validatedIpcMain.once(replyChannel, (_: unknown, data: string) => {
+				resolve(URI.parse(data));
+			});
+
+			try {
+				await timeout(5000, token);
+				reject(new Error('Timed out waiting for issue reporter URI'));
+			} finally {
+				validatedIpcMain.removeHandler(replyChannel);
+			}
 		});
 	}
 
