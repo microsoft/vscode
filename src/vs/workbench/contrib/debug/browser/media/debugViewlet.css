@@ -56,7 +56,7 @@
 	padding-bottom: 0;
 
 	/* The debug view title is crowded, let this one get narrower than others */
-	min-width: 70px;
+	min-width: 90px;
 }
 
 
