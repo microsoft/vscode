@@ -131,34 +131,6 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		}
 	}
 
-	private async getRepositoryDefaultBranch(repository: { owner: string; repo: string }): Promise<string | undefined> {
-		try {
-			const octokit = await getOctokit();
-			const response = await octokit.repos.get({ ...repository });
-			return response.data.default_branch;
-		} catch {
-			// todo@lszomoru - add logging
-			return undefined;
-		}
-	}
-
-	private async getRepositoryRuleset(repository: { owner: string; repo: string }, id: number): Promise<RepositoryRuleset | undefined> {
-		try {
-			const octokit = await getOctokit();
-			const response = await octokit.request('GET /repos/{owner}/{repo}/rulesets/{id}', {
-				...repository,
-				id,
-				headers: {
-					'X-GitHub-Api-Version': '2022-11-28'
-				}
-			});
-			return response.data as RepositoryRuleset;
-		} catch {
-			// todo@lszomoru - add logging
-			return undefined;
-		}
-	}
-
 	private async getRepositoryRulesets(repository: { owner: string; repo: string }): Promise<RepositoryRuleset[]> {
 		const rulesets: RepositoryRuleset[] = [];
 
@@ -174,7 +146,15 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 						continue;
 					}
 
-					const rulesetWithDetails = await this.getRepositoryRuleset(repository, ruleset.id);
+					const response = await octokit.request('GET /repos/{owner}/{repo}/rulesets/{id}', {
+						...repository,
+						id: ruleset.id,
+						headers: {
+							'X-GitHub-Api-Version': '2022-11-28'
+						}
+					});
+
+					const rulesetWithDetails = response.data as RepositoryRuleset;
 					if (rulesetWithDetails?.rules.find(r => r.type === 'pull_request')) {
 						rulesets.push(rulesetWithDetails);
 					}
@@ -241,27 +221,35 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 					continue;
 				}
 
+				// Repository details
+				const octokit = await getOctokit();
+				const response = await octokit.repos.get({ ...repository });
+
+				// Repository rulesets
 				const rulesets = await this.getRepositoryRulesets(repository);
 
-				// All branches (~ALL)
-				if (rulesets.find(r => r.conditions.ref_name.include.includes('~ALL'))) {
-					branchProtection.push({ remote: remote.name, branches: ['**'] });
-					continue;
+				const branches: string[] = [];
+				for (const ruleset of rulesets) {
+					const refs = ruleset.conditions.ref_name.include
+						.map(r => {
+							if (r.startsWith('refs/heads/')) {
+								return r.substring(11);
+							} else if (r === '~DEFAULT_BRANCH') {
+								return response.data.default_branch;
+							} else if (r === '~ALL') {
+								return '**/*';
+							}
+
+							return r;
+						});
+
+					branches.push(...refs);
 				}
 
-
-
-
-
-				// Default branch (~DEFAULT_BRANCH)
-
-				// Protected branches
-
-
-
-
+				branchProtection.push({ remote: remote.name, branches });
 			}
 
+			console.log('branchProtection: ', branchProtection);
 			this.branchProtection = branchProtection;
 			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 
