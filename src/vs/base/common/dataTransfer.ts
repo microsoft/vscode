@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
+import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 
@@ -46,8 +47,50 @@ export class VSDataTransfer {
 		return this._entries.size;
 	}
 
+	/**
+	 * Check if this data transfer contains data for a given mime type.
+	 *
+	 * This uses exact matching and does not support wildcards.
+	 */
 	public has(mimeType: string): boolean {
 		return this._entries.has(this.toKey(mimeType));
+	}
+
+	/**
+	 * Check if this data transfer contains data matching a given mime type glob.
+	 *
+	 * This allows matching for wildcards, such as `image/*`.
+	 *
+	 * Use the special `files` mime type to match any file in the data transfer.
+	 */
+	public matches(mimeTypeGlob: string): boolean {
+		// Exact match
+		if (this.has(mimeTypeGlob)) {
+			return true;
+		}
+
+		// Special `files` mime type matches any file
+		if (mimeTypeGlob.toLowerCase() === 'files') {
+			return Iterable.some(this.values(), item => item.asFile());
+		}
+
+		// Anything glob
+		if (mimeTypeGlob === '*/*') {
+			return this._entries.size > 0;
+		}
+
+		// Wildcard, such as `image/*`
+		const wildcard = this.toKey(mimeTypeGlob).match(/^([a-z]+)$\/([a-z]+|\*)/i);
+		if (!wildcard) {
+			return false;
+		}
+
+		const [_, type, subtype] = wildcard;
+		if (subtype === '*') {
+			return Iterable.some(this._entries.keys(), key => key.startsWith(type + '/'));
+		}
+
+		return false;
 	}
 
 	public get(mimeType: string): IDataTransferItem | undefined {

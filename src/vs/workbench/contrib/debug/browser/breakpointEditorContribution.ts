@@ -141,7 +141,8 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 			inlineClassName: `debug-breakpoint-placeholder`,
 			inlineClassNameAffectsLetterSpacing: true
 		} : undefined,
-		overviewRuler: overviewRulerDecoration
+		overviewRuler: overviewRulerDecoration,
+		zIndex: 9999
 	};
 }
 

@@ -58,7 +58,6 @@ export namespace Schemas {
 	export const vscodeCustomEditor = 'vscode-custom-editor';
 
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
-
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
 	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
 	export const vscodeInteractive = 'vscode-interactive';
@@ -69,6 +68,8 @@ export namespace Schemas {
 	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
 
 	export const vscodeTerminal = 'vscode-terminal';
+
+	export const vscodeInteractiveSesssion = 'vscode-chat-editor';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)

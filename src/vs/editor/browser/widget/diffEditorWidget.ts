@@ -1909,6 +1909,7 @@ const DECORATIONS = {
 	arrowRevertChange: ModelDecorationOptions.register({
 		description: 'diff-editor-arrow-revert-change',
 		glyphMarginClassName: 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight),
+		zIndex: 10001,
 	}),
 
 	charDelete: ModelDecorationOptions.register({

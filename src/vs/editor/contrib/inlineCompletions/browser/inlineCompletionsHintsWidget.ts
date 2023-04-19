@@ -11,15 +11,16 @@ import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { OS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./inlineSuggestionHintsWidget';
+import 'vs/css!./inlineCompletionsHintsWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { Command } from 'vs/editor/common/languages';
+import { Command, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { PositionAffinity } from 'vs/editor/common/model';
-import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
+import { showPreviousInlineSuggestionActionId, showNextInlineSuggestionActionId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -33,11 +34,37 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-export class InlineSuggestionHintsWidget extends Disposable {
-	private readonly widget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsContentWidget, this.editor, true));
+export class InlineCompletionsHintsWidget extends Disposable {
+	private readonly showToolbar = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar);
 
 	private sessionPosition: Position | undefined = undefined;
-	private isDisposed = false;
+
+	private readonly position = derived('position', reader => {
+		const ghostText = this.model.ghostText.read(reader);
+
+		if (this.showToolbar.read(reader) !== 'always' || !ghostText) {
+			this.sessionPosition = undefined;
+			return null;
+		}
+
+		const firstColumn = ghostText.parts[0].column;
+		if (this.sessionPosition && this.sessionPosition.lineNumber !== ghostText.lineNumber) {
+			this.sessionPosition = undefined;
+		}
+
+		const position = new Position(ghostText.lineNumber, Math.min(firstColumn, this.sessionPosition?.column ?? Number.MAX_SAFE_INTEGER));
+		return position;
+	});
+
+	private readonly contentWidget = this._register(this.instantiationService.createInstance(
+		InlineSuggestionHintsContentWidget,
+		this.editor,
+		true,
+		this.position,
+		this.model.currentInlineCompletionIndex,
+		this.model.inlineCompletionsCount,
+		this.model.currentInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+	));
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -46,54 +73,18 @@ export class InlineSuggestionHintsWidget extends Disposable {
 	) {
 		super();
 
-		editor.addContentWidget(this.widget);
-		this._register(toDisposable(() => editor.removeContentWidget(this.widget)));
-		this._register(model.onDidChange(() => this.update()));
-		this._register(editor.onDidChangeConfiguration(() => this.update()));
-		this.update();
-	}
+		editor.addContentWidget(this.contentWidget);
+		this._register(toDisposable(() => editor.removeContentWidget(this.contentWidget)));
 
-	override dispose(): void {
-		this.isDisposed = true;
-		super.dispose();
-	}
-
-	private update(): void {
-		if (this.isDisposed) {
-			return;
-		}
-
-		const options = this.editor.getOption(EditorOption.inlineSuggest);
-		if (options.showToolbar !== 'always' || !this.model.ghostText) {
-			this.widget.update(null, 0, undefined, []);
-			this.sessionPosition = undefined;
-			return;
-		}
-
-		if (!this.model.completionSession.value) {
-			return;
-		}
-
-		if (!this.model.completionSession.value.hasBeenTriggeredExplicitly) {
-			this.model.completionSession.value.ensureUpdateWithExplicitContext();
-		}
-
-		const ghostText = this.model.ghostText;
-
-		const firstColumn = ghostText.parts[0].column;
-		if (this.sessionPosition && this.sessionPosition.lineNumber !== ghostText.lineNumber) {
-			this.sessionPosition = undefined;
-		}
-
-		const position = new Position(ghostText.lineNumber, Math.min(firstColumn, this.sessionPosition?.column ?? Number.MAX_SAFE_INTEGER));
-		this.sessionPosition = position;
-
-		this.widget.update(
-			this.sessionPosition,
-			this.model.completionSession.value.currentlySelectedIndex,
-			this.model.completionSession.value.hasBeenTriggeredExplicitly ? this.model.completionSession.value.getInlineCompletionsCountSync() : undefined,
-			this.model.completionSession.value.commands,
-		);
+		this._register(autorun('request explicit', reader => {
+			const position = this.position.read(reader);
+			if (!position) {
+				return;
+			}
+			if (this.model.lastTriggerKind.read(reader) !== InlineCompletionTriggerKind.Explicit) {
+				this.model.triggerExplicitly();
+			}
+		}));
 	}
 }
 
@@ -116,7 +107,6 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			h('div@toolBar'),
 		])
 	]);
-	private position: Position | null = null;
 
 	private createCommandAction(commandId: string, label: string, iconClassName: string): Action {
 		const action = new Action(
@@ -155,13 +145,16 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this.previousAction.enabled = this.nextAction.enabled = false;
 	}, 100));
 
-	private lastCurrentSuggestionIdx = -1;
-	private lastSuggestionCount = -1;
 	private lastCommands: Command[] = [];
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly withBorder: boolean,
+		private readonly _position: IObservable<Position | null>,
+		private readonly _currentSuggestionIdx: IObservable<number>,
+		private readonly _suggestionCount: IObservable<number | undefined>,
+		private readonly _extraCommands: IObservable<Command[]>,
+
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -188,62 +181,65 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this._register(this.toolBar.onDidChangeDropdownVisibility(e => {
 			InlineSuggestionHintsContentWidget._dropDownVisible = e;
 		}));
-	}
 
-	public update(position: Position | null, currentSuggestionIdx: number, suggestionCount: number | undefined, extraCommands: Command[]): void {
-		if (this.position === position
-			&& this.lastCurrentSuggestionIdx === currentSuggestionIdx
-			&& this.lastSuggestionCount === suggestionCount
-			&& equals(this.lastCommands, extraCommands)) {
-			// nothing to update
-			return;
-		}
-
-		this.position = position;
-		this.lastCurrentSuggestionIdx = currentSuggestionIdx;
-		this.lastSuggestionCount = suggestionCount ?? -1;
-		this.lastCommands = extraCommands;
-
-		if (suggestionCount !== undefined && suggestionCount > 1) {
-			this.disableButtonsDebounced.cancel();
-			this.previousAction.enabled = this.nextAction.enabled = true;
-		} else {
-			this.disableButtonsDebounced.schedule();
-		}
-
-		if (suggestionCount !== undefined) {
-			this.clearAvailableSuggestionCountLabelDebounced.cancel();
-			this.availableSuggestionCountAction.label = `${currentSuggestionIdx + 1}/${suggestionCount}`;
-		} else {
-			this.clearAvailableSuggestionCountLabelDebounced.schedule();
-		}
-
-		this.editor.layoutContentWidget(this);
-
-		const extraActions = extraCommands.map<IAction>(c => ({
-			class: undefined,
-			id: c.id,
-			enabled: true,
-			tooltip: c.tooltip || '',
-			label: c.title,
-			run: (event) => {
-				return this._commandService.executeCommand(c.id);
-			},
+		this._register(autorun('update position', (reader) => {
+			this._position.read(reader);
+			this.editor.layoutContentWidget(this);
 		}));
 
-		for (const [_, group] of this.inlineCompletionsActionsMenus.getActions()) {
-			for (const action of group) {
-				if (action instanceof MenuItemAction) {
-					extraActions.push(action);
+		this._register(autorun('counts', (reader) => {
+			const suggestionCount = this._suggestionCount.read(reader);
+			const currentSuggestionIdx = this._currentSuggestionIdx.read(reader);
+
+			if (suggestionCount !== undefined) {
+				this.clearAvailableSuggestionCountLabelDebounced.cancel();
+				this.availableSuggestionCountAction.label = `${currentSuggestionIdx + 1}/${suggestionCount}`;
+			} else {
+				this.clearAvailableSuggestionCountLabelDebounced.schedule();
+			}
+
+			if (suggestionCount !== undefined && suggestionCount > 1) {
+				this.disableButtonsDebounced.cancel();
+				this.previousAction.enabled = this.nextAction.enabled = true;
+			} else {
+				this.disableButtonsDebounced.schedule();
+			}
+		}));
+
+		this._register(autorun('extra commands', (reader) => {
+			const extraCommands = this._extraCommands.read(reader);
+			if (equals(this.lastCommands, extraCommands)) {
+				// nothing to update
+				return;
+			}
+
+			this.lastCommands = extraCommands;
+
+			const extraActions = extraCommands.map<IAction>(c => ({
+				class: undefined,
+				id: c.id,
+				enabled: true,
+				tooltip: c.tooltip || '',
+				label: c.title,
+				run: (event) => {
+					return this._commandService.executeCommand(c.id);
+				},
+			}));
+
+			for (const [_, group] of this.inlineCompletionsActionsMenus.getActions()) {
+				for (const action of group) {
+					if (action instanceof MenuItemAction) {
+						extraActions.push(action);
+					}
 				}
 			}
-		}
 
-		if (extraActions.length > 0) {
-			extraActions.unshift(new Separator());
-		}
+			if (extraActions.length > 0) {
+				extraActions.unshift(new Separator());
+			}
 
-		this.toolBar.setAdditionalSecondaryActions(extraActions);
+			this.toolBar.setAdditionalSecondaryActions(extraActions);
+		}));
 	}
 
 	getId(): string { return this.id; }
@@ -254,7 +250,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 
 	getPosition(): IContentWidgetPosition | null {
 		return {
-			position: this.position,
+			position: this._position.get(),
 			preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW],
 			positionAffinity: PositionAffinity.LeftOfInjectedText,
 		};

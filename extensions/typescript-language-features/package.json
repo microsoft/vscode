@@ -514,6 +514,12 @@
             "%format.semicolons.remove%"
           ]
         },
+        "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
+        },
         "javascript.validate.enable": {
           "type": "boolean",
           "default": true,
@@ -1005,6 +1011,18 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.preferences.useAliasesForRenames%",
+          "scope": "language-overridable"
+        },
+        "javascript.preferences.renameMatchingJsxTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameMatchingJsxTags%",
+          "scope": "language-overridable"
+        },
+        "typescript.preferences.renameMatchingJsxTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameMatchingJsxTags%",
           "scope": "language-overridable"
         },
         "typescript.updateImportsOnFileMove.enabled": {

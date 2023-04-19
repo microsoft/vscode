@@ -50,7 +50,7 @@ pub async fn start_json_rpc<C: Send + Sync + 'static, S: Clone>(
 	mut msg_rx: impl Receivable<Vec<u8>>,
 	mut shutdown_rx: Barrier<S>,
 ) -> io::Result<Option<S>> {
-	let (write_tx, mut write_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+	let (write_tx, mut write_rx) = mpsc::channel::<Vec<u8>>(8);
 	let mut read = BufReader::new(read);
 
 	let mut read_buf = String::new();
@@ -84,7 +84,18 @@ pub async fn start_json_rpc<C: Send + Sync + 'static, S: Clone>(
 						let write_tx = write_tx.clone();
 						tokio::spawn(async move {
 							if let Some(v) = fut.await {
-								write_tx.send(v).ok();
+								let _ = write_tx.send(v).await;
+							}
+						});
+					},
+					MaybeSync::Stream((dto, fut)) => {
+						if let Some(dto) = dto {
+							dispatcher.register_stream(write_tx.clone(), dto).await;
+						}
+						let write_tx = write_tx.clone();
+						tokio::spawn(async move {
+							if let Some(v) = fut.await {
+								let _ = write_tx.send(v).await;
 							}
 						});
 					}
