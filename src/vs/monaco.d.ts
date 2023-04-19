@@ -3807,7 +3807,7 @@ declare namespace monaco.editor {
 		/**
 		 * Diff Algorithm
 		*/
-		diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
+		diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
 	}
 
 	/**

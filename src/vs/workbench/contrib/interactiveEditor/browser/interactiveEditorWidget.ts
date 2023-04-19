@@ -90,7 +90,7 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	stickyScroll: { enabled: false },
 	originalAriaLabel: localize('modified', 'Modified'),
 	modifiedAriaLabel: localize('original', 'Original'),
-	diffAlgorithm: 'smart',
+	diffAlgorithm: 'advanced',
 	readOnly: true,
 };
 
