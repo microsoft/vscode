@@ -29,7 +29,7 @@ import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/edito
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IEditorService, SIDE_GROUP, ISaveEditorsOptions, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
@@ -360,7 +360,7 @@ CommandsRegistry.registerCommand({
 
 // Save / Save As / Save All / Revert
 
-async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> {
+async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
 	const listService = accessor.get(IListService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const codeEditorService = accessor.get(ICodeEditorService);
@@ -392,11 +392,11 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 	}
 
 	if (!editors || editors.length === 0) {
-		return { editors: [], success: false }; // nothing to save
+		return; // nothing to save
 	}
 
 	// Save editors
-	const result = await doSaveEditors(accessor, editors, options);
+	await doSaveEditors(accessor, editors, options);
 
 	// Special treatment for embedded editors: if we detect that focus is
 	// inside an embedded code editor, we save that model as well if we
@@ -410,18 +410,13 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 		if (resource && !editors.some(({ editor }) => isEqual(EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource))) {
 			const model = textFileService.files.get(resource);
 			if (!model?.isReadonly()) {
-				const embeddedEditorSaveResult = await textFileService.save(resource, options);
-				if (embeddedEditorSaveResult) {
-					result.editors.push({ resource: embeddedEditorSaveResult });
-				}
+				await textFileService.save(resource, options);
 			}
 		}
 	}
-
-	return result;
 }
 
-function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly IEditorGroup[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> {
+function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly IEditorGroup[], options?: ISaveEditorsOptions): Promise<void> {
 	const dirtyEditors: IEditorIdentifier[] = [];
 	for (const group of groups) {
 		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -434,13 +429,13 @@ function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly I
 	return doSaveEditors(accessor, dirtyEditors, options);
 }
 
-async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> {
+async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	try {
-		return await editorService.save(editors, options);
+		await editorService.save(editors, options);
 	} catch (error) {
 		if (!isCancellationError(error)) {
 			notificationService.notify({
@@ -456,8 +451,6 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 			});
 		}
 	}
-
-	return { editors: [], success: false };
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -465,8 +458,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyS,
 	id: SAVE_FILE_COMMAND_ID,
-	handler: async accessor => {
-		await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
+	handler: accessor => {
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
 	}
 });
 
@@ -476,8 +469,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS),
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS) },
 	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
-	handler: async accessor => {
-		await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipSaveParticipants: true });
+	handler: accessor => {
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipSaveParticipants: true });
 	}
 });
 
@@ -486,8 +479,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
-	handler: async accessor => {
-		await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
+	handler: accessor => {
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
 	}
 });
 
@@ -498,14 +491,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS },
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS) },
 	id: SAVE_ALL_COMMAND_ID,
-	handler: async accessor => {
-		await saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
+	handler: accessor => {
+		return saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	handler: async (accessor, _: URI | object, editorContext: IEditorCommandsContext) => {
+	handler: (accessor, _: URI | object, editorContext: IEditorCommandsContext) => {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
@@ -517,7 +510,7 @@ CommandsRegistry.registerCommand({
 			groups = coalesce(contexts.map(context => editorGroupService.getGroup(context.groupId)));
 		}
 
-		await saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT });
+		return saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT });
 	}
 });
 

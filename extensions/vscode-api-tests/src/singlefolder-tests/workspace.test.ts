@@ -1219,7 +1219,8 @@ suite('vscode API - workspace', () => {
 
 			await vscode.workspace.saveAll(false); // requires dirty documents
 		} else {
-			await vscode.workspace.save(doc.uri); // enforces to save even when not dirty
+			const res = await vscode.workspace.save(doc.uri); // enforces to save even when not dirty
+			assert.ok(res?.toString() === doc.uri.toString());
 		}
 
 		assert.ok(onDidSaveTextDocument);
