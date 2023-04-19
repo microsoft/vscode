@@ -301,7 +301,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return this._configurationService.getValue('interactiveEditor.editMode');
 	}
 
-	async run(initialRange?: Range): Promise<void> {
+	async run(options: { initialRange?: Range; message?: string; autoSend?: boolean } = {}): Promise<void> {
 
 		const editMode = this._getMode();
 
@@ -352,17 +352,17 @@ export class InteractiveEditorController implements IEditorContribution {
 		const blockDecoration = this._editor.createDecorationsCollection();
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 
-		if (!initialRange) {
-			initialRange = session.wholeRange ? Range.lift(session.wholeRange) : selection;
+		if (!options.initialRange) {
+			options.initialRange = session.wholeRange ? Range.lift(session.wholeRange) : selection;
 		}
-		if (initialRange.isEmpty()) {
-			initialRange = new Range(
-				initialRange.startLineNumber, 1,
-				initialRange.startLineNumber, textModel.getLineMaxColumn(initialRange.startLineNumber)
+		if (options.initialRange.isEmpty()) {
+			options.initialRange = new Range(
+				options.initialRange.startLineNumber, 1,
+				options.initialRange.startLineNumber, textModel.getLineMaxColumn(options.initialRange.startLineNumber)
 			);
 		}
 		wholeRangeDecoration.set([{
-			range: initialRange,
+			range: options.initialRange,
 			options: InteractiveEditorController._decoWholeRange
 		}]);
 
@@ -457,15 +457,18 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 
+			let input: string | undefined;
+			if (options.message && options.autoSend) {
+				input = options.message;
+			} else {
+				const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
+				this._ctxLastFeedbackKind.reset();
+				// reveal the line after the whole range to ensure that the input box is visible
+				this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
+				input = await inputPromise;
+			}
 
-			this._ctxLastFeedbackKind.reset();
-
-			// reveal the line after the whole range to ensure that the input box is visible
-			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
-
-			const input = await inputPromise;
 			roundStore.clear();
 
 			if (!input) {
@@ -476,7 +479,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				InteractiveEditorController._promptHistory.unshift(input);
 			}
 
-			const refer = session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
+			const refer = session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
 				this._editor.setSelection(wholeRange);
