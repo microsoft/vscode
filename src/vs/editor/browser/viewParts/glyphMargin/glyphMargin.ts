@@ -36,14 +36,42 @@ export class RenderedDecoration {
 	) { }
 }
 
+export class LineRenderedDecorations {
+
+	private readonly lanes: RenderedDecoration[][] = [];
+
+	public add(lane: number, decoration: RenderedDecoration) {
+		while (lane >= this.lanes.length) {
+			this.lanes.push([]);
+		}
+		this.lanes[lane].push(decoration);
+	}
+
+	public getLaneDecorations(laneIndex: number): RenderedDecoration[] {
+		if (laneIndex < this.lanes.length) {
+			return this.lanes[laneIndex];
+		}
+		return [];
+	}
+
+	public isEmpty(): boolean {
+		for (const lane of this.lanes) {
+			if (lane.length > 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
 export abstract class DedupOverlay extends DynamicViewOverlay {
 
-	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[], decorationLaneCount: number): RenderedDecoration[][][] {
+	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[], decorationLaneCount: number): LineRenderedDecorations[] {
 
-		const output: RenderedDecoration[][][] = [];
+		const output: LineRenderedDecorations[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			output[lineIndex] = [[]];
+			output[lineIndex] = new LineRenderedDecorations();
 		}
 
 		if (decorations.length === 0) {
@@ -79,8 +107,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			}
 
 			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i][lane] = (output[i][lane] ?? []);
-				output[i][lane].push(new RenderedDecoration(className, zIndex));
+				output[i].add(lane, new RenderedDecoration(className, zIndex));
 			}
 		}
 
@@ -193,23 +220,24 @@ export class GlyphMarginOverlay extends DedupOverlay {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const renderInfo = toRender[lineIndex];
 
-			if (renderInfo.length === 0) {
+			if (renderInfo.isEmpty()) {
 				output[lineIndex] = '';
 			} else {
 				let css = '';
 				for (let lane = 1; lane <= this._glyphMarginDecorationLaneCount; lane += 1) {
-					const decorations = renderInfo[lane];
-					if (!decorations) {
+					const decorations = renderInfo.getLaneDecorations(lane);
+					if (decorations.length === 0) {
 						continue;
 					}
 					decorations.sort((a, b) => {
 						// Sort decorations to render in descending order by zIndex
 						return b.zIndex - a.zIndex;
 					});
+					const winningDecoration: RenderedDecoration = decorations[0];
 					const left = (this._glyphMarginLeft + (lane - 1) * this._lineHeight).toString();
 					css += (
 						'<div class="cgmr codicon '
-						+ decorations[0].className // TODO@joyceerhl Implement overflow for remaining decorations
+						+ winningDecoration.className // TODO@joyceerhl Implement overflow for remaining decorations
 						+ common
 						+ 'left:' + left + 'px;"></div>'
 					);

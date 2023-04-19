@@ -100,10 +100,10 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			const classNames = toRender[lineIndex];
+			const decorations = toRender[lineIndex].getLaneDecorations(1); // there is only one lane, see _render call above
 			let lineOutput = '';
-			for (let i = 0, len = classNames.length; i < len; i++) {
-				lineOutput += '<div class="cldr ' + classNames[i][0].className + common;
+			for (const decoration of decorations) {
+				lineOutput += '<div class="cldr ' + decoration.className + common;
 			}
 			output[lineIndex] = lineOutput;
 		}
