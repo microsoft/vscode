@@ -105,7 +105,7 @@ async function _findColorData(options: ComputeDocumentColorsOptions | ComputeCol
 	if (!defaultDocumentColorProvider || !isDefaultColorDecoratorsEnabled) {
 		return [];
 	} else {
-		validDocumentColorProviderFound ||= await _computeColorData(options, defaultDocumentColorProvider, colorData, model, token);
+		await _computeColorData(options, defaultDocumentColorProvider, colorData, model, token);
 		return colorData;
 	}
 }
