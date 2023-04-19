@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
-import { localize } from 'vs/nls';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ITextModel } from 'vs/editor/common/model';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
@@ -19,6 +21,9 @@ import { IInteractiveResponseViewModel } from 'vs/workbench/contrib/interactiveS
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 
 export interface IInteractiveSessionCodeBlockActionContext {
 	code: string;
@@ -100,9 +105,11 @@ export function registerInteractiveSessionCodeBlockActions() {
 			}
 
 			const editorService = accessor.get(IEditorService);
-			const bulkEditService = accessor.get(IBulkEditService);
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
 			const textFileService = accessor.get(ITextFileService);
+
+			if (editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
+				return this.handleNotebookEditor(accessor, editorService.activeEditorPane.getControl() as INotebookEditor, context);
+			}
 
 			let activeEditorControl = editorService.activeTextEditorControl;
 			if (isDiffEditor(activeEditorControl)) {
@@ -118,17 +125,54 @@ export function registerInteractiveSessionCodeBlockActions() {
 				return;
 			}
 
-			const activeTextModel = textFileService.files.get(activeModel.uri);
+			// Check if model is editable, currently only support untitled and text file
+			const activeTextModel = textFileService.files.get(activeModel.uri) ?? textFileService.untitled.get(activeModel.uri);
 			if (!activeTextModel || activeTextModel.isReadonly()) {
 				return;
 			}
 
-			const activeSelection = activeEditorControl.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
+			await this.handleTextEditor(accessor, activeEditorControl, activeModel, context);
+		}
+
+		private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: IInteractiveSessionCodeBlockActionContext) {
+			if (!notebookEditor.hasModel()) {
+				return;
+			}
+
+			if (notebookEditor.isReadOnly) {
+				return;
+			}
+
+			if (notebookEditor.activeCodeEditor?.hasTextFocus()) {
+				const codeEditor = notebookEditor.activeCodeEditor as ICodeEditor;
+				const textModel = codeEditor.getModel();
+
+				if (textModel) {
+					return this.handleTextEditor(accessor, codeEditor, textModel, context);
+				}
+			}
+
+			const languageService = accessor.get(ILanguageService);
+			const focusRange = notebookEditor.getFocus();
+			const next = Math.max(focusRange.end - 1, 0);
+			insertCell(languageService, notebookEditor, next, CellKind.Code, 'below', context.code, true);
+			this.notifyUserAction(accessor, context);
+		}
+
+		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, context: IInteractiveSessionCodeBlockActionContext) {
+			const bulkEditService = accessor.get(IBulkEditService);
+
+			const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
 			await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
 				range: activeSelection,
 				text: context.code,
 			})]);
 
+			this.notifyUserAction(accessor, context);
+		}
+
+		private notifyUserAction(accessor: ServicesAccessor, context: IInteractiveSessionCodeBlockActionContext) {
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
 			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
 				providerId: context.element.providerId,
 				action: {

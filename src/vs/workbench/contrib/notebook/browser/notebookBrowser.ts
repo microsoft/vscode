@@ -463,6 +463,7 @@ export interface INotebookEditor {
 	readonly activeKernel: INotebookKernel | undefined;
 	readonly scrollTop: number;
 	readonly scopedContextKeyService: IContextKeyService;
+	readonly activeCodeEditor: editorCommon.IEditor | undefined;
 	//#endregion
 
 	getLength(): number;
