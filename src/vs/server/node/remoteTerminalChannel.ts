@@ -238,8 +238,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			}
 			const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
 			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
-			const cwdUri = typeof shellLaunchConfig.cwd === 'string' ? URI.parse(shellLaunchConfig.cwd) : shellLaunchConfig.cwd;
-			const workspaceFolder = cwdUri ? withNullAsUndefined(activeWorkspaceFolder) : undefined;
+			const workspaceFolder = activeWorkspaceFolder ? withNullAsUndefined(activeWorkspaceFolder) : undefined;
 			await mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 
