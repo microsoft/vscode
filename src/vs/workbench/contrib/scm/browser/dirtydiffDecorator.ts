@@ -408,7 +408,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			renderSideBySide: false,
 			readOnly: false,
 			renderIndicators: false,
-			diffAlgorithm: 'smart',
+			diffAlgorithm: 'advanced',
 			stickyScroll: { enabled: false }
 		};
 

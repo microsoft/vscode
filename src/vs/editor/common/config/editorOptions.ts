@@ -777,7 +777,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
+	diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
 }
 
 /**
@@ -1132,9 +1132,12 @@ class EditorStringOption<K extends EditorOption> extends SimpleEditorOption<K, s
 /**
  * @internal
  */
-export function stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>): T {
+export function stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>, renamedValues?: Record<string, T>): T {
 	if (typeof value !== 'string') {
 		return defaultValue;
+	}
+	if (renamedValues && value in renamedValues) {
+		return renamedValues[value];
 	}
 	if (allowedValues.indexOf(value) === -1) {
 		return defaultValue;
