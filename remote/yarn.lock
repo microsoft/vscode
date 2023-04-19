@@ -713,15 +713,6 @@ socks@^2.3.3:
     ip "^1.1.5"
     smart-buffer "^4.1.0"
 
-spdlog@^0.13.0:
-  version "0.13.7"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.7.tgz#719a972be103e473770202e37dca1c9d80502180"
-  integrity sha512-DiWxvyHuDJKfNuanSnizY2pmqZGaSHej3xpOD4LQ+kkT3oLWpCXI6VRFDnziyXBQKCl8kmyaYnOu9QBhf1WEXQ==
-  dependencies:
-    bindings "^1.5.0"
-    mkdirp "^0.5.5"
-    nan "^2.17.0"
-
 string-width@^1.0.1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/string-width/-/string-width-1.0.2.tgz#118bdf5b8cdc51a2a7e70d211e07e2b0b9b107d3"
