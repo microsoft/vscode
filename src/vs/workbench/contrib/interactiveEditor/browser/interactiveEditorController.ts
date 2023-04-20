@@ -954,7 +954,7 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 	const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
 	if (widget && widget.viewModel) {
 		interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
-		widget?.focusLastMessage();
+		widget.focusLastMessage();
 	}
 }
 
