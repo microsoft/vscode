@@ -7,9 +7,9 @@ import { localize } from 'vs/nls';
 import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+// import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { timeout } from 'vs/base/common/async';
+// import { timeout } from 'vs/base/common/async';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
@@ -23,7 +23,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -33,17 +33,28 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
+import { timeout } from 'vs/base/common/async';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
+	private static SEMANTIC_SIMILARITY_MAX_PICKS = 3;
+	private static SEMANTIC_SIMILARITY_THRESHOLD = 0.8;
+	private static SEMANTIC_SIMILARITY_DEBOUNCE = 200;
 
+	// TODO: bring this back once we have a chosen strategy for FastAndSlowPicks where Fast is also Promise based
 	// If extensions are not yet registered, we wait for a little moment to give them
 	// a chance to register so that the complete set of commands shows up as result
 	// We do not want to delay functionality beyond that time though to keep the commands
 	// functional.
-	private readonly extensionRegistrationRace = Promise.race([
-		timeout(800),
-		this.extensionService.whenInstalledExtensionsRegistered()
-	]);
+	// private readonly extensionRegistrationRace = Promise.race([
+	// 	timeout(800),
+	// 	this.extensionService.whenInstalledExtensionsRegistered()
+	// ]);
+
+	private useSemanticSimilarity = false;
 
 	protected get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
 
@@ -58,7 +69,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+		// @IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
@@ -67,18 +78,28 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@ISemanticSimilarityService private readonly semanticSimilarityService: ISemanticSimilarityService,
+		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
-			noResultsPick: {
-				label: localize('noCommandResults', "No matching commands"),
-				commandId: ''
-			}
+			noResultsPick: (filter) => {
+				return this.interactiveSessionService.getProviderIds().length
+					? {
+						label: localize('askXInInteractiveSession', "Ask '{0}' in an Interactive Session", filter),
+						commandId: AskInInteractiveAction.ID,
+						accept: () => commandService.executeCommand(AskInInteractiveAction.ID, filter)
+					}
+					: {
+						label: localize('noCommandResults', "No matching commands"),
+						commandId: ''
+					};
+			},
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 
-		this._register(configurationService.onDidChangeConfiguration((e) => this.updateSuggestedCommandIds(e)));
-		this.updateSuggestedCommandIds();
+		this._register(configurationService.onDidChangeConfiguration((e) => this.updateOptions(e)));
+		this.updateOptions();
 	}
 
 	private get configuration() {
@@ -90,8 +111,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		};
 	}
 
-	private updateSuggestedCommandIds(e?: IConfigurationChangeEvent): void {
-		if (e && !e.affectsConfiguration('workbench.commandPalette.experimental.suggestCommands')) {
+	private updateOptions(e?: IConfigurationChangeEvent): void {
+		if (e && !e.affectsConfiguration('workbench.commandPalette.experimental')) {
 			return;
 		}
 
@@ -100,12 +121,14 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			? new Set(this.productService.commandPaletteSuggestedCommandIds)
 			: undefined;
 		this.options.suggestedCommandIds = suggestedCommandIds;
+		this.useSemanticSimilarity = config.experimental.useSemanticSimilarity;
 	}
 
-	protected async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
+	protected getCommandPicks(token: CancellationToken): Array<ICommandQuickPick> {
 
+		// TODO: bring this back once we have a chosen strategy for FastAndSlowPicks where Fast is also Promise based
 		// wait for extensions registration or 800ms once
-		await this.extensionRegistrationRace;
+		// await this.extensionRegistrationRace;
 
 		if (token.isCancellationRequested) {
 			return [];
@@ -125,6 +148,43 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				return TriggerAction.CLOSE_PICKER;
 			},
 		}));
+	}
+
+	protected async getAdditionalCommandPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
+		if (!this.useSemanticSimilarity || filter === '' || token.isCancellationRequested || !this.semanticSimilarityService.isEnabled()) {
+			return [];
+		}
+		const format = allPicks.map(p => p.commandId);
+		let scores: number[];
+		try {
+			// Wait a bit to see if the user is still typing
+			await timeout(CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_DEBOUNCE, token);
+			scores = await this.semanticSimilarityService.getSimilarityScore(filter, format, token);
+		} catch (e) {
+			return [];
+		}
+		const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
+		const setOfPicksSoFar = new Set(picksSoFar.map(p => p.commandId));
+		const additionalPicks: Array<ICommandQuickPick | IQuickPickSeparator> = picksSoFar.length > 0
+			? [{
+				type: 'separator',
+				label: localize('semanticSimilarity', "similar commands")
+			}]
+			: [];
+
+		let numOfSmartPicks = 0;
+		for (const i of sortedIndices) {
+			const score = scores[i];
+			if (score < CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_THRESHOLD || numOfSmartPicks === CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_MAX_PICKS) {
+				break;
+			}
+			const pick = allPicks[i];
+			if (!setOfPicksSoFar.has(pick.commandId)) {
+				additionalPicks.push(pick);
+				numOfSmartPicks++;
+			}
+		}
+		return additionalPicks;
 	}
 
 	private getGlobalCommandPicks(): ICommandQuickPick[] {
@@ -223,6 +283,49 @@ export class ClearCommandHistoryAction extends Action2 {
 			}
 
 			CommandsHistory.clearHistory(configurationService, storageService);
+		}
+	}
+}
+
+// TODO: Should this live here? It seems fairly generic and could live in the interactive code.
+export class AskInInteractiveAction extends Action2 {
+
+	static readonly ID = 'workbench.action.askCommandInInteractiveSession';
+
+	constructor() {
+		super({
+			id: AskInInteractiveAction.ID,
+			title: { value: localize('askInInteractiveSession', "Ask In Interactive Session"), original: 'Ask In Interactive Session' },
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, filter?: string): Promise<void> {
+		const interactiveSessionService = accessor.get(IInteractiveSessionService);
+		const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+		const logService = accessor.get(ILogService);
+
+		if (!filter) {
+			throw new Error('No filter provided.');
+		}
+
+		let providerId: string;
+		switch (interactiveSessionService.getProviderIds().length) {
+			case 0:
+				throw new Error('No interactive session provider found.');
+			case 1:
+				providerId = interactiveSessionService.getProviderIds()[0];
+				break;
+			default:
+				logService.warn('Multiple interactive session providers found. Using the first one.');
+				providerId = interactiveSessionService.getProviderIds()[0];
+				break;
+		}
+
+		const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
+		if (widget?.viewModel) {
+			// TODO: Maybe this could provide metadata saying it came from the command palette?
+			interactiveSessionService.sendInteractiveRequestToProvider(widget.viewModel.sessionId, { message: filter });
 		}
 	}
 }

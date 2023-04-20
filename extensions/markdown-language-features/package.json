@@ -16,7 +16,8 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "documentPaste"
+    "documentPaste",
+    "dropMetadata"
   ],
   "activationEvents": [
     "onLanguage:markdown",
@@ -438,6 +439,17 @@
           "default": "off",
           "description": "%markdown.trace.server.desc%"
         },
+        "markdown.server.log": {
+          "type": "string",
+          "scope": "window",
+          "enum": [
+            "off",
+            "debug",
+            "trace"
+          ],
+          "default": "off",
+          "description": "%markdown.server.log.desc%"
+        },
         "markdown.editor.drop.enabled": {
           "type": "boolean",
           "default": true,
@@ -582,6 +594,21 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "markdown.preferredMdPathExtensionStyle": {
+          "type": "string",
+          "default": "auto",
+          "markdownDescription": "%configuration.markdown.preferredMdPathExtensionStyle%",
+          "enum": [
+            "auto",
+            "includeExtension",
+            "removeExtension"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.preferredMdPathExtensionStyle.auto%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.includeExtension%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
+          ]
         }
       }
     },

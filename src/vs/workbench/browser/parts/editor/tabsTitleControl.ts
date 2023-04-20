@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { EditorCommandsContextActionRunner, ITitleControlDimensions, IToolbarActions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -28,7 +28,7 @@ import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -51,7 +51,9 @@ import { isSafari } from 'vs/base/browser/browser';
 import { equals } from 'vs/base/common/objects';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
+import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 
 interface IEditorInputLabel {
 	editor: EditorInput;
@@ -146,7 +148,7 @@ export class TabsTitleControl extends TitleControl {
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@ITreeViewsService private readonly treeViewsDragAndDropService: ITreeViewsService
+		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService
 	) {
 		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, configurationService, fileService);
 
@@ -399,6 +401,32 @@ export class TabsTitleControl extends TitleControl {
 			// Disable normal scrolling, opening the editor will already reveal it properly
 			EventHelper.stop(e, true);
 		}));
+
+		// Context menu
+		const showContextMenu = (e: Event) => {
+			EventHelper.stop(e);
+
+			// Find target anchor
+			let anchor: HTMLElement | { x: number; y: number } = tabsContainer;
+			if (e instanceof MouseEvent) {
+				const event = new StandardMouseEvent(e);
+				anchor = { x: event.posx, y: event.posy };
+			}
+
+			// Show it
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				menuId: MenuId.EditorTabsBarContext,
+				contextKeyService: this.contextKeyService,
+				menuActionOptions: { shouldForwardArgs: true },
+				getActionsContext: () => ({ groupId: this.group.id }),
+				getKeyBinding: action => this.getKeybinding(action),
+				onHide: () => this.group.focus()
+			});
+		};
+
+		this._register(addDisposableListener(tabsContainer, TouchEventType.Contextmenu, e => showContextMenu(e)));
+		this._register(addDisposableListener(tabsContainer, EventType.CONTEXT_MENU, e => showContextMenu(e)));
 	}
 
 	private doHandleDecorationsChange(): void {

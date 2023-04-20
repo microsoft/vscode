@@ -29,6 +29,7 @@ import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -90,6 +91,11 @@ export enum NotebookCellExecutionState {
 	Pending = 2,
 	Executing = 3
 }
+export enum NotebookExecutionState {
+	Unconfirmed = 1,
+	Pending = 2,
+	Executing = 3
+}
 
 export interface INotebookCellPreviousExecutionResult {
 	executionOrder?: number;
@@ -105,11 +111,13 @@ export interface NotebookCellMetadata {
 }
 
 export interface NotebookCellInternalMetadata {
+	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
+	renderDuration?: { [key: string]: number };
 }
 
 export interface NotebookCellCollapseState {
@@ -201,6 +209,7 @@ export interface IOutputDto {
 }
 
 export interface ICellOutput {
+	readonly versionId: number;
 	outputs: IOutputItemDto[];
 	metadata?: Record<string, any>;
 	outputId: string;
@@ -888,7 +897,7 @@ export interface INotebookCellStatusBarItem {
 	readonly text: string;
 	readonly color?: string | ThemeColor;
 	readonly backgroundColor?: string | ThemeColor;
-	readonly tooltip?: string;
+	readonly tooltip?: string | IMarkdownString;
 	readonly command?: string | Command;
 	readonly accessibilityInformation?: IAccessibilityInformation;
 	readonly opacity?: string;
@@ -908,6 +917,7 @@ export const NotebookSetting = {
 	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
 	showCellStatusBar: 'notebook.showCellStatusBar',
 	textDiffEditorPreview: 'notebook.diff.enablePreview',
+	diffOverviewRuler: 'notebook.diff.overviewRuler',
 	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
 	compactView: 'notebook.compactView',
 	focusIndicator: 'notebook.cellFocusIndicator',
@@ -920,17 +930,23 @@ export const NotebookSetting = {
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',
 	consolidatedRunButton: 'notebook.consolidatedRunButton',
 	openGettingStarted: 'notebook.experimental.openGettingStarted',
-	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
-	outputLineHeight: 'notebook.outputLineHeight',
-	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily',
-	kernelPickerType: 'notebook.kernelPicker.type',
-	outputScrolling: 'notebook.experimental.outputScrolling',
+	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
+	outputScrolling: 'notebook.output.scrolling',
+	textOutputLineLimit: 'notebook.output.textLineLimit',
+	formatOnSave: 'notebook.formatOnSave.enabled',
 	outputWordWrap: 'notebook.output.wordWrap',
+	outputLineHeightDeprecated: 'notebook.outputLineHeight',
+	outputLineHeight: 'notebook.output.lineHeight',
+	outputFontSizeDeprecated: 'notebook.outputFontSize',
+	outputFontSize: 'notebook.output.fontSize',
+	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
+	outputFontFamily: 'notebook.output.fontFamily',
+	findScope: 'notebook.find.scope',
 	logging: 'notebook.logging',
+	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 } as const;
 
 export const enum CellStatusbarAlignment {

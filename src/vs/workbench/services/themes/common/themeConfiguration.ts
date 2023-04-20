@@ -12,18 +12,9 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { isWeb } from 'vs/base/common/platform';
-
-const DEFAULT_THEME_DARK_SETTING_VALUE = 'Default Dark+';
-const DEFAULT_THEME_LIGHT_SETTING_VALUE = 'Default Light+';
-const DEFAULT_THEME_HC_DARK_SETTING_VALUE = 'Default High Contrast';
-const DEFAULT_THEME_HC_LIGHT_SETTING_VALUE = 'Default High Contrast Light';
-
-const DEFAULT_FILE_ICON_THEME_SETTING_VALUE = 'vs-seti';
-
-export const DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE = 'Default';
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -35,7 +26,7 @@ const colorThemeSettingEnumDescriptions: string[] = [];
 const colorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	description: nls.localize('colorTheme', "Specifies the color theme used in the workbench."),
-	default: isWeb ? DEFAULT_THEME_LIGHT_SETTING_VALUE : DEFAULT_THEME_DARK_SETTING_VALUE,
+	default: isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	enumItemLabels: colorThemeSettingEnumItemLabels,
@@ -44,7 +35,7 @@ const colorThemeSettingSchema: IConfigurationPropertySchema = {
 const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string', //
 	markdownDescription: nls.localize({ key: 'preferredDarkColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme for dark OS appearance when `#{0}#` is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
-	default: DEFAULT_THEME_DARK_SETTING_VALUE,
+	default: ThemeSettingDefaults.COLOR_THEME_DARK,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	enumItemLabels: colorThemeSettingEnumItemLabels,
@@ -53,7 +44,7 @@ const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	markdownDescription: nls.localize({ key: 'preferredLightColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme for light OS appearance when `#{0}#` is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
-	default: DEFAULT_THEME_LIGHT_SETTING_VALUE,
+	default: ThemeSettingDefaults.COLOR_THEME_LIGHT,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	enumItemLabels: colorThemeSettingEnumItemLabels,
@@ -62,7 +53,7 @@ const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 const preferredHCDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	markdownDescription: nls.localize({ key: 'preferredHCDarkColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme used in high contrast dark mode when `#{0}#` is enabled.', ThemeSettings.DETECT_HC),
-	default: DEFAULT_THEME_HC_DARK_SETTING_VALUE,
+	default: ThemeSettingDefaults.COLOR_THEME_HC_DARK,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	enumItemLabels: colorThemeSettingEnumItemLabels,
@@ -71,7 +62,7 @@ const preferredHCDarkThemeSettingSchema: IConfigurationPropertySchema = {
 const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	markdownDescription: nls.localize({ key: 'preferredHCLightColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme used in high contrast light mode when `#{0}#` is enabled.', ThemeSettings.DETECT_HC),
-	default: DEFAULT_THEME_HC_LIGHT_SETTING_VALUE,
+	default: ThemeSettingDefaults.COLOR_THEME_HC_LIGHT,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	enumItemLabels: colorThemeSettingEnumItemLabels,
@@ -95,7 +86,7 @@ const colorCustomizationsSchema: IConfigurationPropertySchema = {
 };
 const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
-	default: DEFAULT_FILE_ICON_THEME_SETTING_VALUE,
+	default: ThemeSettingDefaults.FILE_ICON_THEME,
 	description: nls.localize('iconTheme', "Specifies the file icon theme used in the workbench or 'null' to not show any file icons."),
 	enum: [null],
 	enumItemLabels: [nls.localize('noIconThemeLabel', 'None')],
@@ -104,9 +95,9 @@ const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
-	default: DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE,
+	default: ThemeSettingDefaults.PRODUCT_ICON_THEME,
 	description: nls.localize('productIconTheme', "Specifies the product icon theme used."),
-	enum: [DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE],
+	enum: [ThemeSettingDefaults.PRODUCT_ICON_THEME],
 	enumItemLabels: [nls.localize('defaultProductIconThemeLabel', 'Default')],
 	enumDescriptions: [nls.localize('defaultProductIconThemeDesc', 'Default')],
 	errorMessage: nls.localize('productIconThemeError', "Product icon theme is unknown or not installed.")

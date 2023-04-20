@@ -35,6 +35,7 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -56,6 +57,18 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 registerSingleton(IExplorerService, ExplorerService, InstantiationType.Delayed);
 
 // Register file editors
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		TextFileEditor,
+		TextFileEditor.ID,
+		nls.localize('textFileEditor', "Text File Editor")
+	),
+	[
+		new SyncDescriptor(FileEditorInput)
+	]
+);
+
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		BinaryFileEditor,
@@ -260,24 +273,10 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('watcherInclude', "Configure extra paths to watch for changes inside the workspace. By default, all workspace folders will be watched recursively, except for folders that are symbolic links. You can explicitly add absolute or relative paths to support watching folders that are symbolic links. Relative paths will be resolved to an absolute path using the currently opened workspace."),
 			'scope': ConfigurationScope.RESOURCE
 		},
-		'files.experimental.watcherUseUtilityProcess': { // TODO@bpasero remove me once sandbox is enabled by default
-			type: 'boolean',
-			description: nls.localize('watcherUseUtilityProcess', "When enabled, the file watcher will be launched using the new UtilityProcess Electron API."),
-			default: false, //typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
-			ignoreSync: true,
-			'scope': ConfigurationScope.APPLICATION
-		},
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
 			'type': 'string',
 			'markdownDescription': nls.localize('defaultLanguage', "The default language identifier that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language identifier of the currently active text editor if any.")
-		},
-		'files.maxMemoryForLargeFilesMB': {
-			'type': 'number',
-			'default': 4096,
-			'minimum': 0,
-			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
-			included: isNative
 		},
 		'files.restoreUndoStack': {
 			'type': 'boolean',

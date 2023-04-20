@@ -27,6 +27,11 @@ import { IWindowState } from 'vs/platform/window/electron-main/window';
 import { randomPath } from 'vs/base/common/extpath';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/node/state';
+import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { Promises, timeout } from 'vs/base/common/async';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 const processExplorerWindowState = 'issue.processExplorerWindowState';
@@ -66,7 +71,8 @@ export class IssueMainService implements IIssueMainService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IProductService private readonly productService: IProductService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		this.registerListeners();
 	}
@@ -178,9 +184,54 @@ export class IssueMainService implements IIssueMainService {
 			this.processExplorerWindow?.close();
 		});
 
-		validatedIpcMain.on('vscode:windowsInfoRequest', async event => {
+		validatedIpcMain.on('vscode:pidToNameRequest', async event => {
 			const mainProcessInfo = await this.diagnosticsMainService.getMainDiagnostics();
-			this.safeSend(event, 'vscode:windowsInfoResponse', mainProcessInfo.windows);
+
+			const pidToNames: [number, string][] = [];
+			for (const window of mainProcessInfo.windows) {
+				pidToNames.push([window.pid, `window [${window.id}] (${window.title})`]);
+			}
+
+			for (const { pid, name } of UtilityProcess.getAll()) {
+				pidToNames.push([pid, name]);
+			}
+
+			this.safeSend(event, 'vscode:pidToNameResponse', pidToNames);
+		});
+
+		validatedIpcMain.on('vscode:getIssueReporterUriRequest', async (event, extensionId: string) => {
+			try {
+				const res = await this.getIssueReporterUri(extensionId, CancellationToken.None);
+				this.safeSend(event, 'vscode:getIssueReporterUriResponse', { extensionId, uri: res.toString(true) });
+			} catch (e) {
+				this.logService.error(e);
+				this.safeSend(event, 'vscode:getIssueReporterUriResponse', { extensionId, error: e.message ?? e.toString() ?? 'Unknown Error' });
+			}
+		});
+	}
+
+	async getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI> {
+		if (!this.issueReporterParentWindow) {
+			throw new Error('Issue reporter window not available');
+		}
+		const window = this.windowsMainService.getWindowById(this.issueReporterParentWindow.id);
+		if (!window) {
+			throw new Error('Window not found');
+		}
+		const replyChannel = `vscode:triggerIssueUriRequestHandlerResponse${window.id}`;
+		return Promises.withAsyncBody<URI>(async (resolve, reject) => {
+			window.sendWhenReady('vscode:triggerIssueUriRequestHandler', token, { replyChannel, extensionId });
+
+			validatedIpcMain.once(replyChannel, (_: unknown, data: string) => {
+				resolve(URI.parse(data));
+			});
+
+			try {
+				await timeout(5000, token);
+				reject(new Error('Timed out waiting for issue reporter URI'));
+			} finally {
+				validatedIpcMain.removeHandler(replyChannel);
+			}
 		});
 	}
 
@@ -257,11 +308,6 @@ export class IssueMainService implements IIssueMainService {
 
 				const savedPosition = this.stateService.getItem<IWindowState>(processExplorerWindowState, undefined);
 				const position = isStrictWindowState(savedPosition) ? savedPosition : this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
-
-				// Correct dimensions to take scale/dpr into account
-				const displayToUse = screen.getDisplayNearestPoint({ x: position.x!, y: position.y! });
-				position.width /= displayToUse.scaleFactor;
-				position.height /= displayToUse.scaleFactor;
 
 				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, {
 					backgroundColor: data.styles.backgroundColor,
@@ -347,8 +393,8 @@ export class IssueMainService implements IIssueMainService {
 			title: options.title,
 			backgroundColor: options.backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
-				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, `--vscode-window-kind=${windowKind}`],
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
+				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,
 				spellcheck: false,

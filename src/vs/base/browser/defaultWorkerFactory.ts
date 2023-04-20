@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { COI } from 'vs/base/common/network';
-import { globals } from 'vs/base/common/platform';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 
 const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
@@ -18,12 +17,17 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 
 function getWorker(label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
-	if (globals.MonacoEnvironment) {
-		if (typeof globals.MonacoEnvironment.getWorker === 'function') {
-			return globals.MonacoEnvironment.getWorker('workerMain.js', label);
+	interface IMonacoEnvironment {
+		getWorker?(moduleId: string, label: string): Worker | Promise<Worker>;
+		getWorkerUrl?(moduleId: string, label: string): string;
+	}
+	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+	if (monacoEnvironment) {
+		if (typeof monacoEnvironment.getWorker === 'function') {
+			return monacoEnvironment.getWorker('workerMain.js', label);
 		}
-		if (typeof globals.MonacoEnvironment.getWorkerUrl === 'function') {
-			const workerUrl = <string>globals.MonacoEnvironment.getWorkerUrl('workerMain.js', label);
+		if (typeof monacoEnvironment.getWorkerUrl === 'function') {
+			const workerUrl = monacoEnvironment.getWorkerUrl('workerMain.js', label);
 			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 		}
 	}
@@ -40,12 +44,12 @@ function getWorker(label: string): Worker | Promise<Worker> {
 
 // ESM-comment-begin
 export function getWorkerBootstrapUrl(scriptPath: string, label: string): string {
-	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, self.origin.length) !== self.origin) {
+	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
 		const myPath = 'vs/base/worker/defaultWorkerFactory.js';
 		const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};const ttPolicy = self.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');/*${label}*/`;
+		const js = `/*${label}*/globalThis.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');/*${label}*/`;
 		const blob = new Blob([js], { type: 'application/javascript' });
 		return URL.createObjectURL(blob);
 	}

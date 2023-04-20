@@ -644,7 +644,7 @@ function createL10nBundleForExtension(extensionFolderName: string, prefixWithBui
 		}));
 }
 
-const EXTERNAL_EXTENSIONS = [
+export const EXTERNAL_EXTENSIONS = [
 	'ms-vscode.js-debug',
 	'ms-vscode.js-debug-companion',
 	'ms-vscode.vscode-js-profile-table',
@@ -843,8 +843,12 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	const extensionsPacks: Record<string, I18nPack> = {};
 	const errors: any[] = [];
 	return through(function (this: ThroughStream, xlf: File) {
-		const project = path.basename(path.dirname(path.dirname(xlf.relative)));
-		const resource = path.basename(xlf.relative, '.xlf');
+		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
+		// strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
+		const resource = path.basename(path.basename(xlf.relative, '.xlf'), '-new');
+		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
+			project = extensionsProject;
+		}
 		const contents = xlf.contents.toString();
 		log(`Found ${project}: ${resource}`);
 		const parsePromise = getL10nFilesFromXlf(contents);

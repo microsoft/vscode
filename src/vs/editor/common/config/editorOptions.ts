@@ -58,6 +58,10 @@ export interface IEditorOptions {
 	 */
 	ariaLabel?: string;
 	/**
+	 * Control whether a screen reader announces inline suggestion content immediately.
+	 */
+	screenReaderAnnounceInlineSuggestion?: boolean;
+	/**
 	 * The `tabindex` property of the editor's textarea
 	 */
 	tabIndex?: number;
@@ -236,6 +240,10 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	fontVariations?: boolean | string;
+	/**
+	 * Controls whether to use default color decorations or not using the default document color provider
+	 */
+	defaultColorDecorators?: boolean;
 	/**
 	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
@@ -769,7 +777,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
+	diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
 }
 
 /**
@@ -826,6 +834,7 @@ export interface IEnvironmentalOptions {
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
 	readonly accessibilitySupport: AccessibilitySupport;
+	readonly glyphMarginDecorationLaneCount: number;
 }
 
 /**
@@ -1124,9 +1133,12 @@ class EditorStringOption<K extends EditorOption> extends SimpleEditorOption<K, s
 /**
  * @internal
  */
-export function stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>): T {
+export function stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>, renamedValues?: Record<string, T>): T {
 	if (typeof value !== 'string') {
 		return defaultValue;
+	}
+	if (renamedValues && value in renamedValues) {
+		return renamedValues[value];
 	}
 	if (allowedValues.indexOf(value) === -1) {
 		return defaultValue;
@@ -2060,6 +2072,11 @@ export interface EditorLayoutInfo {
 	readonly glyphMarginWidth: number;
 
 	/**
+	 * The number of decoration lanes to render in the glyph margin.
+	 */
+	readonly glyphMarginDecorationLaneCount: number;
+
+	/**
 	 * Left position for the line numbers.
 	 */
 	readonly lineNumbersLeft: number;
@@ -2146,6 +2163,7 @@ export interface EditorLayoutInfoComputerEnv {
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly maxDigitWidth: number;
 	readonly pixelRatio: number;
+	readonly glyphMarginDecorationLaneCount: number;
 }
 
 /**
@@ -2213,7 +2231,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
-			pixelRatio: env.pixelRatio
+			pixelRatio: env.pixelRatio,
+			glyphMarginDecorationLaneCount: env.glyphMarginDecorationLaneCount
 		});
 	}
 
@@ -2459,7 +2478,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		let glyphMarginWidth = 0;
 		if (showGlyphMargin) {
-			glyphMarginWidth = lineHeight;
+			glyphMarginWidth = lineHeight * env.glyphMarginDecorationLaneCount;
 		}
 
 		let glyphMarginLeft = 0;
@@ -2527,6 +2546,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 			glyphMarginLeft: glyphMarginLeft,
 			glyphMarginWidth: glyphMarginWidth,
+			glyphMarginDecorationLaneCount: env.glyphMarginDecorationLaneCount,
 
 			lineNumbersLeft: lineNumbersLeft,
 			lineNumbersWidth: lineNumbersWidth,
@@ -2654,7 +2674,10 @@ export interface IEditorStickyScrollOptions {
 	 * Maximum number of sticky lines to show
 	 */
 	maxLineCount?: number;
-
+	/**
+	 * Model to choose for sticky scroll by default
+	 */
+	defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
 }
 
 /**
@@ -2665,21 +2688,27 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5 };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel' };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',
 					default: defaults.maxLineCount,
 					minimum: 1,
 					maximum: 10,
-					description: nls.localize('editor.stickyScroll.', "Defines the maximum number of sticky lines to show.")
+					description: nls.localize('editor.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show.")
+				},
+				'editor.stickyScroll.defaultModel': {
+					type: 'string',
+					enum: ['outlineModel', 'foldingProviderModel', 'indentationModel'],
+					default: defaults.defaultModel,
+					description: nls.localize('editor.stickyScroll.defaultModel', "Defines the model to use for determining which lines to stick. If the outline model does not exist, it will fall back on the folding provider model which falls back on the indentation model. This order is respected in all three cases.")
 				},
 			}
 		);
@@ -2693,6 +2722,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
+			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
 		};
 	}
 }
@@ -3791,6 +3821,13 @@ export interface IInlineSuggestOptions {
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
 
 	showToolbar?: 'always' | 'onHover';
+
+	suppressSuggestions?: boolean;
+
+	/**
+	 * Does not clear active inline suggestions when the editor loses focus.
+	 */
+	keepOnBlur?: boolean;
 }
 
 /**
@@ -3807,6 +3844,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			enabled: true,
 			mode: 'subwordSmart',
 			showToolbar: 'onHover',
+			suppressSuggestions: false,
+			keepOnBlur: false,
 		};
 
 		super(
@@ -3827,6 +3866,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					],
 					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
 				},
+				'editor.inlineSuggest.suppressSuggestions': {
+					type: 'boolean',
+					default: defaults.suppressSuggestions,
+					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
+				},
 			}
 		);
 	}
@@ -3840,6 +3884,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
+			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
+			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
 		};
 	}
 }
@@ -4678,10 +4724,16 @@ class EditorWrappingInfoComputer extends ComputedEditorOption<EditorOption.wrapp
  */
 export interface IDropIntoEditorOptions {
 	/**
-	 * Enable the dropping into editor.
+	 * Enable dropping into editor.
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+
+	/**
+	 * Controls if a widget is shown after a drop.
+	 * Defaults to 'afterDrop'.
+	 */
+	showDropSelector?: 'afterDrop' | 'never';
 }
 
 /**
@@ -4692,7 +4744,7 @@ export type EditorDropIntoEditorOptions = Readonly<Required<IDropIntoEditorOptio
 class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor, IDropIntoEditorOptions, EditorDropIntoEditorOptions> {
 
 	constructor() {
-		const defaults: EditorDropIntoEditorOptions = { enabled: true };
+		const defaults: EditorDropIntoEditorOptions = { enabled: true, showDropSelector: 'afterDrop' };
 		super(
 			EditorOption.dropIntoEditor, 'dropIntoEditor', defaults,
 			{
@@ -4700,6 +4752,19 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 					type: 'boolean',
 					default: defaults.enabled,
 					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+				},
+				'editor.dropIntoEditor.showDropSelector': {
+					type: 'string',
+					markdownDescription: nls.localize('dropIntoEditor.showDropSelector', "Controls if a widget is shown when dropping files into the editor. This widget lets you control how the file is dropped."),
+					enum: [
+						'afterDrop',
+						'never'
+					],
+					enumDescriptions: [
+						nls.localize('dropIntoEditor.showDropSelector.afterDrop', "Show the drop selector widget after a file is dropped into the editor."),
+						nls.localize('dropIntoEditor.showDropSelector.never', "Never show the drop selector widget. Instead the default drop provider is always used."),
+					],
+					default: 'afterDrop',
 				},
 			}
 		);
@@ -4711,7 +4776,8 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 		}
 		const input = _input as IDropIntoEditorOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			showDropSelector: stringSet(input.showDropSelector, this.defaultValue.showDropSelector, ['afterDrop', 'never']),
 		};
 	}
 }
@@ -4754,6 +4820,7 @@ export const enum EditorOption {
 	accessibilityPageSize,
 	ariaLabel,
 	autoClosingBrackets,
+	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
 	autoClosingOvertype,
 	autoClosingQuotes,
@@ -4889,6 +4956,7 @@ export const enum EditorOption {
 	tabFocusMode,
 	layoutInfo,
 	wrappingInfo,
+	defaultColorDecorators
 }
 
 export const EditorOptions = {
@@ -4917,6 +4985,13 @@ export const EditorOptions = {
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
+	)),
+	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
+		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', false,
+		{
+			description: nls.localize('screenReaderAnnounceInlineSuggestion', "Control whether inline suggestions are announced by a screen reader. Note that this does not work on macOS with VoiceOver."),
+			tags: ['accessibility']
+		}
 	)),
 	autoClosingBrackets: register(new EditorStringEnumOption(
 		EditorOption.autoClosingBrackets, 'autoClosingBrackets',
@@ -5607,6 +5682,10 @@ export const EditorOptions = {
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
+	defaultColorDecorators: register(new EditorBooleanOption(
+		EditorOption.defaultColorDecorators, 'defaultColorDecorators', false,
+		{ markdownDescription: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider") }
+	)),
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
 		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }

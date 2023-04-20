@@ -5,17 +5,28 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
+import { DocumentSelector } from '../configuration/documentSelector';
+import * as languageIds from '../configuration/languageIds';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import FileConfigurationManager from './fileConfigurationManager';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
+import { LanguageDescription } from '../configuration/languageDescription';
 
+type RenameResponse = {
+	readonly type: 'rename';
+	readonly body: Proto.RenameResponseBody;
+} | {
+	readonly type: 'jsxLinkedEditing';
+	readonly spans: readonly Proto.TextSpan[];
+};
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {
+
 	public constructor(
+		private readonly language: LanguageDescription,
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager
 	) { }
@@ -24,22 +35,30 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken
-	): Promise<vscode.Range | null> {
+	): Promise<vscode.Range | undefined> {
 		if (this.client.apiVersion.lt(API.v310)) {
-			return null;
+			return undefined;
 		}
 
 		const response = await this.execRename(document, position, token);
-		if (response?.type !== 'response' || !response.body) {
-			return null;
+		if (!response) {
+			return undefined;
 		}
 
-		const renameInfo = response.body.info;
-		if (!renameInfo.canRename) {
-			return Promise.reject<vscode.Range>(renameInfo.localizedErrorMessage);
+		switch (response.type) {
+			case 'rename': {
+				const renameInfo = response.body.info;
+				if (!renameInfo.canRename) {
+					return Promise.reject<vscode.Range>(renameInfo.localizedErrorMessage);
+				}
+				return typeConverters.Range.fromTextSpan(renameInfo.triggerSpan);
+			}
+			case 'jsxLinkedEditing': {
+				return response.spans
+					.map(typeConverters.Range.fromTextSpan)
+					.find(range => range.contains(position));
+			}
 		}
-
-		return typeConverters.Range.fromTextSpan(renameInfo.triggerSpan);
 	}
 
 	public async provideRenameEdits(
@@ -47,37 +66,66 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		position: vscode.Position,
 		newName: string,
 		token: vscode.CancellationToken
-	): Promise<vscode.WorkspaceEdit | null> {
+	): Promise<vscode.WorkspaceEdit | undefined> {
+		const file = this.client.toOpenTsFilePath(document);
+		if (!file) {
+			return undefined;
+		}
+
 		const response = await this.execRename(document, position, token);
-		if (!response || response.type !== 'response' || !response.body) {
-			return null;
+		if (!response || token.isCancellationRequested) {
+			return undefined;
 		}
 
-		const renameInfo = response.body.info;
-		if (!renameInfo.canRename) {
-			return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
-		}
+		switch (response.type) {
+			case 'rename': {
+				const renameInfo = response.body.info;
+				if (!renameInfo.canRename) {
+					return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
+				}
 
-		if (renameInfo.fileToRename) {
-			const edits = await this.renameFile(renameInfo.fileToRename, newName, token);
-			if (edits) {
-				return edits;
-			} else {
-				return Promise.reject<vscode.WorkspaceEdit>(vscode.l10n.t("An error occurred while renaming file"));
+				if (renameInfo.fileToRename) {
+					const edits = await this.renameFile(renameInfo.fileToRename, newName, token);
+					if (edits) {
+						return edits;
+					} else {
+						return Promise.reject<vscode.WorkspaceEdit>(vscode.l10n.t("An error occurred while renaming file"));
+					}
+				}
+
+				return this.updateLocs(response.body.locs, newName);
+			}
+			case 'jsxLinkedEditing': {
+				return this.updateLocs([{
+					file,
+					locs: response.spans.map((span): Proto.RenameTextSpan => ({ ...span })),
+				}], newName);
 			}
 		}
-
-		return this.updateLocs(response.body.locs, newName);
 	}
 
 	public async execRename(
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken
-	): Promise<ServerResponse.Response<Proto.RenameResponse> | undefined> {
+	): Promise<RenameResponse | undefined> {
 		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
+		}
+
+		// Prefer renaming matching jsx tag when available
+		if (this.client.apiVersion.gte(API.v510) &&
+			vscode.workspace.getConfiguration(this.language.id).get('preferences.renameMatchingJsxTags', true) &&
+			this.looksLikePotentialJsxTagContext(document, position)
+		) {
+			const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
+			const response = await this.client.execute('linkedEditingRange', args, token);
+			if (response.type !== 'response' || !response.body) {
+				return undefined;
+			}
+
+			return { type: 'jsxLinkedEditing', spans: response.body.ranges };
 		}
 
 		const args: Proto.RenameRequestArgs = {
@@ -86,10 +134,23 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			findInComments: false
 		};
 
-		return this.client.interruptGetErr(() => {
+		return this.client.interruptGetErr(async () => {
 			this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
-			return this.client.execute('rename', args, token);
+			const response = await this.client.execute('rename', args, token);
+			if (response.type !== 'response' || !response.body) {
+				return undefined;
+			}
+			return { type: 'rename', body: response.body };
 		});
+	}
+
+	private looksLikePotentialJsxTagContext(document: vscode.TextDocument, position: vscode.Position): boolean {
+		if (![languageIds.typescriptreact, languageIds.javascript, languageIds.javascriptreact].includes(document.languageId)) {
+			return false;
+		}
+
+		const prefix = document.getText(new vscode.Range(position.line, 0, position.line, position.character));
+		return /\<\/?\s*[\w\d_$.]*$/.test(prefix);
 	}
 
 	private updateLocs(
@@ -138,6 +199,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 
 export function register(
 	selector: DocumentSelector,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager,
 ) {
@@ -145,6 +207,6 @@ export function register(
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerRenameProvider(selector.semantic,
-			new TypeScriptRenameProvider(client, fileConfigurationManager));
+			new TypeScriptRenameProvider(language, client, fileConfigurationManager));
 	});
 }

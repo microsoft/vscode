@@ -50,6 +50,7 @@ export interface IssueReporterExtensionData {
 	displayName: string | undefined;
 	repositoryUrl: string | undefined;
 	bugsUrl: string | undefined;
+	hasIssueUriRequestHandler?: boolean;
 }
 
 export interface IssueReporterData extends WindowData {

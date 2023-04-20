@@ -56,7 +56,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _contextKeyService: IContextKeyService,
 		private _scopedInstatiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingComment: string | null,
+		private _pendingComment: string | undefined,
+		private _pendingEdits: { [key: number]: string } | undefined,
 		private _markdownOptions: IMarkdownRendererOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
@@ -97,6 +98,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			bodyElement,
 			this._markdownOptions,
 			this._commentThread,
+			this._pendingEdits,
 			this._scopedInstatiationService,
 			this
 		) as unknown as CommentThreadBody<T>;
@@ -259,12 +261,16 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return this._body.getCommentCoords(commentUniqueId);
 	}
 
-	getPendingComment(): string | null {
+	getPendingEdits(): { [key: number]: string } {
+		return this._body.getPendingEdits();
+	}
+
+	getPendingComment(): string | undefined {
 		if (this._commentReply) {
 			return this._commentReply.getPendingComment();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getDimensions() {
