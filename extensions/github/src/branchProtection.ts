@@ -117,7 +117,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 	private async getBranchRules(repository: { owner: string; repo: string }, branch: string): Promise<RepositoryRule[]> {
 		try {
 			const octokit = await getOctokit();
-			const response = await octokit.request('/repos/{owner}/{repo}/rules/branches/{branch}', {
+			const response = await octokit.request('GET /repos/{owner}/{repo}/rules/branches/{branch}', {
 				...repository,
 				branch,
 				headers: {
