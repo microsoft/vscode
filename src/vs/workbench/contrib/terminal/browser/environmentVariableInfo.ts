@@ -8,7 +8,7 @@ import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from '
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
+import { EnvironmentVariableScope, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import Severity from 'vs/base/common/severity';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -68,9 +68,9 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	) {
 	}
 
-	private _getInfo(): string {
+	private _getInfo(scope: EnvironmentVariableScope | undefined): string {
 		const extSet: Set<string> = new Set();
-		addExtensionIdentifiers(extSet, this._collection.map.values());
+		addExtensionIdentifiers(extSet, this._collection.getVariableMap(scope).values());
 
 		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
 		message += '\n';
@@ -80,20 +80,20 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 		return message;
 	}
 
-	private _getActions(): ITerminalStatusHoverAction[] {
+	private _getActions(scope: EnvironmentVariableScope | undefined): ITerminalStatusHoverAction[] {
 		return [{
 			label: localize('showEnvironmentContributions', "Show environment contributions"),
-			run: () => this._commandService.executeCommand(TerminalCommandId.ShowEnvironmentContributions),
+			run: () => this._commandService.executeCommand(TerminalCommandId.ShowEnvironmentContributions, scope),
 			commandId: TerminalCommandId.ShowEnvironmentContributions
 		}];
 	}
 
-	getStatus(): ITerminalStatus {
+	getStatus(scope: EnvironmentVariableScope | undefined): ITerminalStatus {
 		return {
 			id: TerminalStatus.EnvironmentVariableInfoChangesActive,
 			severity: Severity.Info,
-			tooltip: this._getInfo(),
-			hoverActions: this._getActions()
+			tooltip: this._getInfo(scope),
+			hoverActions: this._getActions(scope)
 		};
 	}
 }
