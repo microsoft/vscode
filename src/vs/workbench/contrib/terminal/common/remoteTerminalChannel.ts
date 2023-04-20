@@ -10,7 +10,7 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
@@ -51,6 +51,8 @@ export interface ICreateTerminalProcessArguments {
 	rows: number;
 	unicodeVersion: '6' | '11';
 	resolverEnv: { [key: string]: string | null } | undefined;
+	// TODO: Remove this when last active workspace is fixed
+	getWorkspaceFolder: (resource: URI) => IWorkspaceFolder | null;
 }
 
 export interface ICreateTerminalProcessResult {
@@ -182,7 +184,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			cols,
 			rows,
 			unicodeVersion,
-			resolverEnv
+			resolverEnv,
+			getWorkspaceFolder: this._workspaceContextService.getWorkspaceFolder.bind(this._workspaceContextService),
 		};
 		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
 	}
