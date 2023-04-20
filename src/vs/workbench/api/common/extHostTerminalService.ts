@@ -931,8 +931,16 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 		this.map.forEach((value, _) => callback.call(thisArg, value.variable, convertMutator(value), this));
 	}
 
-	[Symbol.iterator](): IterableIterator<[key: string, mutator: IEnvironmentVariableMutator]> {
-		return this.map.entries();
+	[Symbol.iterator](): IterableIterator<[variable: string, mutator: vscode.EnvironmentVariableMutator]> {
+		const map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
+		this.map.forEach((mutator, _key) => {
+			if (mutator.scope) {
+				// Scoped mutators are not supported via this iterator, as it returns variable as the key which is supposed to be unique.
+				return;
+			}
+			map.set(mutator.variable, convertMutator(mutator));
+		});
+		return map.entries();
 	}
 
 	delete(variable: string, scope?: vscode.EnvironmentVariableScope): void {
@@ -991,7 +999,8 @@ function asTerminalColor(color?: vscode.ThemeColor): ThemeColor | undefined {
 }
 
 function convertMutator(mutator: IEnvironmentVariableMutator): vscode.EnvironmentVariableMutator {
-	const newMutator: vscode.EnvironmentVariableMutator = { ...mutator };
+	const newMutator = { ...mutator };
+	newMutator.scope = newMutator.scope ?? undefined;
 	delete (newMutator as any).variable;
-	return newMutator;
+	return newMutator as vscode.EnvironmentVariableMutator;
 }

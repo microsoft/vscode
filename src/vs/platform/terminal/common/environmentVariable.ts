@@ -20,7 +20,7 @@ export interface IEnvironmentVariableMutator {
 	readonly variable: string;
 	readonly value: string;
 	readonly type: EnvironmentVariableMutatorType;
-	readonly scope: EnvironmentVariableScope | undefined;
+	readonly scope?: EnvironmentVariableScope;
 	// readonly timing?: EnvironmentVariableMutatorTiming;
 }
 
