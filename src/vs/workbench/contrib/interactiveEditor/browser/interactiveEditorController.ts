@@ -272,6 +272,9 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
 
+	private _requestPrompt: string | undefined;
+	private _messageReply: string | undefined;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -305,6 +308,13 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	private _getMode(): EditMode {
 		return this._configurationService.getValue('interactiveEditor.editMode');
+	}
+
+	viewInChat() {
+		console.log('inside of view in chat');
+		if (this._messageReply && this._requestPrompt) {
+			this._instaService.invokeFunction(showMessageResponse, this._requestPrompt, this._messageReply);
+		}
 	}
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
@@ -547,9 +557,10 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				const messageReply = reply.message;
-				const renderedMarkdown = renderMarkdown(messageReply, { inline: true });
-				this._zone.widget.updateMessage(renderedMarkdown.element, { linkListener: () => this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply.value), isMessageReply: true });
+				this._messageReply = reply.message.value;
+				this._requestPrompt = request.prompt;
+				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
+				this._zone.widget.updateMessage(renderedMarkdown.element, { linkListener: () => this.viewInChat(), isMessageReply: true });
 				continue;
 			}
 
@@ -953,7 +964,7 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 	const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
 	const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
 	if (widget && widget.viewModel) {
-		interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
+		await interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
 		widget.focusLastMessage();
 	}
 }

@@ -14,9 +14,9 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_VIEW_IN_CHAT_FOCUSED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ITextModel } from 'vs/editor/common/model';
-import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset, append } from 'vs/base/browser/dom';
+import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset, append, trackFocus } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -98,9 +98,13 @@ class StatusLink extends Disposable {
 
 	private readonly _domNode: HTMLAnchorElement;
 	private readonly _onClicked = this._register(new Emitter<void>());
+	private _ctxViewInChatFocused = CTX_INTERACTIVE_EDITOR_VIEW_IN_CHAT_FOCUSED.bindTo(this._contextKeyService);
 	readonly onClicked = this._onClicked.event;
 
-	constructor(container: HTMLElement) {
+	constructor(
+		container: HTMLElement,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+	) {
 		super();
 		const linkNode = document.createElement('a');
 		const linkMessage = localize('viewInChat', 'View in Chat');
@@ -110,6 +114,17 @@ class StatusLink extends Disposable {
 		this._domNode.classList.add('status-link');
 		this._domNode.tabIndex = 0;
 		this._domNode.setAttribute('aria-label', linkMessage);
+		const focusTracker = this._register(trackFocus(this._domNode));
+		this._register(focusTracker.onDidFocus(() => {
+			console.log('inside of focus');
+			this._ctxViewInChatFocused.set(true);
+			console.log('this._ctxViewInChatFocused : ', this._ctxViewInChatFocused.get());
+		}));
+		this._register(focusTracker.onDidBlur(() => {
+			console.log('inside of blur');
+			this._ctxViewInChatFocused.set(false);
+			console.log('this._ctxViewInChatFocused : ', this._ctxViewInChatFocused.get());
+		}));
 		this._register(addDisposableListener(this._domNode, 'click', () => this._onClicked.fire()));
 	}
 
@@ -119,6 +134,11 @@ class StatusLink extends Disposable {
 
 	hide(): void {
 		this._domNode.style.display = 'none';
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._ctxViewInChatFocused.reset();
 	}
 }
 
@@ -254,7 +274,7 @@ class InteractiveEditorWidget {
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
-		this._statusLink = new StatusLink(this._elements.statusLink);
+		this._statusLink = new StatusLink(this._elements.statusLink, this._contextKeyService);
 		this._elements.statusLabel.tabIndex = 0;
 		this._elements.statusLabel.setAttribute('aria-label', 'Copilot Inline Response');
 		this._elements.statusLabel.setAttribute('role', 'alert');
