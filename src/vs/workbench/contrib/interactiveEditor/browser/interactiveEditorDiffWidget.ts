@@ -22,6 +22,7 @@ import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class InteractiveEditorDiffWidget extends ZoneWidget {
 
@@ -38,6 +39,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		private readonly _textModelv0: ITextModel,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true });
 		super.create();
@@ -123,9 +125,9 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			return;
 		}
 
-		InteractiveEditorDiffWidget._hide(this.editor, [ranges.modifiedHidden]);
-		InteractiveEditorDiffWidget._hide(this._diffEditor.getModifiedEditor(), ranges.modifiedDiffHidden);
-		InteractiveEditorDiffWidget._hide(this._diffEditor.getOriginalEditor(), ranges.originalDiffHidden);
+		this._hideEditorRanges(this.editor, [ranges.modifiedHidden]);
+		this._hideEditorRanges(this._diffEditor.getModifiedEditor(), ranges.modifiedDiffHidden);
+		this._hideEditorRanges(this._diffEditor.getOriginalEditor(), ranges.originalDiffHidden);
 
 		this._diffEditor.revealLine(ranges.modifiedHidden.startLineNumber, ScrollType.Immediate);
 
@@ -136,6 +138,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		const lineHeightPadding = (this.editor.getOption(EditorOption.lineHeight) / 12) /* padding-top/bottom*/;
 
 		super.show(ranges.anchor, lineHeightDiff + lineHeightPadding);
+		this._logService.debug(`[IE] diff SHOWING at ${ranges.anchor}`);
 	}
 
 	private _computeHiddenRanges(model: ITextModel, range: Range, changes: LineRangeMapping[]) {
@@ -170,17 +173,19 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			originalDiffHidden,
 			modifiedHidden: modifiedLineRange,
 			modifiedDiffHidden,
-			anchor: new Position(modifiedLineRange.endLineNumberExclusive - 1, 1)
+			anchor: new Position(modifiedLineRange.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER)
 		};
 	}
 
-	private static _hide(editor: ICodeEditor, lineRanges: LineRange[]): void {
+	private _hideEditorRanges(editor: ICodeEditor, lineRanges: LineRange[]): void {
 		lineRanges = lineRanges.filter(range => !range.isEmpty);
 		if (lineRanges.length === 0) {
 			// todo?
+			this._logService.debug(`[IE] diff NOTHING to hide for ${String(editor.getModel()?.uri)}`);
 		} else {
 			const ranges = lineRanges.map(r => new Range(r.startLineNumber, 1, r.endLineNumberExclusive - 1, 1));
-			editor.setHiddenAreas(ranges, this._hideId);
+			editor.setHiddenAreas(ranges, InteractiveEditorDiffWidget._hideId);
+			this._logService.debug(`[IE] diff HIDING ${ranges} for ${String(editor.getModel()?.uri)}`);
 		}
 	}
 
@@ -219,6 +224,6 @@ function invert(range: LineRange, model: ITextModel): LineRange[] {
 	}
 	const result: LineRange[] = [];
 	result.push(new LineRange(1, range.startLineNumber));
-	result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount()));
+	result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount() + 1));
 	return result.filter(r => !r.isEmpty);
 }
