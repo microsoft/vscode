@@ -118,7 +118,7 @@
 	margin-left: auto;
 }
 
-.monaco-editor .interactive-editor .status .label.message>span>p {
+.monaco-editor .interactive-editor .status .label.message {
 	margin: 0px;
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
