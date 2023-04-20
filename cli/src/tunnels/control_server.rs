@@ -836,14 +836,17 @@ where
 		};
 	}
 
-	let mut p = tokio::process::Command::new(&params.command)
-		.args(&params.args)
-		.envs(&params.env)
-		.stdin(pipe_if_some!(stdin))
-		.stdout(pipe_if_some!(stdout))
-		.stderr(pipe_if_some!(stderr))
-		.spawn()
-		.map_err(CodeError::ProcessSpawnFailed)?;
+	let mut p = tokio::process::Command::new(&params.command);
+	p.args(&params.args);
+	p.envs(&params.env);
+	p.stdin(pipe_if_some!(stdin));
+	p.stdout(pipe_if_some!(stdout));
+	p.stderr(pipe_if_some!(stderr));
+	if let Some(cwd) = &params.cwd {
+		p.current_dir(cwd);
+	}
+
+	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
 
 	let futs = FuturesUnordered::new();
 	if let (Some(mut a), Some(mut b)) = (p.stdout.take(), stdout) {

@@ -184,6 +184,8 @@ pub struct SpawnParams {
 	pub command: String,
 	pub args: Vec<String>,
 	#[serde(default)]
+	pub cwd: Option<String>,
+	#[serde(default)]
 	pub env: HashMap<String, String>,
 }
 
