@@ -166,11 +166,15 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				entry = [];
 				this.descriptionMap.set(key, entry);
 			}
-			entry.push({
+			const extensionMutator = {
 				extensionIdentifier,
 				scope: mutator.scope,
 				description: mutator.description
-			});
+			};
+			if (!extensionMutator.scope) {
+				delete extensionMutator.scope; // Convenient for tests
+			}
+			entry.push(extensionMutator);
 
 			next = it.next();
 		}

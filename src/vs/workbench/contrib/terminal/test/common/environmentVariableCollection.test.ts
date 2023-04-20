@@ -144,7 +144,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			]);
 		});
 
-		test('Workspace scoped description entries are properly filtered', () => {
+		test('Workspace scoped description entries are properly filtered for each extension', () => {
 			const scope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
 			const scope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
 			const merged = new MergedEnvironmentVariableCollection(new Map([
@@ -153,12 +153,16 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: scope1, variable: 'A' }]
 					]),
 					descriptionMap: deserializeEnvironmentDescriptionMap([
-						['A-key', { description: 'A description', scope: scope1 }],
+						['A-key-scope1', { description: 'ext1 scope1 description', scope: scope1 }],
+						['A-key-scope2', { description: 'ext1 scope2 description', scope: scope2 }],
 					])
 				}],
 				['ext2', {
 					map: deserializeEnvironmentVariableCollection([
 						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, variable: 'A' }]
+					]),
+					descriptionMap: deserializeEnvironmentDescriptionMap([
+						['A-key-scope1', { description: 'ext2 global description' }],
 					])
 				}],
 				['ext3', {
@@ -177,7 +181,8 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			]));
 			deepStrictEqual([...merged.getDescriptionMap(scope1).entries()], [
 				['A', [
-					{ extensionIdentifier: 'ext1', description: 'A description', scope: scope1 },
+					{ extensionIdentifier: 'ext1', description: 'ext1 scope1 description', scope: scope1 },
+					{ extensionIdentifier: 'ext2', description: 'ext2 global description' },
 				]]
 			]);
 		});
