@@ -311,7 +311,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	viewInChat() {
-		console.log('inside of view in chat');
 		if (this._messageReply && this._requestPrompt) {
 			this._instaService.invokeFunction(showMessageResponse, this._requestPrompt, this._messageReply);
 		}

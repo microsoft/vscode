@@ -116,14 +116,10 @@ class StatusLink extends Disposable {
 		this._domNode.setAttribute('aria-label', linkMessage);
 		const focusTracker = this._register(trackFocus(this._domNode));
 		this._register(focusTracker.onDidFocus(() => {
-			console.log('inside of focus');
 			this._ctxViewInChatFocused.set(true);
-			console.log('this._ctxViewInChatFocused : ', this._ctxViewInChatFocused.get());
 		}));
 		this._register(focusTracker.onDidBlur(() => {
-			console.log('inside of blur');
 			this._ctxViewInChatFocused.set(false);
-			console.log('this._ctxViewInChatFocused : ', this._ctxViewInChatFocused.get());
 		}));
 		this._register(addDisposableListener(this._domNode, 'click', () => this._onClicked.fire()));
 	}
