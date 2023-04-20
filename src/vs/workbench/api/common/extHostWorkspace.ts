@@ -557,6 +557,18 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._activeSearchCallbacks[requestId]?.(result);
 	}
 
+	async save(uri: URI): Promise<URI | undefined> {
+		const result = await this._proxy.$save(uri);
+
+		return URI.revive(result);
+	}
+
+	async saveAs(uri: URI): Promise<URI | undefined> {
+		const result = await this._proxy.$saveAs(uri);
+
+		return URI.revive(result);
+	}
+
 	saveAll(includeUntitled?: boolean): Promise<boolean> {
 		return this._proxy.$saveAll(includeUntitled);
 	}

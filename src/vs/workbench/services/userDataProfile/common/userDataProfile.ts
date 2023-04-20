@@ -88,6 +88,7 @@ export interface IUserDataProfileImportExportService {
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
+	createFromCurrentProfile(name: string): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
@@ -98,6 +99,10 @@ export const enum ProfileResourceType {
 	Tasks = 'tasks',
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
+}
+
+export interface IProfileResourceInitializer {
+	initialize(content: string): Promise<void>;
 }
 
 export interface IProfileResource {

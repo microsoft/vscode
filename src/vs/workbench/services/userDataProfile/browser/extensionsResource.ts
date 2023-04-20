@@ -16,7 +16,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -24,6 +24,73 @@ interface IProfileExtension {
 	preRelease?: boolean;
 	disabled?: boolean;
 	version?: string;
+}
+
+export class ExtensionsResourceInitializer implements IProfileResourceInitializer {
+
+	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
+		@ILogService private readonly logService: ILogService,
+	) {
+	}
+
+	async initialize(content: string): Promise<void> {
+		const profileExtensions: IProfileExtension[] = JSON.parse(content);
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, this.userDataProfileService.currentProfile.extensionsResource);
+		const extensionsToEnableOrDisable: { extension: IExtensionIdentifier; enable: boolean }[] = [];
+		const extensionsToInstall: IProfileExtension[] = [];
+		for (const e of profileExtensions) {
+			const isDisabled = this.extensionEnablementService.getDisabledExtensions().some(disabledExtension => areSameExtensions(disabledExtension, e.identifier));
+			const installedExtension = installedExtensions.find(installed => areSameExtensions(installed.identifier, e.identifier));
+			if (!installedExtension || (!installedExtension.isBuiltin && installedExtension.preRelease !== e.preRelease)) {
+				extensionsToInstall.push(e);
+			}
+			if (isDisabled !== !!e.disabled) {
+				extensionsToEnableOrDisable.push({ extension: e.identifier, enable: !e.disabled });
+			}
+		}
+		const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => !extension.isBuiltin && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)));
+		for (const { extension, enable } of extensionsToEnableOrDisable) {
+			if (enable) {
+				this.logService.trace(`Initializing Profile: Enabling extension...`, extension.id);
+				await this.extensionEnablementService.enableExtension(extension);
+				this.logService.info(`Initializing Profile: Enabled extension...`, extension.id);
+			} else {
+				this.logService.trace(`Initializing Profile: Disabling extension...`, extension.id);
+				await this.extensionEnablementService.disableExtension(extension);
+				this.logService.info(`Initializing Profile: Disabled extension...`, extension.id);
+			}
+		}
+		if (extensionsToInstall.length) {
+			const galleryExtensions = await this.extensionGalleryService.getExtensions(extensionsToInstall.map(e => ({ ...e.identifier, version: e.version, hasPreRelease: e.version ? undefined : e.preRelease })), CancellationToken.None);
+			await Promise.all(extensionsToInstall.map(async e => {
+				const extension = galleryExtensions.find(galleryExtension => areSameExtensions(galleryExtension.identifier, e.identifier));
+				if (!extension) {
+					return;
+				}
+				if (await this.extensionManagementService.canInstall(extension)) {
+					this.logService.trace(`Initializing Profile: Installing extension...`, extension.identifier.id, extension.version);
+					await this.extensionManagementService.installFromGallery(extension, {
+						isMachineScoped: false,/* set isMachineScoped value to prevent install and sync dialog in web */
+						donotIncludePackAndDependencies: true,
+						installGivenVersion: !!e.version,
+						installPreReleaseVersion: e.preRelease,
+						profileLocation: this.userDataProfileService.currentProfile.extensionsResource,
+						context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
+					});
+					this.logService.info(`Initializing Profile: Installed extension...`, extension.identifier.id, extension.version);
+				} else {
+					this.logService.info(`Initializing Profile: Skipped installing extension because it cannot be installed.`, extension.identifier.id);
+				}
+			}));
+		}
+		if (extensionsToUninstall.length) {
+			await Promise.all(extensionsToUninstall.map(e => this.extensionManagementService.uninstall(e)));
+		}
+	}
 }
 
 export class ExtensionsResource implements IProfileResource {

@@ -145,7 +145,7 @@ function renderError(
 	if (err.stack) {
 		outputElement.classList.add('traceback');
 
-		const outputScrolling = ctx.settings.outputScrolling;
+		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
 		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, true);
 		const contentParent = document.createElement('div');
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
@@ -153,10 +153,6 @@ function renderError(
 			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
 		contentParent.classList.toggle('scrollable', outputScrolling);
-		outputElement.classList.toggle('hide-refresh', !outputScrolling);
-		disposableStore.push(ctx.onDidChangeSettings(e => {
-			outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
-		}));
 		outputElement.classList.toggle('remove-padding', outputScrolling);
 
 		contentParent.appendChild(content);
@@ -221,9 +217,16 @@ function findScrolledHeight(scrollableElement: HTMLElement): number | undefined 
 	return undefined;
 }
 
+function scrollingEnabled(output: OutputItem, options: RenderOptions) {
+	const metadata = output.metadata;
+	return (typeof metadata === 'object' && metadata
+		&& 'scrollable' in metadata && typeof metadata.scrollable === 'boolean') ?
+		metadata.scrollable : options.outputScrolling;
+}
+
 function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
-	const outputScrolling = ctx.settings.outputScrolling;
+	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
 
 	outputElement.classList.add('output-stream');
 	outputElement.classList.toggle('remove-padding', outputScrolling);
@@ -252,11 +255,6 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 		const contentParent = document.createElement('div');
 		contentParent.appendChild(content);
 		contentParent.classList.toggle('scrollable', outputScrolling);
-		outputElement.classList.toggle('hide-refresh', !outputScrolling);
-		disposableStore.push(ctx.onDidChangeSettings(e => {
-			outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
-		}));
-
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
 			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
@@ -278,18 +276,14 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 	clearContainer(outputElement);
 
 	const text = outputInfo.text();
+	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
 	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, false);
 	content.classList.add('output-plaintext');
 	if (ctx.settings.outputWordWrap) {
 		content.classList.add('word-wrap');
 	}
 
-	const outputScrolling = ctx.settings.outputScrolling;
 	content.classList.toggle('scrollable', outputScrolling);
-	outputElement.classList.toggle('hide-refresh', !outputScrolling);
-	disposableStore.push(ctx.onDidChangeSettings(e => {
-		outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
-	}));
 	outputElement.classList.toggle('remove-padding', outputScrolling);
 	outputElement.appendChild(content);
 	initializeScroll(content, disposableStore);
@@ -340,6 +334,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		border-width: 1px;
 		border-color: transparent;
 	}
+	#container div.truncation-message {
+		font-style: italic;
+		font-family: var(--theme-font-family);
+		padding-top: 4px;
+	}
 	#container div.output .scrollable div {
 		cursor: text;
 	}
@@ -351,9 +350,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	}
 	#container div.output .scrollable.scrollbar-visible {
 		border-color: var(--vscode-editorWidget-border);
-	}
-	#container div.output.hide-refresh .scroll-refresh {
-		display: none;
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,

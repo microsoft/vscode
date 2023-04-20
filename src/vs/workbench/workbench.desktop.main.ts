@@ -92,8 +92,9 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
-registerSingleton(IUserDataInitializationService, UserDataInitializationService, InstantiationType.Delayed);
+registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
 registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
 
 
@@ -109,7 +110,6 @@ import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 import 'vs/workbench/contrib/localization/electron-sandbox/localization.contribution';
 
 // Explorer
-import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';
 import 'vs/workbench/contrib/files/electron-sandbox/fileActions.contribution';
 
 // CodeEditor Contributions

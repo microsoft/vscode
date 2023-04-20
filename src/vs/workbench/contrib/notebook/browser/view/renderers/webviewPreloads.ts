@@ -90,7 +90,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const textDecoder = new TextDecoder();
 
 	let currentOptions = ctx.options;
-	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
+	const isWorkspaceTrusted = ctx.isWorkspaceTrusted;
 	let currentRenderOptions = ctx.renderOptions;
 	const settingChange: EmitterLike<RenderOptions> = createEmitter<RenderOptions>();
 
@@ -1225,6 +1225,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 
+		document.designMode = 'Off';
+
 		postNotebookMessage('didFind', {
 			matches: matches.map((match, index) => ({
 				type: match.type,
@@ -1397,11 +1399,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				currentRenderOptions = event.data.renderOptions;
 				settingChange.fire(currentRenderOptions);
 				break;
-			case 'updateWorkspaceTrust': {
-				isWorkspaceTrusted = event.data.isTrusted;
-				viewModel.rerender();
-				break;
-			}
 			case 'tokenizedCodeBlock': {
 				const { codeBlockId, html } = event.data;
 				MarkdownCodeBlock.highlightCodeBlock(codeBlockId, html);
@@ -1643,9 +1640,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const controller = new AbortController();
 				this.outputs.set(outputId, { abort: controller, queue: new Promise(r => r(action(controller.signal))) });
 			} else {
-				record.queue = record.queue.then(r => {
+				record.queue = record.queue.then(async r => {
 					if (!record.abort.signal.aborted) {
-						return action(record.abort.signal);
+						await action(record.abort.signal);
 					}
 				});
 			}
@@ -1870,11 +1867,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._outputCells.clear();
 		}
 
-		public rerender() {
-			this.rerenderMarkupCells();
-			this.renderOutputCells();
-		}
-
 		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
 			const existing = this._markupCells.get(init.cellId);
 			if (existing) {
@@ -1929,12 +1921,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			cell?.unhide();
 		}
 
-		private rerenderMarkupCells() {
-			for (const cell of this._markupCells.values()) {
-				cell.rerender();
-			}
-		}
-
 		private getExpectedMarkupCell(id: string): MarkupCell | undefined {
 			const cell = this._markupCells.get(id);
 			if (!cell) {
@@ -1963,12 +1949,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				if (cell) {
 					cell.element.style.top = `${top}px`;
 				}
-			}
-		}
-
-		private renderOutputCells() {
-			for (const outputCell of this._outputCells.values()) {
-				outputCell.rerender();
 			}
 		}
 
@@ -2266,10 +2246,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.updateMarkupDimensions();
 		}
 
-		public rerender() {
-			this.updateContentAndRender(this._content.value, this._content.metadata);
-		}
-
 		public remove() {
 			this.element.remove();
 		}
@@ -2378,12 +2354,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.outputElements.get(outputId)?.updateContentAndRender(content);
 		}
 
-		public rerender() {
-			for (const outputElement of this.outputElements.values()) {
-				outputElement.rerender();
-			}
-		}
-
 		public updateOutputHeight(outputId: string, height: number) {
 			this.outputElements.get(outputId)?.updateHeight(height);
 		}
@@ -2458,10 +2428,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return this._outputNode;
 		}
 
-		public rerender() {
-			this._outputNode?.rerender();
-		}
-
 		public updateContentAndRender(content: webviewMessages.ICreationContent) {
 			this._outputNode?.updateAndRerender(content);
 		}
@@ -2490,7 +2456,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	class OutputElement {
 		public readonly element: HTMLElement;
 		private _content?: {
-			readonly content: webviewMessages.ICreationContent;
 			readonly preferredRendererId: string | undefined;
 			readonly preloadErrors: ReadonlyArray<Error | undefined>;
 		};
@@ -2528,7 +2493,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.renderTaskAbort?.abort();
 			this.renderTaskAbort = undefined;
 
-			this._content = { content, preferredRendererId, preloadErrors };
+			this._content = { preferredRendererId, preloadErrors };
 			if (content.type === 0 /* RenderOutputType.Html */) {
 				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 				this.element.innerHTML = trustedHtml as string;
@@ -2586,16 +2551,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public rerender() {
-			if (this._content) {
-				this.render(this._content.content, this._content.preferredRendererId, this._content.preloadErrors);
-			}
-		}
-
 		public updateAndRerender(content: webviewMessages.ICreationContent) {
 			if (this._content) {
-				this._content = { content, preferredRendererId: this._content.preferredRendererId, preloadErrors: this._content.preloadErrors };
-				this.rerender();
+				this.render(content, this._content.preferredRendererId, this._content.preloadErrors);
 			}
 		}
 	}

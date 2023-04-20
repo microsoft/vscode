@@ -26,7 +26,7 @@ export interface IAudioCueService {
 
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
-
+	sounds: Map<string, HTMLAudioElement> = new Map();
 	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
@@ -37,6 +37,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
+		// preload all sounds so there's no delay
+		for (const audioCue of AudioCue.allAudioCues) {
+			playAudio(FileAccess.asBrowserUri(
+				`vs/platform/audioCues/browser/media/${audioCue.sound.fileName}`
+			).toString(true), 0).then(sound => { { this.sounds.set(sound.src, sound); } });
+		}
 	}
 
 	public async playAudioCue(cue: AudioCue, allowManyInParallel = false): Promise<void> {
@@ -68,13 +74,19 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 
 		this.playingSounds.add(sound);
-
-		const url = FileAccess.asBrowserUri(
-			`vs/platform/audioCues/browser/media/${sound.fileName}`
-		).toString(true);
+		const url = FileAccess.asBrowserUri(`vs/platform/audioCues/browser/media/${sound.fileName}`).toString(true);
 
 		try {
-			await playAudio(url, this.getVolumeInPercent() / 100);
+			const sound = this.sounds.get(url);
+			if (sound) {
+				// preloaded
+				sound.volume = this.getVolumeInPercent() / 100;
+				await sound.play();
+			} else {
+				// not yet preloaded
+				const playedSound = await playAudio(url, this.getVolumeInPercent() / 100);
+				this.sounds.set(url, playedSound);
+			}
 		} catch (e) {
 			console.error('Error while playing sound', e);
 		} finally {
@@ -130,12 +142,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
  * Play the given audio url.
  * @volume value between 0 and 1
  */
-function playAudio(url: string, volume: number): Promise<void> {
+function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
 	return new Promise((resolve, reject) => {
 		const audio = new Audio(url);
 		audio.volume = volume;
 		audio.addEventListener('ended', () => {
-			resolve();
+			resolve(audio);
 		});
 		audio.addEventListener('error', (e) => {
 			// When the error event fires, ended might not be called

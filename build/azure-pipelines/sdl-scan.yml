@@ -36,7 +36,7 @@ variables:
 stages:
   - stage: Windows
     condition: eq(variables.SCAN_WINDOWS, 'true')
-    pool: vscode-1es-windows
+    pool: 1es-windows-2019-x64
     jobs:
       - job: WindowsJob
         timeoutInMinutes: 0
@@ -113,6 +113,8 @@ stages:
             condition: eq(variables['Codeql.enabled'], 'True')
 
           - powershell: yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)"
+            env:
+              GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Download Symbols
 
           - task: BinSkim@4
@@ -244,6 +246,8 @@ stages:
               VSCODE_QUALITY: stable
 
           - script: yarn gulp vscode-symbols-linux-$(VSCODE_ARCH)
+            env:
+              GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Build
 
           - task: BinSkim@3

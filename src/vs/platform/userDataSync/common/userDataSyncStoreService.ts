@@ -537,10 +537,15 @@ export class UserDataSyncStoreClient extends Disposable {
 			failureMessage = await asText(context) || '';
 		}
 
-		if (context.res.statusCode === 401) {
+		if (context.res.statusCode === 401 || context.res.statusCode === 403) {
 			this.authToken = undefined;
 			this._onTokenFailed.fire();
-			throw new UserDataSyncStoreError(`Request '${url}' failed because of Unauthorized (401).`, url, UserDataSyncErrorCode.Unauthorized, context.res.statusCode, operationId);
+			if (context.res.statusCode === 401) {
+				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Unauthorized (401).`, url, UserDataSyncErrorCode.Unauthorized, context.res.statusCode, operationId);
+			}
+			if (context.res.statusCode === 403) {
+				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because the access is forbidden (403).`, url, UserDataSyncErrorCode.Forbidden, context.res.statusCode, operationId);
+			}
 		}
 
 		this._onTokenSucceed.fire();

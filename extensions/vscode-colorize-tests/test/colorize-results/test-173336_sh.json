@@ -463,49 +463,49 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.quoted.shell string.quoted.double.shell punctuation.definition.string.begin.shell entity.name.command.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.quoted.shell string.quoted.double.shell punctuation.definition.string.begin.shell entity.name.function.call.shell entity.name.command.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_plus_experimental": "entity.name.function: #795E26"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command punctuation.definition.variable.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command punctuation.definition.variable.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_plus_experimental": "entity.name.function: #795E26"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command punctuation.section.bracket.curly.variable.begin.shell punctuation.definition.variable.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command punctuation.section.bracket.curly.variable.begin.shell punctuation.definition.variable.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_plus_experimental": "entity.name.function: #795E26"
 		}
 	},
 	{
 		"c": "cmd",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command meta.parameter-expansion variable.other.normal.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command meta.parameter-expansion variable.other.normal.shell",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -519,72 +519,72 @@
 	},
 	{
 		"c": "[",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command meta.parameter-expansion punctuation.section.array.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command meta.parameter-expansion punctuation.section.array.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_plus_experimental": "entity.name.function: #795E26"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command meta.parameter-expansion",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command meta.parameter-expansion",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_plus_experimental": "entity.name.function: #795E26"
 		}
 	},
 	{
 		"c": "]",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command meta.parameter-expansion punctuation.section.array.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command meta.parameter-expansion punctuation.section.array.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_plus_experimental": "entity.name.function: #795E26"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command punctuation.section.bracket.curly.variable.end.shell punctuation.definition.variable.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command punctuation.section.bracket.curly.variable.end.shell punctuation.definition.variable.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_plus_experimental": "entity.name.function: #795E26"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell string.quoted.double.shell punctuation.definition.string.end.shell entity.name.command.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell string.quoted.double.shell punctuation.definition.string.end.shell entity.name.function.call.shell entity.name.command.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_plus_experimental": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -603,7 +603,7 @@
 	},
 	{
 		"c": "printf",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell entity.name.command.shell support.function.builtin.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell entity.name.function.call.shell entity.name.command.shell support.function.builtin.shell",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",

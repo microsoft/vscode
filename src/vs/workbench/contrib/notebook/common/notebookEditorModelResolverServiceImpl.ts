@@ -41,11 +41,6 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-
-		this._disposables.add(_notebookService.onWillRemoveViewType(viewType => {
-			const manager = this._workingCopyManagers.get(NotebookWorkingCopyTypeIdentifier.create(viewType));
-			manager?.destroy().catch(err => _logService.error(err));
-		}));
 	}
 
 	dispose(): void {

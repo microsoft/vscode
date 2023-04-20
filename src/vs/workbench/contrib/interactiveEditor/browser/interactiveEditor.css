@@ -83,7 +83,7 @@
 }
 
 /* UGLY - fighting against workbench styles */
-.monaco-workbench .part.editor > .content .monaco-editor .interactive-editor .progress .monaco-progress-container {
+.monaco-workbench .part.editor>.content .monaco-editor .interactive-editor .progress .monaco-progress-container {
 	top: 0;
 }
 
@@ -96,14 +96,44 @@
 	align-items: center;
 }
 
+.monaco-editor .interactive-editor.preview .status {
+	flex-direction: row-reverse;
+}
+
 .monaco-editor .interactive-editor .status .actions.hidden {
 	display: none;
 }
 
-.monaco-editor .interactive-editor .status .label {
-	margin-left: auto;
-	padding-left: 12px;
+.monaco-editor .interactive-editor .status .link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
 	font-size: 12px;
+	white-space: nowrap;
+	/* margin-top: auto; */
+}
+
+.monaco-editor .interactive-editor .status .label {
+	overflow: hidden;
+	font-size: 12px;
+	margin-left: auto;
+}
+
+.monaco-editor .interactive-editor .status .label.message>span>p {
+	margin: 0px;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	display: -webkit-box;
+}
+
+.monaco-editor .interactive-editor .status .link .status-link  {
+	padding-left: 10px;
+}
+
+.monaco-editor .interactive-editor .status .link  .status-link .codicon {
+	line-height: unset;
+	font-size: 12px;
+	padding-right: 4px;
 }
 
 .monaco-editor .interactive-editor .status .label A {
@@ -129,6 +159,39 @@
 	outline: 1px solid var(--vscode-inputOption-activeBorder);
 }
 
+/* preview */
+
+.monaco-editor .interactive-editor .preview {
+	display: none;
+}
+
+.monaco-editor .interactive-editor.preview .previewDiff {
+	display: inherit;
+	padding: 6px;
+	border: 1px solid var(--vscode-interactiveEditor-border);
+	border-top: none;
+	border-bottom-left-radius: 2px;
+	border-bottom-right-radius: 2px;
+	margin: 0 2px 6px 2px;
+}
+
+.monaco-editor .interactive-editor.preview .previewCreateTitle {
+	padding-top: 6px;
+}
+
+.monaco-editor .interactive-editor.preview .previewCreate {
+	display: inherit;
+	padding: 6px;
+	border: 1px solid var(--vscode-interactiveEditor-border);
+	border-radius: 2px;
+	margin: 0 2px 6px 2px;
+}
+
+.monaco-editor .interactive-editor .previewDiff.hidden,
+.monaco-editor .interactive-editor .previewCreate.hidden,
+.monaco-editor .interactive-editor .previewCreateTitle.hidden {
+	display: none;
+}
 
 /* decoration styles */
 
@@ -151,4 +214,10 @@
 
 .monaco-editor .interactive-editor-slash-command-detail {
 	opacity: 0.5;
+}
+
+/* diff zone */
+
+.monaco-editor .interactive-editor-diff-widget {
+	padding: 6px 0;
 }

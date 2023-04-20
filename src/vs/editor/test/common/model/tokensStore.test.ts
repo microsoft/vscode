@@ -99,8 +99,6 @@ suite('TokensStore', () => {
 		return result;
 	}
 
-	// function extractState
-
 	function testTokensAdjustment(rawInitialState: string[], edits: ISingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
 		const model = createTextModel(initialState.text);
@@ -171,6 +169,38 @@ suite('TokensStore', () => {
 			],
 			[
 				`import { |URI| } from 'vs/base/common/uri';const foo = |URI|.parse('hey');`
+			]
+		);
+	});
+
+	test('issue #179268: a complex edit', () => {
+		testTokensAdjustment(
+			[
+				`|export| |'interior_material_selector.dart'|;`,
+				`|export| |'mileage_selector.dart'|;`,
+				`|export| |'owners_selector.dart'|;`,
+				`|export| |'price_selector.dart'|;`,
+				`|export| |'seat_count_selector.dart'|;`,
+				`|export| |'year_selector.dart'|;`,
+				`|export| |'winter_options_selector.dart'|;|export| |'camera_selector.dart'|;`
+			],
+			[
+				{ range: new Range(1, 9, 1, 9), text: `camera_selector.dart';\nexport '` },
+				{ range: new Range(6, 9, 7, 9), text: `` },
+				{ range: new Range(7, 39, 7, 39), text: `\n` },
+				{ range: new Range(7, 47, 7, 48), text: `ye` },
+				{ range: new Range(7, 49, 7, 51), text: `` },
+				{ range: new Range(7, 52, 7, 53), text: `` },
+			],
+			[
+				`|export| |'|camera_selector.dart';`,
+				`export 'interior_material_selector.dart';`,
+				`|export| |'mileage_selector.dart'|;`,
+				`|export| |'owners_selector.dart'|;`,
+				`|export| |'price_selector.dart'|;`,
+				`|export| |'seat_count_selector.dart'|;`,
+				`|export| |'||winter_options_selector.dart'|;`,
+				`|export| |'year_selector.dart'|;`
 			]
 		);
 	});

@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
+import { isFunction } from 'vs/base/common/types';
 
 export enum TriggerAction {
 
@@ -68,7 +69,7 @@ export interface IPickerQuickAccessProviderOptions<T extends IPickerQuickAccessI
 	/**
 	 * Enables to show a pick entry when no results are returned from a search.
 	 */
-	noResultsPick?: T;
+	noResultsPick?: T | ((filter: string) => T);
 }
 
 export type Pick<T> = T | IQuickPickSeparator;
@@ -141,7 +142,11 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 					// We show the no results pick if we have no input to prevent completely empty pickers #172613
 					if ((picksFilter.length > 0 || picker.hideInput) && this.options?.noResultsPick) {
-						items = [this.options.noResultsPick];
+						if (isFunction(this.options.noResultsPick)) {
+							items = [this.options.noResultsPick(picksFilter)];
+						} else {
+							items = [this.options.noResultsPick];
+						}
 					}
 				}
 
