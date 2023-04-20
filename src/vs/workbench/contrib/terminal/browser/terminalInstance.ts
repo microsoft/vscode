@@ -524,6 +524,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration('accessibility.verbosity.terminal')) {
+				this._setAriaLabel(this.xterm?.raw, this._instanceId, this.title);
+			}
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
@@ -1942,7 +1945,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				labelParts.push(nls.localize('terminalScreenReaderMode', "Run the command: Toggle Screen Reader Accessibility Mode for an optimized screen reader experience"));
 			}
 			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ShowTerminalAccessibilityHelp)?.getLabel();
-			if (accessibilityHelpKeybinding) {
+			if (this._configurationService.getValue('accessibility.verbosity.terminal') && accessibilityHelpKeybinding) {
 				labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
 			}
 			xterm.textarea.setAttribute('aria-label', labelParts.join('\n'));

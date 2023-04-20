@@ -481,7 +481,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
-	private readonly _configurationService: IConfigurationService;
+	private readonly _updatedConfigurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 
 	constructor(
@@ -507,9 +507,9 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
-		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService, configurationService);
 
-		this._configurationService = configurationService;
+		this._updatedConfigurationService = configurationService;
 		this._standaloneThemeService = themeService;
 
 		this._register(themeDomRegistration);
@@ -520,7 +520,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	}
 
 	public override updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
-		updateConfigurationService(this._configurationService, newOptions, true);
+		updateConfigurationService(this._updatedConfigurationService, newOptions, true);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
 		}
