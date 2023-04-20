@@ -84,7 +84,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 				collectionsJson.push({
 					extensionIdentifier,
 					collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!.map),
-					description: serializeEnvironmentDescriptionMap(collection.descriptionMap)
+					description: serializeEnvironmentDescriptionMap(collection.descriptionMap ?? new Map())
 				});
 			}
 		});

@@ -29,7 +29,7 @@ export function deserializeEnvironmentDescriptionMap(
 
 export function serializeEnvironmentVariableCollections(collections: ReadonlyMap<string, IEnvironmentVariableCollection>): ISerializableEnvironmentVariableCollections {
 	return Array.from(collections.entries()).map(e => {
-		return [e[0], serializeEnvironmentVariableCollection(e[1].map), serializeEnvironmentDescriptionMap(e[1].descriptionMap)];
+		return [e[0], serializeEnvironmentVariableCollection(e[1].map), serializeEnvironmentDescriptionMap(e[1].descriptionMap ?? new Map())];
 	});
 }
 

@@ -153,6 +153,9 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	}
 
 	private populateDescriptionMap(collection: IEnvironmentVariableCollection, extensionIdentifier: string): void {
+		if (!collection.descriptionMap) {
+			return;
+		}
 		const it = collection.descriptionMap.entries();
 		let next = it.next();
 		while (!next.done) {

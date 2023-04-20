@@ -7,7 +7,7 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/environmentVariable';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
+import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { URI } from 'vs/base/common/uri';
 
 suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
@@ -144,6 +144,43 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			]);
 		});
 
+		test('Workspace scoped description entries are properly filtered', () => {
+			const scope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const scope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: scope1, variable: 'A' }]
+					]),
+					descriptionMap: deserializeEnvironmentDescriptionMap([
+						['A-key', { description: 'A description', scope: scope1 }],
+					])
+				}],
+				['ext2', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, variable: 'A' }]
+					])
+				}],
+				['ext3', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: scope2, variable: 'A' }]
+					]),
+					descriptionMap: deserializeEnvironmentDescriptionMap([
+						['A-key', { description: 'A3 description', scope: scope2 }],
+					])
+				}],
+				['ext4', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a4', type: EnvironmentVariableMutatorType.Append, variable: 'A' }]
+					])
+				}]
+			]));
+			deepStrictEqual([...merged.getDescriptionMap(scope1).entries()], [
+				['A', [
+					{ extensionIdentifier: 'ext1', description: 'A description', scope: scope1 },
+				]]
+			]);
+		});
 	});
 
 	suite('applyToProcessEnvironment', () => {

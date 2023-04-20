@@ -26,7 +26,7 @@ export interface IEnvironmentVariableMutator {
 
 export interface IEnvironmentDescriptionMutator {
 	readonly description: string | undefined;
-	readonly scope: EnvironmentVariableScope | undefined;
+	readonly scope?: EnvironmentVariableScope;
 }
 
 export type EnvironmentVariableScope = {
@@ -35,7 +35,7 @@ export type EnvironmentVariableScope = {
 
 export interface IEnvironmentVariableCollection {
 	readonly map: ReadonlyMap<string, IEnvironmentVariableMutator>;
-	readonly descriptionMap: ReadonlyMap<string, IEnvironmentDescriptionMutator>;
+	readonly descriptionMap?: ReadonlyMap<string, IEnvironmentDescriptionMutator>;
 }
 
 /** [variable, mutator] */
