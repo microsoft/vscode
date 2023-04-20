@@ -1801,7 +1801,6 @@ export class TestTerminalEditorService implements ITerminalEditorService {
 	onDidChangeActiveInstance = Event.None;
 	onDidChangeInstances = Event.None;
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> { throw new Error('Method not implemented.'); }
-	detachActiveEditorInstance(): ITerminalInstance { throw new Error('Method not implemented.'); }
 	detachInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance { throw new Error('Method not implemented.'); }
 	revealActiveEditor(preserveFocus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }

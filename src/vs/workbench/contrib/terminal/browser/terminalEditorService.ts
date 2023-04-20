@@ -69,7 +69,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			this._terminalEditorActive.set(terminalEditorActive);
 			if (terminalEditorActive) {
 				activeEditor?.setGroup(this._editorService.activeEditorPane?.group);
-				this._setActiveInstance(instance);
+				this.setActiveInstance(instance);
+			} else {
+				for (const instance of this.instances) {
+					instance.resetFocusContextKey();
+				}
 			}
 		}));
 		this._register(this._editorService.onDidVisibleEditorsChange(() => {
@@ -88,7 +92,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				this.instances.push(unknownEditor.terminalInstance);
 			}
 		}));
-		this._register(this.onDidDisposeInstance(instance => this.detachInstance(instance)));
 
 		// Remove the terminal from the managed instances when the editor closes. This fires when
 		// dragging and dropping to another editor or closing the editor via cmd/ctrl+w.
@@ -97,15 +100,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			if (instance) {
 				const instanceIndex = this.instances.findIndex(e => e === instance);
 				if (instanceIndex !== -1) {
-					this.instances.splice(instanceIndex, 1);
-				}
-			}
-		}));
-		this._register(this._editorService.onDidActiveEditorChange(() => {
-			const instance = this._editorService.activeEditor instanceof TerminalEditorInput ? this._editorService.activeEditor : undefined;
-			if (!instance) {
-				for (const instance of this.instances) {
-					instance.resetFocusContextKey();
+					const wasActiveInstance = this.instances[instanceIndex] === this.activeInstance;
+					this._removeInstance(instance);
+					if (wasActiveInstance) {
+						this.setActiveInstance(undefined);
+					}
 				}
 			}
 		}));
@@ -122,21 +121,13 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return this.instances[this._activeInstanceIndex];
 	}
 
-	setActiveInstance(instance: ITerminalInstance): void {
-		this._setActiveInstance(instance);
+	setActiveInstance(instance: ITerminalInstance | undefined): void {
+		this._activeInstanceIndex = instance ? this.instances.findIndex(e => e === instance) : -1;
+		this._onDidChangeActiveInstance.fire(this.activeInstance);
 	}
 
 	async focusActiveInstance(): Promise<void> {
 		return this.activeInstance?.focusWhenReady(true);
-	}
-
-	private _setActiveInstance(instance: ITerminalInstance | undefined): void {
-		if (instance === undefined) {
-			this._activeInstanceIndex = -1;
-		} else {
-			this._activeInstanceIndex = this.instances.findIndex(e => e === instance);
-		}
-		this._onDidChangeActiveInstance.fire(this.activeInstance);
 	}
 
 	async openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> {
@@ -219,6 +210,21 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._onDidChangeInstances.fire();
 	}
 
+	private _removeInstance(instance: ITerminalInstance) {
+		const inputKey = instance.resource.path;
+		this._editorInputs.delete(inputKey);
+		const instanceIndex = this.instances.findIndex(e => e === instance);
+		if (instanceIndex !== -1) {
+			this.instances.splice(instanceIndex, 1);
+		}
+		const disposables = this._instanceDisposables.get(inputKey);
+		this._instanceDisposables.delete(inputKey);
+		if (disposables) {
+			dispose(disposables);
+		}
+		this._onDidChangeInstances.fire();
+	}
+
 	getInstanceFromResource(resource?: URI): ITerminalInstance | undefined {
 		return getInstanceFromResource(this.instances, resource);
 	}
@@ -261,39 +267,15 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}
 	}
 
-	detachActiveEditorInstance(): ITerminalInstance {
-		const activeEditor = this._editorService.activeEditor;
-		if (!(activeEditor instanceof TerminalEditorInput)) {
-			// should never happen now with the terminalEditorActive context key
-			throw new Error('Active editor is not a terminal');
-		}
-		const instance = activeEditor.terminalInstance;
-		if (!instance) {
-			throw new Error('Terminal is already detached');
-		}
-		this.detachInstance(instance);
-		return instance;
-	}
-
 	detachInstance(instance: ITerminalInstance) {
 		const inputKey = instance.resource.path;
 		const editorInput = this._editorInputs.get(inputKey);
 		editorInput?.detachInstance();
-		this._editorInputs.delete(inputKey);
-		const instanceIndex = this.instances.findIndex(e => e === instance);
-		if (instanceIndex !== -1) {
-			this.instances.splice(instanceIndex, 1);
-		}
+		this._removeInstance(instance);
 		// Don't dispose the input when shutting down to avoid layouts in the editor area
 		if (!this._isShuttingDown) {
 			editorInput?.dispose();
 		}
-		const disposables = this._instanceDisposables.get(inputKey);
-		this._instanceDisposables.delete(inputKey);
-		if (disposables) {
-			dispose(disposables);
-		}
-		this._onDidChangeInstances.fire();
 	}
 
 	async revealActiveEditor(preserveFocus?: boolean): Promise<void> {
