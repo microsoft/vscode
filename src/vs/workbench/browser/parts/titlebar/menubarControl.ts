@@ -240,6 +240,10 @@ export abstract class MenubarControl extends Disposable {
 		this.updateMenubar();
 	}
 
+	onTitleTextChanged(): void {
+		this.updateMenubar();
+	}
+
 	protected getOpenRecentActions(): (Separator | IOpenRecentAction)[] {
 		if (!this.recentlyOpened) {
 			return [];
