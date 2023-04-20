@@ -97,13 +97,13 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 class StatusLink extends Disposable {
 
 	private readonly _domNode: HTMLAnchorElement;
+	private _ctxViewInChatFocused: IContextKey<boolean> = CTX_INTERACTIVE_EDITOR_VIEW_IN_CHAT_FOCUSED.bindTo(this._contextKeyService);
 	private readonly _onClicked = this._register(new Emitter<void>());
-	private _ctxViewInChatFocused = CTX_INTERACTIVE_EDITOR_VIEW_IN_CHAT_FOCUSED.bindTo(this._contextKeyService);
 	readonly onClicked = this._onClicked.event;
 
 	constructor(
 		container: HTMLElement,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		const linkNode = document.createElement('a');

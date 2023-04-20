@@ -24,6 +24,7 @@ registerAction2(interactiveEditorActions.ArrowOutDownAction);
 registerAction2(interactiveEditorActions.FocusInteractiveEditor);
 registerAction2(interactiveEditorActions.PreviousFromHistory);
 registerAction2(interactiveEditorActions.NextFromHistory);
+registerAction2(interactiveEditorActions.ViewInChatAction);
 
 registerAction2(interactiveEditorActions.UndoToClipboard);
 registerAction2(interactiveEditorActions.UndoToNewFile);

@@ -500,22 +500,20 @@ export class CopyRecordings extends AbstractInteractiveEditorAction {
 	}
 }
 
-export class ViewInChatAction extends EditorAction2 {
-
+export class ViewInChatAction extends AbstractInteractiveEditorAction {
 	constructor() {
 		super({
 			id: 'interactiveEditor.viewInChat',
-			title: { value: localize('viewInChat', 'View in Chat'), original: 'View in Chat' },
+			title: localize('viewInChat', 'View in Chat'),
 			precondition: CTX_INTERACTIVE_EDITOR_VIEW_IN_CHAT_FOCUSED,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorCore + 10,
+				primary: KeyCode.Enter
 			}
 		});
 	}
 
-	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
-		console.log('inside of run editor command of the view in chat');
-		InteractiveEditorController.get(editor)?.viewInChat();
+	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.viewInChat();
 	}
 }
