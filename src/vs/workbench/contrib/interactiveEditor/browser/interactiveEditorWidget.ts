@@ -103,10 +103,13 @@ class StatusLink extends Disposable {
 	constructor(container: HTMLElement) {
 		super();
 		const linkNode = document.createElement('a');
-		const codicon = renderLabelWithIcons('$(comment-discussion)' + localize('viewInChat', 'View in Chat'));
+		const linkMessage = localize('viewInChat', 'View in Chat');
+		const codicon = renderLabelWithIcons('$(comment-discussion)' + linkMessage);
 		reset(linkNode, ...codicon);
 		this._domNode = append(container, linkNode);
 		this._domNode.classList.add('status-link');
+		this._domNode.tabIndex = 0;
+		this._domNode.setAttribute('aria-label', linkMessage);
 		this._register(addDisposableListener(this._domNode, 'click', () => this._onClicked.fire()));
 	}
 
@@ -252,6 +255,9 @@ class InteractiveEditorWidget {
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
 		this._statusLink = new StatusLink(this._elements.statusLink);
+		this._elements.statusLabel.tabIndex = 0;
+		this._elements.statusLabel.setAttribute('aria-label', 'Copilot Inline Response');
+		this._elements.statusLabel.setAttribute('role', 'alert');
 	}
 
 	dispose(): void {

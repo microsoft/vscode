@@ -955,6 +955,7 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 	if (widget && widget.viewModel) {
 		interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
 	}
+	widget?.focusLastMessage();
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {

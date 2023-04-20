@@ -116,6 +116,8 @@
 	overflow: hidden;
 	font-size: 12px;
 	margin-left: auto;
+	padding-left: 5px;
+	padding-right: 5px;
 }
 
 .monaco-editor .interactive-editor .status .label.message {
@@ -127,7 +129,7 @@
 }
 
 .monaco-editor .interactive-editor .status .link .status-link  {
-	padding-left: 10px;
+	padding: 5px;
 }
 
 .monaco-editor .interactive-editor .status .link  .status-link .codicon {
