@@ -22,10 +22,48 @@ import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interacti
 import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInteractiveSessionDynamicRequest, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export const INTERACTIVE_SESSION_CATEGORY = { value: localize('interactiveSession.category', "Interactive Session"), original: 'Interactive Session' };
 
 export function registerInteractiveSessionActions() {
+	registerAction2(class InteractiveSessionRequest extends Action2 {
+
+		constructor() {
+			super({
+				id: 'interactiveSession.action.request',
+				title: {
+					value: localize('interactiveSession.action.request', "Send Request"),
+					original: 'send Request'
+				}
+			});
+		}
+
+		private _isInteractiveSessionDynamicRequestWithProvider(options: any): options is { providerId: string; request: IInteractiveSessionDynamicRequest } {
+			// TODO: fill this in
+			return true;
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			let options: { providerId: string; request: IInteractiveSessionDynamicRequest } | undefined;
+			const arg = args[0];
+			if (arg && this._isInteractiveSessionDynamicRequestWithProvider(arg)) {
+				options = arg;
+			}
+			if (!options) {
+				return;
+			}
+			const providerId = options.providerId;
+			const request = options.request;
+			const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
+			if (widget && widget.viewModel) {
+				interactiveSessionService.sendInteractiveRequestToProvider(widget.viewModel.sessionId, request);
+			}
+		}
+	});
+
 	registerEditorAction(class InteractiveSessionAcceptInput extends EditorAction {
 		constructor() {
 			super({
