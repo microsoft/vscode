@@ -83,7 +83,7 @@
 }
 
 /* UGLY - fighting against workbench styles */
-.monaco-workbench .part.editor > .content .monaco-editor .interactive-editor .progress .monaco-progress-container {
+.monaco-workbench .part.editor>.content .monaco-editor .interactive-editor .progress .monaco-progress-container {
 	top: 0;
 }
 
@@ -104,8 +104,36 @@
 	display: none;
 }
 
-.monaco-editor .interactive-editor .status .label {
+.monaco-editor .interactive-editor .status .link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
 	font-size: 12px;
+	white-space: nowrap;
+	/* margin-top: auto; */
+}
+
+.monaco-editor .interactive-editor .status .label {
+	overflow: hidden;
+	font-size: 12px;
+	margin-left: auto;
+}
+
+.monaco-editor .interactive-editor .status .label.message>span>p {
+	margin: 0px;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	display: -webkit-box;
+}
+
+.monaco-editor .interactive-editor .status .link .status-link  {
+	padding-left: 10px;
+}
+
+.monaco-editor .interactive-editor .status .link  .status-link .codicon {
+	line-height: unset;
+	font-size: 12px;
+	padding-right: 4px;
 }
 
 .monaco-editor .interactive-editor .status .label A {
@@ -186,4 +214,10 @@
 
 .monaco-editor .interactive-editor-slash-command-detail {
 	opacity: 0.5;
+}
+
+/* diff zone */
+
+.monaco-editor .interactive-editor-diff-widget {
+	padding: 6px 0;
 }

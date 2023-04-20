@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use crate::{
 	constants::{PROTOCOL_VERSION, VSCODE_CLI_VERSION},
 	options::Quality,
+	update_service::Platform,
 };
 use serde::{Deserialize, Serialize};
 
@@ -127,6 +128,26 @@ pub struct GetHostnameResponse {
 	pub value: String,
 }
 
+#[derive(Serialize)]
+pub struct GetEnvResponse {
+	pub env: HashMap<String, String>,
+	pub os_platform: &'static str,
+	pub os_release: String,
+}
+
+#[derive(Deserialize)]
+pub struct FsStatRequest {
+	pub path: String,
+}
+
+#[derive(Serialize, Default)]
+pub struct FsStatResponse {
+	pub exists: bool,
+	pub size: Option<u64>,
+	#[serde(rename = "type")]
+	pub kind: Option<&'static str>,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct CallServerHttpParams {
 	pub path: String,
@@ -163,7 +184,18 @@ pub struct SpawnParams {
 	pub command: String,
 	pub args: Vec<String>,
 	#[serde(default)]
+	pub cwd: Option<String>,
+	#[serde(default)]
 	pub env: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+pub struct AcquireCliParams {
+	pub platform: Platform,
+	pub quality: Quality,
+	pub commit_id: Option<String>,
+	#[serde(flatten)]
+	pub spawn: SpawnParams,
 }
 
 #[derive(Serialize)]

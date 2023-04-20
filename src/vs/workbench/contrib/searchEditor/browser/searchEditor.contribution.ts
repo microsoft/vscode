@@ -33,8 +33,10 @@ import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEA
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -563,28 +565,34 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 //#endregion
 
 //#region Search Editor Working Copy Editor Handler
-class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
+		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
 	) {
 		super();
 
-		this.installHandler();
+		this._register(workingCopyEditorService.registerHandler(this));
 	}
 
-	private installHandler(): void {
-		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme,
-			isOpen: (workingCopy, editor) => editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri),
-			createEditor: workingCopy => {
-				const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'model', modelUri: workingCopy.resource });
-				input.setDirty(true);
+	handles(workingCopy: IWorkingCopyIdentifier): boolean {
+		return workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme;
+	}
 
-				return input;
-			}
-		}));
+	isOpen(workingCopy: IWorkingCopyIdentifier, editor: EditorInput): boolean {
+		if (!this.handles(workingCopy)) {
+			return false;
+		}
+
+		return editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri);
+	}
+
+	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
+		const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'model', modelUri: workingCopy.resource });
+		input.setDirty(true);
+
+		return input;
 	}
 }
 

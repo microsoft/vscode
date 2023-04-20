@@ -632,24 +632,6 @@ suite('ExtHostConfiguration', function () {
 		assert.strictEqual(config.has('config0'), true);
 	});
 
-	test('getConfiguration vs get', function () {
-
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
-				'config4': 38
-			}
-		});
-
-		let config = all.getConfiguration('farboo.config0');
-		assert.strictEqual(config.get(''), undefined);
-		assert.strictEqual(config.has(''), false);
-
-		config = all.getConfiguration('farboo');
-		assert.strictEqual(config.get('config0'), true);
-		assert.strictEqual(config.has('config0'), true);
-	});
-
 	test('name vs property', function () {
 		const all = createExtHostConfiguration({
 			'farboo': {

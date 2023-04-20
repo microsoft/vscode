@@ -245,7 +245,7 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 	}
 
 	public resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
-		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemId);
+		return this.dataTransfersCache.resolveFileData(requestId, dataItemId);
 	}
 }
 

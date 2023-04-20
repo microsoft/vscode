@@ -8,7 +8,7 @@
 		"@vscode/iconv-lite-umd": "0.7.0",
 		"@vscode/vscode-languagedetection": "1.0.21",
 		"jschardet": "3.0.0",
-		"tas-client-umd": "0.1.6",
+		"tas-client-umd": "0.1.8",
 		"vscode-oniguruma": "1.7.0",
 		"vscode-textmate": "9.0.0",
 		"xterm": "5.2.0-beta.35",

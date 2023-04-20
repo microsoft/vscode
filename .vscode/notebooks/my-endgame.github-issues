@@ -177,6 +177,6 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode $MILESTONE $MINE is:issue is:closed reason:completed label:feature-request -label:on-release-notes\nrepo:microsoft/vscode $MILESTONE $MINE is:issue is:closed reason:completed label:engineering -label:on-release-notes"
+    "value": "repo:microsoft/vscode $MILESTONE $MINE is:issue is:closed reason:completed label:feature-request -label:on-release-notes\nrepo:microsoft/vscode $MILESTONE $MINE is:issue is:closed reason:completed label:engineering -label:on-release-notes\nrepo:microsoft/vscode $MILESTONE $MINE is:issue is:closed reason:completed label:plan-item -label:on-release-notes"
   }
 ]

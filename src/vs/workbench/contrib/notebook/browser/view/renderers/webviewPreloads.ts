@@ -1225,6 +1225,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 
+		document.designMode = 'Off';
+
 		postNotebookMessage('didFind', {
 			matches: matches.map((match, index) => ({
 				type: match.type,

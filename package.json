@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.78.0",
-  "distro": "3eae5e756c195281ebb3348c7492b0ef0d4f3a16",
+  "distro": "e0b00c66992661285d3c98c4f934525a887127f5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -69,7 +69,7 @@
     "@vscode/proxy-agent": "^0.13.1",
     "@vscode/ripgrep": "^1.15.2",
     "@vscode/spdlog": "^0.13.10",
-    "@vscode/sqlite3": "5.1.3-vscode",
+    "@vscode/sqlite3": "5.1.4-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
     "graceful-fs": "4.2.8",
@@ -82,7 +82,7 @@
     "native-keymap": "^3.3.2",
     "native-watchdog": "^1.4.1",
     "node-pty": "0.11.0-beta32",
-    "tas-client-umd": "0.1.6",
+    "tas-client-umd": "0.1.8",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
@@ -99,7 +99,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@playwright/test": "1.32.1",
+    "@playwright/test": "1.32.3",
     "@swc/cli": "0.1.57",
     "@swc/core": "1.3.32",
     "@types/cookie": "^0.3.3",
@@ -169,7 +169,6 @@
     "gulp-sourcemaps": "^3.0.0",
     "gulp-svgmin": "^4.1.0",
     "gulp-untar": "^0.0.7",
-    "http-server": "^14.1.1",
     "husky": "^0.13.1",
     "innosetup": "6.0.5",
     "is": "^3.1.0",
@@ -204,7 +203,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.1.4",
-    "typescript": "^5.1.0-dev.20230411",
+    "typescript": "^5.1.0-dev.20230417",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

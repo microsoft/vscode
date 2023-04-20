@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 
 export enum EnvironmentVariableMutatorType {
 	Replace = 1,
@@ -16,10 +17,16 @@ export enum EnvironmentVariableMutatorType {
 // 	// TODO: Do we need a both?
 // }
 export interface IEnvironmentVariableMutator {
+	readonly variable: string;
 	readonly value: string;
 	readonly type: EnvironmentVariableMutatorType;
+	readonly scope?: EnvironmentVariableScope;
 	// readonly timing?: EnvironmentVariableMutatorTiming;
 }
+
+export type EnvironmentVariableScope = {
+	workspaceFolder?: IWorkspaceFolderData;
+};
 
 export interface IEnvironmentVariableCollection {
 	readonly map: ReadonlyMap<string, IEnvironmentVariableMutator>;
@@ -49,18 +56,21 @@ type VariableResolver = (str: string) => Promise<string>;
  */
 export interface IMergedEnvironmentVariableCollection {
 	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
-	readonly map: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
-
+	/**
+	 * Gets the variable map for a given scope.
+	 * @param scope The scope to get the variable map for. If undefined, the global scope is used.
+	 */
+	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 	/**
 	 * Applies this collection to a process environment.
 	 * @param variableResolver An optional function to use to resolve variables within the
 	 * environment values.
 	 */
-	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void>;
+	applyToProcessEnvironment(env: IProcessEnvironment, scope: EnvironmentVariableScope | undefined, variableResolver?: VariableResolver): Promise<void>;
 
 	/**
 	 * Generates a diff of this collection against another. Returns undefined if the collections are
 	 * the same.
 	 */
-	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined;
+	diff(other: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined): IMergedEnvironmentVariableCollectionDiff | undefined;
 }

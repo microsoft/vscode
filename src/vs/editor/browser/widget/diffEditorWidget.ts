@@ -58,6 +58,7 @@ import { defaultInsertColor, defaultRemoveColor, diffDiagonalFill, diffInserted,
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { getThemeTypeSelector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -249,11 +250,16 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		codeEditorService.willCreateDiffEditor();
-
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.verbosity.diff-editor')) {
+				this.updateOptions(this._options);
+			}
+		}));
 		this._documentDiffProvider = this._register(instantiationService.createInstance(WorkerBasedDocumentDiffProvider, options));
 		this._register(this._documentDiffProvider.onDidChange(e => this._beginUpdateDecorationsSoon()));
 
@@ -283,7 +289,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			diffCodeLens: false,
 			renderOverviewRuler: true,
 			diffWordWrap: 'inherit',
-			diffAlgorithm: 'smart',
+			diffAlgorithm: 'advanced',
 		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
@@ -1154,6 +1160,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				this._diffComputationResult = {
 					identical: result.identical,
 					quitEarly: result.quitEarly,
+					changes2: result.changes,
 					changes: result.changes.map(m => {
 						// TODO don't do this translation, but use the diff result directly
 						let originalStartLineNumber: number;
@@ -1271,7 +1278,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.originalAriaLabel) {
 			result.ariaLabel = options.originalAriaLabel;
 		}
-		result.ariaLabel += ariaNavigationTip;
+		this._updateAriaLabel(result);
 		result.readOnly = !this._options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
@@ -1284,12 +1291,22 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		};
 	}
 
+	private _updateAriaLabel(options: IEditorConstructionOptions): void {
+		let ariaLabel = options.ariaLabel;
+		if (this._configurationService.getValue('accessibility.verbosity.diff-editor')) {
+			ariaLabel += ariaNavigationTip;
+		} else if (ariaLabel) {
+			ariaLabel = ariaLabel.replaceAll(ariaNavigationTip, '');
+		}
+		options.ariaLabel = ariaLabel;
+	}
+
 	private _adjustOptionsForRightHandSide(options: Readonly<editorBrowser.IDiffEditorConstructionOptions>): IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(options);
 		if (options.modifiedAriaLabel) {
 			result.ariaLabel = options.modifiedAriaLabel;
 		}
-		result.ariaLabel += ariaNavigationTip;
+		this._updateAriaLabel(result);
 		result.wordWrapOverride1 = this._options.diffWordWrap;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
@@ -1909,6 +1926,7 @@ const DECORATIONS = {
 	arrowRevertChange: ModelDecorationOptions.register({
 		description: 'diff-editor-arrow-revert-change',
 		glyphMarginClassName: 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight),
+		zIndex: 10001,
 	}),
 
 	charDelete: ModelDecorationOptions.register({
@@ -2757,7 +2775,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
-		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['smart', 'experimental']),
+		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 	};
 }
 

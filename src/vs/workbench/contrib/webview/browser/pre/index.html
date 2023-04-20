@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-p+nt+yoC/wuG5etLfVS00qSeblDcYdehfpOYYqdWocI=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-7T0Xm7l4AYKDwm8oYNQ65wcQX7K/ndvxH/2ZgHWUE3w=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -262,13 +262,21 @@
 						// service worker already loaded & ready to receive messages
 						postVersionMessage(currentController);
 					} else {
-						console.log(`Found unexpected service worker controller. Found: ${currentController?.scriptURL}. Expected: ${swPath}`);
+						if (currentController) {
+							console.log(`Found unexpected service worker controller. Found: ${currentController.scriptURL}. Expected: ${swPath}. Waiting for controllerchange.`);
+						} else {
+							console.log(`No service worker controller found. Waiting for controllerchange.`);
+						}
 
-						// either there's no controlling service worker, or it's an old one:
-						// wait for it to change before posting the message
+						// Either there's no controlling service worker, or it's an old one.
+						// Wait for it to change before posting the message
 						const onControllerChange = () => {
 							navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-							postVersionMessage(navigator.serviceWorker.controller);
+							if (navigator.serviceWorker.controller) {
+								postVersionMessage(navigator.serviceWorker.controller);
+							} else {
+								return reject(new Error('No controller found.'));
+							}
 						};
 						navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 					}
@@ -442,15 +450,11 @@
 
 		if (!disableServiceWorker) {
 			hostMessaging.onMessage('did-load-resource', (_event, data) => {
-				navigator.serviceWorker.getRegistration().then(registration => {
-					assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
-				});
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
 			});
 
 			hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-				navigator.serviceWorker.getRegistration().then(registration => {
-					assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
-				});
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-localhost', data });
 			});
 
 			navigator.serviceWorker.addEventListener('message', event => {
