@@ -34,30 +34,31 @@ export function registerInteractiveSessionActions() {
 				id: 'interactiveSession.action.request',
 				title: {
 					value: localize('interactiveSession.action.request', "Send Request"),
-					original: 'send Request'
+					original: 'Send Request'
 				}
 			});
 		}
 
-		private _isInteractiveSessionDynamicRequestWithProvider(options: any): options is { providerId: string; request: IInteractiveSessionDynamicRequest } {
-			// TODO: fill this in
+		private _isValidOptionsForInteractiveSessionRequest(options: any): options is { providerId: string; requestMessage: string } {
+			if (typeof options.providerId !== 'string' || typeof options.requestMessage !== 'string') {
+				return false;
+			}
 			return true;
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			let options: { providerId: string; request: IInteractiveSessionDynamicRequest } | undefined;
+			let options: { providerId: string; requestMessage: string } | undefined;
 			const arg = args[0];
-			if (arg && this._isInteractiveSessionDynamicRequestWithProvider(arg)) {
+			if (arg && this._isValidOptionsForInteractiveSessionRequest(arg)) {
 				options = arg;
 			}
 			if (!options) {
 				return;
 			}
-			const providerId = options.providerId;
-			const request = options.request;
+			const request: IInteractiveSessionDynamicRequest = { message: options.requestMessage };
 			const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
 			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-			const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
+			const widget = await interactiveSessionWidgetService.revealViewForProvider(options.providerId);
 			if (widget && widget.viewModel) {
 				interactiveSessionService.sendInteractiveRequestToProvider(widget.viewModel.sessionId, request);
 			}
