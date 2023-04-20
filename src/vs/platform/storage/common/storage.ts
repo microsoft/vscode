@@ -225,6 +225,18 @@ export interface IStorageValueChangeEvent {
 	 * removed.
 	 */
 	readonly target: StorageTarget | undefined;
+
+	/**
+	 * A utility for translating absolute URIs from another
+	 * workspace into URIs for the current workspace if the
+	 * workspaces share a common workspace identity.
+	 * @param uri An absolute resource URI referenced in the
+	 * storage value that changed.
+	 * @returns A transformed resource URI that applies to
+	 * the current workspace, or the original URI if no
+	 * transformation was possible.
+	 */
+	readonly uriResolver?: (uri: URI) => URI;
 }
 
 export interface IStorageTargetChangeEvent {

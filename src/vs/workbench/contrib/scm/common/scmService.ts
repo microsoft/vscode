@@ -193,12 +193,10 @@ class SCMInput implements ISCMInput {
 				if (history.length === 0 || (history.length === 1 && history[0] === '')) {
 					storageService.remove(key, StorageScope.APPLICATION);
 				} else {
-					const timestamp = new Date().getTime();
-					storageService.store(key, JSON.stringify({ timestamp: timestamp, history }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.APPLICATION, StorageTarget.MACHINE);
 					storageService.store(SCMInput.roamableWorkspaceInputKey,
 						JSON.stringify({
 							absoluteUris: [this.repository.provider.rootUri!.toString()],
-							timestamp: timestamp,
 							history
 						}),
 						StorageScope.ROAMABLE_WORKSPACE,
