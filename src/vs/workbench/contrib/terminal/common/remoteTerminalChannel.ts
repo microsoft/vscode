@@ -51,8 +51,6 @@ export interface ICreateTerminalProcessArguments {
 	rows: number;
 	unicodeVersion: '6' | '11';
 	resolverEnv: { [key: string]: string | null } | undefined;
-	// TODO: Remove this when last active workspace is fixed
-	workspaceContextService: IWorkspaceContextService;
 }
 
 export interface ICreateTerminalProcessResult {
@@ -184,8 +182,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			cols,
 			rows,
 			unicodeVersion,
-			resolverEnv,
-			workspaceContextService: this._workspaceContextService,
+			resolverEnv
 		};
 		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
 	}
