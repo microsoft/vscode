@@ -969,11 +969,17 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 		this._onDidChangeCollection.fire();
 	}
 
-	setDescription(description: string | undefined, scope?: vscode.EnvironmentVariableScope): void {
+	setDescription(description: string | vscode.MarkdownString | undefined, scope?: vscode.EnvironmentVariableScope): void {
 		const key = this.getKey('', scope);
 		const current = this.descriptionMap.get(key);
 		if (!current || current.description !== description) {
-			const value: IEnvironmentDescriptionMutator = { description, scope };
+			let descriptionStr: string | undefined;
+			if (typeof description === 'string') {
+				descriptionStr = description;
+			} else {
+				descriptionStr = description?.value.split('\n\n')[0];
+			}
+			const value: IEnvironmentDescriptionMutator = { description: descriptionStr, scope };
 			this.descriptionMap.set(key, value);
 			this._onDidChangeCollection.fire();
 		}

@@ -19,7 +19,7 @@ declare module 'vscode' {
 		 * @param description A description for the environment variable collection.
 		 * @param scope Specific scope to which this description applies to.
 		 */
-		setDescription(description: string | undefined, scope?: EnvironmentVariableScope): void;
+		setDescription(description: string | MarkdownString | undefined, scope?: EnvironmentVariableScope): void;
 		replace(variable: string, value: string, scope?: EnvironmentVariableScope): void;
 		append(variable: string, value: string, scope?: EnvironmentVariableScope): void;
 		prepend(variable: string, value: string, scope?: EnvironmentVariableScope): void;
