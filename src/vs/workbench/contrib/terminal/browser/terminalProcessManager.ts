@@ -39,6 +39,7 @@ import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
 
 const enum ProcessConstants {
 	/**
@@ -148,8 +149,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
-		const cwdUri = typeof cwd === 'string' ? URI.parse(cwd) : cwd;
-		this._cwdWorkspaceFolder = cwdUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(cwdUri)) : undefined;
+		this._cwdWorkspaceFolder = getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this.getLatency();
 		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
@@ -172,9 +172,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		} else {
 			this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 		}
-		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-		this._lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		this._cwdWorkspaceFolder = this._cwdWorkspaceFolder ?? this._lastActiveWorkspace; // fallback to last active workspace if cwd is not available or it is not in workspace
 
 		if (environmentVariableCollections) {
 			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections);
