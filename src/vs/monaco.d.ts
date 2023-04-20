@@ -2431,6 +2431,7 @@ declare namespace monaco.editor {
 		readonly innerChanges: RangeMapping[] | undefined;
 		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
 		toString(): string;
+		get changedLineCount(): any;
 	}
 
 	/**
