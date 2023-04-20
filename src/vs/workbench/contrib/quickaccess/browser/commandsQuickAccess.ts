@@ -85,9 +85,10 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		super({
 			showAlias: !Language.isDefaultVariant(),
 			noResultsPick: (filter) => {
-				return this.interactiveSessionService.getProviderInfos().length
+				const info = this.interactiveSessionService.getProviderInfos()[0];
+				return info
 					? {
-						label: localize('askXInInteractiveSession', "Ask '{0}' in an Interactive Session", filter),
+						label: localize('askXInInteractiveSession', "Ask {0} '{1}'", info.displayName, filter),
 						commandId: AskInInteractiveAction.ID,
 						accept: () => commandService.executeCommand(AskInInteractiveAction.ID, filter)
 					}
