@@ -948,7 +948,7 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
-	const providerId = interactiveSessionService.getProviderIds()[0];
+	const providerId = interactiveSessionService.getProviderInfos()[0]?.id;
 
 	const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
 	const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
@@ -961,7 +961,7 @@ async function sendRequest(accessor: ServicesAccessor, query: string) {
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
 	const widgetService = accessor.get(IInteractiveSessionWidgetService);
 
-	const providerId = interactiveSessionService.getProviderIds()[0];
+	const providerId = interactiveSessionService.getProviderInfos()[0]?.id;
 	const widget = await widgetService.revealViewForProvider(providerId);
 	if (!widget) {
 		return;
