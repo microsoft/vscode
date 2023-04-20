@@ -39,14 +39,18 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 					continue;
 				}
 
-				// Mutators get applied in the reverse order than they are created
-				entry.unshift({
+				const extensionMutator = {
 					extensionIdentifier,
 					value: mutator.value,
 					type: mutator.type,
 					scope: mutator.scope,
 					variable: mutator.variable
-				});
+				};
+				if (!extensionMutator.scope) {
+					delete extensionMutator.scope; // Convenient for tests
+				}
+				// Mutators get applied in the reverse order than they are created
+				entry.unshift(extensionMutator);
 
 				next = it.next();
 			}

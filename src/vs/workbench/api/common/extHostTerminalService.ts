@@ -902,6 +902,9 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator): void {
+		if (!mutator.scope) {
+			delete (mutator as any).scope; // Convenient for tests
+		}
 		const key = this.getKey(variable, mutator.scope);
 		const current = this.map.get(key);
 		if (!current || current.value !== mutator.value || current.type !== mutator.type || current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index) {
