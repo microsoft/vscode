@@ -15,8 +15,7 @@ import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo } from 'v
 import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonIssueService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import product from 'vs/platform/product/common/product';
@@ -33,7 +32,6 @@ import { URI } from 'vs/base/common/uri';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { Promises, timeout } from 'vs/base/common/async';
 
-export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 const processExplorerWindowState = 'issue.processExplorerWindowState';
 
 interface IBrowserWindowOptions {
@@ -44,10 +42,6 @@ interface IBrowserWindowOptions {
 }
 
 type IStrictWindowState = Required<Pick<IWindowState, 'x' | 'y' | 'width' | 'height'>>;
-
-export interface IIssueMainService extends ICommonIssueService {
-	stopTracing(): Promise<void>;
-}
 
 export class IssueMainService implements IIssueMainService {
 
