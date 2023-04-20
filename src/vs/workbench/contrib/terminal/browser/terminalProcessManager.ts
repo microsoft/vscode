@@ -436,7 +436,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// condition, the chance is minimal plus the impact on the user is also not that great
 			// if it happens - it's not worth adding plumbing to sync back the resolved collection.
 			await this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
-			if (this._extEnvironmentVariableCollection.getVariableMap({ workspaceFolder }).size > 0) {
+			if (this._extEnvironmentVariableCollection.getVariableMap({ workspaceFolder }).size) {
 				this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 				this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 			}
