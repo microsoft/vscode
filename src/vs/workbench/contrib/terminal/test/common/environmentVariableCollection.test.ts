@@ -180,10 +180,8 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				}]
 			]));
 			deepStrictEqual([...merged.getDescriptionMap(scope1).entries()], [
-				['A', [
-					{ extensionIdentifier: 'ext1', description: 'ext1 scope1 description', scope: scope1 },
-					{ extensionIdentifier: 'ext2', description: 'ext2 global description' },
-				]]
+				['ext1', 'ext1 scope1 description'],
+				['ext2', 'ext2 global description'],
 			]);
 		});
 	});
