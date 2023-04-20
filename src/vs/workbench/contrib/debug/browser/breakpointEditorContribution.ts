@@ -468,7 +468,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (decorations) {
 			for (const { options } of decorations) {
 				const clz = options.glyphMarginClassName;
-				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-'))) {
+				const lane = options.glyphMargin?.position;
+				if (clz && lane === GlyphMarginLane.Right && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-'))) {
 					return false;
 				}
 			}
