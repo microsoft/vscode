@@ -724,7 +724,7 @@ export class IssueReporter extends Disposable {
 			hide(descriptionTextArea);
 			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
 			reset(descriptionSubtitle, localize('elsewhereDescription', "The '{0}' extension prefers to use an external issue reporter. To be taken to that issue reporting experience, click the button below.", selectedExtension.displayName));
-			this.previewButton.label = localize('openIssueReporter', "Open Issue Reporter");
+			this.previewButton.label = localize('openIssueReporter', "Open External Issue Reporter");
 			return;
 		}
 
