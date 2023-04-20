@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
@@ -95,13 +96,6 @@ export interface ProcessExplorerData extends WindowData {
 	applicationName: string;
 }
 
-export interface ICommonIssueService {
-	readonly _serviceBrand: undefined;
-	openReporter(data: IssueReporterData): Promise<void>;
-	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
-	getSystemStatus(): Promise<string>;
-}
-
 export interface IssueReporterWindowConfiguration extends ISandboxConfiguration {
 	disableExtensions: boolean;
 	data: IssueReporterData;
@@ -114,4 +108,14 @@ export interface IssueReporterWindowConfiguration extends ISandboxConfiguration 
 
 export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
 	data: ProcessExplorerData;
+}
+
+export const IIssueMainService = createDecorator<IIssueMainService>('issueService');
+
+export interface IIssueMainService {
+	readonly _serviceBrand: undefined;
+	stopTracing(): Promise<void>;
+	openReporter(data: IssueReporterData): Promise<void>;
+	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
+	getSystemStatus(): Promise<string>;
 }
