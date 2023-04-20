@@ -2444,7 +2444,7 @@ export class Repository implements Disposable {
 				if (remoteBranchProtectionMatcher && remoteBranchProtectionMatcher?.length !== 0) {
 					return remoteBranchProtectionMatcher.some(matcher => {
 						const include = matcher.include ? matcher.include(branch.name!) : true;
-						const exclude = matcher.exclude ? matcher.exclude(branch.name!) : true;
+						const exclude = matcher.exclude ? matcher.exclude(branch.name!) : false;
 
 						return include && !exclude;
 					});
