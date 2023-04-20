@@ -10,7 +10,6 @@ export class GhostText {
 	constructor(
 		public readonly lineNumber: number,
 		public readonly parts: GhostTextPart[],
-		public readonly additionalReservedLineCount: number = 0
 	) {
 	}
 

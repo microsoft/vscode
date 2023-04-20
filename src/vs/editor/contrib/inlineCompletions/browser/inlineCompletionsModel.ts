@@ -187,7 +187,7 @@ export class InlineCompletionsModel extends Disposable {
 			const newGhostText = edit.computeGhostText(model, mode, cursor, editPreviewLength);
 
 			// Show an invisible ghost text to reserve space
-			return newGhostText ?? new GhostText(edit.range.endLineNumber, [], 0);
+			return newGhostText ?? new GhostText(edit.range.endLineNumber, []);
 		} else {
 			if (!this._isActive.read(reader)) { return undefined; }
 			const item = this.selectedInlineCompletion.read(reader);
