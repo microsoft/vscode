@@ -32,6 +32,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -238,8 +239,9 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			}
 			const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
 			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
+			const cwdWorkspaceFolder = getWorkspaceForTerminal(shellLaunchConfig.cwd, args.workspaceContextService, undefined);
 			const workspaceFolder = activeWorkspaceFolder ? withNullAsUndefined(activeWorkspaceFolder) : undefined;
-			await mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
+			await mergedCollection.applyToProcessEnvironment(env, { workspaceFolder: cwdWorkspaceFolder ?? workspaceFolder }, variableResolver);
 		}
 
 		// Fork the process and listen for messages
