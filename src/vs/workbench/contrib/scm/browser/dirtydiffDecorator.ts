@@ -601,8 +601,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
 		await playAudioCueForChange(change.change, audioCueService);
-		// The audio cue can take up to a second to load. Give it a chance to play before we read the line content
-		await setTimeout(() => setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService), 500);
+		setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
 registerEditorAction(GotoPreviousChangeAction);
@@ -645,8 +644,7 @@ export class GotoNextChangeAction extends EditorAction {
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index].change;
 		await playAudioCueForChange(change, audioCueService);
-		// The audio cue can take up to a second to load. Give it a chance to play before we read the line content
-		await setTimeout(() => setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService), 500);
+		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
 
