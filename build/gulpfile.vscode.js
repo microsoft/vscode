@@ -191,7 +191,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	platform = platform || process.platform;
 
 	return () => {
-		const electron = require('gulp-atom-electron');
+		const electron = require('@vscode/gulp-electron');
 		const json = require('gulp-json-editor');
 
 		const out = sourceFolderName;
