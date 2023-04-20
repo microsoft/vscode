@@ -977,6 +977,7 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 			if (typeof description === 'string') {
 				descriptionStr = description;
 			} else {
+				// Only take the description before the first `\n\n`, so that the description doesn't mess up the UI
 				descriptionStr = description?.value.split('\n\n')[0];
 			}
 			const value: IEnvironmentDescriptionMutator = { description: descriptionStr, scope };
