@@ -354,12 +354,12 @@
 		copyImage();
 	});
 
-	async function copyImage(retries = 3) {
+	async function copyImage(retries = 5) {
 		if (!document.hasFocus() && retries > 0) {
 			// copyImage is called at the same time as webview.reveal, which means this function is running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyImage(retries - 1); }, 10);
+			setTimeout(() => { copyImage(retries - 1); }, 20);
 			return;
 		}
 
