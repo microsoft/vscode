@@ -16,10 +16,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { interactiveEditorDiffInserted, interactiveEditorDiffRemoved, interactiveEditorRegionHighlight } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { INTERACTIVE_EDITOR_ID, interactiveEditorDiffInserted, interactiveEditorDiffRemoved, interactiveEditorRegionHighlight } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { Position } from 'vs/editor/common/core/position';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 export class InteractiveEditorDiffWidget extends ZoneWidget {
 
@@ -40,6 +41,10 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true });
 		super.create();
 
+		const diffContributions = EditorExtensionsRegistry
+			.getEditorContributions()
+			.filter(c => c.id !== INTERACTIVE_EDITOR_ID);
+
 		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
 			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
 			renderMarginRevertIcon: false,
@@ -49,8 +54,8 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			renderOverviewRuler: false,
 			diffAlgorithm: 'advanced'
 		}, {
-			originalEditor: { contributions: [] },
-			modifiedEditor: { contributions: [] }
+			originalEditor: { contributions: diffContributions },
+			modifiedEditor: { contributions: diffContributions }
 		}, editor);
 		this._disposables.add(this._diffEditor);
 		this._diffEditor.setModel({ original: this._textModelv0, modified: editor.getModel() });
