@@ -19,7 +19,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Memento } from 'vs/workbench/common/memento';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -61,6 +61,7 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 
 interface IViewState {
 	inputValue: string;
+	// renderData
 }
 
 export type IInteractiveSessionWidgetViewContext = { viewId: string } | { resource: URI };
@@ -120,17 +121,16 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private lastSlashCommands: IInteractiveSlashCommand[] | undefined;
 	private slashCommandsPromise: Promise<IInteractiveSlashCommand[] | undefined> | undefined;
 
-	private memento: Memento;
 	private viewState: IViewState;
 
 	constructor(
-		private readonly providerId: string,
+		readonly providerId: string,
 		initialModel: IInteractiveSessionModel | undefined,
 		readonly viewContext: IInteractiveSessionWidgetViewContext,
 		private readonly listBackgroundColorDelegate: () => string,
 		private readonly inputEditorBackgroundColorDelegate: () => string,
 		private readonly resultEditorBackgroundColorDelegate: () => string,
-		@IStorageService storageService: IStorageService,
+		private readonly memento: Memento,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
@@ -144,7 +144,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
 		this.initializeSessionModel(true, initialModel);
 
-		this.memento = new Memento('interactive-session-' + this.providerId, storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
 	}
 
@@ -268,7 +267,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
 			getSlashCommands: () => this.lastSlashCommands ?? [],
 		};
-		this.renderer = scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.editorOptions, rendererDelegate);
+		this.renderer = this._register(scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.editorOptions, rendererDelegate));
 		this._register(this.renderer.onDidClickFollowup(item => {
 			this.acceptInput(item);
 		}));

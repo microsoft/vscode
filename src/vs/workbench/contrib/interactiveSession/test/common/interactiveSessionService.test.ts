@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Emitter } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -19,12 +20,16 @@ import { InteractiveSessionService } from 'vs/workbench/contrib/interactiveSessi
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
-class SimpleTestProvider implements IInteractiveProvider {
+class SimpleTestProvider extends Disposable implements IInteractiveProvider {
 	private static sessionId = 0;
 
 	lastInitialState = undefined;
 
-	constructor(readonly id: string) { }
+	private _onDidChangeState = this._register(new Emitter());
+
+	constructor(readonly id: string) {
+		super();
+	}
 
 	prepareSession(initialState: any) {
 		this.lastInitialState = initialState;
@@ -32,8 +37,13 @@ class SimpleTestProvider implements IInteractiveProvider {
 			id: SimpleTestProvider.sessionId++,
 			username: 'test',
 			responderUsername: 'test',
-			requesterUsername: 'test'
+			requesterUsername: 'test',
+			onDidChangeState: this._onDidChangeState.event
 		});
+	}
+
+	changeState(state: any) {
+		this._onDidChangeState.fire(state);
 	}
 
 	async provideReply(request: IInteractiveRequest) {
@@ -78,8 +88,8 @@ suite('InteractiveSession', () => {
 
 		assert.strictEqual(provider1.lastInitialState, undefined);
 		assert.strictEqual(provider2.lastInitialState, undefined);
-		testService.acceptNewSessionState(session1!.sessionId, { state: 'provider1_state' });
-		testService.acceptNewSessionState(session2!.sessionId, { state: 'provider2_state' });
+		provider1.changeState({ state: 'provider1_state' });
+		provider2.changeState({ state: 'provider2_state' });
 		storageService.flush();
 
 		const testService2 = instantiationService.createInstance(InteractiveSessionService);

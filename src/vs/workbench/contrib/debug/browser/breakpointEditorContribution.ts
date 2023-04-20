@@ -26,7 +26,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -54,6 +54,7 @@ interface IBreakpointDecoration {
 const breakpointHelperDecoration: IModelDecorationOptions = {
 	description: 'breakpoint-helper-decoration',
 	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
+	glyphMargin: { position: GlyphMarginLane.Right },
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -133,6 +134,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 	const renderInline = breakpoint.column && (hasOtherBreakpointsOnLine || breakpoint.column > model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber));
 	return {
 		description: 'breakpoint-decoration',
+		glyphMargin: { position: GlyphMarginLane.Right },
 		glyphMarginClassName: ThemeIcon.asClassName(icon),
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,

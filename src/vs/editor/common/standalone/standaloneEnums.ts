@@ -350,6 +350,14 @@ export enum EndOfLineSequence {
 }
 
 /**
+ * Vertical Lane in the glyph margin of the editor.
+ */
+export enum GlyphMarginLane {
+	Left = 1,
+	Right = 2
+}
+
+/**
  * Describes what to do with the indentation when pressing Enter.
  */
 export enum IndentAction {

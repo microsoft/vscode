@@ -35,6 +35,14 @@ export enum OverviewRulerLane {
 }
 
 /**
+ * Vertical Lane in the glyph margin of the editor.
+ */
+export enum GlyphMarginLane {
+	Left = 1,
+	Right = 2
+}
+
+/**
  * Position in the minimap to render the decoration.
  */
 export enum MinimapPosition {
@@ -55,6 +63,13 @@ export interface IDecorationOptions {
 	darkColor?: string | ThemeColor;
 }
 
+export interface IModelDecorationGlyphMarginOptions {
+	/**
+	 * The position in the glyph margin.
+	 */
+	position: GlyphMarginLane;
+}
+
 /**
  * Options for rendering a model decoration in the overview ruler.
  */
@@ -66,11 +81,11 @@ export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions
 }
 
 /**
- * Options for rendering a model decoration in the overview ruler.
+ * Options for rendering a model decoration in the minimap.
  */
 export interface IModelDecorationMinimapOptions extends IDecorationOptions {
 	/**
-	 * The position in the overview ruler.
+	 * The position in the minimap.
 	 */
 	position: MinimapPosition;
 }
@@ -141,6 +156,11 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 	 */
 	glyphMarginClassName?: string | null;
+	/**
+	 * If set and the decoration has {@link glyphMarginClassName} set, render this decoration
+	 * with the specified {@link IModelDecorationGlyphMarginOptions} in the glyph margin.
+	 */
+	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */

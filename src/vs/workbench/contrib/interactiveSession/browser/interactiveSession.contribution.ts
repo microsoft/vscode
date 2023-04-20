@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { registerInteractiveSessionActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
 import { registerInteractiveSessionCodeBlockActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
 import { registerInteractiveSessionCopyActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCopyActions';
@@ -21,7 +21,7 @@ import { registerInteractiveSessionExecuteActions } from 'vs/workbench/contrib/i
 import { registerInteractiveSessionTitleActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionTitleActions';
 import { InteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionContributionServiceImpl';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
-import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
+import { InteractiveSessionEditorInput, InteractiveSessionEditorInputSerializer } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { IInteractiveSessionWidgetService, InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
@@ -99,7 +99,7 @@ class InteractiveSessionResolverContribution extends Disposable {
 			},
 			{
 				createEditorInput: ({ resource, options }) => {
-					return { editor: instantiationService.createInstance(InteractiveSessionEditorInput, resource, options as IInteractiveSessionEditorOptions), options };
+					return { editor: instantiationService.createInstance(InteractiveSessionEditorInput, resource, options as IInteractiveSessionEditorOptions, undefined), options };
 				}
 			}
 		));
@@ -108,6 +108,7 @@ class InteractiveSessionResolverContribution extends Disposable {
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveSessionResolverContribution, LifecyclePhase.Starting);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(InteractiveSessionEditorInput.ID, InteractiveSessionEditorInputSerializer);
 
 registerInteractiveSessionActions();
 registerInteractiveSessionCopyActions();

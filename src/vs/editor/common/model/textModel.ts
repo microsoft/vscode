@@ -2189,6 +2189,14 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 	}
 }
 
+export class ModelDecorationGlyphMarginOptions {
+	readonly position: model.GlyphMarginLane;
+
+	constructor(options: model.IModelDecorationGlyphMarginOptions | null | undefined) {
+		this.position = options?.position ?? model.GlyphMarginLane.Left;
+	}
+}
+
 export class ModelDecorationMinimapOptions extends DecorationOptions {
 	readonly position: model.MinimapPosition;
 	private _resolvedColor: Color | undefined;
@@ -2272,6 +2280,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly collapseOnReplaceEdit: boolean;
 	readonly overviewRuler: ModelDecorationOverviewRulerOptions | null;
 	readonly minimap: ModelDecorationMinimapOptions | null;
+	readonly glyphMargin?: model.IModelDecorationGlyphMarginOptions | null | undefined;
 	readonly glyphMarginClassName: string | null;
 	readonly linesDecorationsClassName: string | null;
 	readonly firstLineDecorationClassName: string | null;
@@ -2301,6 +2310,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
 		this.overviewRuler = options.overviewRuler ? new ModelDecorationOverviewRulerOptions(options.overviewRuler) : null;
 		this.minimap = options.minimap ? new ModelDecorationMinimapOptions(options.minimap) : null;
+		this.glyphMargin = options.glyphMarginClassName ? new ModelDecorationGlyphMarginOptions(options.glyphMargin) : null;
 		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : null;
 		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : null;
 		this.firstLineDecorationClassName = options.firstLineDecorationClassName ? cleanClassName(options.firstLineDecorationClassName) : null;
@@ -2344,6 +2354,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 	private _affectsMinimap: boolean;
 	private _affectsOverviewRuler: boolean;
 	private _affectedInjectedTextLines: Set<number> | null = null;
+	private _affectsGlyphMargin: boolean;
 
 	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null) => void) {
 		super();
@@ -2351,6 +2362,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 		this._shouldFireDeferred = false;
 		this._affectsMinimap = false;
 		this._affectsOverviewRuler = false;
+		this._affectsGlyphMargin = false;
 	}
 
 	hasListeners(): boolean {
@@ -2387,12 +2399,16 @@ class DidChangeDecorationsEmitter extends Disposable {
 		if (!this._affectsOverviewRuler) {
 			this._affectsOverviewRuler = options.overviewRuler && options.overviewRuler.color ? true : false;
 		}
+		if (!this._affectsGlyphMargin) {
+			this._affectsGlyphMargin = options.glyphMarginClassName ? true : false;
+		}
 		this.tryFire();
 	}
 
 	public fire(): void {
 		this._affectsMinimap = true;
 		this._affectsOverviewRuler = true;
+		this._affectsGlyphMargin = true;
 		this.tryFire();
 	}
 
@@ -2409,11 +2425,13 @@ class DidChangeDecorationsEmitter extends Disposable {
 
 		const event: IModelDecorationsChangedEvent = {
 			affectsMinimap: this._affectsMinimap,
-			affectsOverviewRuler: this._affectsOverviewRuler
+			affectsOverviewRuler: this._affectsOverviewRuler,
+			affectsGlyphMargin: this._affectsGlyphMargin
 		};
 		this._shouldFireDeferred = false;
 		this._affectsMinimap = false;
 		this._affectsOverviewRuler = false;
+		this._affectsGlyphMargin = false;
 		this._actual.fire(event);
 	}
 }

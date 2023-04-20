@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -16,8 +17,9 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 @extHostNamedCustomer(MainContext.MainThreadInteractiveSession)
 export class MainThreadInteractiveSession extends Disposable implements MainThreadInteractiveSessionShape {
 
-	private readonly _registrations = this._register(new DisposableMap<number>());
+	private readonly _providerRegistrations = this._register(new DisposableMap<number>());
 	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IInteractiveProgress) => void>();
+	private readonly _stateEmitters = new Map<number, Emitter<any>>();
 
 	private readonly _proxy: ExtHostInteractiveSessionShape;
 
@@ -59,6 +61,9 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 				const responderAvatarIconUri = session.responderAvatarIconUri ?
 					URI.revive(session.responderAvatarIconUri) :
 					registration.extensionIcon;
+
+				const emitter = new Emitter<any>();
+				this._stateEmitters.set(session.id, emitter);
 				return <IInteractiveSession>{
 					id: session.id,
 					requesterUsername: session.requesterUsername,
@@ -66,7 +71,10 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 					responderUsername: session.responderUsername,
 					responderAvatarIconUri,
 					inputPlaceholder: session.inputPlaceholder,
+					onDidChangeState: emitter.event,
 					dispose: () => {
+						emitter.dispose();
+						this._stateEmitters.delete(session.id);
 						this._proxy.$releaseSession(session.id);
 					}
 				};
@@ -105,7 +113,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 			}
 		});
 
-		this._registrations.set(handle, unreg);
+		this._providerRegistrations.set(handle, unreg);
 	}
 
 	$acceptInteractiveResponseProgress(handle: number, sessionId: number, progress: IInteractiveProgress): void {
@@ -114,7 +122,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 	}
 
 	async $acceptInteractiveSessionState(sessionId: number, state: any): Promise<void> {
-		this._interactiveSessionService.acceptNewSessionState(sessionId, state);
+		this._stateEmitters.get(sessionId)?.fire(state);
 	}
 
 	$addInteractiveSessionRequest(context: any): void {
@@ -129,6 +137,6 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 	}
 
 	async $unregisterInteractiveSessionProvider(handle: number): Promise<void> {
-		this._registrations.deleteAndDispose(handle);
+		this._providerRegistrations.deleteAndDispose(handle);
 	}
 }

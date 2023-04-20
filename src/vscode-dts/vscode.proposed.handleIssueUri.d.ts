@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .glyph-margin {
-	position: absolute;
-	top: 0;
-}
+declare module 'vscode' {
 
-/*
-	Keeping name short for faster parsing.
-	cgmr = core glyph margin rendering (div)
-*/
-.monaco-editor .margin-view-overlays .cgmr {
-	position: absolute;
-	display: flex;
-	align-items: center;
+	// https://github.com/microsoft/vscode/issues/46726
+
+	export interface IssueUriRequestHandler {
+		handleIssueUrlRequest(): ProviderResult<Uri>;
+	}
+
+	export namespace env {
+		export function registerIssueUriRequestHandler(handler: IssueUriRequestHandler): Disposable;
+	}
 }

@@ -2295,6 +2295,15 @@ export interface MainThreadLocalizationShape extends IDisposable {
 	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
 }
 
+export interface ExtHostIssueReporterShape {
+	$getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<UriComponents>;
+}
+
+export interface MainThreadIssueReporterShape extends IDisposable {
+	$registerIssueUriRequestHandler(extensionId: string): void;
+	$unregisterIssueUriRequestHandler(extensionId: string): void;
+}
+
 export interface TunnelDto {
 	remoteAddress: { port: number; host: string };
 	localAddress: { port: number; host: string } | string;
@@ -2482,7 +2491,8 @@ export const MainContext = {
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
-	MainThreadSemanticSimilarity: createProxyIdentifier<MainThreadSemanticSimilarityShape>('MainThreadSemanticSimilarity')
+	MainThreadSemanticSimilarity: createProxyIdentifier<MainThreadSemanticSimilarityShape>('MainThreadSemanticSimilarity'),
+	MainThreadIssueReporter: createProxyIdentifier<MainThreadIssueReporterShape>('MainThreadIssueReporter'),
 };
 
 export const ExtHostContext = {
@@ -2544,4 +2554,5 @@ export const ExtHostContext = {
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
+	ExtHostIssueReporter: createProxyIdentifier<ExtHostIssueReporterShape>('ExtHostIssueReporter'),
 };

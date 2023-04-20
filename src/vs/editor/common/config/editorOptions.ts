@@ -834,6 +834,7 @@ export interface IEnvironmentalOptions {
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
 	readonly accessibilitySupport: AccessibilitySupport;
+	readonly glyphMarginDecorationLaneCount: number;
 }
 
 /**
@@ -2071,6 +2072,11 @@ export interface EditorLayoutInfo {
 	readonly glyphMarginWidth: number;
 
 	/**
+	 * The number of decoration lanes to render in the glyph margin.
+	 */
+	readonly glyphMarginDecorationLaneCount: number;
+
+	/**
 	 * Left position for the line numbers.
 	 */
 	readonly lineNumbersLeft: number;
@@ -2157,6 +2163,7 @@ export interface EditorLayoutInfoComputerEnv {
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly maxDigitWidth: number;
 	readonly pixelRatio: number;
+	readonly glyphMarginDecorationLaneCount: number;
 }
 
 /**
@@ -2224,7 +2231,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
-			pixelRatio: env.pixelRatio
+			pixelRatio: env.pixelRatio,
+			glyphMarginDecorationLaneCount: env.glyphMarginDecorationLaneCount
 		});
 	}
 
@@ -2470,7 +2478,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		let glyphMarginWidth = 0;
 		if (showGlyphMargin) {
-			glyphMarginWidth = lineHeight;
+			glyphMarginWidth = lineHeight * env.glyphMarginDecorationLaneCount;
 		}
 
 		let glyphMarginLeft = 0;
@@ -2538,6 +2546,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 			glyphMarginLeft: glyphMarginLeft,
 			glyphMarginWidth: glyphMarginWidth,
+			glyphMarginDecorationLaneCount: env.glyphMarginDecorationLaneCount,
 
 			lineNumbersLeft: lineNumbersLeft,
 			lineNumbersWidth: lineNumbersWidth,
