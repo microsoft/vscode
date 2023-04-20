@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventEmitter, Memento, Uri, workspace } from 'vscode';
+import { EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
 import { getOctokit } from './auth';
 import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git';
 import { DisposableStore, getRepositoryFromUrl } from './util';
@@ -38,7 +38,7 @@ export class GithubBranchProtectionProviderManager {
 
 		if (enabled) {
 			for (const repository of this.gitAPI.repositories) {
-				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState)));
+				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState, this.logger)));
 			}
 		} else {
 			this.providerDisposables.dispose();
@@ -47,10 +47,13 @@ export class GithubBranchProtectionProviderManager {
 		this._enabled = enabled;
 	}
 
-	constructor(private readonly gitAPI: API, private readonly globalState: Memento) {
+	constructor(
+		private readonly gitAPI: API,
+		private readonly globalState: Memento,
+		private readonly logger: LogOutputChannel) {
 		this.disposables.add(this.gitAPI.onDidOpenRepository(repository => {
 			if (this._enabled) {
-				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState)));
+				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState, this.logger)));
 			}
 		}));
 
@@ -82,7 +85,10 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 	private branchProtection: BranchProtection[];
 	private readonly globalStateKey = `branchProtection:${this.repository.rootUri.toString()}`;
 
-	constructor(private readonly repository: Repository, private readonly globalState: Memento) {
+	constructor(
+		private readonly repository: Repository,
+		private readonly globalState: Memento,
+		private readonly logger: LogOutputChannel) {
 		// Restore branch protection from global state
 		this.branchProtection = this.globalState.get<BranchProtection[]>(this.globalStateKey, []);
 
@@ -99,7 +105,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		await this.updateHEADBranchProtection();
 
 		// Branch protection (remotes)
-		await this.updateBranchProtection();
+		await this.updateRepositoryBranchProtection();
 	}
 
 	private async hasPushPermission(repository: { owner: string; repo: string }): Promise<boolean> {
@@ -108,8 +114,8 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			const response = await octokit.repos.get({ ...repository });
 
 			return response.data.permissions?.push === true;
-		} catch {
-			// todo@lszomoru - add logging
+		} catch (err) {
+			this.logger.warn(`Failed to get repository permissions for repository (${repository.owner}/${repository.repo}): ${err.message} (${err.status})`);
 			return false;
 		}
 	}
@@ -125,16 +131,16 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 				}
 			});
 			return response.data as RepositoryRule[];
-		} catch {
-			// todo@lszomoru - add logging
+		} catch (err) {
+			this.logger.warn(`Failed to get branch rules for repository (${repository.owner}/${repository.repo}), branch (${branch}): ${err.message} (${err.status})`);
 			return [];
 		}
 	}
 
 	private async getRepositoryRulesets(repository: { owner: string; repo: string }): Promise<RepositoryRuleset[]> {
-		const rulesets: RepositoryRuleset[] = [];
 
 		try {
+			const rulesets: RepositoryRuleset[] = [];
 			const octokit = await getOctokit();
 			for await (const response of octokit.paginate.iterator('GET /repos/{owner}/{repo}/rulesets', { ...repository, includes_parents: true })) {
 				if (response.status !== 200) {
@@ -163,9 +169,9 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 			return rulesets;
 		}
-		catch {
-			// todo@lszomoru - add logging
-			return rulesets;
+		catch (err) {
+			this.logger.warn(`Failed to get repository rulesets for repository (${repository.owner}/${repository.repo}): ${err.message} (${err.status})`);
+			return [];
 		}
 	}
 
@@ -202,11 +208,12 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			this.branchProtection = [{ remote: remote.name, rules: [{ include: [HEAD.name] }] }];
 			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 		} catch (err) {
-			// todo@lszomoru - add logging
+			// noop
+			this.logger.warn(`Failed to update HEAD branch protection: ${err.message} (${err.status})`);
 		}
 	}
 
-	private async updateBranchProtection(): Promise<void> {
+	private async updateRepositoryBranchProtection(): Promise<void> {
 		try {
 			const branchProtection: BranchProtection[] = [];
 
@@ -256,8 +263,9 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 			// Save branch protection to global state
 			await this.globalState.update(this.globalStateKey, branchProtection);
-		} catch {
-			// todo@lszomoru - add logging
+		} catch (err) {
+			// noop
+			this.logger.warn(`Failed to update repository branch protection: ${err.message} (${err.status})`);
 		}
 	}
 
