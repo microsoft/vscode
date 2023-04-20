@@ -85,7 +85,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		super({
 			showAlias: !Language.isDefaultVariant(),
 			noResultsPick: (filter) => {
-				return this.interactiveSessionService.getProviderIds().length
+				return this.interactiveSessionService.getProviderInfos().length
 					? {
 						label: localize('askXInInteractiveSession', "Ask '{0}' in an Interactive Session", filter),
 						commandId: AskInInteractiveAction.ID,
@@ -310,15 +310,16 @@ export class AskInInteractiveAction extends Action2 {
 		}
 
 		let providerId: string;
-		switch (interactiveSessionService.getProviderIds().length) {
+		const providerInfos = interactiveSessionService.getProviderInfos();
+		switch (providerInfos.length) {
 			case 0:
 				throw new Error('No interactive session provider found.');
 			case 1:
-				providerId = interactiveSessionService.getProviderIds()[0];
+				providerId = providerInfos[0].id;
 				break;
 			default:
 				logService.warn('Multiple interactive session providers found. Using the first one.');
-				providerId = interactiveSessionService.getProviderIds()[0];
+				providerId = providerInfos[0].id;
 				break;
 		}
 
