@@ -11,7 +11,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { platform } from 'vs/base/common/process';
@@ -21,10 +21,15 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/com
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
 
 	constructor(
 		@IIssueService private readonly issueService: IIssueService,
@@ -36,8 +41,13 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IProductService private readonly productService: IProductService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IIntegrityService private readonly integrityService: IIntegrityService
-	) { }
+		@IIntegrityService private readonly integrityService: IIntegrityService,
+	) {
+		ipcRenderer.on('vscode:triggerIssueUriRequestHandler', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
+			const result = await this.getIssueReporterUri(request.extensionId, CancellationToken.None);
+			ipcRenderer.send(request.replyChannel, result.toString());
+		});
+	}
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
 		const extensionData: IssueReporterExtensionData[] = [];
@@ -55,6 +65,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					version: manifest.version,
 					repositoryUrl: manifest.repository && manifest.repository.url,
 					bugsUrl: manifest.bugs && manifest.bugs.url,
+					hasIssueUriRequestHandler: this._handlers.has(extension.identifier.id),
 					displayName: manifest.displayName,
 					id: extension.identifier.id,
 					isTheme,
@@ -132,6 +143,21 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			applicationName: this.productService.applicationName
 		};
 		return this.issueService.openProcessExplorer(data);
+	}
+
+	registerIssueUriRequestHandler(extensionId: string, handler: IIssueUriRequestHandler): IDisposable {
+		this._handlers.set(extensionId, handler);
+		return {
+			dispose: () => this._handlers.delete(extensionId)
+		};
+	}
+
+	private async getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI> {
+		const handler = this._handlers.get(extensionId);
+		if (!handler) {
+			throw new Error(`No issue uri request handler registered for extension '${extensionId}'`);
+		}
+		return handler.provideIssueUrl(token);
 	}
 }
 

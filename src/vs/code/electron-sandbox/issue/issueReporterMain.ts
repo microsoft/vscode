@@ -127,6 +127,19 @@ export class IssueReporter extends Disposable {
 			this.updatePreviewButtonState();
 		});
 
+		ipcRenderer.on('vscode:getIssueReporterUriResponse', (_: unknown, args: { extensionId: string; uri?: string; error?: string }) => {
+			const extension = this.issueReporterModel.getData().allExtensions.find(extension => extension.id === args.extensionId);
+			if (extension) {
+				if (args.error) {
+					extension.hasIssueUriRequestHandler = false;
+					// The issue handler failed so fall back to old issue reporter experience.
+					this.renderBlocks();
+				} else {
+					extension.bugsUrl = args.uri;
+				}
+			}
+		});
+
 		ipcRenderer.send('vscode:issueSystemInfoRequest');
 		if (configuration.data.issueType === IssueType.PerformanceIssue) {
 			ipcRenderer.send('vscode:issuePerformanceInfoRequest');
@@ -692,7 +705,7 @@ export class IssueReporter extends Disposable {
 
 	private renderBlocks(): void {
 		// Depending on Issue Type, we render different blocks and text
-		const { issueType, fileOnExtension, fileOnMarketplace } = this.issueReporterModel.getData();
+		const { issueType, fileOnExtension, fileOnMarketplace, selectedExtension } = this.issueReporterModel.getData();
 		const blockContainer = this.getElementById('block-container');
 		const systemBlock = document.querySelector('.block-system');
 		const processBlock = document.querySelector('.block-process');
@@ -705,6 +718,9 @@ export class IssueReporter extends Disposable {
 		const descriptionSubtitle = this.getElementById('issue-description-subtitle')!;
 		const extensionSelector = this.getElementById('extension-selection')!;
 
+		const titleTextArea = this.getElementById('issue-title-container')!;
+		const descriptionTextArea = this.getElementById('description')!;
+
 		// Hide all by default
 		hide(blockContainer);
 		hide(systemBlock);
@@ -715,25 +731,36 @@ export class IssueReporter extends Disposable {
 		hide(problemSource);
 		hide(extensionSelector);
 
-		if (issueType === IssueType.Bug) {
-			show(problemSource);
+		show(problemSource);
+		show(titleTextArea);
+		show(descriptionTextArea);
 
+		if (fileOnExtension) {
+			show(extensionSelector);
+		}
+
+		if (fileOnExtension && selectedExtension?.hasIssueUriRequestHandler) {
+			hide(titleTextArea);
+			hide(descriptionTextArea);
+			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
+			reset(descriptionSubtitle, localize('elsewhereDescription', "The '{0}' extension prefers to use an external issue reporter. To be taken to that issue reporting experience, click the button below.", selectedExtension.displayName));
+			this.previewButton.label = localize('openIssueReporter', "Open Issue Reporter");
+			return;
+		}
+
+		if (issueType === IssueType.Bug) {
 			if (!fileOnMarketplace) {
 				show(blockContainer);
 				show(systemBlock);
 				show(experimentsBlock);
+				if (!fileOnExtension) {
+					show(extensionsBlock);
+				}
 			}
 
-			if (fileOnExtension) {
-				show(extensionSelector);
-			} else if (!fileOnMarketplace) {
-				show(extensionsBlock);
-			}
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.PerformanceIssue) {
-			show(problemSource);
-
 			if (!fileOnMarketplace) {
 				show(blockContainer);
 				show(systemBlock);
@@ -753,11 +780,6 @@ export class IssueReporter extends Disposable {
 		} else if (issueType === IssueType.FeatureRequest) {
 			reset(descriptionTitle, localize('description', "Description") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
-			show(problemSource);
-
-			if (fileOnExtension) {
-				show(extensionSelector);
-			}
 		}
 	}
 
@@ -818,6 +840,16 @@ export class IssueReporter extends Disposable {
 	}
 
 	private async createIssue(): Promise<boolean> {
+		// Short circuit if the extension provides a custom issue handler
+		if (this.issueReporterModel.getData().selectedExtension?.hasIssueUriRequestHandler) {
+			const url = this.getExtensionBugsUrl();
+			if (url) {
+				this.hasBeenSubmitted = true;
+				ipcRenderer.send('vscode:openExternal', url);
+				return true;
+			}
+		}
+
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
@@ -1062,6 +1094,10 @@ export class IssueReporter extends Disposable {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
 					this.validateSelectedExtension();
 
+					if (matches[0].hasIssueUriRequestHandler) {
+						ipcRenderer.send('vscode:getIssueReporterUriRequest', matches[0].id);
+					}
+
 					const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 					this.searchExtensionIssues(title);
 				} else {
@@ -1069,6 +1105,8 @@ export class IssueReporter extends Disposable {
 					this.clearSearchResults();
 					this.validateSelectedExtension();
 				}
+				this.updatePreviewButtonState();
+				this.renderBlocks();
 			});
 		}
 

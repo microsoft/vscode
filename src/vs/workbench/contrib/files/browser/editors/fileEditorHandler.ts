@@ -11,8 +11,8 @@ import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEd
 import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { IFileService } from 'vs/platform/files/common/files';
 
@@ -67,26 +67,39 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 	}
 }
 
-export class FileEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+export class FileEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
 	constructor(
-		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
+		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
-		this.installHandler();
+		this._register(workingCopyEditorService.registerHandler(this));
 	}
 
-	private installHandler(): void {
-		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.typeId === NO_TYPE_ID && this.fileService.hasProvider(workingCopy.resource),
-			// Naturally it would make sense here to check for `instanceof FileEditorInput`
-			// but because some custom editors also leverage text file based working copies
-			// we need to do a weaker check by only comparing for the resource
-			isOpen: (workingCopy, editor) => isEqual(workingCopy.resource, editor.resource),
-			createEditor: workingCopy => this.textEditorService.createTextEditor({ resource: workingCopy.resource, forceFile: true })
-		}));
+	handles(workingCopy: IWorkingCopyIdentifier): boolean | Promise<boolean> {
+		return workingCopy.typeId === NO_TYPE_ID && this.fileService.canHandleResource(workingCopy.resource);
+	}
+
+	private handlesSync(workingCopy: IWorkingCopyIdentifier): boolean {
+		return workingCopy.typeId === NO_TYPE_ID && this.fileService.hasProvider(workingCopy.resource);
+	}
+
+	isOpen(workingCopy: IWorkingCopyIdentifier, editor: EditorInput): boolean {
+		if (!this.handlesSync(workingCopy)) {
+			return false;
+		}
+
+		// Naturally it would make sense here to check for `instanceof FileEditorInput`
+		// but because some custom editors also leverage text file based working copies
+		// we need to do a weaker check by only comparing for the resource
+
+		return isEqual(workingCopy.resource, editor.resource);
+	}
+
+	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
+		return this.textEditorService.createTextEditor({ resource: workingCopy.resource, forceFile: true });
 	}
 }

@@ -241,6 +241,10 @@ export interface IEditorOptions {
 	 */
 	fontVariations?: boolean | string;
 	/**
+	 * Controls whether to use default color decorations or not using the default document color provider
+	 */
+	defaultColorDecorators?: boolean;
+	/**
 	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
 	 * Defaults to false.
@@ -773,7 +777,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
+	diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
 }
 
 /**
@@ -830,6 +834,7 @@ export interface IEnvironmentalOptions {
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
 	readonly accessibilitySupport: AccessibilitySupport;
+	readonly glyphMarginDecorationLaneCount: number;
 }
 
 /**
@@ -1128,9 +1133,12 @@ class EditorStringOption<K extends EditorOption> extends SimpleEditorOption<K, s
 /**
  * @internal
  */
-export function stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>): T {
+export function stringSet<T>(value: T | undefined, defaultValue: T, allowedValues: ReadonlyArray<T>, renamedValues?: Record<string, T>): T {
 	if (typeof value !== 'string') {
 		return defaultValue;
+	}
+	if (renamedValues && value in renamedValues) {
+		return renamedValues[value];
 	}
 	if (allowedValues.indexOf(value) === -1) {
 		return defaultValue;
@@ -2064,6 +2072,11 @@ export interface EditorLayoutInfo {
 	readonly glyphMarginWidth: number;
 
 	/**
+	 * The number of decoration lanes to render in the glyph margin.
+	 */
+	readonly glyphMarginDecorationLaneCount: number;
+
+	/**
 	 * Left position for the line numbers.
 	 */
 	readonly lineNumbersLeft: number;
@@ -2150,6 +2163,7 @@ export interface EditorLayoutInfoComputerEnv {
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly maxDigitWidth: number;
 	readonly pixelRatio: number;
+	readonly glyphMarginDecorationLaneCount: number;
 }
 
 /**
@@ -2217,7 +2231,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
-			pixelRatio: env.pixelRatio
+			pixelRatio: env.pixelRatio,
+			glyphMarginDecorationLaneCount: env.glyphMarginDecorationLaneCount
 		});
 	}
 
@@ -2463,7 +2478,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		let glyphMarginWidth = 0;
 		if (showGlyphMargin) {
-			glyphMarginWidth = lineHeight;
+			glyphMarginWidth = lineHeight * env.glyphMarginDecorationLaneCount;
 		}
 
 		let glyphMarginLeft = 0;
@@ -2531,6 +2546,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 			glyphMarginLeft: glyphMarginLeft,
 			glyphMarginWidth: glyphMarginWidth,
+			glyphMarginDecorationLaneCount: env.glyphMarginDecorationLaneCount,
 
 			lineNumbersLeft: lineNumbersLeft,
 			lineNumbersWidth: lineNumbersWidth,
@@ -3807,6 +3823,11 @@ export interface IInlineSuggestOptions {
 	showToolbar?: 'always' | 'onHover';
 
 	suppressSuggestions?: boolean;
+
+	/**
+	 * Does not clear active inline suggestions when the editor loses focus.
+	 */
+	keepOnBlur?: boolean;
 }
 
 /**
@@ -3824,6 +3845,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			mode: 'subwordSmart',
 			showToolbar: 'onHover',
 			suppressSuggestions: false,
+			keepOnBlur: false,
 		};
 
 		super(
@@ -3863,6 +3885,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
 			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
+			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
 		};
 	}
 }
@@ -4933,6 +4956,7 @@ export const enum EditorOption {
 	tabFocusMode,
 	layoutInfo,
 	wrappingInfo,
+	defaultColorDecorators
 }
 
 export const EditorOptions = {
@@ -5658,6 +5682,10 @@ export const EditorOptions = {
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
+	defaultColorDecorators: register(new EditorBooleanOption(
+		EditorOption.defaultColorDecorators, 'defaultColorDecorators', false,
+		{ markdownDescription: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider") }
+	)),
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
 		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }

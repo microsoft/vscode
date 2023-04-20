@@ -313,7 +313,8 @@ export enum EditorOption {
 	pixelRatio = 137,
 	tabFocusMode = 138,
 	layoutInfo = 139,
-	wrappingInfo = 140
+	wrappingInfo = 140,
+	defaultColorDecorators = 141
 }
 
 /**
@@ -346,6 +347,14 @@ export enum EndOfLineSequence {
 	 * Use carriage return and line feed (\r\n) as the end of line character.
 	 */
 	CRLF = 1
+}
+
+/**
+ * Vertical Lane in the glyph margin of the editor.
+ */
+export enum GlyphMarginLane {
+	Left = 1,
+	Right = 2
 }
 
 /**

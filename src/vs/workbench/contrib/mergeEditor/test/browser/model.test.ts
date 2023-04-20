@@ -283,7 +283,7 @@ class MergeModelInterface extends Disposable {
 
 		const diffComputer: IMergeDiffComputer = {
 			async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
-				const result = await linesDiffComputers.smart.computeDiff(
+				const result = await linesDiffComputers.legacy.computeDiff(
 					textModel1.getLinesContent(),
 					textModel2.getLinesContent(),
 					{ ignoreTrimWhitespace: false, maxComputationTimeMs: 10000 }

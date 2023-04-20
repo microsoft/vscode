@@ -44,7 +44,9 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			renderMarginRevertIcon: false,
 			diffCodeLens: false,
 			scrollBeyondLastLine: false,
-			stickyScroll: { enabled: false }
+			stickyScroll: { enabled: false },
+			renderOverviewRuler: false,
+			diffAlgorithm: 'advanced'
 		}, {
 			originalEditor: { contributions: [] },
 			modifiedEditor: { contributions: [] }
@@ -108,13 +110,13 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			const hiddenRangesOriginal = invertRange(combinedRange, this._originalModel);
 			this._diffEditor.getOriginalEditor().setHiddenAreas(hiddenRangesOriginal, InteractiveEditorDiffWidget._hideId);
 
-			const hiddenRangesModified = invertRange(combinedRange, modified);
-			this._diffEditor.getModifiedEditor().setHiddenAreas(hiddenRangesModified, InteractiveEditorDiffWidget._hideId);
+			// const hiddenRangesModified = invertRange(combinedRange, modified);
+			// this._diffEditor.getModifiedEditor().setHiddenAreas(hiddenRangesModified, InteractiveEditorDiffWidget._hideId);
 		};
 		this._diffEditor.onDidUpdateDiff(updateHiddenAreasOriginal, undefined, this._sessionStore);
 		updateHiddenAreasOriginal();
 
-		super.show(new Position(range.endLineNumber, 1), lineHeightDiff + lineHeightPadding);
+		super.show(new Position(range.endLineNumber, range.endColumn), lineHeightDiff + lineHeightPadding);
 	}
 
 	override hide(): void {

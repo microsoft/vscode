@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -20,7 +21,7 @@ import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser'
 import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
@@ -224,6 +225,12 @@ class LastEditorState {
 
 type EditMode = 'live' | 'livePreview' | 'preview';
 
+export interface InteractiveEditorRunOptions {
+	initialRange?: IRange;
+	message?: string;
+	autoSend?: boolean;
+}
+
 export class InteractiveEditorController implements IEditorContribution {
 
 	static ID = 'interactiveEditor';
@@ -300,7 +307,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return this._configurationService.getValue('interactiveEditor.editMode');
 	}
 
-	async run(initialRange?: Range): Promise<void> {
+	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
 
 		const editMode = this._getMode();
 
@@ -351,23 +358,17 @@ export class InteractiveEditorController implements IEditorContribution {
 		const blockDecoration = this._editor.createDecorationsCollection();
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 
-		if (!initialRange) {
-			initialRange = session.wholeRange ? Range.lift(session.wholeRange) : selection;
-		}
-		if (initialRange.isEmpty()) {
-			initialRange = new Range(
-				initialRange.startLineNumber, 1,
-				initialRange.startLineNumber, textModel.getLineMaxColumn(initialRange.startLineNumber)
-			);
+		let optionsRange = Range.lift(options?.initialRange) ?? (session.wholeRange ? Range.lift(session.wholeRange) : selection);
+		if (optionsRange.isEmpty()) {
+			optionsRange = new Range(optionsRange.startLineNumber, 1, optionsRange.startLineNumber, textModel.getLineMaxColumn(optionsRange.startLineNumber));
 		}
 		wholeRangeDecoration.set([{
-			range: initialRange,
+			range: optionsRange,
 			options: InteractiveEditorController._decoWholeRange
 		}]);
 
-
 		let placeholder = session.placeholder ?? '';
-		let value = '';
+		let value = options?.message ?? '';
 
 		const store = new DisposableStore();
 
@@ -456,14 +457,14 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
+
 			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
-
-
 			this._ctxLastFeedbackKind.reset();
-
 			// reveal the line after the whole range to ensure that the input box is visible
 			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
-
+			if (options?.autoSend && round === 1) {
+				this.accept();
+			}
 			const input = await inputPromise;
 			roundStore.clear();
 
@@ -475,7 +476,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				InteractiveEditorController._promptHistory.unshift(input);
 			}
 
-			const refer = session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
+			const refer = session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
 				this._editor.setSelection(wholeRange);
@@ -503,7 +504,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
-					this._zone.widget.updateMessage(toErrorMessage(e), ['error']);
+					this._zone.widget.updateMessage(toErrorMessage(e), { classes: ['error'] });
 					// statusWidget
 					continue;
 				}
@@ -521,16 +522,19 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), ['warn']);
+				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), { classes: ['warn'] });
 				continue;
 			}
 
 
 			this._recorder.addExchange(session, request, reply);
+			this._zone.widget.updateToolbar(true);
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
+				const messageReply = reply.message;
+				const renderedMarkdown = renderMarkdown(messageReply, { inline: true });
+				this._zone.widget.updateMessage(renderedMarkdown.element, { linkListener: () => this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply.value), isMessageReply: true });
 				continue;
 			}
 
@@ -625,7 +629,6 @@ export class InteractiveEditorController implements IEditorContribution {
 				);
 			}
 
-			this._zone.widget.updateToolbar(true);
 
 			if (editResponse.singleCreateFileEdit) {
 				this._zone.widget.showCreatePreview(editResponse.singleCreateFileEdit.uri, await Promise.all(editResponse.singleCreateFileEdit.edits));
@@ -730,7 +733,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
 			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
-			this._zone.widget.updateMessage('Thank you for your feedback!', undefined, 1250);
+			this._zone.widget.updateMessage('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
@@ -829,7 +832,7 @@ class LiveStrategy extends EditModeStrategy {
 	}
 
 	cancel(): void {
-		while (this._model.getAlternativeVersionId() !== this._versionId) {
+		while (this._model.getAlternativeVersionId() !== this._versionId && this._model.canUndo()) {
 			this._model.undo();
 		}
 	}

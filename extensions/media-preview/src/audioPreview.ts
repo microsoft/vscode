@@ -76,7 +76,7 @@ class AudioPreview extends MediaPreview {
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; media-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
 	<meta id="settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
-<body class="container loading">
+<body class="container loading" data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
 	<div class="loading-indicator"></div>
 	<div class="loading-error">
 		<p>${vscode.l10n.t("An error occurred while loading the audio file.")}</p>

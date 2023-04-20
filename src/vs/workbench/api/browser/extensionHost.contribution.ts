@@ -82,6 +82,7 @@ import './mainThreadTesting';
 import './mainThreadSecretState';
 import './mainThreadProfilContentHandlers';
 import './mainThreadSemanticSimilarity';
+import './mainThreadIssueReporter';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

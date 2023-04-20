@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -294,10 +293,5 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 }
 
 function isSupportedProvider(provider: DocumentPasteEditProvider, dataTransfer: VSDataTransfer): boolean {
-	return provider.pasteMimeTypes.some(type => {
-		if (type.toLowerCase() === DataTransfers.FILES.toLowerCase()) {
-			return [...dataTransfer.values()].some(item => item.asFile());
-		}
-		return dataTransfer.has(type);
-	});
+	return provider.pasteMimeTypes.some(type => dataTransfer.matches(type));
 }
