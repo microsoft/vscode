@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
@@ -118,4 +121,14 @@ export interface IIssueMainService {
 	openReporter(data: IssueReporterData): Promise<void>;
 	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
 	getSystemStatus(): Promise<string>;
+
+	// Used by the issue reporter
+
+	getSystemInfo(): Promise<SystemInfo>;
+	getPerformanceInfo(): Promise<PerformanceInfo>;
+	reloadWithExtensionsDisabled(): Promise<void>;
+	showConfirmCloseDialog(): Promise<void>;
+	showClipboardDialog(): Promise<boolean>;
+	getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI>;
+	closeReporter(): Promise<void>;
 }
