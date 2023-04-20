@@ -21,6 +21,7 @@ use crate::util::http::{
 };
 use crate::util::io::SilentCopyProgress;
 use crate::util::is_integrated_cli;
+use crate::util::os::os_release;
 use crate::util::sync::{new_barrier, Barrier};
 
 use futures::stream::FuturesUnordered;
@@ -47,9 +48,10 @@ use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
 	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ClientRequestMethod, EmptyObject,
-	ForwardParams, ForwardResult, GetHostnameResponse, HttpBodyParams, HttpHeadersParams,
-	ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult, ToClientRequest,
-	UnforwardParams, UpdateParams, UpdateResult, VersionParams,
+	ForwardParams, ForwardResult, FsStatRequest, FsStatResponse, GetEnvResponse,
+	GetHostnameResponse, HttpBodyParams, HttpHeadersParams, ServeParams, ServerLog,
+	ServerMessageParams, SpawnParams, SpawnResult, ToClientRequest, UnforwardParams, UpdateParams,
+	UpdateResult, VersionParams,
 };
 use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
@@ -264,6 +266,8 @@ async fn process_socket(
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
 	rpc.register_sync("gethostname", |_: EmptyObject, _| handle_get_hostname());
+	rpc.register_sync("fs_stat", |p: FsStatRequest, _| handle_stat(p.path));
+	rpc.register_sync("get_env", |_: EmptyObject, _| handle_get_env());
 	rpc.register_async("serve", move |params: ServeParams, c| async move {
 		handle_serve(c, params).await
 	});
@@ -669,6 +673,34 @@ async fn handle_update(
 fn handle_get_hostname() -> Result<GetHostnameResponse, AnyError> {
 	Ok(GetHostnameResponse {
 		value: gethostname::gethostname().to_string_lossy().into_owned(),
+	})
+}
+
+fn handle_stat(path: String) -> Result<FsStatResponse, AnyError> {
+	Ok(std::fs::metadata(path)
+		.map(|m| FsStatResponse {
+			exists: true,
+			size: Some(m.len()),
+			kind: Some(match m.file_type() {
+				t if t.is_dir() => "dir",
+				t if t.is_file() => "file",
+				t if t.is_symlink() => "link",
+				_ => "unknown",
+			}),
+		})
+		.unwrap_or_default())
+}
+
+fn handle_get_env() -> Result<GetEnvResponse, AnyError> {
+	Ok(GetEnvResponse {
+		env: std::env::vars().collect(),
+		os_release: os_release().unwrap_or_else(|_| "unknown".to_string()),
+		#[cfg(windows)]
+		os_platform: "win32",
+		#[cfg(target_os = "linux")]
+		os_platform: "linux",
+		#[cfg(target_os = "macos")]
+		os_platform: "darwin",
 	})
 }
 
