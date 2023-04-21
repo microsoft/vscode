@@ -35,8 +35,8 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this.textModelVersionId, this._debounceValue));
 	private readonly _isActive = observableValue('isActive', false);
 
-	private _isAcceptingPartialWord = false;
-	public get isAcceptingPartialWord() { return this._isAcceptingPartialWord; }
+	private _isAcceptingPartially = false;
+	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
 	private _isNavigatingCurrentInlineCompletion = false;
 	public get isNavigatingCurrentInlineCompletion() { return this._isNavigatingCurrentInlineCompletion; }
@@ -301,6 +301,45 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public acceptNextWord(editor: ICodeEditor): void {
+		this.acceptNext(editor, (pos, text) => {
+			const langId = this.textModel.getLanguageIdAtPosition(pos.lineNumber, pos.column);
+			const config = this._languageConfigurationService.getLanguageConfiguration(langId);
+			const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
+
+			const m1 = text.match(wordRegExp);
+			let acceptUntilIndexExclusive = 0;
+			if (m1 && m1.index !== undefined) {
+				if (m1.index === 0) {
+					acceptUntilIndexExclusive = m1[0].length;
+				} else {
+					acceptUntilIndexExclusive = m1.index;
+				}
+			} else {
+				acceptUntilIndexExclusive = text.length;
+			}
+
+			const wsRegExp = /\s+/g;
+			const m2 = wsRegExp.exec(text);
+			if (m2 && m2.index !== undefined) {
+				if (m2.index + m2[0].length < acceptUntilIndexExclusive) {
+					acceptUntilIndexExclusive = m2.index + m2[0].length;
+				}
+			}
+			return acceptUntilIndexExclusive;
+		});
+	}
+
+	public acceptNextLine(editor: ICodeEditor): void {
+		this.acceptNext(editor, (pos, text) => {
+			const m = text.match(/\n/);
+			if (m && m.index !== undefined) {
+				return m.index + 1;
+			}
+			return text.length;
+		});
+	}
+
+	private acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number): void {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -324,29 +363,8 @@ export class InlineCompletionsModel extends Disposable {
 		const position = new Position(ghostText.lineNumber, firstPart.column);
 
 		const line = firstPart.lines.join('\n');
-		const langId = this.textModel.getLanguageIdAtPosition(ghostText.lineNumber, 1);
-		const config = this._languageConfigurationService.getLanguageConfiguration(langId);
-		const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
 
-		const m1 = line.match(wordRegExp);
-		let acceptUntilIndexExclusive = 0;
-		if (m1 && m1.index !== undefined) {
-			if (m1.index === 0) {
-				acceptUntilIndexExclusive = m1[0].length;
-			} else {
-				acceptUntilIndexExclusive = m1.index;
-			}
-		} else {
-			acceptUntilIndexExclusive = line.length;
-		}
-
-		const wsRegExp = /\s+/g;
-		const m2 = wsRegExp.exec(line);
-		if (m2 && m2.index !== undefined) {
-			if (m2.index + m2[0].length < acceptUntilIndexExclusive) {
-				acceptUntilIndexExclusive = m2.index + m2[0].length;
-			}
-		}
+		const acceptUntilIndexExclusive = getAcceptUntilIndex(position, line);
 
 		if (acceptUntilIndexExclusive === line.length && ghostText.parts.length === 1) {
 			this.accept(editor);
@@ -355,7 +373,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		const partialText = line.substring(0, acceptUntilIndexExclusive);
 
-		this._isAcceptingPartialWord = true;
+		this._isAcceptingPartially = true;
 		try {
 			editor.pushUndoStop();
 			editor.executeEdits('inlineSuggestion.accept', [
@@ -364,7 +382,7 @@ export class InlineCompletionsModel extends Disposable {
 			const length = lengthOfText(partialText);
 			editor.setPosition(addPositions(position, length));
 		} finally {
-			this._isAcceptingPartialWord = false;
+			this._isAcceptingPartially = false;
 		}
 
 		if (completion.source.provider.handlePartialAccept) {
