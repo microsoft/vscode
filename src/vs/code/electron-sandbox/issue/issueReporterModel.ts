@@ -12,8 +12,8 @@ export interface IssueReporterData {
 
 	versionInfo?: any;
 	systemInfo?: SystemInfo;
-	processInfo?: any;
-	workspaceInfo?: any;
+	processInfo?: string;
+	workspaceInfo?: string;
 
 	includeSystemInfo: boolean;
 	includeWorkspaceInfo: boolean;
