@@ -196,6 +196,17 @@ function onScrollHandler(e: globalThis.Event) {
 	} else {
 		target.classList.add('more-above');
 	}
+	e.stopPropagation();
+}
+
+function onKeypressHandler(e: KeyboardEvent) {
+	if (e.ctrlKey || e.shiftKey) {
+		return;
+	}
+	if (e.code === 'ArrowDown' || e.code === 'End' || e.code === 'ArrowUp' || e.code === 'Home') {
+		// These should change the scroll position, not adjust the selected cell in the notebook
+		e.stopPropagation();
+	}
 }
 
 // if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
@@ -205,6 +216,9 @@ function initializeScroll(scrollableElement: HTMLElement, disposables: Disposabl
 		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
 		scrollableElement.addEventListener('scroll', onScrollHandler);
 		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
+		scrollableElement.addEventListener('keydown', onKeypressHandler);
+		disposables.push({ dispose: () => scrollableElement.removeEventListener('keydown', onKeypressHandler) });
+		scrollableElement.tabIndex = 0;
 	}
 }
 
@@ -350,6 +364,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	}
 	#container div.output .scrollable.scrollbar-visible {
 		border-color: var(--vscode-editorWidget-border);
+	}
+	#container div.output .scrollable.scrollbar-visible:focus{
+		outline: 0;
+		border-color: var(--theme-input-focus-border-color);
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
