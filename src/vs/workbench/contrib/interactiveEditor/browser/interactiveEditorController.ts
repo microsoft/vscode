@@ -40,7 +40,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
@@ -223,7 +223,6 @@ class LastEditorState {
 	) { }
 }
 
-type EditMode = 'live' | 'livePreview' | 'preview';
 
 export interface InteractiveEditorRunOptions {
 	initialRange?: IRange;
@@ -345,7 +344,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		};
 
 		this._strategy = this._instaService.createInstance(
-			editMode === 'preview' ? PreviewStrategy : editMode === 'livePreview' ? LivePreviewStrategy : LiveStrategy,
+			EditModeStrategy.ctor(editMode),
 			textModel, textModel.getAlternativeVersionId()
 		);
 
@@ -380,7 +379,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		// CANCEL when input changes
 		this._editor.onDidChangeModel(this.cancelSession, this, store);
 
-		if (editMode === 'live') {
+		if (editMode === EditMode.Live) {
 
 			// REposition the zone widget whenever the block decoration changes
 			let lastPost: Position | undefined;
@@ -460,7 +459,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._historyOffset = -1;
 			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 
-			if (textModel0Changes && editMode === 'livePreview') {
+			if (textModel0Changes && editMode === EditMode.LivePreview) {
 				const diffPosition = diffZone.getEndPositionForChanges(wholeRange, textModel0Changes);
 				if (diffPosition) {
 					const newInputPosition = diffPosition.delta(0, 1);
@@ -574,7 +573,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				}]);
 			}
 
-			if (editMode === 'preview') {
+			if (editMode === EditMode.Preview) {
 				// only preview changes
 				if (editResponse.localEdits.length > 0) {
 					this._zone.widget.showEditsPreview(textModel, editResponse.localEdits);
@@ -619,7 +618,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					ignoreModelChanges = false;
 				}
 
-				if (editMode === 'live') {
+				if (editMode === EditMode.Live) {
 					inlineDiffDecorations.update();
 				}
 
@@ -766,6 +765,14 @@ export class InteractiveEditorController implements IEditorContribution {
 }
 
 abstract class EditModeStrategy {
+
+	static ctor(mode: EditMode) {
+		switch (mode) {
+			case EditMode.Live: return LiveStrategy;
+			case EditMode.LivePreview: return LivePreviewStrategy;
+			case EditMode.Preview: return PreviewStrategy;
+		}
+	}
 
 	abstract update(response: EditResponse): boolean;
 

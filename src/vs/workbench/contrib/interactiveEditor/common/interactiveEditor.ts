@@ -94,6 +94,7 @@ export interface IInteractiveEditorService {
 
 export const INTERACTIVE_EDITOR_ID = 'interactiveEditor';
 
+
 export const CTX_INTERACTIVE_EDITOR_HAS_PROVIDER = new RawContextKey<boolean>('interactiveEditorHasProvider', false, localize('interactiveEditorHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INTERACTIVE_EDITOR_VISIBLE = new RawContextKey<boolean>('interactiveEditorVisible', false, localize('interactiveEditorVisible', "Whether the interactive editor input is visible"));
 export const CTX_INTERACTIVE_EDITOR_FOCUSED = new RawContextKey<boolean>('interactiveEditorFocused', false, localize('interactiveEditorFocused', "Whether the interactive editor input is focused"));
@@ -106,7 +107,7 @@ export const CTX_INTERACTIVE_EDITOR_HAS_RESPONSE = new RawContextKey<boolean>('i
 export const CTX_INTERACTIVE_EDITOR_INLNE_DIFF = new RawContextKey<boolean>('interactiveEditorInlineDiff', false, localize('interactiveEditorInlineDiff', "Whether interactive editor show inline diffs for changes"));
 export const CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE = new RawContextKey<'simple' | ''>('interactiveEditorLastEditKind', '', localize('interactiveEditorLastEditKind', "The last kind of edit that was performed"));
 export const CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('interactiveEditorLastFeedbackKind', '', localize('interactiveEditorLastFeedbackKind', "The last kind of feedback that was provided"));
-export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<'live' | 'livePreview' | 'preview'>('config.interactiveEditor.editMode', 'live');
+export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<EditMode>('config.interactiveEditor.editMode', EditMode.Live);
 
 // --- menus
 
@@ -137,14 +138,20 @@ export const interactiveEditorDiffRemoved = registerColor('interactiveEditorDiff
 
 // settings
 
+export const enum EditMode {
+	Live = 'live',
+	LivePreview = 'livePreview',
+	Preview = 'preview'
+}
+
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'editor',
 	properties: {
 		'interactiveEditor.editMode': {
 			description: localize('editMode', "Configure if changes crafted in the interactive editor are applied directly or previewed first"),
-			default: 'live',
+			default: EditMode.Live,
 			type: 'string',
-			enum: ['live', 'livePreview', 'preview']
+			enum: [EditMode.Live, EditMode.LivePreview, EditMode.Preview]
 		}
 	}
 });
