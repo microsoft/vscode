@@ -463,6 +463,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private doRegisterConfigurations(configurations: IConfigurationNode[], validate: boolean, bucket: Set<string>): void {
+
 		configurations.forEach(configuration => {
 
 			this.validateAndRegisterProperties(configuration, validate, configuration.extensionInfo, configuration.restrictedProperties, undefined, bucket);
