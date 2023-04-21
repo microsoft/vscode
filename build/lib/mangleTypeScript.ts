@@ -17,23 +17,23 @@ class ShortIdent {
 		'import', 'in', 'instanceof', 'let', 'new', 'null', 'return', 'static', 'super', 'switch', 'this', 'throw',
 		'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield']);
 
-	private static _alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+	private static _alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890$_'.split('');
 
 	private _value = 0;
 	private readonly _isNameTaken: (name: string) => boolean;
-	private _prefix: string;
+	private readonly prefix: string;
 
 	constructor(prefix: string, isNameTaken: (name: string) => boolean) {
-		this._prefix = prefix;
-		this._isNameTaken = name => ShortIdent._keywords.has(name) || isNameTaken(name);
+		this.prefix = prefix;
+		this._isNameTaken = name => ShortIdent._keywords.has(name) || /^[_0-9]/.test(name) || isNameTaken(name);
 	}
 
-	next(): string {
-		const candidate = this._prefix + ShortIdent.convert(this._value);
+	next(localIsNameTaken?: (name: string) => boolean): string {
+		const candidate = this.prefix + ShortIdent.convert(this._value);
 		this._value++;
-		if (this._isNameTaken(candidate)) {
+		if (this._isNameTaken(candidate) || localIsNameTaken?.(candidate)) {
 			// try again
-			return this.next();
+			return this.next(localIsNameTaken);
 		}
 		return candidate;
 	}
@@ -239,12 +239,11 @@ class ClassData {
 				}
 			}
 		}
-		if ((<any>this.node.getSourceFile()).identifiers instanceof Map) {
-			// taken by any other usage
-			if ((<any>this.node.getSourceFile()).identifiers.has(name)) {
-				return true;
-			}
+
+		if (isNameTakenInFile(this.node, name)) {
+			return true;
 		}
+
 		return false;
 	}
 
@@ -269,8 +268,30 @@ class ClassData {
 	}
 }
 
+function isNameTakenInFile(node: ts.Node, name: string): boolean {
+	const identifiers = (<any>node.getSourceFile()).identifiers;
+	if (identifiers instanceof Map) {
+		if (identifiers.has(name)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+const fileIdents = new class {
+	private readonly idents = new ShortIdent('$', () => false);
+
+	next(file: ts.SourceFile) {
+		return this.idents.next(name => isNameTakenInFile(file, name));
+	}
+};
+
+const skippedFiles = [
+	'standaloneEditor.ts', // Monaco editor API
+	'standaloneLanguages.ts', // Monaco API
+	'extensionsApiProposals.ts', // Generated file
+];
 class FunctionData {
-	private static idents = new ShortIdent('f$', () => false);
 
 	readonly replacementName: string;
 
@@ -278,8 +299,7 @@ class FunctionData {
 		readonly fileName: string,
 		readonly node: ts.FunctionDeclaration
 	) {
-		// TODO: Could likely be smarter and use a different ident pool for each file
-		this.replacementName = FunctionData.idents.next();
+		this.replacementName = fileIdents.next(node.getSourceFile());
 	}
 
 	get start() {
@@ -298,7 +318,7 @@ class FunctionData {
 		}
 
 		// Don't mangle functions in the monaco editor API.
-		if (this.node.getSourceFile().fileName.endsWith('standaloneEditor.ts')) {
+		if (skippedFiles.some(file => this.node.getSourceFile().fileName.endsWith(file))) {
 			return false;
 		}
 
@@ -307,7 +327,6 @@ class FunctionData {
 }
 
 class ConstData {
-	private static idents = new ShortIdent('c$', () => false);
 
 	readonly replacementName: string;
 
@@ -317,8 +336,7 @@ class ConstData {
 		readonly decl: ts.VariableDeclaration,
 		private readonly service: ts.LanguageService,
 	) {
-		// TODO: Could likely be smarter and use a different ident pool for each file
-		this.replacementName = ConstData.idents.next();
+		this.replacementName = fileIdents.next(statement.getSourceFile());
 	}
 
 	get start() {
@@ -337,11 +355,6 @@ class ConstData {
 		}
 
 		// Don't mangle functions in some files
-		const skippedFiles = [
-			'standaloneEditor.ts', // Monaco editor API
-			'standaloneLanguages.ts', // Monaco
-			'extensionsApiProposals.ts', // Generated file
-		];
 		if (skippedFiles.some(file => this.decl.getSourceFile().fileName.endsWith(file))) {
 			return false;
 		}
@@ -429,7 +442,7 @@ export interface MangleOutput {
 export class Mangler {
 
 	private readonly allClassDataByKey = new Map<string, ClassData>();
-	private readonly allExportedFunctionsByKey = new Map<string, FunctionData | ConstData>();
+	private readonly allExportedDeclarationsByKey = new Map<string, FunctionData | ConstData>();
 
 	private readonly service: ts.LanguageService;
 
@@ -439,7 +452,7 @@ export class Mangler {
 
 	computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Map<string, MangleOutput> {
 
-		// STEP find all classes and their field info. Find all exported functions.
+		// STEP find all classes and their field info. Find all exported consts and functions.
 
 		const visit = (node: ts.Node): void => {
 			if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
@@ -458,10 +471,10 @@ export class Mangler {
 				if (node.name && node.body) { // On named function and not on the overload
 					const anchor = node.name;
 					const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
-					if (this.allExportedFunctionsByKey.has(key)) {
+					if (this.allExportedDeclarationsByKey.has(key)) {
 						throw new Error('DUPE?');
 					}
-					this.allExportedFunctionsByKey.set(key, new FunctionData(node.getSourceFile().fileName, node));
+					this.allExportedDeclarationsByKey.set(key, new FunctionData(node.getSourceFile().fileName, node));
 				}
 			}
 
@@ -471,10 +484,10 @@ export class Mangler {
 			) {
 				for (const decl of node.declarationList.declarations) {
 					const key = `${decl.getSourceFile().fileName}|${decl.name.getStart()}`;
-					if (this.allExportedFunctionsByKey.has(key)) {
+					if (this.allExportedDeclarationsByKey.has(key)) {
 						throw new Error('DUPE?');
 					}
-					this.allExportedFunctionsByKey.set(key, new ConstData(node.getSourceFile().fileName, node, decl, this.service));
+					this.allExportedDeclarationsByKey.set(key, new ConstData(node.getSourceFile().fileName, node, decl, this.service));
 				}
 			}
 
@@ -486,7 +499,7 @@ export class Mangler {
 				ts.forEachChild(file, visit);
 			}
 		}
-		this.log(`Done collecting. Classes: ${this.allClassDataByKey.size}. Exported functions: ${this.allExportedFunctionsByKey.size}`);
+		this.log(`Done collecting. Classes: ${this.allClassDataByKey.size}. Exported const/fn: ${this.allExportedDeclarationsByKey.size}`);
 
 
 		//  STEP: connect sub and super-types
@@ -603,7 +616,7 @@ export class Mangler {
 			}
 		}
 
-		for (const data of this.allExportedFunctionsByKey.values()) {
+		for (const data of this.allExportedDeclarationsByKey.values()) {
 			if (!data.shouldMangle(data.replacementName)) {
 				continue;
 			}
