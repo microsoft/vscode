@@ -11,8 +11,8 @@ export function serializeEnvironmentVariableCollection(collection: ReadonlyMap<s
 	return [...collection.entries()];
 }
 
-export function serializeEnvironmentDescriptionMap(descriptionMap: ReadonlyMap<string, IEnvironmentDescriptionMutator>): ISerializableEnvironmentDescriptionMap {
-	return [...descriptionMap.entries()];
+export function serializeEnvironmentDescriptionMap(descriptionMap: ReadonlyMap<string, IEnvironmentDescriptionMutator> | undefined): ISerializableEnvironmentDescriptionMap {
+	return descriptionMap ? [...descriptionMap.entries()] : [];
 }
 
 export function deserializeEnvironmentVariableCollection(
@@ -22,14 +22,14 @@ export function deserializeEnvironmentVariableCollection(
 }
 
 export function deserializeEnvironmentDescriptionMap(
-	serializableEnvironmentDescription: ISerializableEnvironmentDescriptionMap
+	serializableEnvironmentDescription: ISerializableEnvironmentDescriptionMap | undefined
 ): Map<string, IEnvironmentDescriptionMutator> {
-	return new Map<string, IEnvironmentDescriptionMutator>(serializableEnvironmentDescription);
+	return new Map<string, IEnvironmentDescriptionMutator>(serializableEnvironmentDescription ?? []);
 }
 
 export function serializeEnvironmentVariableCollections(collections: ReadonlyMap<string, IEnvironmentVariableCollection>): ISerializableEnvironmentVariableCollections {
 	return Array.from(collections.entries()).map(e => {
-		return [e[0], serializeEnvironmentVariableCollection(e[1].map), serializeEnvironmentDescriptionMap(e[1].descriptionMap ?? new Map())];
+		return [e[0], serializeEnvironmentVariableCollection(e[1].map), serializeEnvironmentDescriptionMap(e[1].descriptionMap)];
 	});
 }
 

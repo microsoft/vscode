@@ -42,7 +42,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, {
 				persistent: true,
 				map: deserializeEnvironmentVariableCollection(c.collection),
-				descriptionMap: deserializeEnvironmentDescriptionMap(c.description ?? [])
+				descriptionMap: deserializeEnvironmentDescriptionMap(c.description)
 			}));
 
 			// Asynchronously invalidate collections where extensions have been uninstalled, this is
@@ -84,7 +84,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 				collectionsJson.push({
 					extensionIdentifier,
 					collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!.map),
-					description: serializeEnvironmentDescriptionMap(collection.descriptionMap ?? new Map())
+					description: serializeEnvironmentDescriptionMap(collection.descriptionMap)
 				});
 			}
 		});
