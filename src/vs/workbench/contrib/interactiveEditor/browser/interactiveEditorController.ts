@@ -43,6 +43,8 @@ import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEdi
 import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
@@ -304,6 +306,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
+		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 
 	) {
@@ -334,6 +337,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		const editMode = this._getMode();
 
 		this._ctsSession.dispose(true);
+		this._cancelNotebookSiblingEditors();
 
 		if (!this._editor.hasModel()) {
 			return;
@@ -691,6 +695,37 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._editor.focus();
 	}
 
+	private _cancelNotebookSiblingEditors() {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		const candidate = CellUri.parse(this._editor.getModel().uri);
+		if (!candidate) {
+			return;
+		}
+		for (const editor of this._notebookEditorService.listNotebookEditors()) {
+			if (isEqual(editor.textModel?.uri, candidate.notebook)) {
+				let found = false;
+				const editors: ICodeEditor[] = [];
+				for (const [, codeEditor] of editor.codeEditors) {
+					editors.push(codeEditor);
+					found = codeEditor === this._editor || found;
+				}
+				if (found) {
+					// found the this editor in the outer notebook editor -> make sure to
+					// cancel all sibling sessions
+					for (const editor of editors) {
+						if (editor !== this._editor) {
+							InteractiveEditorController.get(editor)?.cancelSession();
+
+						}
+					}
+					break;
+				}
+			}
+		}
+	}
+
 	accept(): void {
 		this._zone.widget.acceptInput();
 	}
@@ -855,6 +890,9 @@ class LiveStrategy extends EditModeStrategy {
 
 	async cancel() {
 		const { modelN, model0 } = this._session;
+		if (modelN.isDisposed() || model0.isDisposed()) {
+			return;
+		}
 		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: model0.getValue() }]);
 		if (edits) {
 			const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));
