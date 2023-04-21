@@ -511,7 +511,7 @@ export class ViewInChatAction extends AbstractInteractiveEditorAction {
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE),
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_HAS_RESPONSE,
+				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo('message'),
 				group: 'viewInChat',
 				order: 1
 			}
