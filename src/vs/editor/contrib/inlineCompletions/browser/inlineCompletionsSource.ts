@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { BugIndicatingError } from 'vs/base/common/errors';
 import { matchesSubString } from 'vs/base/common/filters';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITransaction, derived } from 'vs/base/common/observable';
@@ -246,6 +245,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 export class InlineCompletionWithUpdatedRange {
 	public readonly semanticId = JSON.stringify([this.inlineCompletion.filterText, this.inlineCompletion.insertText, this.inlineCompletion.range.getStartPosition().toString()]);
 	private _updatedRange: Range;
+	private _isValid = true;
 
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
@@ -264,7 +264,9 @@ export class InlineCompletionWithUpdatedRange {
 	public _updateRange(textModel: ITextModel): boolean {
 		const range = textModel.getDecorationRange(this.decorationId);
 		if (!range) {
-			throw new BugIndicatingError();
+			// A setValue call might flush all decorations.
+			this._isValid = false;
+			return true;
 		}
 		if (!this._updatedRange.equalsRange(range)) {
 			this._updatedRange = range;
@@ -284,11 +286,11 @@ export class InlineCompletionWithUpdatedRange {
 	public isVisible(model: ITextModel, cursorPosition: Position, reader: IReader | undefined): boolean {
 		const minimizedReplacement = this.toFilterTextReplacement(reader).removeCommonPrefix(model);
 
-		if (!this.inlineCompletion.range.getStartPosition().equals(this.getUpdatedRange(reader).getStartPosition())) {
-			return false;
-		}
-
-		if (cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber) {
+		if (
+			!this._isValid
+			|| !this.inlineCompletion.range.getStartPosition().equals(this.getUpdatedRange(reader).getStartPosition())
+			|| cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber
+		) {
 			return false;
 		}
 
@@ -325,7 +327,8 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	public canBeReused(model: ITextModel, position: Position): boolean {
-		return this.getUpdatedRange(undefined).containsPosition(position)
+		return this._isValid
+			&& this.getUpdatedRange(undefined).containsPosition(position)
 			&& this.isVisible(model, position, undefined)
 			&& !this.isSmallerThanOriginal(undefined);
 	}
