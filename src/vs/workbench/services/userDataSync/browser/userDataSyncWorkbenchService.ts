@@ -38,6 +38,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isDiffEditorInput } from 'vs/workbench/common/editor';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -114,6 +115,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
@@ -143,7 +145,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	private async waitAndInitialize(): Promise<void> {
 		/* wait */
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		await Promise.all([this.extensionService.whenInstalledExtensionsRegistered(), this.userDataInitializationService.whenInitializationFinished()]);
 
 		/* initialize */
 		try {
