@@ -119,7 +119,6 @@ class StatusLink extends Disposable {
 	}
 
 	isShowing(): boolean {
-		console.log('this._domNode.style.display : ', this._domNode.style.display);
 		return this._domNode.style.display === 'flex';
 	}
 }

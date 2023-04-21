@@ -547,6 +547,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.widget.updateToolbar(true);
 
 			if (reply.type === 'message') {
+				this._lastEditState = undefined;
 				this._lastMessageState = new LastEditorState(textModel, textModel.getAlternativeVersionId(), provider, session, reply);
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
 				const messageReply = reply.message;
@@ -567,6 +568,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			// inline diff
 			inlineDiffDecorations.clear();
 
+			this._lastMessageState = undefined;
 			this._lastEditState = new LastEditorState(textModel, textModel.getAlternativeVersionId(), provider, session, reply, editResponse);
 
 			// use whole range from reply
