@@ -117,7 +117,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		const isRemoteWindow = !!this.environmentService.remoteAuthority;
 
 		if (!isRemoteWindow) {
-			this.extensionService.stopExtensionHosts();
+			this.extensionService.stopExtensionHosts(true); // TODO@sandy081 adopt support for extension host to veto stopping
 		}
 
 		// In a remote window update current profile before reloading so that data is preserved from current profile if asked to preserve
