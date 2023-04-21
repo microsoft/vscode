@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { IObservable, observableFromEvent, derived, IObserver } from 'vs/base/common/observable';
+import { observableFromEvent, derived } from 'vs/base/common/observable';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -134,7 +134,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	public onEnabledChanged(cue: AudioCue): Event<void> {
-		return eventFromObservable(this.isEnabledCache.get(cue));
+		return Event.fromObservableLight(this.isEnabledCache.get(cue));
 	}
 }
 
@@ -158,38 +158,6 @@ function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
 			reject(e);
 		});
 	});
-}
-
-function eventFromObservable(observable: IObservable<any>): Event<void> {
-	return (listener) => {
-		let count = 0;
-		let didChange = false;
-		const observer: IObserver = {
-			beginUpdate() {
-				count++;
-			},
-			endUpdate() {
-				count--;
-				if (count === 0 && didChange) {
-					didChange = false;
-					listener();
-				}
-			},
-			handleChange() {
-				if (count === 0) {
-					listener();
-				} else {
-					didChange = true;
-				}
-			}
-		};
-		observable.addObserver(observer);
-		return {
-			dispose() {
-				observable.removeObserver(observer);
-			}
-		};
-	};
 }
 
 class Cache<TArg, TValue> {
