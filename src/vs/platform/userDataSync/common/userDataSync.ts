@@ -191,7 +191,7 @@ export interface IUserDataSyncStoreService {
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
-	readonly onTokenFailed: Event<void>;
+	readonly onTokenFailed: Event<UserDataSyncErrorCode>;
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
 

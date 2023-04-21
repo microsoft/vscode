@@ -148,8 +148,8 @@ export class UserDataSyncStoreClient extends Disposable {
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string }>;
 	private readonly session: RequestsSession;
 
-	private _onTokenFailed: Emitter<void> = this._register(new Emitter<void>());
-	readonly onTokenFailed: Event<void> = this._onTokenFailed.event;
+	private _onTokenFailed = this._register(new Emitter<UserDataSyncErrorCode>());
+	readonly onTokenFailed = this._onTokenFailed.event;
 
 	private _onTokenSucceed: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTokenSucceed: Event<void> = this._onTokenSucceed.event;
@@ -539,11 +539,12 @@ export class UserDataSyncStoreClient extends Disposable {
 
 		if (context.res.statusCode === 401 || context.res.statusCode === 403) {
 			this.authToken = undefined;
-			this._onTokenFailed.fire();
 			if (context.res.statusCode === 401) {
+				this._onTokenFailed.fire(UserDataSyncErrorCode.Unauthorized);
 				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Unauthorized (401).`, url, UserDataSyncErrorCode.Unauthorized, context.res.statusCode, operationId);
 			}
 			if (context.res.statusCode === 403) {
+				this._onTokenFailed.fire(UserDataSyncErrorCode.Forbidden);
 				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because the access is forbidden (403).`, url, UserDataSyncErrorCode.Forbidden, context.res.statusCode, operationId);
 			}
 		}
