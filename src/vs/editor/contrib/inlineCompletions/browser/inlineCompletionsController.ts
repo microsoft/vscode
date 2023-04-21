@@ -100,7 +100,7 @@ export class InlineCompletionsController extends Disposable {
 			this.updateObservables(tx,
 				e.isUndoing ? VersionIdChangeReason.Undo
 					: e.isRedoing ? VersionIdChangeReason.Redo
-						: this.model.get()?.isAcceptingPartialWord ? VersionIdChangeReason.AcceptWord
+						: this.model.get()?.isAcceptingPartially ? VersionIdChangeReason.AcceptWord
 							: VersionIdChangeReason.Other
 			)
 		)));

@@ -221,7 +221,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 				description: 'inline-completion-tracking-range'
 			},
 		}])[0];
-		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this.versionId, range));
+		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this.rangeVersion, range));
 		this.prependedInlineCompletionItems.push(inlineCompletion);
 	}
 
@@ -327,10 +327,11 @@ export class InlineCompletionWithUpdatedRange {
 	}
 
 	public canBeReused(model: ITextModel, position: Position): boolean {
-		return this._isValid
+		const result = this._isValid
 			&& this.getUpdatedRange(undefined).containsPosition(position)
 			&& this.isVisible(model, position, undefined)
 			&& !this.isSmallerThanOriginal(undefined);
+		return result;
 	}
 
 	private isSmallerThanOriginal(reader: IReader | undefined): boolean {
