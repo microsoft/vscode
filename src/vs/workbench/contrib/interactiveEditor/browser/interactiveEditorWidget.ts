@@ -442,7 +442,6 @@ class InteractiveEditorWidget {
 	// --- preview
 
 	showEditsPreview(actualModel: ITextModel, edits: TextEdit[]) {
-		this._elements.root.classList.add('preview');
 		this._elements.previewDiff.classList.remove('hidden');
 
 		const pad = 3;
@@ -476,7 +475,6 @@ class InteractiveEditorWidget {
 	}
 
 	hideEditsPreview() {
-		this._elements.root.classList.remove('preview');
 		this._elements.previewDiff.classList.add('hidden');
 		this._previewDiffEditor.setModel(null);
 		this._previewDiffModel.clear();
@@ -484,7 +482,6 @@ class InteractiveEditorWidget {
 	}
 
 	showCreatePreview(uri: URI, edits: TextEdit[]): void {
-		this._elements.root.classList.add('preview');
 		this._elements.previewCreateTitle.classList.remove('hidden');
 		this._elements.previewCreate.classList.remove('hidden');
 
