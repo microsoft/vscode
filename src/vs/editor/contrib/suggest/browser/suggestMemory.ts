@@ -66,6 +66,37 @@ export class NoMemory extends Memory {
 	}
 }
 
+export class LastMemory extends Memory {
+
+	constructor() {
+		super('last');
+	}
+
+	private _lastItem?: CompletionItem;
+
+	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
+		this._lastItem = item;
+	}
+
+	override select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number {
+		if (this._lastItem) {
+			const index = items.findIndex(i => i.completion.insertText === this._lastItem!.completion.insertText);
+			if (index !== -1) {
+				return index;
+			}
+		}
+		return super.select(model, pos, items);
+	}
+
+	toJSON() {
+		return this._lastItem;
+	}
+
+	fromJSON(data: CompletionItem) {
+		this._lastItem = data;
+	}
+}
+
 export interface MemItem {
 	type: string | CompletionItemKind;
 	insertText: string;
@@ -214,14 +245,15 @@ export class PrefixMemory extends Memory {
 	}
 }
 
-export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
+export type MemMode = 'first' | 'last' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
 export class SuggestMemoryService implements ISuggestMemoryService {
 
 	private static readonly _strategyCtors = new Map<MemMode, { new(): Memory }>([
 		['recentlyUsedByPrefix', PrefixMemory],
 		['recentlyUsed', LRUMemory],
-		['first', NoMemory]
+		['first', NoMemory],
+		['last', LastMemory]
 	]);
 
 	private static readonly _storagePrefix = 'suggest/memories';
