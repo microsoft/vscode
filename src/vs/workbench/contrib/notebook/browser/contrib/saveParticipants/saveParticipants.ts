@@ -22,6 +22,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IStoredFileWorkingCopySaveParticipant, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -85,6 +86,49 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	}
 }
 
+class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+	}
+
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
+		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
+			return;
+		}
+
+		if (context.reason === SaveReason.AUTO) {
+			return undefined;
+		}
+
+		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('notebook.codeActionsOnSave');
+		if (!setting) {
+			return undefined;
+		}
+
+		const settingItems: string[] = Array.isArray(setting)
+			? setting
+			: Object.keys(setting).filter(x => setting[x]);
+
+		if (!settingItems.length) {
+			return undefined;
+		}
+
+		progress.report({ message: 'CodeActionsOnSave running' });
+		const disposable = new DisposableStore();
+		try {
+			for (const cmd of settingItems) {
+				this.commandService.executeCommand(cmd);
+			}
+		} catch {
+			// Failure to apply a code action should not block other on save actions
+		} finally {
+			progress.report({ increment: 100 });
+			disposable.dispose();
+		}
+	}
+}
 export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -95,6 +139,7 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 	}
 
 	private registerSaveParticipants(): void {
+		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(CodeActionOnSaveParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FormatOnSaveParticipant)));
 	}
 }
