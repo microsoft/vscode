@@ -282,7 +282,16 @@ class FunctionData {
 		this.replacementName = FunctionData.idents.next();
 	}
 
-	shouldMangle(): boolean {
+	get start() {
+		return this.node.name!.getStart();
+	}
+
+	shouldMangle(newName: string): boolean {
+		// New name is longer the existing one :'(
+		if (newName.length >= this.node.name!.getText().length) {
+			return false;
+		}
+
 		// Don't mangle functions we've explicitly opted out
 		if (this.node.getFullText().includes('@skipMangle')) {
 			return false;
@@ -290,6 +299,57 @@ class FunctionData {
 
 		// Don't mangle functions in the monaco editor API.
 		if (this.node.getSourceFile().fileName.endsWith('standaloneEditor.ts')) {
+			return false;
+		}
+
+		return true;
+	}
+}
+
+class ConstData {
+	private static idents = new ShortIdent('c$', () => false);
+
+	readonly replacementName: string;
+
+	constructor(
+		readonly fileName: string,
+		readonly statement: ts.VariableStatement,
+		readonly decl: ts.VariableDeclaration,
+		private readonly service: ts.LanguageService,
+	) {
+		// TODO: Could likely be smarter and use a different ident pool for each file
+		this.replacementName = ConstData.idents.next();
+	}
+
+	get start() {
+		return this.decl.name.getStart();
+	}
+
+	shouldMangle(newName: string): boolean {
+		// New name is longer the existing one :'(
+		if (newName.length >= this.decl.name.getText().length) {
+			return false;
+		}
+
+		// Don't mangle functions we've explicitly opted out
+		if (this.statement.getFullText().includes('@skipMangle')) {
+			return false;
+		}
+
+		// Don't mangle functions in some files
+		const skippedFiles = [
+			'standaloneEditor.ts', // Monaco editor API
+			'standaloneLanguages.ts', // Monaco
+			'extensionsApiProposals.ts', // Generated file
+		];
+		if (skippedFiles.some(file => this.decl.getSourceFile().fileName.endsWith(file))) {
+			return false;
+		}
+
+		// Don't mangle if the variable is also a type
+		// TODO: relax this, but we need to then rename the types too
+		const definitionResult = this.service.getDefinitionAndBoundSpan(this.decl.getSourceFile().fileName, this.decl.name.getStart());
+		if ((definitionResult?.definitions?.length ?? 0) > 1) {
 			return false;
 		}
 
@@ -369,7 +429,7 @@ export interface MangleOutput {
 export class Mangler {
 
 	private readonly allClassDataByKey = new Map<string, ClassData>();
-	private readonly allExportedFunctionsByKey = new Map<string, FunctionData>();
+	private readonly allExportedFunctionsByKey = new Map<string, FunctionData | ConstData>();
 
 	private readonly service: ts.LanguageService;
 
@@ -391,7 +451,10 @@ export class Mangler {
 				this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 			}
 
-			if (ts.isFunctionDeclaration(node) && node.modifiers?.find(m => m.kind === ts.SyntaxKind.ExportKeyword)) {
+			if (ts.isFunctionDeclaration(node)
+				&& ts.isSourceFile(node.parent)
+				&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+			) {
 				if (node.name && node.body) { // On named function and not on the overload
 					const anchor = node.name;
 					const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
@@ -399,6 +462,19 @@ export class Mangler {
 						throw new Error('DUPE?');
 					}
 					this.allExportedFunctionsByKey.set(key, new FunctionData(node.getSourceFile().fileName, node));
+				}
+			}
+
+			if (ts.isVariableStatement(node)
+				&& ts.isSourceFile(node.parent)
+				&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+			) {
+				for (const decl of node.declarationList.declarations) {
+					const key = `${decl.getSourceFile().fileName}|${decl.name.getStart()}`;
+					if (this.allExportedFunctionsByKey.has(key)) {
+						throw new Error('DUPE?');
+					}
+					this.allExportedFunctionsByKey.set(key, new ConstData(node.getSourceFile().fileName, node, decl, this.service));
 				}
 			}
 
@@ -528,12 +604,12 @@ export class Mangler {
 		}
 
 		for (const data of this.allExportedFunctionsByKey.values()) {
-			if (!data.shouldMangle()) {
+			if (!data.shouldMangle(data.replacementName)) {
 				continue;
 			}
 
 			const newText = data.replacementName;
-			const locations = this.service.findRenameLocations(data.fileName, data.node.name!.getStart(), false, false, true) ?? [];
+			const locations = this.service.findRenameLocations(data.fileName, data.start, false, false, true) ?? [];
 			for (const loc of locations) {
 				appendRename(newText, loc);
 			}
