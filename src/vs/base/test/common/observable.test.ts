@@ -839,6 +839,58 @@ suite('observables', () => {
 			"myAutorun(myDerived2: 2)",
 		]);
 	});
+
+	test('bug: Dont reset states', () => {
+		const log = new Log();
+		const myObservable1 = new LoggingObservableValue('myObservable1', 0, log);
+
+		const myObservable2 = new LoggingObservableValue('myObservable2', 0, log);
+		const myDerived2 = derived('myDerived2', reader => {
+			const val = myObservable2.read(reader);
+			log.log(`myDerived2.computed(myObservable2: ${val})`);
+			return val % 10;
+		});
+
+		const myDerived3 = derived('myDerived3', reader => {
+			const val1 = myObservable1.read(reader);
+			const val2 = myDerived2.read(reader);
+			log.log(`myDerived3.computed(myDerived1: ${val1}, myDerived2: ${val2})`);
+			return `${val1} + ${val2}`;
+		});
+
+		autorun('myAutorun', reader => {
+			const val = myDerived3.read(reader);
+			log.log(`myAutorun(myDerived3: ${val})`);
+		});
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			"myObservable1.firstObserverAdded",
+			"myObservable1.get",
+			"myObservable2.firstObserverAdded",
+			"myObservable2.get",
+			"myDerived2.computed(myObservable2: 0)",
+			"myDerived3.computed(myDerived1: 0, myDerived2: 0)",
+			"myAutorun(myDerived3: 0 + 0)",
+		]);
+
+		transaction(tx => {
+			myObservable1.set(1, tx); // Mark myDerived 3 as stale
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable1.set (value 1)",
+			]);
+
+			myObservable2.set(10, tx); // This is a non-change. myDerived3 should not be marked as possibly-depedency-changed!
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable2.set (value 10)",
+			]);
+		});
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			"myObservable1.get",
+			"myObservable2.get",
+			"myDerived2.computed(myObservable2: 10)",
+			'myDerived3.computed(myDerived1: 1, myDerived2: 0)',
+			'myAutorun(myDerived3: 1 + 0)',
+		]);
+	});
 });
 
 export class LoggingObserver implements IObserver {

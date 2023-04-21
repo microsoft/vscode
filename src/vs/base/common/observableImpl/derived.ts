@@ -145,7 +145,9 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 	// IObserver Implementation
 	public beginUpdate(): void {
 		const prevState = this.state;
-		this.state = DerivedState.dependenciesMightHaveChanged;
+		if (this.state === DerivedState.upToDate) {
+			this.state = DerivedState.dependenciesMightHaveChanged;
+		}
 		if (this.updateCount === 0) {
 			for (const r of this.observers) {
 				r.beginUpdate(this);
@@ -168,12 +170,10 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 	}
 
 	public handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
-		if (this._dependencies.has(observable)) {
-			if (this.state === DerivedState.upToDate) {
-				// In all other states, observers already know that we might have changed.
-				for (const r of this.observers) {
-					r.handlePossibleChange(this);
-				}
+		if (this.state === DerivedState.upToDate && this._dependencies.has(observable)) {
+			// In all other states, observers already know that we might have changed.
+			for (const r of this.observers) {
+				r.handlePossibleChange(this);
 			}
 			this.state = DerivedState.dependenciesMightHaveChanged;
 		}
