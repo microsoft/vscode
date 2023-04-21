@@ -23,6 +23,8 @@ const workbenchPromise = new DeferredPromise<IWorkbench>();
  *
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
+ *
+ * @skipMangle
  */
 export function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
