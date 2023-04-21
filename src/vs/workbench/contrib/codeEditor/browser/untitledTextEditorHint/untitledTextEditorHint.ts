@@ -109,7 +109,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				}
 			});
 
-		} else if (this.editor.getValue() === '        ') {
+		} else if (this.editor.getValue() === '            ') {
 			this.editor.onKeyDown((event) => {
 				if (event['code'] === 'Enter') {
 					event.stopPropagation();
