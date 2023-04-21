@@ -14,6 +14,12 @@ declare module 'vscode' {
 	}
 
 	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
+		/**
+		 * Sets a description for the environment variable collection, this will be used to describe the changes in the UI.
+		 * @param description A description for the environment variable collection.
+		 * @param scope Specific scope to which this description applies to.
+		 */
+		setDescription(description: string | MarkdownString | undefined, scope?: EnvironmentVariableScope): void;
 		replace(variable: string, value: string, scope?: EnvironmentVariableScope): void;
 		append(variable: string, value: string, scope?: EnvironmentVariableScope): void;
 		prepend(variable: string, value: string, scope?: EnvironmentVariableScope): void;
