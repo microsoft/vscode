@@ -516,6 +516,15 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						return commandService.executeCommand(pick.id);
 					}
 					if ((<IProfileTemplateQuickPickItem>pick).url) {
+						type ProfileCreationFromTemplateActionClassification = {
+							owner: 'sandy081';
+							comment: 'Report profile creation from template action';
+							profileName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the profile created from template' };
+						};
+						type ProfileCreationFromTemplateActionEvent = {
+							profileName: string;
+						};
+						that.telemetryService.publicLog2<ProfileCreationFromTemplateActionEvent, ProfileCreationFromTemplateActionClassification>('profileCreationAction:builtinTemplate', { profileName: (<IProfileTemplateQuickPickItem>pick).name });
 						const uri = URI.parse((<IProfileTemplateQuickPickItem>pick).url);
 						return userDataProfileImportExportService.importProfile(uri);
 					}
