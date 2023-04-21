@@ -144,7 +144,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 			}
 
 			if (notebookEditor.activeCodeEditor?.hasTextFocus()) {
-				const codeEditor = notebookEditor.activeCodeEditor as ICodeEditor;
+				const codeEditor = notebookEditor.activeCodeEditor;
 				const textModel = codeEditor.getModel();
 
 				if (textModel) {
