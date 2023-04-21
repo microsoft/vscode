@@ -197,6 +197,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	};
 
 	private _activeTasks: IStringDictionary<IActiveTerminalData>;
+	private _activatingTasks: IStringDictionary<Promise<void>>;
 	private _instances: IStringDictionary<InstanceManager>;
 	private _busyTasks: IStringDictionary<Task>;
 	private _terminals: IStringDictionary<ITerminalData>;
@@ -256,6 +257,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		super();
 
 		this._activeTasks = Object.create(null);
+		this._activatingTasks = Object.create(null);
 		this._instances = Object.create(null);
 		this._busyTasks = Object.create(null);
 		this._terminals = Object.create(null);
@@ -526,6 +528,35 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._showOutput();
 	}
 
+	private async _acquireActivatingTask(mapKey: string) {
+		while (true) {
+			const promise = this._activatingTasks[mapKey];
+			if (!promise) {
+				break;
+			}
+			this._logService.info('Waiting for activatingTask', mapKey);
+			await promise;
+		}
+		this._logService.info('Acquiring activatingTask', mapKey);
+		// Do not return, or await this promise!
+		this._activatingTasks[mapKey] = new Promise<void>((resolve) => {
+			const taskInactiveDisposable = this.onDidStateChange((event) => {
+				// A Changed event will be sent right after this._activeTasks is updated.
+				// An End event will be sent, even if the task was never actually activated
+				// due to an error or misconfiguration.
+				// In either case, we're done with this promise.
+
+				if ((event.kind === TaskEventKind.Changed && this._activeTasks[mapKey]) ||
+					(event.kind === TaskEventKind.End && event.__task?.getMapKey() === mapKey)) {
+					this._logService.info('Releasing activatingTask', mapKey);
+					taskInactiveDisposable.dispose();
+					resolve();
+					delete this._activatingTasks[mapKey];
+				}
+			});
+		});
+	}
+
 	private async _executeTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
 		if (encounteredDependencies.has(task.getCommonTaskId())) {
 			this._showDependencyCycleMessage(task);
@@ -533,6 +564,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 
 		this._showTaskLoadErrors(task);
+		await this._acquireActivatingTask(task.getMapKey());
 
 		alreadyResolved = alreadyResolved ?? new Map<string, string>();
 		const promises: Promise<ITaskSummary>[] = [];
@@ -542,6 +574,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (dependencyTask) {
 					this._adoptConfigurationForDependencyTask(dependencyTask, task);
 					const key = dependencyTask.getMapKey();
+					if (key in this._activatingTasks) {
+						this._logService.info('Waiting for dependent activatingTask', key);
+						await this._activatingTasks[key];
+					}
 					let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
 					if (!promise) {
 						this._fireTaskEvent(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
