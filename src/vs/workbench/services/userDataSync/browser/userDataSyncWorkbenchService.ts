@@ -196,7 +196,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
-		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => isSuccessive)(() => this.onDidSuccessiveAuthFailures()));
+		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, bailout => bailout)(() => this.onDidAuthFailure()));
 		this.hasConflicts.set(this.userDataSyncService.conflicts.length > 0);
 		this._register(this.userDataSyncService.onDidChangeConflicts(conflicts => {
 			this.hasConflicts.set(conflicts.length > 0);
@@ -594,7 +594,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.update();
 	}
 
-	private async onDidSuccessiveAuthFailures(): Promise<void> {
+	private async onDidAuthFailure(): Promise<void> {
 		this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Report when there are successive auth failures during settings sync' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
 		await this.update();
