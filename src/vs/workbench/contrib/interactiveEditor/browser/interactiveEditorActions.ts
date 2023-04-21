@@ -456,8 +456,8 @@ export class CancelSessionAction extends AbstractInteractiveEditorAction {
 		});
 	}
 
-	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.cancelSession();
+	async runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+		await ctrl.cancelSession();
 	}
 }
 

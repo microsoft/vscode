@@ -212,17 +212,40 @@ export class EditResponse {
 	}
 }
 
-class LastEditorState {
+class Session {
+
+	private readonly _responses: EditResponse[] = [];
+
+	readonly teldata: TelemetryData;
 
 	constructor(
-		readonly model: ITextModel,
-		readonly modelVersionId: number,
+		readonly editMode: EditMode,
+		readonly model0: ITextModel,
+		readonly modelN: ITextModel,
 		readonly provider: IInteractiveEditorSessionProvider,
 		readonly session: IInteractiveEditorSession,
-		readonly response: EditResponse,
-	) { }
-}
+	) {
+		this.teldata = {
+			extension: provider.debugName,
+			startTime: new Date().toISOString(),
+			endTime: new Date().toISOString(),
+			edits: false,
+			terminalEdits: false,
+			rounds: '',
+			undos: '',
+			editMode
+		};
+	}
 
+	addResponse(response: EditResponse): void {
+		const newLen = this._responses.push(response);
+		this.teldata.rounds += `${newLen}|`;
+	}
+
+	get lastResponse(): EditResponse | undefined {
+		return this._responses[this._responses.length - 1];
+	}
+}
 
 export interface InteractiveEditorRunOptions {
 	initialRange?: IRange;
@@ -262,10 +285,11 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _ctxLastEditKind: IContextKey<'' | 'simple'>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
 
-	private _lastEditState?: LastEditorState;
 	private _strategy?: EditModeStrategy;
 	private _lastInlineDecorations?: InlineDiffDecorations;
 	private _inlineDiffEnabled: boolean = false;
+
+	private _currentSession?: Session;
 
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
@@ -332,21 +356,19 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._recorder.add(session, textModel);
 		this._logService.trace('[IE] NEW session', provider.debugName);
 
-		const data: TelemetryData = {
-			extension: provider.debugName,
-			startTime: new Date().toISOString(),
-			endTime: new Date().toISOString(),
-			edits: false,
-			terminalEdits: false,
-			rounds: '',
-			undos: '',
-			editMode
-		};
+		const store = new DisposableStore();
 
-		this._strategy = this._instaService.createInstance(
-			EditModeStrategy.ctor(editMode),
-			textModel, textModel.getAlternativeVersionId()
+
+		let textModel0Changes: LineRangeMapping[] | undefined;
+		const textModel0 = this._modelService.createModel(
+			createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
+			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
+			undefined, true
 		);
+
+		store.add(textModel0);
+		this._currentSession = new Session(editMode, textModel0, textModel, provider, session);
+		this._strategy = this._instaService.createInstance(EditModeStrategy.ctor(editMode), this._currentSession);
 
 		this._inlineDiffEnabled = this._storageService.getBoolean(InteractiveEditorController._inlineDiffStorageKey, StorageScope.PROFILE, false);
 		const inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
@@ -368,7 +390,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		let placeholder = session.placeholder ?? '';
 		let value = options?.message ?? '';
 
-		const store = new DisposableStore();
 
 		if (session.slashCommands) {
 			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
@@ -400,7 +421,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				inlineDiffDecorations.clear();
 
 				// note when "other" edits happen
-				data.edits = true;
+				this._currentSession!.teldata.edits = true;
 
 				// CANCEL if the document has changed outside the current range
 				const wholeRange = wholeRangeDecoration.getRange(0);
@@ -413,7 +434,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
 						this._ctsSession.cancel();
 						this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
-						data.terminalEdits = true;
+						this._currentSession!.teldata.terminalEdits = true;
 						break;
 					}
 				}
@@ -421,23 +442,12 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		}, undefined, store);
 
-		let round = 0;
 		const roundStore = new DisposableStore();
 		store.add(roundStore);
 
-		let textModel0Changes: LineRangeMapping[] | undefined;
-		const textModel0 = this._modelService.createModel(
-			createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
-			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-			undefined, true
-		);
-
-		store.add(textModel0);
 		const diffZone = this._instaService.createInstance(InteractiveEditorDiffWidget, this._editor, textModel0);
 
 		do {
-
-			round += 1;
 
 			const wholeRange = wholeRangeDecoration.getRange(0);
 			if (!wholeRange) {
@@ -475,7 +485,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctxLastFeedbackKind.reset();
 			// reveal the line after the whole range to ensure that the input box is visible
 			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
-			if (options?.autoSend && round === 1) {
+			if (options?.autoSend && !this._currentSession.lastResponse) {
 				this.accept();
 			}
 			const input = await inputPromise;
@@ -552,6 +562,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 			const editResponse = new EditResponse(textModel.uri, reply);
+			this._currentSession.addResponse(editResponse);
 
 			const canContinue = this._strategy.update(editResponse);
 			if (!canContinue) {
@@ -563,7 +574,6 @@ export class InteractiveEditorController implements IEditorContribution {
 			// inline diff
 			inlineDiffDecorations.clear();
 
-			this._lastEditState = new LastEditorState(textModel, textModel.getAlternativeVersionId(), provider, session, editResponse);
 
 			// use whole range from reply
 			if (reply.wholeRange) {
@@ -649,17 +659,21 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
 
-			data.rounds += round + '|';
-
 		} while (!thisSession.token.isCancellationRequested);
 
 		this._inlineDiffEnabled = inlineDiffDecorations.visible;
 		this._storageService.store(InteractiveEditorController._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
 
+
+		this._logService.trace('[IE] session DONE', provider.debugName);
+		this._currentSession.teldata.endTime = new Date().toISOString();
+		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', this._currentSession.teldata);
+
+		// done, cleanup
+
 		diffZone.hide();
 		diffZone.dispose();
 
-		// done, cleanup
 		wholeRangeDecoration.clear();
 		blockDecoration.clear();
 		inlineDiffDecorations.clear();
@@ -670,16 +684,11 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxLastEditKind.reset();
 		this._ctxHasResponse.reset();
 		this._ctxLastFeedbackKind.reset();
-		this._lastEditState = undefined;
+		this._currentSession = undefined;
 		this._lastInlineDecorations = undefined;
 
 		this._zone.hide();
 		this._editor.focus();
-
-		this._logService.trace('[IE] session DONE', provider.debugName);
-		data.endTime = new Date().toISOString();
-
-		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', data);
 	}
 
 	accept(): void {
@@ -729,38 +738,33 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	undoLast(): string | void {
-		if (this._lastEditState) {
-			const { model, modelVersionId } = this._lastEditState;
-			while (model.getAlternativeVersionId() !== modelVersionId) {
-				model.undo();
-			}
-			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, InteractiveEditorResponseFeedbackKind.Undone);
-			return this._lastEditState.response.localEdits[0].text;
+		if (this._currentSession?.lastResponse) {
+			this._currentSession.modelN.undo();
+			return this._currentSession.lastResponse.localEdits[0].text;
 		}
 	}
 
 	feedbackLast(helpful: boolean) {
-		if (this._lastEditState) {
+		if (this._currentSession?.lastResponse) {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
-			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, kind);
+			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastResponse.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
 			this._zone.widget.updateMessage('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
-	async applyChanges() {
-		if (!this._lastEditState) {
-			return undefined;
+	async applyChanges(): Promise<EditResponse | void> {
+		if (this._currentSession?.lastResponse) {
+			const { lastResponse } = this._currentSession;
+			await this._strategy?.apply();
+			this._ctsSession.cancel();
+			return lastResponse;
 		}
-		const { response } = this._lastEditState;
-		await this._strategy?.apply();
-		this._ctsSession.cancel();
-		return response;
 	}
 
-	cancelSession() {
+	async cancelSession() {
+		await this._strategy?.cancel();
 		this._ctsSession.cancel();
-		this._strategy?.cancel();
 	}
 }
 
@@ -778,23 +782,19 @@ abstract class EditModeStrategy {
 
 	abstract apply(): Promise<void>;
 
-	abstract cancel(): void;
+	abstract cancel(): Promise<void>;
 }
 
 class PreviewStrategy extends EditModeStrategy {
 
-	private _lastResponse?: EditResponse;
-
 	constructor(
-		private readonly _model: ITextModel,
-		private readonly _versionId: number,
+		protected readonly _session: Session,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
 	}
 
 	update(response: EditResponse): boolean {
-		this._lastResponse = response;
 		if (!response.workspaceEdits || response.singleCreateFileEdit) {
 			// preview stategy can handle simple workspace edit (single file create)
 			return true;
@@ -805,7 +805,7 @@ class PreviewStrategy extends EditModeStrategy {
 
 	async apply() {
 
-		const response = this._lastResponse;
+		const response = this._session.lastResponse;
 		if (!response) {
 			return;
 		}
@@ -814,16 +814,19 @@ class PreviewStrategy extends EditModeStrategy {
 			await this._bulkEditService.apply(response.workspaceEdits);
 
 		} else if (!response.workspaceEditsIncludeLocalEdits) {
-			if (this._model.getAlternativeVersionId() === this._versionId) {
-				this._model.pushStackElement();
+
+			const { modelN } = this._session;
+
+			if (modelN.equalsTextBuffer(this._session.model0.getTextBuffer())) {
+				modelN.pushStackElement();
 				const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-				this._model.pushEditOperations(null, edits, () => null);
-				this._model.pushStackElement();
+				modelN.pushEditOperations(null, edits, () => null);
+				modelN.pushStackElement();
 			}
 		}
 	}
 
-	cancel(): void {
+	async cancel(): Promise<void> {
 		// nothing to do
 	}
 }
@@ -831,9 +834,9 @@ class PreviewStrategy extends EditModeStrategy {
 class LiveStrategy extends EditModeStrategy {
 
 	constructor(
-		protected readonly _model: ITextModel,
-		protected readonly _versionId: number,
+		protected readonly _session: Session,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
+		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService
 	) {
 		super();
 	}
@@ -850,9 +853,12 @@ class LiveStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	cancel(): void {
-		while (this._model.getAlternativeVersionId() !== this._versionId && this._model.canUndo()) {
-			this._model.undo();
+	async cancel() {
+		const { modelN, model0 } = this._session;
+		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: model0.getValue() }]);
+		if (edits) {
+			const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));
+			modelN.pushEditOperations(null, operations, () => null);
 		}
 	}
 }
