@@ -133,8 +133,8 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		}
 
 		this._hideEditorRanges(this.editor, [ranges.modifiedHidden]);
-		this._hideEditorRanges(this._diffEditor.getModifiedEditor(), ranges.modifiedDiffHidden);
 		this._hideEditorRanges(this._diffEditor.getOriginalEditor(), ranges.originalDiffHidden);
+		this._hideEditorRanges(this._diffEditor.getModifiedEditor(), ranges.modifiedDiffHidden);
 
 		this._diffEditor.revealLine(ranges.modifiedHidden.startLineNumber, ScrollType.Immediate);
 
@@ -193,7 +193,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		} else {
 			const ranges = lineRanges.map(r => new Range(r.startLineNumber, 1, r.endLineNumberExclusive - 1, 1));
 			editor.setHiddenAreas(ranges, InteractiveEditorDiffWidget._hideId);
-			this._logService.debug(`[IE] diff HIDING ${ranges} for ${String(editor.getModel()?.uri)}`);
+			this._logService.debug(`[IE] diff HIDING ${ranges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 		}
 	}
 
