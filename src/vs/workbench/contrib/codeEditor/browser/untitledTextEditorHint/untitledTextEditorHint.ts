@@ -98,6 +98,16 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				console.log(event);
 			});
 
+		} else if (this.editor.getValue() === '        ') {
+			this.editor.onKeyDown((event) => {
+				console.log(event);
+			});
+
+		} else if (this.editor.getValue() === '        ') {
+			this.editor.onKeyDown((event) => {
+				console.log(event);
+			});
+
 		} else {
 			this.editor.removeContentWidget(this);
 		}
