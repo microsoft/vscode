@@ -162,7 +162,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, variable: 'A' }]
 					]),
 					descriptionMap: deserializeEnvironmentDescriptionMap([
-						['A-key-scope1', { description: 'ext2 global description' }],
+						['A-key', { description: 'ext2 global description' }],
 					])
 				}],
 				['ext3', {
@@ -170,7 +170,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: scope2, variable: 'A' }]
 					]),
 					descriptionMap: deserializeEnvironmentDescriptionMap([
-						['A-key', { description: 'A3 description', scope: scope2 }],
+						['A-key', { description: 'ext3 scope2 description', scope: scope2 }],
 					])
 				}],
 				['ext4', {
