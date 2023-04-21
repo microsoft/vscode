@@ -397,29 +397,14 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	updateMessage(message: string | HTMLElement, ops: { linkListener?: () => void; isMessageReply?: boolean; classes?: string[]; resetAfter?: number } = {}) {
-		console.log('At the beginning of the updateMessage function');
-		console.log('ops.isMessageReply : ', ops.isMessageReply);
-
+	updateMessage(message: string | Element, ops: { linkListener?: () => void; isMessageReply?: boolean; classes?: string[]; resetAfter?: number } = {}) {
 		const isTempMessage = typeof ops.resetAfter === 'number';
-		console.log('ops.classes : ', ops.classes);
-		console.log('isTempMessage : ', isTempMessage);
-
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
-			const messageNow = this._elements.statusLabel.innerText;
-			console.log('messageNow : ', messageNow);
-			const classes = Array.from(this._elements.statusLabel.classList.values());
 			const isMessageReply = this._statusLink.isShowing();
-			console.log('Outside of setTimeout');
-			console.log('ops : ', ops);
-			console.log('classes : ', classes);
-			console.log('isMessageReply : ', isMessageReply);
+			const messageNow = isMessageReply ? this._elements.statusLabel.firstElementChild : this._elements.statusLabel.innerText;
+			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
 				if (messageNow) {
-					console.log('Inside of setTimeout');
-					console.log('ops : ', ops);
-					console.log('classes : ', classes);
-					console.log('isMessageReply : ', isMessageReply);
 					this.updateMessage(messageNow, { ...ops, classes, isMessageReply });
 				} else {
 					reset(this._elements.statusLabel);
@@ -433,9 +418,7 @@ class InteractiveEditorWidget {
 		} else {
 			this._statusLink.hide();
 		}
-
 		this._elements.status.classList.toggle('hidden', false);
-
 		reset(this._elements.statusLabel, message);
 		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
 		this._elements.statusLabel.classList.toggle('message', ops.isMessageReply);
