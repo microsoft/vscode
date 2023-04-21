@@ -13,13 +13,14 @@ import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-sandbox/issue/issueReporterModel';
-import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
+import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
+import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
+import { CancellationError } from 'vs/base/common/errors';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -50,7 +51,8 @@ export class IssueReporter extends Disposable {
 
 	constructor(
 		private readonly configuration: IssueReporterWindowConfiguration,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IIssueMainService private readonly issueMainService: IIssueMainService
 	) {
 		super();
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === configuration.data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -89,40 +91,17 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		ipcRenderer.on('vscode:issuePerformanceInfoResponse', (_: unknown, info: Partial<IssueReporterData>) => {
-			this.issueReporterModel.update(info);
-			this.receivedPerformanceInfo = true;
-
-			const state = this.issueReporterModel.getData();
-			this.updateProcessInfo(state);
-			this.updateWorkspaceInfo(state);
-			this.updatePreviewButtonState();
-		});
-
-		ipcRenderer.on('vscode:issueSystemInfoResponse', (_: unknown, info: SystemInfo) => {
+		this.issueMainService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
 			this.updateSystemInfo(this.issueReporterModel.getData());
 			this.updatePreviewButtonState();
 		});
-
-		ipcRenderer.on('vscode:getIssueReporterUriResponse', (_: unknown, args: { extensionId: string; uri?: string; error?: string }) => {
-			const extension = this.issueReporterModel.getData().allExtensions.find(extension => extension.id === args.extensionId);
-			if (extension) {
-				if (args.error) {
-					extension.hasIssueUriRequestHandler = false;
-					// The issue handler failed so fall back to old issue reporter experience.
-					this.renderBlocks();
-				} else {
-					extension.bugsUrl = args.uri;
-				}
-			}
-		});
-
-		ipcRenderer.send('vscode:issueSystemInfoRequest');
 		if (configuration.data.issueType === IssueType.PerformanceIssue) {
-			ipcRenderer.send('vscode:issuePerformanceInfoRequest');
+			this.issueMainService.getPerformanceInfo().then(info => {
+				this.updatePerformanceInfo(info as Partial<IssueReporterData>);
+			});
 		}
 
 		if (window.document.documentElement.lang !== 'en') {
@@ -239,7 +218,6 @@ export class IssueReporter extends Disposable {
 		const numberOfThemeExtesions = themes && themes.length;
 		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: installedExtensions });
 		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
-
 		if (this.configuration.disableExtensions || installedExtensions.length === 0) {
 			(<HTMLButtonElement>this.getElementById('disableExtensions')).disabled = true;
 		}
@@ -247,12 +225,25 @@ export class IssueReporter extends Disposable {
 		this.updateExtensionSelector(installedExtensions);
 	}
 
+	private async updateIssueReporterUri(extension: IssueReporterExtensionData, token: CancellationToken): Promise<void> {
+		try {
+			const uri = await this.issueMainService.getIssueReporterUri(extension.id, token);
+			extension.bugsUrl = uri.toString(true);
+		} catch (e) {
+			extension.hasIssueUriRequestHandler = false;
+			// The issue handler failed so fall back to old issue reporter experience.
+			this.renderBlocks();
+		}
+	}
+
 	private setEventHandlers(): void {
 		this.addEventListener('issue-type', 'change', (event: Event) => {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
 			this.issueReporterModel.update({ issueType: issueType });
 			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				ipcRenderer.send('vscode:issuePerformanceInfoRequest');
+				this.issueMainService.getPerformanceInfo().then(info => {
+					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
+				});
 			}
 			this.updatePreviewButtonState();
 			this.setSourceOptions();
@@ -348,12 +339,8 @@ export class IssueReporter extends Disposable {
 			});
 		});
 
-		function sendWorkbenchCommand(commandId: string) {
-			ipcRenderer.send('vscode:workbenchCommand', { id: commandId, from: 'issueReporter' });
-		}
-
 		this.addEventListener('disableExtensions', 'click', () => {
-			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
+			this.issueMainService.reloadWithExtensionsDisabled();
 		});
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
@@ -364,8 +351,7 @@ export class IssueReporter extends Disposable {
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
 			e.stopPropagation();
 			if ((e as KeyboardEvent).keyCode === 13 || (e as KeyboardEvent).keyCode === 32) {
-				sendWorkbenchCommand('workbench.extensions.action.disableAll');
-				sendWorkbenchCommand('workbench.action.reloadWindow');
+				this.issueMainService.reloadWithExtensionsDisabled();
 			}
 		});
 
@@ -375,7 +361,7 @@ export class IssueReporter extends Disposable {
 			if (cmdOrCtrlKey && e.keyCode === 13) {
 				this.delayedSubmit.trigger(async () => {
 					if (await this.createIssue()) {
-						ipcRenderer.send('vscode:closeIssueReporter');
+						this.close();
 					}
 				});
 			}
@@ -388,9 +374,10 @@ export class IssueReporter extends Disposable {
 				const issueTitle = (<HTMLInputElement>this.getElementById('issue-title'))!.value;
 				const { issueDescription } = this.issueReporterModel.getData();
 				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
-					ipcRenderer.send('vscode:issueReporterConfirmClose');
+					// fire and forget
+					this.issueMainService.showConfirmCloseDialog();
 				} else {
-					ipcRenderer.send('vscode:closeIssueReporter');
+					this.close();
 				}
 			}
 
@@ -414,6 +401,16 @@ export class IssueReporter extends Disposable {
 				}
 			}
 		};
+	}
+
+	private updatePerformanceInfo(info: Partial<IssueReporterData>) {
+		this.issueReporterModel.update(info);
+		this.receivedPerformanceInfo = true;
+
+		const state = this.issueReporterModel.getData();
+		this.updateProcessInfo(state);
+		this.updateWorkspaceInfo(state);
+		this.updatePreviewButtonState();
 	}
 
 	private updatePreviewButtonState() {
@@ -505,6 +502,10 @@ export class IssueReporter extends Disposable {
 				return this.searchGitHub(`${gitHubInfo.owner}/${gitHubInfo.repositoryName}`, title);
 			}
 		}
+	}
+
+	private async close(): Promise<void> {
+		await this.issueMainService.closeReporter();
 	}
 
 	private clearSearchResults(): void {
@@ -804,19 +805,14 @@ export class IssueReporter extends Disposable {
 			})
 		};
 
-		return new Promise((resolve, reject) => {
-			window.fetch(url, init).then((response) => {
-				if (response.ok) {
-					response.json().then(result => {
-						ipcRenderer.send('vscode:openExternal', result.html_url);
-						ipcRenderer.send('vscode:closeIssueReporter');
-						resolve(true);
-					});
-				} else {
-					resolve(false);
-				}
-			});
-		});
+		const response = await window.fetch(url, init);
+		if (!response.ok) {
+			return false;
+		}
+		const result = await response.json();
+		await this.nativeHostService.openExternal(result.html_url);
+		this.close();
+		return true;
 	}
 
 	private async createIssue(): Promise<boolean> {
@@ -825,7 +821,7 @@ export class IssueReporter extends Disposable {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
-				ipcRenderer.send('vscode:openExternal', url);
+				await this.nativeHostService.openExternal(url);
 				return true;
 			}
 		}
@@ -881,23 +877,19 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		ipcRenderer.send('vscode:openExternal', url);
+		await this.nativeHostService.openExternal(url);
 		return true;
 	}
 
 	private async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
-		return new Promise((resolve, reject) => {
-			ipcRenderer.once('vscode:issueReporterClipboardResponse', async (event: unknown, shouldWrite: boolean) => {
-				if (shouldWrite) {
-					await this.nativeHostService.writeClipboardText(issueBody);
-					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
-				} else {
-					reject();
-				}
-			});
+		const shouldWrite = await this.issueMainService.showClipboardDialog();
+		if (!shouldWrite) {
+			throw new CancellationError();
+		}
 
-			ipcRenderer.send('vscode:issueReporterClipboard');
-		});
+		await this.nativeHostService.writeClipboardText(issueBody);
+
+		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 	}
 
 	private getIssueUrl(): string {
@@ -1066,7 +1058,9 @@ export class IssueReporter extends Disposable {
 			const { selectedExtension } = this.issueReporterModel.getData();
 			reset(extensionsSelector, $<HTMLOptionElement>('option'), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
 
+			let tokenSource: CancellationTokenSource | undefined;
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
+				tokenSource?.cancel();
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
 				const extensions = this.issueReporterModel.getData().allExtensions;
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
@@ -1075,7 +1069,8 @@ export class IssueReporter extends Disposable {
 					this.validateSelectedExtension();
 
 					if (matches[0].hasIssueUriRequestHandler) {
-						ipcRenderer.send('vscode:getIssueReporterUriRequest', matches[0].id);
+						tokenSource = new CancellationTokenSource();
+						this.updateIssueReporterUri(matches[0], tokenSource?.token);
 					}
 
 					const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
@@ -1140,7 +1135,7 @@ export class IssueReporter extends Disposable {
 	private updateProcessInfo(state: IssueReporterModelData) {
 		const target = document.querySelector('.block-process .block-info') as HTMLElement;
 		if (target) {
-			reset(target, $('code', undefined, state.processInfo));
+			reset(target, $('code', undefined, state.processInfo ?? ''));
 		}
 	}
 

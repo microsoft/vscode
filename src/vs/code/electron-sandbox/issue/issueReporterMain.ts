@@ -9,7 +9,7 @@ import { safeInnerHtml } from 'vs/base/browser/dom';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -18,6 +18,7 @@ import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { IssueReporter } from './IssueReporterService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
+import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 
 export function startup(configuration: IssueReporterWindowConfiguration) {
 	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -46,3 +47,5 @@ function initServices(windowId: number) {
 
 	return new InstantiationService(services, true);
 }
+
+registerMainProcessRemoteService(IIssueMainService, 'issue');

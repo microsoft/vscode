@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from 'vs/workbench/api/common/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError } from 'vs/workbench/common/views';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -266,7 +266,11 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			.then(
 				children => this.postGetChildren(children),
 				err => {
-					this.notificationService.error(err);
+					// It can happen that a tree view is disposed right as `getChildren` is called. This results in an error because the data provider gets removed.
+					// The tree will shortly get cleaned up in this case. We just need to handle the error here.
+					if (!NoTreeViewError.is(err)) {
+						this.notificationService.error(err);
+					}
 					return [];
 				});
 	}

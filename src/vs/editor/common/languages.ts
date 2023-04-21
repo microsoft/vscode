@@ -705,8 +705,9 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	/**
 	 * Will be called when an item is shown.
+	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
-	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 
 	/**
 	 * Will be called when an item is partially accepted.

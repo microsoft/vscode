@@ -353,8 +353,13 @@ export class CommentController implements IEditorContribution {
 		this.globalToDispose.add(this._commentThreadRangeDecorator = new CommentThreadRangeDecorator(this.commentService));
 
 		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
-			delete this._pendingNewCommentCache[ownerId];
-			delete this._pendingEditsCache[ownerId];
+			if (ownerId) {
+				delete this._pendingNewCommentCache[ownerId];
+				delete this._pendingEditsCache[ownerId];
+			} else {
+				this._pendingNewCommentCache = {};
+				this._pendingEditsCache = {};
+			}
 			this.beginCompute();
 		}));
 		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));

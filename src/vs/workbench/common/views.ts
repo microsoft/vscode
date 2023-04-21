@@ -851,8 +851,12 @@ export class ResolvableTreeItem implements ITreeItem {
 }
 
 export class NoTreeViewError extends Error {
+	override readonly name = 'NoTreeViewError';
 	constructor(treeViewId: string) {
 		super(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	}
+	static is(err: Error): err is NoTreeViewError {
+		return err.name === 'NoTreeViewError';
 	}
 }
 

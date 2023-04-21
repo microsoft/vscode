@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -478,6 +479,14 @@ export class InteractiveSessionListDelegate implements IListVirtualDelegate<Inte
 }
 
 export class InteractiveSessionAccessibilityProvider implements IListAccessibilityProvider<InteractiveTreeItem> {
+
+	getWidgetRole(): AriaRole {
+		return 'list';
+	}
+
+	getRole(element: InteractiveTreeItem): AriaRole | undefined {
+		return 'listitem';
+	}
 
 	getWidgetAriaLabel(): string {
 		return localize('interactiveSession', "Interactive Session");

@@ -3778,6 +3778,12 @@ declare namespace monaco.editor {
 		 */
 		enableSplitViewResizing?: boolean;
 		/**
+		 * The default ratio when rendering side-by-side editors.
+		 * Must be a number between 0 and 1, min sizes apply.
+		 * Defaults to 0.5
+		 */
+		splitViewDefaultRatio?: number;
+		/**
 		 * Render the differences in two side-by-side editors.
 		 * Defaults to true.
 		 */
@@ -6895,8 +6901,9 @@ declare namespace monaco.languages {
 		provideInlineCompletions(model: editor.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 		/**
 		 * Will be called when an item is shown.
+		 * @param updatedInsertText Is useful to understand bracket completion.
 		*/
-		handleItemDidShow?(completions: T, item: T['items'][number]): void;
+		handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 		/**
 		 * Will be called when an item is partially accepted.
 		 */
