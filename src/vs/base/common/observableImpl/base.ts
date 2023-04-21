@@ -17,9 +17,8 @@ export interface IObservable<T, TChange = unknown> {
 	 */
 	get(): T;
 
-	/**
-	 * Adds an observer.
-	 */
+	reportChanges(): void;
+
 	addObserver(observer: IObserver): void;
 	removeObserver(observer: IObserver): void;
 
@@ -31,42 +30,51 @@ export interface IObservable<T, TChange = unknown> {
 	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 
 	readonly debugName: string;
+
+	/*get isPossiblyStale(): boolean;
+
+	get isUpdating(): boolean;*/
 }
 
 export interface IReader {
 	/**
-	 * Reports an observable that was read.
+	 * Reads the value of an observable and subscribes to it.
 	 *
 	 * Is called by {@link IObservable.read}.
 	 */
-	subscribeTo<T>(observable: IObservable<T, any>): void;
+	readObservable<T>(observable: IObservable<T, any>): T;
 }
 
 export interface IObserver {
 	/**
-	 * Indicates that an update operation is about to begin.
-	 *
-	 * During an update, invariants might not hold for subscribed observables and
-	 * change events might be delayed.
-	 * However, all changes must be reported before all update operations are over.
+	 * Indicates that calling {@link IObservable.get} might return a different value and the observable is in updating mode.
+	 * Must not be called when the given observable has already been reported to be in updating mode.
 	 */
 	beginUpdate<T>(observable: IObservable<T>): void;
 
 	/**
-	 * Is called by a subscribed observable immediately after it notices a change.
+	 * Is called by a subscribed observable when it leaves updating mode and it doesn't expect changes anymore,
+	 * i.e. when a transaction for that observable is over.
 	 *
-	 * When {@link IObservable.get} returns and no change has been reported,
-	 * there has been no change for that observable.
-	 *
-	 * Implementations must not call into other observables!
-	 * The change should be processed when {@link IObserver.endUpdate} is called.
-	 */
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void;
-
-	/**
-	 * Indicates that an update operation has completed.
+	 * Call {@link IObservable.reportChanges} to learn about possible changes (if they weren't reported yet).
 	 */
 	endUpdate<T>(observable: IObservable<T>): void;
+
+	handlePossibleChange<T>(observable: IObservable<T>): void;
+
+	/**
+	 * Is called by a subscribed observable immediately after it notices a change.
+	 *
+	 * When {@link IObservable.get} is called two times and no change was reported before the second call returns,
+	 * there has been no change in between the two calls for that observable.
+	 *
+	 * If the update counter is zero for a subscribed observable and calling {@link IObservable.get} didn't trigger a change,
+	 * subsequent calls to {@link IObservable.get} don't trigger a change either until the update counter is increased again.
+	 *
+	 * Implementations must not call into other observables!
+	 * The change should be processed when all observed observables settled.
+	 */
+	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void;
 }
 
 export interface ISettable<T, TChange = void> {
@@ -97,13 +105,21 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	get TChange(): TChange { return null!; }
 
 	public abstract get(): T;
+
+	public reportChanges(): void {
+		this.get();
+	}
+
 	public abstract addObserver(observer: IObserver): void;
 	public abstract removeObserver(observer: IObserver): void;
 
 	/** @sealed */
 	public read(reader: IReader | undefined): T {
-		reader?.subscribeTo(this);
-		return this.get();
+		if (reader) {
+			return reader.readObservable(this);
+		} else {
+			return this.get();
+		}
 	}
 
 	/** @sealed */
@@ -155,15 +171,6 @@ export function transaction(fn: (tx: ITransaction) => void, getDebugName?: () =>
 	}
 }
 
-export function getFunctionName(fn: Function): string | undefined {
-	const fnSrc = fn.toString();
-	// Pattern: /** @description ... */
-	const regexp = /\/\*\*\s*@description\s*([^*]*)\*\//;
-	const match = regexp.exec(fnSrc);
-	const result = match ? match[1] : undefined;
-	return result?.trim();
-}
-
 export class TransactionImpl implements ITransaction {
 	private updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
 
@@ -176,10 +183,7 @@ export class TransactionImpl implements ITransaction {
 		return getFunctionName(this.fn);
 	}
 
-	public updateObserver(
-		observer: IObserver,
-		observable: IObservable<any>
-	): void {
+	public updateObserver(observer: IObserver, observable: IObservable<any>): void {
 		this.updatingObservers!.push({ observer, observable });
 		observer.beginUpdate(observable);
 	}
@@ -192,6 +196,15 @@ export class TransactionImpl implements ITransaction {
 			observer.endUpdate(observable);
 		}
 	}
+}
+
+export function getFunctionName(fn: Function): string | undefined {
+	const fnSrc = fn.toString();
+	// Pattern: /** @description ... */
+	const regexp = /\/\*\*\s*@description\s*([^*]*)\*\//;
+	const match = regexp.exec(fnSrc);
+	const result = match ? match[1] : undefined;
+	return result?.trim();
 }
 
 export interface ISettableObservable<T, TChange = void> extends IObservable<T, TChange>, ISettable<T, TChange> {
@@ -211,7 +224,6 @@ export class ObservableValue<T, TChange = void>
 		super();
 		this._value = initialValue;
 	}
-
 	public get(): T {
 		return this._value;
 	}
@@ -221,20 +233,23 @@ export class ObservableValue<T, TChange = void>
 			return;
 		}
 
+		let _tx: TransactionImpl | undefined;
 		if (!tx) {
-			transaction((tx) => {
-				this.set(value, tx, change);
-			}, () => `Setting ${this.debugName}`);
-			return;
+			tx = _tx = new TransactionImpl(() => { }, () => `Setting ${this.debugName}`);
 		}
+		try {
+			const oldValue = this._value;
+			this._setValue(value);
+			getLogger()?.handleObservableChanged(this, { oldValue, newValue: value, change, didChange: true });
 
-		const oldValue = this._value;
-		this._setValue(value);
-		getLogger()?.handleObservableChanged(this, { oldValue, newValue: value, change, didChange: true });
-
-		for (const observer of this.observers) {
-			tx.updateObserver(observer, this);
-			observer.handleChange(this, change);
+			for (const observer of this.observers) {
+				tx.updateObserver(observer, this);
+				observer.handleChange(this, change);
+			}
+		} finally {
+			if (_tx) {
+				_tx.finish();
+			}
 		}
 	}
 
