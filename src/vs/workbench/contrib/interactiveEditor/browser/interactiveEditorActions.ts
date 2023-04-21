@@ -507,7 +507,7 @@ export class ViewInChatAction extends AbstractInteractiveEditorAction {
 			title: localize('viewInChat', 'View in Chat'),
 			precondition: CTX_INTERACTIVE_EDITOR_VIEW_IN_CHAT_FOCUSED,
 			keybinding: {
-				weight: KeybindingWeight.EditorCore + 10,
+				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Enter
 			}
 		});
