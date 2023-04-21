@@ -211,7 +211,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	};
 }
 
-async function main(arch = process.arch): Promise<void> {
+async function main(arch: string = process.arch): Promise<void> {
 	const version = product.electronRepository ? '24.1.2' : util.getElectronVersion();
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');
