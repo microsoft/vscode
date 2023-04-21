@@ -5,7 +5,7 @@
 
 import 'vs/css!./interactiveEditor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -14,10 +14,10 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_VIEW_IN_CHAT_FOCUSED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ITextModel } from 'vs/editor/common/model';
-import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset, append, trackFocus } from 'vs/base/browser/dom';
-import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
+import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
+import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -37,7 +37,6 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -94,50 +93,6 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	readOnly: true,
 };
 
-class StatusLink extends Disposable {
-
-	private readonly _domNode: HTMLAnchorElement;
-	private _ctxViewInChatFocused: IContextKey<boolean> = CTX_INTERACTIVE_EDITOR_VIEW_IN_CHAT_FOCUSED.bindTo(this._contextKeyService);
-	private readonly _onClicked = this._register(new Emitter<void>());
-	readonly onClicked = this._onClicked.event;
-
-	constructor(
-		container: HTMLElement,
-		private readonly _contextKeyService: IContextKeyService,
-	) {
-		super();
-		const linkNode = document.createElement('a');
-		const linkMessage = localize('viewInChat', 'View in Chat');
-		const codicon = renderLabelWithIcons('$(comment-discussion)' + linkMessage);
-		reset(linkNode, ...codicon);
-		this._domNode = append(container, linkNode);
-		this._domNode.classList.add('status-link');
-		this._domNode.tabIndex = 0;
-		this._domNode.setAttribute('aria-label', linkMessage);
-		const focusTracker = this._register(trackFocus(this._domNode));
-		this._register(focusTracker.onDidFocus(() => {
-			this._ctxViewInChatFocused.set(true);
-		}));
-		this._register(focusTracker.onDidBlur(() => {
-			this._ctxViewInChatFocused.set(false);
-		}));
-		this._register(addDisposableListener(this._domNode, 'click', () => this._onClicked.fire()));
-	}
-
-	show(): void {
-		this._domNode.style.display = 'flex';
-	}
-
-	hide(): void {
-		this._domNode.style.display = 'none';
-	}
-
-	override dispose(): void {
-		super.dispose();
-		this._ctxViewInChatFocused.reset();
-	}
-}
-
 class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
@@ -162,8 +117,7 @@ class InteractiveEditorWidget {
 			h('div.previewCreate.hidden@previewCreate'),
 			h('div.status@status', [
 				h('div.actions.hidden@statusToolbar'),
-				h('span.label@statusLabel'),
-				h('span.link@statusLink'),
+				h('div.label@statusLabel'),
 			]),
 		]
 	);
@@ -192,9 +146,6 @@ class InteractiveEditorWidget {
 
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
-
-	private readonly _statusLink: StatusLink;
-	private readonly _statusLinkListener = this._store.add(new MutableDisposable());
 
 	constructor(
 		parentEditor: ICodeEditor,
@@ -270,7 +221,6 @@ class InteractiveEditorWidget {
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
-		this._statusLink = new StatusLink(this._elements.statusLink, this._contextKeyService);
 		this._elements.statusLabel.tabIndex = 0;
 		this._elements.statusLabel.setAttribute('aria-label', 'Copilot Inline Response');
 		this._elements.statusLabel.setAttribute('role', 'alert');
@@ -415,13 +365,6 @@ class InteractiveEditorWidget {
 	}
 
 	updateMessage(message: string | HTMLElement, ops: { linkListener?: () => void; isMessageReply?: boolean; classes?: string[]; resetAfter?: number } = {}) {
-		this._statusLinkListener.clear();
-		if (ops.isMessageReply) {
-			this._statusLink.show();
-			this._statusLinkListener.value = this._statusLink.onClicked(() => ops.linkListener?.());
-		} else {
-			this._statusLink.hide();
-		}
 		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const messageNow = this._elements.statusLabel.innerText;

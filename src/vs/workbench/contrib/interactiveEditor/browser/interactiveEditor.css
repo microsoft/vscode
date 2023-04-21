@@ -91,9 +91,6 @@
 
 .monaco-editor .interactive-editor .status {
 	padding: 6px 0px 2px 0px;
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
 }
 
 .monaco-editor .interactive-editor.preview .status {
@@ -104,20 +101,10 @@
 	display: none;
 }
 
-.monaco-editor .interactive-editor .status .link {
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-	font-size: 12px;
-	white-space: nowrap;
-	/* margin-top: auto; */
-}
-
 .monaco-editor .interactive-editor .status .label {
 	overflow: hidden;
 	font-size: 12px;
-	margin-left: auto;
-	padding-left: 5px;
-	padding-right: 5px;
+	display: block;
 }
 
 .monaco-editor .interactive-editor .status .label.message {
@@ -128,15 +115,6 @@
 	display: -webkit-box;
 }
 
-.monaco-editor .interactive-editor .status .link .status-link  {
-	padding: 5px;
-}
-
-.monaco-editor .interactive-editor .status .link  .status-link .codicon {
-	line-height: unset;
-	font-size: 12px;
-	padding-right: 4px;
-}
 
 .monaco-editor .interactive-editor .status .label A {
 	color: var(--vscode-textLink-foreground);
