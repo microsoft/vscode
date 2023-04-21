@@ -40,9 +40,11 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
@@ -280,8 +282,8 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _recorder = new SessionRecorder();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
-	private readonly _ctxHasResponse: IContextKey<boolean>;
 	private readonly _ctxInlineDiff: IContextKey<boolean>;
+	private readonly _ctxLastResponseType: IContextKey<undefined | InteractiveEditorResponseType>;
 	private readonly _ctxLastEditKind: IContextKey<'' | 'simple'>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
 
@@ -307,14 +309,15 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
+		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 
 	) {
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
-		this._ctxHasResponse = CTX_INTERACTIVE_EDITOR_HAS_RESPONSE.bindTo(contextKeyService);
 		this._ctxInlineDiff = CTX_INTERACTIVE_EDITOR_INLNE_DIFF.bindTo(contextKeyService);
 		this._ctxLastEditKind = CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND.bindTo(contextKeyService);
+		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND.bindTo(contextKeyService);
 	}
 
@@ -343,6 +346,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		const editMode = this._getMode();
 
 		this._ctsSession.dispose(true);
+		this._cancelNotebookSiblingEditors();
 
 		if (!this._editor.hasModel()) {
 			return;
@@ -542,7 +546,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				}
 			} finally {
 				this._ctxHasActiveRequest.set(false);
-				this._ctxHasResponse.set(!!reply);
+				this._ctxLastResponseType.set(reply?.type);
 				this._zone.widget.updateProgress(false);
 				this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
 			}
@@ -692,13 +696,44 @@ export class InteractiveEditorController implements IEditorContribution {
 		session.dispose?.();
 
 		this._ctxLastEditKind.reset();
-		this._ctxHasResponse.reset();
+		this._ctxLastResponseType.reset();
 		this._ctxLastFeedbackKind.reset();
 		this._currentSession = undefined;
 		this._lastInlineDecorations = undefined;
 
 		this._zone.hide();
 		this._editor.focus();
+	}
+
+	private _cancelNotebookSiblingEditors() {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		const candidate = CellUri.parse(this._editor.getModel().uri);
+		if (!candidate) {
+			return;
+		}
+		for (const editor of this._notebookEditorService.listNotebookEditors()) {
+			if (isEqual(editor.textModel?.uri, candidate.notebook)) {
+				let found = false;
+				const editors: ICodeEditor[] = [];
+				for (const [, codeEditor] of editor.codeEditors) {
+					editors.push(codeEditor);
+					found = codeEditor === this._editor || found;
+				}
+				if (found) {
+					// found the this editor in the outer notebook editor -> make sure to
+					// cancel all sibling sessions
+					for (const editor of editors) {
+						if (editor !== this._editor) {
+							InteractiveEditorController.get(editor)?.cancelSession();
+
+						}
+					}
+					break;
+				}
+			}
+		}
 	}
 
 	accept(): void {
@@ -865,6 +900,9 @@ class LiveStrategy extends EditModeStrategy {
 
 	async cancel() {
 		const { modelN, model0 } = this._session;
+		if (modelN.isDisposed() || model0.isDisposed()) {
+			return;
+		}
 		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: model0.getValue() }]);
 		if (edits) {
 			const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));

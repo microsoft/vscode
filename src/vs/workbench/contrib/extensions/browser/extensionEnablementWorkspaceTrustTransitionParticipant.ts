@@ -38,7 +38,7 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 							if (environmentService.remoteAuthority) {
 								hostService.reload();
 							} else {
-								extensionService.stopExtensionHosts();
+								extensionService.stopExtensionHosts(true); // TODO@lszomoru adopt support for extension host to veto stopping
 								await extensionEnablementService.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
 								extensionService.startExtensionHosts();
 							}
