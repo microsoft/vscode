@@ -55,7 +55,8 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			scrollBeyondLastLine: false,
 			stickyScroll: { enabled: false },
 			renderOverviewRuler: false,
-			diffAlgorithm: 'advanced'
+			diffAlgorithm: 'advanced',
+			splitViewDefaultRatio: 0.35
 		}, {
 			originalEditor: { contributions: diffContributions },
 			modifiedEditor: { contributions: diffContributions }

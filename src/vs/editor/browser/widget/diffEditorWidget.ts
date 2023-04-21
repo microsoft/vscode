@@ -29,7 +29,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import { IDiffLinesChange, InlineDiffMargin } from 'vs/editor/browser/widget/inlineDiffMargin';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
-import { boolean as validateBooleanOption, clampedInt, EditorFontLigatures, EditorLayoutInfo, EditorOption, EditorOptions, IDiffEditorOptions, stringSet as validateStringSetOption, ValidDiffEditorBaseOptions } from 'vs/editor/common/config/editorOptions';
+import { boolean as validateBooleanOption, clampedInt, EditorFontLigatures, EditorLayoutInfo, EditorOption, EditorOptions, IDiffEditorOptions, stringSet as validateStringSetOption, ValidDiffEditorBaseOptions, clampedFloat } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -273,6 +273,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._options = validateDiffEditorOptions(options, {
 			enableSplitViewResizing: true,
+			splitViewDefaultRatio: 0.5,
 			renderSideBySide: true,
 			renderMarginRevertIcon: true,
 			maxComputationTime: 5000,
@@ -364,7 +365,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);
 
 		if (this._options.renderSideBySide) {
-			this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing));
+			this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing, this._options.splitViewDefaultRatio));
 		} else {
 			this._setStrategy(new DiffEditorWidgetInline(this._createDataSource(), this._options.enableSplitViewResizing));
 		}
@@ -788,12 +789,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(_newOptions));
 
 		// enableSplitViewResizing
-		this._strategy.setEnableSplitViewResizing(this._options.enableSplitViewResizing);
+		this._strategy.setEnableSplitViewResizing(this._options.enableSplitViewResizing, this._options.splitViewDefaultRatio);
 
 		// renderSideBySide
 		if (changed.renderSideBySide) {
 			if (this._options.renderSideBySide) {
-				this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing));
+				this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing, this._options.splitViewDefaultRatio));
 			} else {
 				this._setStrategy(new DiffEditorWidgetInline(this._createDataSource(), this._options.enableSplitViewResizing));
 			}
@@ -1584,7 +1585,7 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 	protected abstract _getOriginalEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
 	protected abstract _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, renderMarginRevertIcon: boolean): IEditorDiffDecorations;
 
-	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
+	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean, defaultRatio: number): void;
 	public abstract layout(): number;
 
 	setBoundarySashes(_sashes: IBoundarySashes): void {
@@ -1974,14 +1975,16 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 	private _disableSash: boolean;
 	private readonly _sash: Sash;
+	private _defaultRatio: number;
 	private _sashRatio: number | null;
 	private _sashPosition: number | null;
 	private _startSashPosition: number | null;
 
-	constructor(dataSource: IDataSource, enableSplitViewResizing: boolean) {
+	constructor(dataSource: IDataSource, enableSplitViewResizing: boolean, defaultSashRatio: number) {
 		super(dataSource);
 
 		this._disableSash = (enableSplitViewResizing === false);
+		this._defaultRatio = defaultSashRatio;
 		this._sashRatio = null;
 		this._sashPosition = null;
 		this._startSashPosition = null;
@@ -1997,7 +2000,8 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		this._sash.onDidReset(() => this._onSashReset());
 	}
 
-	public setEnableSplitViewResizing(enableSplitViewResizing: boolean): void {
+	public setEnableSplitViewResizing(enableSplitViewResizing: boolean, defaultRatio: number): void {
+		this._defaultRatio = defaultRatio;
 		const newDisableSash = (enableSplitViewResizing === false);
 		if (this._disableSash !== newDisableSash) {
 			this._disableSash = newDisableSash;
@@ -2005,12 +2009,12 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		}
 	}
 
-	public layout(sashRatio: number | null = this._sashRatio): number {
+	public layout(sashRatio: number | null = this._sashRatio || this._defaultRatio): number {
 		const w = this._dataSource.getWidth();
 		const contentWidth = w - (this._dataSource.getOptions().renderOverviewRuler ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0);
 
-		let sashPosition = Math.floor((sashRatio || 0.5) * contentWidth);
-		const midPoint = Math.floor(0.5 * contentWidth);
+		let sashPosition = Math.floor((sashRatio || this._defaultRatio) * contentWidth);
+		const midPoint = Math.floor(this._defaultRatio * contentWidth);
 
 		sashPosition = this._disableSash ? midPoint : sashPosition || midPoint;
 
@@ -2053,7 +2057,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 	}
 
 	private _onSashReset(): void {
-		this._sashRatio = 0.5;
+		this._sashRatio = this._defaultRatio;
 		this._dataSource.relayoutEditors();
 		this._sash.layout();
 	}
@@ -2749,6 +2753,7 @@ function getViewRange(model: ITextModel, viewModel: IViewModel, startLineNumber:
 function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaults: ValidDiffEditorBaseOptions): ValidDiffEditorBaseOptions {
 	return {
 		enableSplitViewResizing: validateBooleanOption(options.enableSplitViewResizing, defaults.enableSplitViewResizing),
+		splitViewDefaultRatio: clampedFloat(options.splitViewDefaultRatio, 0.5, 0.1, 0.9),
 		renderSideBySide: validateBooleanOption(options.renderSideBySide, defaults.renderSideBySide),
 		renderMarginRevertIcon: validateBooleanOption(options.renderMarginRevertIcon, defaults.renderMarginRevertIcon),
 		maxComputationTime: clampedInt(options.maxComputationTime, defaults.maxComputationTime, 0, Constants.MAX_SAFE_SMALL_INTEGER),
