@@ -292,8 +292,10 @@ const skippedFiles = [
 	'nls.build.ts',
 
 	// Monaco
-	'standaloneEditor.ts',
+	'editorCommon.ts',
 	'editorOptions.ts',
+	'editorZoom.ts',
+	'standaloneEditor.ts',
 	'standaloneLanguages.ts',
 
 	// Generated
