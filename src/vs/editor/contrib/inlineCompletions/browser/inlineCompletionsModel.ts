@@ -84,8 +84,9 @@ export class InlineCompletionsModel extends Disposable {
 			if (completion?.semanticId !== lastItem?.semanticId) {
 				lastItem = completion;
 				if (completion) {
-					const src = completion.inlineCompletion.source;
-					src.provider.handleItemDidShow?.(src.inlineCompletions, completion.inlineCompletion.sourceInlineCompletion);
+					const i = completion.inlineCompletion;
+					const src = i.source;
+					src.provider.handleItemDidShow?.(src.inlineCompletions, i.sourceInlineCompletion, i.insertText);
 				}
 			}
 		}));
