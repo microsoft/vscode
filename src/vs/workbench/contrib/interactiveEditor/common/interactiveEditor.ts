@@ -92,6 +92,7 @@ export interface IInteractiveEditorService {
 	getAllProvider(): Iterable<IInteractiveEditorSessionProvider>;
 }
 
+export const INTERACTIVE_EDITOR_ID = 'interactiveEditor';
 
 export const CTX_INTERACTIVE_EDITOR_HAS_PROVIDER = new RawContextKey<boolean>('interactiveEditorHasProvider', false, localize('interactiveEditorHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INTERACTIVE_EDITOR_VISIBLE = new RawContextKey<boolean>('interactiveEditorVisible', false, localize('interactiveEditorVisible', "Whether the interactive editor input is visible"));
