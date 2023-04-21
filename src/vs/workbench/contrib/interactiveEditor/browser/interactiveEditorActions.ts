@@ -508,10 +508,10 @@ export class ViewInChatAction extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.viewInChat',
 			title: localize('viewInChat', 'View in Chat'),
 			icon: Codicon.commentDiscussion,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo(undefined)),
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo('message'),
+				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.isEqualTo('message'),
 				group: 'viewInChat',
 				order: 1
 			}
