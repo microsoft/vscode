@@ -287,10 +287,13 @@ const fileIdents = new class {
 };
 
 const skippedFiles = [
+	'css.build.ts', // Build file
+	'nls.build.ts', // Build file
 	'standaloneEditor.ts', // Monaco editor API
 	'standaloneLanguages.ts', // Monaco API
 	'extensionsApiProposals.ts', // Generated file
 ];
+
 class FunctionData {
 
 	readonly replacementName: string;
