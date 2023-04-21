@@ -283,6 +283,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 /**
  * Called on the worker side
  * @internal
+ * @skipMangle
  */
 export function create(host: INotebookWorkerHost): IRequestHandler {
 	return new NotebookEditorSimpleWorker();

@@ -180,6 +180,9 @@ export class OutputLinkComputer {
 }
 
 // Export this function because this will be called by the web worker for computing links
+/**
+ * @skipMangle
+ */
 export function create(ctx: IWorkerContext, createData: ICreateData): OutputLinkComputer {
 	return new OutputLinkComputer(ctx, createData);
 }
