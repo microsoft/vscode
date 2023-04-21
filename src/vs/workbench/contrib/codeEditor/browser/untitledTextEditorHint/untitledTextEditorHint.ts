@@ -96,7 +96,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		} else if (this.editor.getValue() === '    ') {
 			this.editor.onKeyDown((event) => {
 				if (event['code'] === 'Enter') {
-					console.log(event);
+					this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
 				}
 			});
 
