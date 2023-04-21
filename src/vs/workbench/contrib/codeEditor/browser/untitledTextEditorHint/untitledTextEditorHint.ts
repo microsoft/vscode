@@ -90,8 +90,11 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 	}
 
 	private onDidChangeModelContent(): void {
+
 		if (this.editor.getValue() === '') {
 			this.editor.addContentWidget(this);
+		} else if (this.editor.getValue() === '    ') {
+			console.log('hiiiiiiii');
 		} else {
 			this.editor.removeContentWidget(this);
 		}
