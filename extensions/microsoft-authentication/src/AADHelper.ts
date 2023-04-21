@@ -13,11 +13,20 @@ import { LoopbackAuthServer } from './node/authServer';
 import { base64Decode } from './node/buffer';
 import { fetching } from './node/fetch';
 import { UriEventHandler } from './UriEventHandler';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 const redirectUrl = 'https://vscode.dev/redirect';
 const defaultLoginEndpointUrl = 'https://login.microsoftonline.com/';
 const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 const DEFAULT_TENANT = 'organizations';
+const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
+const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
+
+const enum MicrosoftAccountType {
+	AAD = 'aad',
+	MSA = 'msa',
+	Unknown = 'unknown'
+}
 
 interface IToken {
 	accessToken?: string; // When unable to refresh due to network problems, the access token becomes undefined
@@ -30,6 +39,7 @@ interface IToken {
 	account: {
 		label: string;
 		id: string;
+		type: MicrosoftAccountType;
 	};
 	scope: string;
 	sessionId: string; // The account id + the scope
@@ -40,8 +50,7 @@ export interface IStoredSession {
 	refreshToken: string;
 	scope: string; // Scopes are alphabetized and joined with a space
 	account: {
-		label?: string;
-		displayName?: string;
+		label: string;
 		id: string;
 	};
 	endpoint: string | undefined;
@@ -89,9 +98,10 @@ export class AzureActiveDirectoryService {
 
 	constructor(
 		private readonly _logger: vscode.LogOutputChannel,
-		private readonly _context: vscode.ExtensionContext,
+		_context: vscode.ExtensionContext,
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _tokenStorage: BetterTokenStorage<IStoredSession>,
+		private readonly _telemetryReporter: TelemetryReporter,
 		private readonly _loginEndpointUrl: string = defaultLoginEndpointUrl
 	) {
 		_context.subscriptions.push(this._tokenStorage.onDidChangeInOtherWindow((e) => this.checkForUpdates(e)));
@@ -122,8 +132,8 @@ export class AzureActiveDirectoryService {
 						accessToken: undefined,
 						refreshToken: session.refreshToken,
 						account: {
-							label: session.account.label ?? session.account.displayName!,
-							id: session.account.id
+							...session.account,
+							type: MicrosoftAccountType.Unknown
 						},
 						scope: session.scope,
 						sessionId: session.id
@@ -135,8 +145,8 @@ export class AzureActiveDirectoryService {
 						accessToken: undefined,
 						refreshToken: session.refreshToken,
 						account: {
-							label: session.account.label ?? session.account.displayName!,
-							id: session.account.id
+							...session.account,
+							type: MicrosoftAccountType.Unknown
 						},
 						scope: session.scope,
 						sessionId: session.id
@@ -150,7 +160,24 @@ export class AzureActiveDirectoryService {
 			if (res.status === 'rejected') {
 				this._logger.error(`Failed to initialize stored data: ${res.reason}`);
 				this.clearSessions();
+				break;
 			}
+		}
+
+		for (const token of this._tokens) {
+			/* __GDPR__
+				"login" : {
+					"owner": "TylerLeonhardt",
+					"comment": "Used to determine the usage of the Microsoft Auth Provider.",
+					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
+					"accountType": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what account types are being used." }
+				}
+			*/
+			this._telemetryReporter.sendTelemetryEvent('account', {
+				// Get rid of guids from telemetry.
+				scopes: JSON.stringify(token.scope.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}').split(' ')),
+				accountType: token.account.type
+			});
 		}
 	}
 
@@ -504,7 +531,8 @@ export class AzureActiveDirectoryService {
 			sessionId: existingId || `${id}/${randomUUID()}`,
 			account: {
 				label,
-				id
+				id,
+				type: claims.tid === MSA_TID || claims.tid === MSA_PASSTHRU_TID ? MicrosoftAccountType.MSA : MicrosoftAccountType.AAD
 			}
 		};
 	}
@@ -908,27 +936,6 @@ export class AzureActiveDirectoryService {
 		session.endpoint ||= defaultLoginEndpointUrl;
 
 		return session.endpoint === this._loginEndpointUrl;
-	}
-
-	//#endregion
-
-	//#region static methods
-
-	private static getCallbackEnvironment(callbackUri: vscode.Uri): string {
-		if (callbackUri.scheme !== 'https' && callbackUri.scheme !== 'http') {
-			return callbackUri.scheme;
-		}
-
-		switch (callbackUri.authority) {
-			case 'online.visualstudio.com':
-				return 'vso';
-			case 'online-ppe.core.vsengsaas.visualstudio.com':
-				return 'vsoppe';
-			case 'online.dev.core.vsengsaas.visualstudio.com':
-				return 'vsodev';
-			default:
-				return callbackUri.authority;
-		}
 	}
 
 	//#endregion
