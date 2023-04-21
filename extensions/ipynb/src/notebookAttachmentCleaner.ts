@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ATTACHMENT_CLEANUP_COMMANDID, JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR } from './constants';
-import { DebounceTrigger, deepClone, objectEquals } from './helper';
+import { deepClone, objectEquals, Delayer } from './helper';
 
 interface AttachmentCleanRequest {
 	notebook: vscode.NotebookDocument;
@@ -32,15 +32,10 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 
 	private _disposables: vscode.Disposable[];
 	private _imageDiagnosticCollection: vscode.DiagnosticCollection;
+	private readonly _delayer = new Delayer(750);
+
 	constructor() {
 		this._disposables = [];
-		const debounceTrigger = new DebounceTrigger<AttachmentCleanRequest>({
-			callback: (change: AttachmentCleanRequest) => {
-				this.cleanNotebookAttachments(change);
-			},
-			delay: 500
-		});
-
 		this._imageDiagnosticCollection = vscode.languages.createDiagnosticCollection('Notebook Image Attachment');
 		this._disposables.push(this._imageDiagnosticCollection);
 
@@ -57,21 +52,64 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		}));
 
 		this._disposables.push(vscode.workspace.onDidChangeNotebookDocument(e => {
-			e.cellChanges.forEach(change => {
-				if (!change.document) {
-					return;
-				}
+			this._delayer.trigger(() => {
 
-				if (change.cell.kind !== vscode.NotebookCellKind.Markup) {
-					return;
-				}
+				e.cellChanges.forEach(change => {
+					if (!change.document) {
+						return;
+					}
 
-				debounceTrigger.trigger({
-					notebook: e.notebook,
-					cell: change.cell,
-					document: change.document
+					if (change.cell.kind !== vscode.NotebookCellKind.Markup) {
+						return;
+					}
+
+					const metadataEdit = this.cleanNotebookAttachments({
+						notebook: e.notebook,
+						cell: change.cell,
+						document: change.document
+					});
+					if (metadataEdit) {
+						const workspaceEdit = new vscode.WorkspaceEdit();
+						workspaceEdit.set(e.notebook.uri, [metadataEdit]);
+						vscode.workspace.applyEdit(workspaceEdit);
+					}
 				});
 			});
+		}));
+
+
+		this._disposables.push(vscode.workspace.onWillSaveNotebookDocument(e => {
+			if (e.reason === vscode.TextDocumentSaveReason.Manual) {
+				this._delayer.dispose();
+
+				e.waitUntil(new Promise((resolve) => {
+					if (e.notebook.getCells().length === 0) {
+						return;
+					}
+
+					const notebookEdits: vscode.NotebookEdit[] = [];
+					for (const cell of e.notebook.getCells()) {
+						if (cell.kind !== vscode.NotebookCellKind.Markup) {
+							continue;
+						}
+
+						const metadataEdit = this.cleanNotebookAttachments({
+							notebook: e.notebook,
+							cell: cell,
+							document: cell.document
+						});
+
+						if (metadataEdit) {
+							notebookEdits.push(metadataEdit);
+						}
+					}
+
+					const workspaceEdit = new vscode.WorkspaceEdit();
+					workspaceEdit.set(e.notebook.uri, notebookEdits);
+
+					resolve(workspaceEdit);
+				}));
+			}
 		}));
 
 		this._disposables.push(vscode.workspace.onDidCloseNotebookDocument(e => {
@@ -134,8 +172,10 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 	/**
 	 * take in a NotebookDocumentChangeEvent, and clean the attachment data for the cell(s) that have had their markdown source code changed
 	 * @param e NotebookDocumentChangeEvent from the onDidChangeNotebookDocument listener
+	 * @returns vscode.NotebookEdit, the metadata alteration performed on the json behind the ipynb
 	 */
-	private cleanNotebookAttachments(e: AttachmentCleanRequest) {
+	private cleanNotebookAttachments(e: AttachmentCleanRequest): vscode.NotebookEdit | undefined {
+
 		if (e.notebook.isClosed) {
 			return;
 		}
@@ -187,16 +227,16 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 			}
 		}
 
+		this.updateDiagnostics(cell.document.uri, diagnostics);
+
 		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse, cell.metadata.attachments)) {
 			const updateMetadata: { [key: string]: any } = deepClone(cell.metadata);
 			updateMetadata.attachments = markdownAttachmentsInUse;
 			const metadataEdit = vscode.NotebookEdit.updateCellMetadata(cell.index, updateMetadata);
-			const workspaceEdit = new vscode.WorkspaceEdit();
-			workspaceEdit.set(e.notebook.uri, [metadataEdit]);
-			vscode.workspace.applyEdit(workspaceEdit);
-		}
 
-		this.updateDiagnostics(cell.document.uri, diagnostics);
+			return metadataEdit;
+		}
+		return;
 	}
 
 	private analyzeMissingAttachments(document: vscode.TextDocument): void {
@@ -325,7 +365,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 	private getAttachmentNames(document: vscode.TextDocument) {
 		const source = document.getText();
 		const filenames: Map<string, { valid: boolean; ranges: vscode.Range[] }> = new Map();
-		const re = /!\[.*?\]\(attachment:(?<filename>.*?)\)/gm;
+		const re = /!\[.*?\]\(<?attachment:(?<filename>.*?)>?\)/gm;
 
 		let match;
 		while ((match = re.exec(source))) {
@@ -345,6 +385,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 
 	dispose() {
 		this._disposables.forEach(d => d.dispose());
+		this._delayer.dispose();
 	}
 }
 

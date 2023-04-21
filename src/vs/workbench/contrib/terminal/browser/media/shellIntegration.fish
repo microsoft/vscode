@@ -28,6 +28,32 @@ if status --is-login; and set -q VSCODE_PATH_PREFIX
 end
 set -e VSCODE_PATH_PREFIX
 
+# Apply EnvironmentVariableCollections if needed
+if test -n "$VSCODE_ENV_REPLACE"
+	set ITEMS $(string split : $VSCODE_ENV_REPLACE)
+	for B in $ITEMS
+		set split $(string split = $B)
+		set -gx "$split[1]" "$split[2]"
+	end
+	set -e VSCODE_ENV_REPLACE
+end
+if test -n "$VSCODE_ENV_PREPEND"
+	set ITEMS $(string split : $VSCODE_ENV_PREPEND)
+	for B in $ITEMS
+		set split $(string split = $B)
+		set -gx "$split[1]" "$split[2]$$split[1]" # avoid -p as it adds a space
+	end
+	set -e VSCODE_ENV_PREPEND
+end
+if test -n "$VSCODE_ENV_APPEND"
+	set ITEMS $(string split : $VSCODE_ENV_APPEND)
+	for B in $ITEMS
+		set split $(string split = $B)
+		set -gx "$split[1]" "$$split[1]$split[2]" # avoid -a as it adds a space
+	end
+	set -e VSCODE_ENV_APPEND
+end
+
 # Helper function
 function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
 	builtin printf "\e]633;%s\a" (string join ";" $argv)

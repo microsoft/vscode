@@ -424,6 +424,12 @@ export class EditorPanes extends Disposable {
 			if (!operation.isCurrent()) {
 				cancelled = true;
 			}
+		} catch (error) {
+			if (!operation.isCurrent()) {
+				cancelled = true;
+			} else {
+				throw error;
+			}
 		} finally {
 			operation.stop();
 		}

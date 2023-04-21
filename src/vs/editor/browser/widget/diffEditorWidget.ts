@@ -252,6 +252,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService
 	) {
 		super();
+		codeEditorService.willCreateDiffEditor();
 
 		this._documentDiffProvider = this._register(instantiationService.createInstance(WorkerBasedDocumentDiffProvider, options));
 		this._register(this._documentDiffProvider.onDidChange(e => this._beginUpdateDecorationsSoon()));
@@ -282,7 +283,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			diffCodeLens: false,
 			renderOverviewRuler: true,
 			diffWordWrap: 'inherit',
-			diffAlgorithm: 'smart',
+			diffAlgorithm: 'advanced',
 		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
@@ -1153,6 +1154,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				this._diffComputationResult = {
 					identical: result.identical,
 					quitEarly: result.quitEarly,
+					changes2: result.changes,
 					changes: result.changes.map(m => {
 						// TODO don't do this translation, but use the diff result directly
 						let originalStartLineNumber: number;
@@ -1908,6 +1910,7 @@ const DECORATIONS = {
 	arrowRevertChange: ModelDecorationOptions.register({
 		description: 'diff-editor-arrow-revert-change',
 		glyphMarginClassName: 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight),
+		zIndex: 10001,
 	}),
 
 	charDelete: ModelDecorationOptions.register({
@@ -2756,7 +2759,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
-		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['smart', 'experimental']),
+		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 	};
 }
 

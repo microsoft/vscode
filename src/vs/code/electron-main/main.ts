@@ -16,7 +16,7 @@ import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanit
 import { once } from 'vs/base/common/functional';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { basename, join, resolve } from 'vs/base/common/path';
+import { basename, resolve } from 'vs/base/common/path';
 import { mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
@@ -56,8 +56,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { IStateReadService, IStateService } from 'vs/platform/state/node/state';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IUserDataProfilesMainService, UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
@@ -70,6 +69,7 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { ILoggerMainService, LoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
+import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 
 /**
  * The main VS Code entry point.
@@ -131,7 +131,7 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { id: 'mainLog', name: localize('mainLog', "Main") });
+				bufferLogService.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
 
 				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(evt => {
@@ -147,7 +147,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogger, IProductService, UserDataProfilesMainService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateService, BufferLogger, IProductService, UserDataProfilesMainService] {
 		const services = new ServiceCollection();
 		const disposables = new DisposableStore();
 		process.once('exit', () => disposables.dispose());
@@ -162,7 +162,7 @@ class CodeMain {
 		services.set(IEnvironmentMainService, environmentMainService);
 
 		// Logger
-		const loggerService = new LoggerMainService(getLogLevel(environmentMainService));
+		const loggerService = new LoggerMainService(getLogLevel(environmentMainService), environmentMainService.logsHome);
 		services.set(ILoggerMainService, loggerService);
 
 		// Log: We need to buffer the spdlog logs until we are sure
@@ -183,11 +183,12 @@ class CodeMain {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// State
-		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
-		services.set(IStateMainService, stateMainService);
+		const stateService = new StateService(SaveStrategy.DELAYED, environmentMainService, logService, fileService);
+		services.set(IStateReadService, stateService);
+		services.set(IStateService, stateService);
 
 		// User Data Profiles
-		const userDataProfilesMainService = new UserDataProfilesMainService(stateMainService, uriIdentityService, environmentMainService, fileService, logService);
+		const userDataProfilesMainService = new UserDataProfilesMainService(stateService, uriIdentityService, environmentMainService, fileService, logService);
 		services.set(IUserDataProfilesMainService, userDataProfilesMainService);
 
 		// Policy
@@ -218,7 +219,7 @@ class CodeMain {
 		// Protocol (instantiated early and not using sync descriptor for security reasons)
 		services.set(IProtocolMainService, new ProtocolMainService(environmentMainService, userDataProfilesMainService, logService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateService, bufferLogger, productService, userDataProfilesMainService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -238,14 +239,14 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService, productService: IProductService): Promise<void> {
+	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateService: StateService, productService: IProductService): Promise<void> {
 		await Promises.settled<unknown>([
 
 			// Environment service (paths)
 			Promise.all<string | undefined>([
 				environmentMainService.extensionsPath,
 				environmentMainService.codeCachePath,
-				environmentMainService.logsPath,
+				environmentMainService.logsHome.fsPath,
 				userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath,
 				environmentMainService.workspaceStorageHome.fsPath,
 				environmentMainService.localHistoryHome.fsPath,
@@ -253,7 +254,7 @@ class CodeMain {
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
 			// State service
-			stateMainService.init(),
+			stateService.init(),
 
 			// Configuration service
 			configurationService.initialize()
@@ -381,7 +382,7 @@ class CodeMain {
 
 		// Print --status usage info
 		if (environmentMainService.args.status) {
-			logService.warn(`Warning: The --status argument can only be used if ${productService.nameShort} is already running. Please run it again after {0} has started.`);
+			logService.warn('Warning: The --status argument can only be used if {0} is already running. Please run it again after {0} has started.', productService.nameShort);
 
 			throw new ExpectedError('Terminating...');
 		}

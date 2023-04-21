@@ -13,10 +13,26 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IGlobalState {
 	storage: IStringDictionary<string>;
+}
+
+export class GlobalStateResourceInitializer implements IProfileResourceInitializer {
+
+	constructor(@IStorageService private readonly storageService: IStorageService) {
+	}
+
+	async initialize(content: string): Promise<void> {
+		const globalState: IGlobalState = JSON.parse(content);
+		const storageKeys = Object.keys(globalState.storage);
+		if (storageKeys.length) {
+			for (const key of storageKeys) {
+				this.storageService.store(key, globalState.storage[key], StorageScope.PROFILE, StorageTarget.USER);
+			}
+		}
+	}
 }
 
 export class GlobalStateResource implements IProfileResource {

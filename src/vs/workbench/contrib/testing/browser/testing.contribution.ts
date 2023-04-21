@@ -19,14 +19,14 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
-import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
+import { testingResultsIcon, testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations, TestingDecorationService } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestingOutputPeekController, TestingPeekOpener, ToggleTestingPeekHistory } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestResultsView, TestingOutputPeekController, TestingPeekOpener, ToggleTestingPeekHistory } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingOutputTerminalService, TestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { ITestingProgressUiService, TestingProgressTrigger, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
-import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
+import { testingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
@@ -44,6 +44,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { allTestActions, discoverAndRunTests } from './testExplorerActions';
 import './testingConfigurationUi';
 import { ITestingContinuousRunService, TestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
@@ -73,7 +74,28 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	hideIfEmpty: true,
 }, ViewContainerLocation.Sidebar);
 
+
+const testResultsViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+	id: Testing.ResultsPanelId,
+	title: localize('testResultsPanelName', "Test Results"),
+	icon: testingResultsIcon,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Testing.ResultsPanelId, { mergeViewWithContainerWhenSingleView: true }]),
+	hideIfEmpty: true,
+	order: 3,
+}, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });
+
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+
+
+viewsRegistry.registerViews([{
+	id: Testing.ResultsViewId,
+	name: localize('testResultsPanelName', "Test Results"),
+	containerIcon: testingResultsIcon,
+	canToggleVisibility: false,
+	canMoveView: true,
+	when: TestingContextKeys.hasAnyResults.isEqualTo(true),
+	ctorDescriptor: new SyncDescriptor(TestResultsView),
+}], testResultsViewContainer);
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 	content: localize('noTestProvidersRegistered', "No tests have been found in this workspace yet."),
@@ -200,4 +222,4 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguation);
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguration);

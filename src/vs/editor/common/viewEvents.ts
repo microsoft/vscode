@@ -75,14 +75,17 @@ export class ViewDecorationsChangedEvent {
 
 	readonly affectsMinimap: boolean;
 	readonly affectsOverviewRuler: boolean;
+	readonly affectsGlyphMargin: boolean;
 
 	constructor(source: IModelDecorationsChangedEvent | null) {
 		if (source) {
 			this.affectsMinimap = source.affectsMinimap;
 			this.affectsOverviewRuler = source.affectsOverviewRuler;
+			this.affectsGlyphMargin = source.affectsGlyphMargin;
 		} else {
 			this.affectsMinimap = true;
 			this.affectsOverviewRuler = true;
+			this.affectsGlyphMargin = true;
 		}
 	}
 }

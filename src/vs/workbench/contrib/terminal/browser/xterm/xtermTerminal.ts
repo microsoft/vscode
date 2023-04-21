@@ -14,10 +14,10 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellIntegration, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -25,11 +25,8 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { MarkNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
@@ -38,8 +35,6 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { isLinux } from 'vs/base/common/platform';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const enum RenderConstants {
 	/**
@@ -142,8 +137,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 
-	private _accessibileBuffer: AccessibleBuffer | undefined;
-
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
@@ -165,12 +158,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 	get suggestController(): ISuggestController | undefined { return this._suggestAddon; }
 
-	private _target: TerminalLocation | undefined;
-	set target(location: TerminalLocation | undefined) {
-		this._target = location;
-	}
-	get target(): TerminalLocation | undefined { return this._target; }
-
 	get textureAtlas(): Promise<ImageBitmap> | undefined {
 		const canvas = this._webglAddon?.textureAtlas || this._canvasAddon?.textureAtlas;
 		if (!canvas) {
@@ -188,7 +175,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		private readonly _configHelper: TerminalConfigHelper,
 		cols: number,
 		rows: number,
-		location: TerminalLocation,
+		private readonly _backgroundColorProvider: IXtermColorProvider,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		disableShellIntegrationReporting: boolean,
@@ -198,11 +185,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
-		this.target = location;
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
@@ -251,12 +236,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}));
 
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
-		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
-			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
-				this._updateTheme();
-				this._decorationAddon.refreshLayouts();
-			}
-		}));
 
 		// Refire events
 		this.add(this.raw.onSelectionChange(() => this._onDidChangeSelection.fire()));
@@ -281,10 +260,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		});
 	}
 
-	focusAccessibleBuffer(): void {
-		this._accessibileBuffer?.focus();
-	}
-
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._getSerializeAddonConstructor();
@@ -297,7 +272,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			if (!length || !row) {
 				throw new Error(`No row ${row} or output length ${length} for command ${command}`);
 			}
-			await this.raw.select(0, row + 1, length - Math.floor(length / this.raw.cols));
+			this.raw.select(0, row + 1, length - Math.floor(length / this.raw.cols));
 		}
 		const result = this._serializeAddon.serializeAsHTML({ onlySelection: true });
 		if (command) {
@@ -312,7 +287,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
-		this._accessibileBuffer = this._instantiationService.createInstance(AccessibleBuffer, this.raw, this.getFont(), this._capabilities);
 		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
@@ -578,9 +552,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._disposeOfWebglRenderer();
 		try {
 			this.raw.loadAddon(this._canvasAddon);
-			this._logService.trace('Canvas was loaded');
+			this._logService.trace('Canvas renderer was loaded');
 		} catch (e) {
-			this._logService.warn(`Canvas could not be loaded. Falling back to the dom renderer type.`, e);
+			this._logService.warn(`Canvas renderer could not be loaded, falling back to dom renderer`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
@@ -702,14 +676,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			theme = this._themeService.getColorTheme();
 		}
 
-		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		let backgroundColor: Color | undefined;
-		if (this.target === TerminalLocation.Editor) {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(editorBackground);
-		} else {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Panel ? theme.getColor(PANEL_BACKGROUND) : theme.getColor(SIDE_BAR_BACKGROUND));
-		}
+		const backgroundColor = this._backgroundColorProvider.getBackgroundColor(theme);
 		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
 		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
 		const selectionBackgroundColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
@@ -747,6 +715,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.theme = this._getXtermTheme(theme);
 	}
 
+	refresh() {
+		this._updateTheme();
+		this._decorationAddon.refreshLayouts();
+	}
+
 	private async _updateUnicodeVersion(): Promise<void> {
 		if (!this._unicode11Addon && this._configHelper.config.unicodeVersion === '11') {
 			const Addon = await this._getUnicode11Constructor();
@@ -761,78 +734,5 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
-	}
-}
-
-class AccessibleBuffer extends DisposableStore {
-
-	private _accessibleBuffer: HTMLElement | undefined;
-	private _bufferElementFragment: DocumentFragment | undefined;
-
-	constructor(
-		private readonly _terminal: RawXtermTerminal,
-		private readonly _font: ITerminalFont,
-		private readonly _capabilities: ITerminalCapabilityStore,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
-	) {
-		super();
-		this.add(this._terminal.registerBufferElementProvider({ provideBufferElements: () => this.focus() }));
-	}
-
-	focus(): DocumentFragment {
-		if (!this._bufferElementFragment) {
-			this._bufferElementFragment = document.createDocumentFragment();
-		}
-		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
-		if (!this._accessibleBuffer) {
-			return this._bufferElementFragment;
-		}
-		// see https://github.com/microsoft/vscode/issues/173532
-		const accessibleBufferContentEditable = isLinux ? 'on' : this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
-		this._accessibleBuffer.contentEditable = accessibleBufferContentEditable === 'on' || (accessibleBufferContentEditable === 'auto' && !this._accessibilityService.isScreenReaderOptimized()) ? 'true' : 'false';
-		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
-		const lineHeight = this._font?.charHeight ? this._font.charHeight * this._font.lineHeight + 'px' : '';
-		this._accessibleBuffer.style.lineHeight = lineHeight;
-		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		if (!commands?.length) {
-			const noContent = document.createElement('div');
-			const noContentLabel = localize('terminal.integrated.noContent', "No terminal content available for this session.");
-			noContent.textContent = noContentLabel;
-			this._bufferElementFragment.replaceChildren(noContent);
-			this._accessibleBuffer.focus();
-			return this._bufferElementFragment;
-		}
-		let header;
-		let replaceChildren = true;
-		for (const command of commands) {
-			header = document.createElement('h2');
-			// without this, the text area gets focused when keyboard shortcuts are used
-			header.tabIndex = -1;
-			header.textContent = command.command.replace(new RegExp(' ', 'g'), '\xA0');
-			if (command.exitCode !== 0) {
-				header.textContent += ` exited with code ${command.exitCode}`;
-			}
-			const output = document.createElement('div');
-			// without this, the text area gets focused when keyboard shortcuts are used
-			output.tabIndex = -1;
-			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
-			if (replaceChildren) {
-				this._bufferElementFragment.replaceChildren(header, output);
-				replaceChildren = false;
-			} else {
-				this._bufferElementFragment.appendChild(header);
-				this._bufferElementFragment.appendChild(output);
-			}
-		}
-		this._accessibleBuffer.focus();
-		if (this._accessibleBuffer.contentEditable === 'true') {
-			document.execCommand('selectAll', false, undefined);
-			document.getSelection()?.collapseToEnd();
-		} else if (header) {
-			// focus the cursor line's header
-			header.tabIndex = 0;
-		}
-		return this._bufferElementFragment;
 	}
 }

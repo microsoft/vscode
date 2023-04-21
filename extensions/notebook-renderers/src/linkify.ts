@@ -11,7 +11,7 @@ const WIN_RELATIVE_PATH = /(?:(?:\~|\.)(?:(?:\\|\/)[\w\.-]*)+)/;
 const WIN_PATH = new RegExp(`(${WIN_ABSOLUTE_PATH.source}|${WIN_RELATIVE_PATH.source})`);
 const POSIX_PATH = /((?:\~|\.)?(?:\/[\w\.-]*)+)/;
 const LINE_COLUMN = /(?:\:([\d]+))?(?:\:([\d]+))?/;
-const isWindows = navigator.userAgent.indexOf('Windows') >= 0;
+const isWindows = (typeof navigator !== 'undefined') ? navigator.userAgent && navigator.userAgent.indexOf('Windows') >= 0 : false;
 const PATH_LINK_REGEX = new RegExp(`${isWindows ? WIN_PATH.source : POSIX_PATH.source}${LINE_COLUMN.source}`, 'g');
 
 const MAX_LENGTH = 2000;

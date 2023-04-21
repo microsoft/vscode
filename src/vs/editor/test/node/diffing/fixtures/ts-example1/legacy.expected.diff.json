@@ -1,0 +1,44 @@
+{
+	"original": {
+		"content": "export class EditorWorkerServiceDiffComputer implements IDiffComputer {\n\tconstructor(@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService) { }\n\n\tasync computeDiff(textModel1: ITextModel, textModel2: ITextModel): Promise<LineDiff[] | null> {\n\t\tconst diffs = await this.editorWorkerService.computeDiff(textModel1.uri, textModel2.uri, false, 1000);\n\t\tif (!diffs || diffs.quitEarly) {\n\t\t\treturn null;\n\t\t}\n\t\treturn diffs.changes.map((c) => LineDiff.fromLineChange(c, textModel1, textModel2));\n\t}\n}\n\nfunction wait(ms: number): Promise<void> {\n\treturn new Promise(r => setTimeout(r, ms));\n}\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "export class EditorWorkerServiceDiffComputer implements IDiffComputer {\n\tconstructor(@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService) { }\n\n\tasync computeDiff(textModel1: ITextModel, textModel2: ITextModel): Promise<LineDiff[] | null> {\n\t\tconst diffs = await this.editorWorkerService.computeDiff(textModel1.uri, textModel2.uri, false, 1000);\n\t\tif (!diffs || diffs.quitEarly) {\n\t\t\treturn null;\n\t\t}\n\t\treturn EditorWorkerServiceDiffComputer.fromDiffComputationResult(diffs, textModel1, textModel2);\n\t}\n\n\tpublic static fromDiffComputationResult(result: IDiffComputationResult, textModel1: ITextModel, textModel2: ITextModel): LineDiff[] {\n\t\treturn result.changes.map((c) => fromLineChange(c, textModel1, textModel2));\n\t}\n}\n\nfunction fromLineChange(lineChange: ILineChange, originalTextModel: ITextModel, modifiedTextModel: ITextModel): LineDiff {\n\tlet originalRange: LineRange;\n\tif (lineChange.originalEndLineNumber === 0) {\n\t\t// Insertion\n\t\toriginalRange = new LineRange(lineChange.originalStartLineNumber + 1, 0);\n\t} else {\n\t\toriginalRange = new LineRange(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1);\n\t}\n\n\tlet modifiedRange: LineRange;\n\tif (lineChange.modifiedEndLineNumber === 0) {\n\t\t// Deletion\n\t\tmodifiedRange = new LineRange(lineChange.modifiedStartLineNumber + 1, 0);\n\t} else {\n\t\tmodifiedRange = new LineRange(lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1);\n\t}\n\n\tlet innerDiffs = lineChange.charChanges?.map(c => fromCharChange(c));\n\tif (!innerDiffs) {\n\t\tinnerDiffs = [diffFromLineRanges(originalRange, modifiedRange)];\n\t}\n\n\treturn new LineDiff(\n\t\toriginalTextModel,\n\t\toriginalRange,\n\t\tmodifiedTextModel,\n\t\tmodifiedRange,\n\t\tinnerDiffs\n\t);\n}\n\nfunction diffFromLineRanges(originalRange: LineRange, modifiedRange: LineRange): Diff {\n\t// [1,1) -> [100, 101)\n\n\tif (originalRange.startLineNumber !== 1 && modifiedRange.startLineNumber !== 1) {\n\n\t}\n\n\tlet original = new Range(\n\t\toriginalRange.startLineNumber - 1,\n\t\tNumber.MAX_SAFE_INTEGER,\n\t\toriginalRange.endLineNumberExclusive - 1,\n\t\tNumber.MAX_SAFE_INTEGER,\n\t);\n\n\tlet modified = new Range(\n\t\tmodifiedRange.startLineNumber - 1,\n\t\tNumber.MAX_SAFE_INTEGER,\n\t\tmodifiedRange.endLineNumberExclusive - 1,\n\t\tNumber.MAX_SAFE_INTEGER,\n\t);\n\n\treturn new Diff(\n\t\toriginal,\n\t\tmodified\n\t);\n}\n\nfunction fromCharChange(charChange: ICharChange): Diff {\n\treturn new Diff(\n\t\tnew Range(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn),\n\t\tnew Range(charChange.modifiedStartLineNumber, charChange.modifiedStartColumn, charChange.modifiedEndLineNumber, charChange.modifiedEndColumn)\n\t);\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[9,10)",
+			"modifiedRange": "[9,53)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[11,11)",
+			"modifiedRange": "[54,73)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[13,15)",
+			"modifiedRange": "[75,80)",
+			"innerChanges": [
+				{
+					"originalRange": "[13,10 -> 13,20]",
+					"modifiedRange": "[75,10 -> 77,42]"
+				},
+				{
+					"originalRange": "[13,25 -> 14,9]",
+					"modifiedRange": "[77,47 -> 78,3]"
+				},
+				{
+					"originalRange": "[14,13 -> 14,37]",
+					"modifiedRange": "[78,7 -> 78,112]"
+				},
+				{
+					"originalRange": "[14,40 -> 14,43]",
+					"modifiedRange": "[78,115 -> 79,2]"
+				}
+			]
+		}
+	]
+}

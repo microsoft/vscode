@@ -8,7 +8,7 @@ To test this out, you'll need three shells:
 
 1. `yarn watch` for vscode itself
 2. `yarn watch-web` for the web side
-3. `cmd /c <root>/scripts/code-web.bat`
+3. `node <root>/scripts/code-web.js --coi`
 
 The last command will open a browser window. You'll want to add `?vscode-coi=`
 to the end. This is for enabling shared array buffers. So, for example:

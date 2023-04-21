@@ -17,8 +17,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionVerificationStatus } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ExtensionManagementError, ExtensionManagementErrorCode, getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
@@ -84,7 +83,8 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 			userRoamingDataHome: ROOT,
 			builtinExtensionsPath: systemExtensionsLocation.fsPath,
 			extensionsPath: userExtensionsLocation.fsPath,
-			userDataPath: userExtensionsLocation.fsPath
+			userDataPath: userExtensionsLocation.fsPath,
+			cacheHome: ROOT,
 		});
 		instantiationService.stub(IProductService, {});
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -135,7 +135,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Verified);
+		assert.strictEqual(testObject.verificationStatus, true);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -144,7 +144,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Verified);
+		assert.strictEqual(testObject.verificationStatus, true);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -153,7 +153,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
+		assert.strictEqual(testObject.verificationStatus, false);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -162,7 +162,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
+		assert.strictEqual(testObject.verificationStatus, false);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -172,27 +172,19 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
+		assert.strictEqual(testObject.verificationStatus, errorCode);
 		assert.strictEqual(testObject.installed, true);
 	});
 
-	test('if verification fails, the task throws', async () => {
+	test('if verification fails', async () => {
 		const errorCode = 'IntegrityCheckFailed';
 
 		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: errorCode, didExecute: true }));
 
-		try {
-			await testObject.run();
-		} catch (e) {
-			assert.ok(e instanceof ExtensionManagementError);
-			assert.strictEqual(e.code, ExtensionManagementErrorCode.Signature);
-			assert.strictEqual(e.message, errorCode);
-			assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
-			assert.strictEqual(testObject.installed, false);
-			return;
-		}
+		await testObject.run();
 
-		assert.fail('It should have thrown.');
+		assert.strictEqual(testObject.verificationStatus, errorCode);
+		assert.strictEqual(testObject.installed, true);
 	});
 
 	test('if verification succeeds, the task completes', async () => {
@@ -200,7 +192,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Verified);
+		assert.strictEqual(testObject.verificationStatus, true);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -209,7 +201,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
+		assert.strictEqual(testObject.verificationStatus, false);
 		assert.strictEqual(testObject.installed, true);
 	});
 
@@ -218,7 +210,7 @@ suite('InstallGalleryExtensionTask Tests', () => {
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
+		assert.strictEqual(testObject.verificationStatus, false);
 		assert.strictEqual(testObject.installed, true);
 	});
 

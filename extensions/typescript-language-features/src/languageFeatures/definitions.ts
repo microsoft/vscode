@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { API } from '../tsServer/api';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
 import DefinitionProviderBase from './definitionProviderBase';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 export default class TypeScriptDefinitionProvider extends DefinitionProviderBase implements vscode.DefinitionProvider {
 
@@ -29,7 +30,16 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		}
 
 		const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
-		return response.body.definitions
+		let definitions = response.body.definitions;
+
+		if (vscode.workspace.getConfiguration(document.languageId).get('preferGoToSourceDefinition', false) && this.client.apiVersion.gte(API.v470)) {
+			const sourceDefinitionsResponse = await this.client.execute('findSourceDefinition', args, token);
+			if (sourceDefinitionsResponse.type === 'response' && sourceDefinitionsResponse.body?.length) {
+				definitions = sourceDefinitionsResponse.body;
+			}
+		}
+
+		return definitions
 			.map((location): vscode.DefinitionLink => {
 				const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
 				if (location.contextStart && location.contextEnd) {

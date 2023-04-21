@@ -117,6 +117,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
 	get rootUri(): URI | undefined { return this._rootUri; }
+	get inputBoxDocumentUri(): URI { return this._inputBoxDocumentUri; }
 	get contextValue(): string { return this._contextValue; }
 
 	get commitTemplate(): string { return this.features.commitTemplate || ''; }
@@ -135,6 +136,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _quickDiff: IDisposable | undefined;
+	public readonly isSCM: boolean = true;
 
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
@@ -142,6 +144,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		private readonly _contextValue: string,
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
+		private readonly _inputBoxDocumentUri: URI,
 		private readonly _quickDiffService: IQuickDiffService
 	) { }
 
@@ -158,7 +161,12 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (features.hasQuickDiffProvider && !this._quickDiff) {
-			this._quickDiff = this._quickDiffService.addQuickDiffProvider(this);
+			this._quickDiff = this._quickDiffService.addQuickDiffProvider({
+				label: features.quickDiffLabel ?? this.label,
+				rootUri: this.rootUri,
+				isSCM: this.isSCM,
+				getOriginalResource: (uri: URI) => this.getOriginalResource(uri)
+			});
 		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {
 			this._quickDiff.dispose();
 			this._quickDiff = undefined;
@@ -280,7 +288,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	}
 
 	dispose(): void {
-
+		this._quickDiff?.dispose();
 	}
 }
 
@@ -311,8 +319,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.dispose();
 	}
 
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, this.quickDiffService);
+	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): void {
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

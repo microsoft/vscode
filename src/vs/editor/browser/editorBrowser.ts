@@ -804,6 +804,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Change the scroll position of the editor's viewport.
 	 */
 	setScrollPosition(position: editorCommon.INewScrollPosition, scrollType?: editorCommon.ScrollType): void;
+	/**
+	 * Check if the editor is currently scrolling towards a different scroll position.
+	 */
+	hasPendingScrollAnimation(): boolean;
 
 	/**
 	 * Get an action that is a contribution to this editor.
@@ -863,7 +867,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @deprecated
+	 * @deprecated Use `createDecorationsCollection`
+	 * @see createDecorationsCollection
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 

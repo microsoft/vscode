@@ -2,9 +2,9 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"experimentalDecorators": true,
 		"module": "nodenext",
 		"moduleDetection": "legacy",
+		"experimentalDecorators": true,
 		"types": [
 			"node"
 		]
