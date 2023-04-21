@@ -382,12 +382,10 @@ export class LiveTestResult implements ITestResult {
 	 * Adds a new run task to the results.
 	 */
 	public addTask(task: ITestRunTask) {
-		const index = this.tasks.length;
 		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined), otherMessages: [] });
 
 		for (const test of this.tests) {
 			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
-			this.fireUpdateAndRefresh(test, index, TestResultState.Queued);
 		}
 	}
 
@@ -570,7 +568,7 @@ export class LiveTestResult implements ITestResult {
 
 		if (this.tasks.length) {
 			for (let i = 0; i < this.tasks.length; i++) {
-				node.tasks.push({ duration: undefined, messages: [], state: TestResultState.Queued });
+				node.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
 			}
 		}
 
