@@ -16,7 +16,7 @@ import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentDescripti
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string;
 	collection: ISerializableEnvironmentVariableCollection;
-	description: ISerializableEnvironmentDescriptionMap;
+	description?: ISerializableEnvironmentDescriptionMap;
 }
 
 /**
@@ -42,7 +42,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, {
 				persistent: true,
 				map: deserializeEnvironmentVariableCollection(c.collection),
-				descriptionMap: deserializeEnvironmentDescriptionMap(c.description)
+				descriptionMap: deserializeEnvironmentDescriptionMap(c.description ?? [])
 			}));
 
 			// Asynchronously invalidate collections where extensions have been uninstalled, this is
