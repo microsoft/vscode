@@ -16,6 +16,9 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+
+export const changeDropTypeCommandId = 'editor.changeDropType';
 
 export const dropWidgetVisibleCtx = new RawContextKey<boolean>('dropWidgetVisible', false, localize('dropWidgetVisible', "Whether the drop widget is showing"));
 
@@ -42,6 +45,7 @@ class PostDropWidget extends Disposable implements IContentWidget {
 		private readonly onSelectNewEdit: (editIndex: number) => void,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -61,13 +65,23 @@ class PostDropWidget extends Disposable implements IContentWidget {
 				this.dispose();
 			}
 		}));
+
+		this._register(Event.runAndSubscribe(_keybindingService.onDidUpdateKeybindings, () => {
+			this._updateButtonTitle();
+		}));
+	}
+
+	private _updateButtonTitle() {
+		const binding = this._keybindingService.lookupKeybinding(changeDropTypeCommandId)?.getLabel();
+		this.button.element.title = binding
+			? localize('postDropWidgetTitleWithBinding', "Show drop options... ({0})", binding)
+			: localize('postDropWidgetTitle', "Show drop options...");
 	}
 
 	private create(): void {
 		this.domNode = dom.$('.post-drop-widget');
 
 		this.button = this._register(new Button(this.domNode, {
-			title: localize('postDropWidgetTile', "Drop options..."),
 			supportIcons: true,
 		}));
 		this.button.label = '$(insert)';

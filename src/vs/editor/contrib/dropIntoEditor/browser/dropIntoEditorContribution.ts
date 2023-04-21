@@ -22,7 +22,7 @@ import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
-import { PostDropWidgetManager, dropWidgetVisibleCtx } from 'vs/editor/contrib/dropIntoEditor/browser/postDropWidget';
+import { PostDropWidgetManager, changeDropTypeCommandId, dropWidgetVisibleCtx } from 'vs/editor/contrib/dropIntoEditor/browser/postDropWidget';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
@@ -220,7 +220,7 @@ registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController
 registerEditorCommand(new class extends EditorCommand {
 	constructor() {
 		super({
-			id: 'editor.changeDropType',
+			id: changeDropTypeCommandId,
 			precondition: dropWidgetVisibleCtx,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib,
@@ -229,8 +229,7 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	public override runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
-		const controller = DropIntoEditorController.get(editor);
-		controller?.changeDropType();
+	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, _args: any) {
+		DropIntoEditorController.get(editor)?.changeDropType();
 	}
 });
