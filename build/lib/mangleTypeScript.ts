@@ -528,7 +528,7 @@ export class Mangler {
 		}
 
 		for (const data of this.allExportedFunctionsByKey.values()) {
-			if (!data.shouldMangle) {
+			if (!data.shouldMangle()) {
 				continue;
 			}
 
