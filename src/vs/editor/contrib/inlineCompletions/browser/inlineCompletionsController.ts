@@ -129,7 +129,7 @@ export class InlineCompletionsController extends Disposable {
 					inlineSuggestCommitId,
 					'acceptSelectedSuggestion',
 				]);
-				if (commands.has(e.commandId) && editor.hasTextFocus()) {
+				if (commands.has(e.commandId) && editor.hasTextFocus() && enabled.get()) {
 					transaction(tx => {
 						this.model.get()?.trigger(tx);
 					});
