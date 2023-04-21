@@ -117,6 +117,11 @@ class StatusLink extends Disposable {
 	hide(): void {
 		this._domNode.style.display = 'none';
 	}
+
+	isShowing(): boolean {
+		console.log('this._domNode.style.display : ', this._domNode.style.display);
+		return this._domNode.style.display === 'flex';
+	}
 }
 
 class InteractiveEditorWidget {
@@ -393,24 +398,40 @@ class InteractiveEditorWidget {
 	}
 
 	updateMessage(message: string | HTMLElement, ops: { linkListener?: () => void; isMessageReply?: boolean; classes?: string[]; resetAfter?: number } = {}) {
+		console.log('At the beginning of the updateMessage function');
+		console.log('ops.isMessageReply : ', ops.isMessageReply);
+
+		const isTempMessage = typeof ops.resetAfter === 'number';
+		console.log('ops.classes : ', ops.classes);
+		console.log('isTempMessage : ', isTempMessage);
+
+		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
+			const messageNow = this._elements.statusLabel.innerText;
+			console.log('messageNow : ', messageNow);
+			const classes = Array.from(this._elements.statusLabel.classList.values());
+			const isMessageReply = this._statusLink.isShowing();
+			console.log('Outside of setTimeout');
+			console.log('ops : ', ops);
+			console.log('classes : ', classes);
+			console.log('isMessageReply : ', isMessageReply);
+			setTimeout(() => {
+				if (messageNow) {
+					console.log('Inside of setTimeout');
+					console.log('ops : ', ops);
+					console.log('classes : ', classes);
+					console.log('isMessageReply : ', isMessageReply);
+					this.updateMessage(messageNow, { ...ops, classes, isMessageReply });
+				} else {
+					reset(this._elements.statusLabel);
+				}
+			}, ops.resetAfter);
+		}
 		this._statusLinkListener.clear();
 		if (ops.isMessageReply) {
 			this._statusLink.show();
 			this._statusLinkListener.value = this._statusLink.onClicked(() => ops.linkListener?.());
 		} else {
 			this._statusLink.hide();
-		}
-		const isTempMessage = typeof ops.resetAfter === 'number';
-		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
-			const messageNow = this._elements.statusLabel.innerText;
-			const classes = Array.from(this._elements.statusLabel.classList.values());
-			setTimeout(() => {
-				if (messageNow) {
-					this.updateMessage(messageNow, { ...ops, classes });
-				} else {
-					reset(this._elements.statusLabel);
-				}
-			}, ops.resetAfter);
 		}
 
 		this._elements.status.classList.toggle('hidden', false);
