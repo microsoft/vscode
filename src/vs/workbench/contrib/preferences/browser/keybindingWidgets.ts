@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/keybindings';
-import * as nls from 'vs/nls';
-import { OS } from 'vs/base/common/platform';
-import { Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import * as dom from 'vs/base/browser/dom';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Promises, timeout } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import * as dom from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { OS } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import 'vs/css!./media/keybindings';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import * as nls from 'vs/nls';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { asCssVariable, editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { Promises, timeout } from 'vs/base/common/async';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultInputBoxStyles, defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { asCssVariable, editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { SearchOptions, SearchWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;
