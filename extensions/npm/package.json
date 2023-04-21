@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/which": "^2.0.0"
   },
   "resolutions": {

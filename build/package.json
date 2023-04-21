@@ -28,7 +28,7 @@
     "@types/minimist": "^1.2.1",
     "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/p-limit": "^2.2.0",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",

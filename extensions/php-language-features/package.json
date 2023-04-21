@@ -77,7 +77,7 @@
     "which": "^2.0.2"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/which": "^2.0.0"
   },
   "repository": {
