@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonIssueService } from 'vs/platform/issue/common/issue';
+declare module 'vscode' {
 
-export const IIssueService = createDecorator<IIssueService>('issueService');
+	// https://github.com/microsoft/vscode/issues/46726
 
-export interface IIssueService extends ICommonIssueService {
-	stopTracing(): Promise<void>;
+	export interface IssueUriRequestHandler {
+		handleIssueUrlRequest(): ProviderResult<Uri>;
+	}
+
+	export namespace env {
+		export function registerIssueUriRequestHandler(handler: IssueUriRequestHandler): Disposable;
+	}
 }

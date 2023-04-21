@@ -91,7 +91,7 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 }
 
 export const config = {
-	version: product.electronRepository ? '22.4.6' : util.getElectronVersion(),
+	version: product.electronRepository ? '22.4.8' : util.getElectronVersion(),
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2023 Microsoft. All rights reserved',
@@ -193,7 +193,7 @@ export const config = {
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
-		const electron = require('gulp-atom-electron');
+		const electron = require('@vscode/gulp-electron');
 		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 		const electronOpts = _.extend({}, config, {
@@ -212,7 +212,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 }
 
 async function main(arch = process.arch): Promise<void> {
-	const version = product.electronRepository ? '22.4.6' : util.getElectronVersion();
+	const version = product.electronRepository ? '22.4.8' : util.getElectronVersion();
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');
 	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;

@@ -37,7 +37,7 @@
 	cursor: text;
 }
 
-.monaco-editor .interactive-editor .monaco-editor-background {
+.monaco-editor .interactive-editor .body .content .input .monaco-editor-background {
 	background-color: var(--vscode-interactiveEditorInput-background);
 }
 
@@ -83,7 +83,7 @@
 }
 
 /* UGLY - fighting against workbench styles */
-.monaco-workbench .part.editor > .content .monaco-editor .interactive-editor .progress .monaco-progress-container {
+.monaco-workbench .part.editor>.content .monaco-editor .interactive-editor .progress .monaco-progress-container {
 	top: 0;
 }
 
@@ -96,16 +96,40 @@
 	align-items: center;
 }
 
-.monaco-editor .interactive-editor.preview .status {
-	flex-direction: row-reverse;
-}
-
 .monaco-editor .interactive-editor .status .actions.hidden {
 	display: none;
 }
 
-.monaco-editor .interactive-editor .status .label {
+.monaco-editor .interactive-editor .status .link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
 	font-size: 12px;
+	white-space: nowrap;
+	/* margin-top: auto; */
+}
+
+.monaco-editor .interactive-editor .status .label {
+	overflow: hidden;
+	font-size: 12px;
+	margin-left: auto;
+}
+
+.monaco-editor .interactive-editor .status .label.message>span>p {
+	margin: 0px;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	display: -webkit-box;
+}
+
+.monaco-editor .interactive-editor .status .link .status-link  {
+	padding-left: 10px;
+}
+
+.monaco-editor .interactive-editor .status .link  .status-link .codicon {
+	line-height: unset;
+	font-size: 12px;
+	padding-right: 4px;
 }
 
 .monaco-editor .interactive-editor .status .label A {
@@ -137,7 +161,7 @@
 	display: none;
 }
 
-.monaco-editor .interactive-editor.preview .previewDiff {
+.monaco-editor .interactive-editor .previewDiff {
 	display: inherit;
 	padding: 6px;
 	border: 1px solid var(--vscode-interactiveEditor-border);
@@ -147,11 +171,11 @@
 	margin: 0 2px 6px 2px;
 }
 
-.monaco-editor .interactive-editor.preview .previewCreateTitle {
+.monaco-editor .interactive-editor .previewCreateTitle {
 	padding-top: 6px;
 }
 
-.monaco-editor .interactive-editor.preview .previewCreate {
+.monaco-editor .interactive-editor .previewCreate {
 	display: inherit;
 	padding: 6px;
 	border: 1px solid var(--vscode-interactiveEditor-border);
@@ -192,4 +216,9 @@
 
 .monaco-editor .interactive-editor-diff-widget {
 	padding: 6px 0;
+}
+
+.monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor-background,
+.monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
+	background-color: var(--vscode-interactiveEditor-regionHighlight);
 }

@@ -63,6 +63,10 @@ export class LineRangeMapping {
 	public toString(): string {
 		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
 	}
+
+	public get changedLineCount() {
+		return Math.max(this.originalRange.length, this.modifiedRange.length);
+	}
 }
 
 /**

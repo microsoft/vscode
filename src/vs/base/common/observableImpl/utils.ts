@@ -296,11 +296,15 @@ class KeepAliveObserver implements IObserver {
 		// NO OP
 	}
 
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	endUpdate<T>(observable: IObservable<T, void>): void {
 		// NO OP
 	}
 
-	endUpdate<T>(observable: IObservable<T, void>): void {
+	handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
+		// NO OP
+	}
+
+	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
 		// NO OP
 	}
 }

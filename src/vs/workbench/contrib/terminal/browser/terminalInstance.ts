@@ -89,6 +89,7 @@ import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme
 import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
 
 const enum Constants {
 	/**
@@ -2162,9 +2163,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.relaunch();
 			return;
 		}
-
 		// Re-create statuses
-		this.statusList.add(info.getStatus());
+		const workspaceFolder = getWorkspaceForTerminal(this.shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
+		this.statusList.add(info.getStatus({ workspaceFolder }));
 	}
 
 	async toggleEscapeSequenceLogging(): Promise<boolean> {

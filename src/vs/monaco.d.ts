@@ -1530,6 +1530,14 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Vertical Lane in the glyph margin of the editor.
+	 */
+	export enum GlyphMarginLane {
+		Left = 1,
+		Right = 2
+	}
+
+	/**
 	 * Position in the minimap to render the decoration.
 	 */
 	export enum MinimapPosition {
@@ -1550,6 +1558,13 @@ declare namespace monaco.editor {
 		darkColor?: string | ThemeColor;
 	}
 
+	export interface IModelDecorationGlyphMarginOptions {
+		/**
+		 * The position in the glyph margin.
+		 */
+		position: GlyphMarginLane;
+	}
+
 	/**
 	 * Options for rendering a model decoration in the overview ruler.
 	 */
@@ -1561,11 +1576,11 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Options for rendering a model decoration in the overview ruler.
+	 * Options for rendering a model decoration in the minimap.
 	 */
 	export interface IModelDecorationMinimapOptions extends IDecorationOptions {
 		/**
-		 * The position in the overview ruler.
+		 * The position in the minimap.
 		 */
 		position: MinimapPosition;
 	}
@@ -1625,6 +1640,11 @@ declare namespace monaco.editor {
 		 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 		 */
 		glyphMarginClassName?: string | null;
+		/**
+		 * If set and the decoration has {@link glyphMarginClassName} set, render this decoration
+		 * with the specified {@link IModelDecorationGlyphMarginOptions} in the glyph margin.
+		 */
+		glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
@@ -2120,15 +2140,22 @@ declare namespace monaco.editor {
 		 * @param range The range to search in
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
 		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+		 * @param onlyMinimapDecorations If set, it will return only decorations that render in the minimap.
+		 * @param onlyMarginDecorations If set, it will return only decorations that render in the glyph margin.
 		 * @return An array with the decorations
 		 */
-		getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
+		getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
 		/**
 		 * Gets all the decorations as an array.
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
 		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 		 */
 		getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		/**
+		 * Gets all decorations that render in the glyph margin as an array.
+		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 */
+		getAllMarginDecorations(ownerId?: number): IModelDecoration[];
 		/**
 		 * Gets all the decorations that should be rendered in the overview ruler as an array.
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
@@ -2404,6 +2431,7 @@ declare namespace monaco.editor {
 		readonly innerChanges: RangeMapping[] | undefined;
 		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
 		toString(): string;
+		get changedLineCount(): any;
 	}
 
 	/**
@@ -2944,6 +2972,7 @@ declare namespace monaco.editor {
 	export interface IModelDecorationsChangedEvent {
 		readonly affectsMinimap: boolean;
 		readonly affectsOverviewRuler: boolean;
+		readonly affectsGlyphMargin: boolean;
 	}
 
 	export interface IModelOptionsChangedEvent {
@@ -3273,6 +3302,10 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		fontVariations?: boolean | string;
+		/**
+		 * Controls whether to use default color decorations or not using the default document color provider
+		 */
+		defaultColorDecorators?: boolean;
 		/**
 		 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 		 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
@@ -3745,6 +3778,12 @@ declare namespace monaco.editor {
 		 */
 		enableSplitViewResizing?: boolean;
 		/**
+		 * The default ratio when rendering side-by-side editors.
+		 * Must be a number between 0 and 1, min sizes apply.
+		 * Defaults to 0.5
+		 */
+		splitViewDefaultRatio?: number;
+		/**
 		 * Render the differences in two side-by-side editors.
 		 * Defaults to true.
 		 */
@@ -3796,7 +3835,7 @@ declare namespace monaco.editor {
 		/**
 		 * Diff Algorithm
 		*/
-		diffAlgorithm?: 'smart' | 'experimental' | IDocumentDiffProvider;
+		diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
 	}
 
 	/**
@@ -4027,6 +4066,10 @@ declare namespace monaco.editor {
 		 * The width of the glyph margin.
 		 */
 		readonly glyphMarginWidth: number;
+		/**
+		 * The number of decoration lanes to render in the glyph margin.
+		 */
+		readonly glyphMarginDecorationLaneCount: number;
 		/**
 		 * Left position for the line numbers.
 		 */
@@ -4401,6 +4444,10 @@ declare namespace monaco.editor {
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
 		showToolbar?: 'always' | 'onHover';
 		suppressSuggestions?: boolean;
+		/**
+		 * Does not clear active inline suggestions when the editor loses focus.
+		 */
+		keepOnBlur?: boolean;
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -4798,7 +4845,8 @@ declare namespace monaco.editor {
 		pixelRatio = 137,
 		tabFocusMode = 138,
 		layoutInfo = 139,
-		wrappingInfo = 140
+		wrappingInfo = 140,
+		defaultColorDecorators = 141
 	}
 
 	export const EditorOptions: {
@@ -4937,6 +4985,7 @@ declare namespace monaco.editor {
 		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
 		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
+		defaultColorDecorators: IEditorOption<EditorOption.defaultColorDecorators, boolean>;
 		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;
 		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, boolean>;
 		layoutInfo: IEditorOption<EditorOption.layoutInfo, EditorLayoutInfo>;
@@ -5947,6 +5996,10 @@ declare namespace monaco.languages {
 		 */
 		readonly hasAccessToAllModels?: boolean;
 		readonly exclusive?: boolean;
+		/**
+		 * This provider comes from a builtin extension.
+		 */
+		readonly isBuiltin?: boolean;
 	}
 
 	/**
@@ -6786,11 +6839,13 @@ declare namespace monaco.languages {
 		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
 	}
 
-	export interface SelectedSuggestionInfo {
-		range: IRange;
-		text: string;
-		isSnippetText: boolean;
-		completionKind: CompletionItemKind;
+	export class SelectedSuggestionInfo {
+		readonly range: IRange;
+		readonly text: string;
+		readonly completionKind: CompletionItemKind;
+		readonly isSnippetText: boolean;
+		constructor(range: IRange, text: string, completionKind: CompletionItemKind, isSnippetText: boolean);
+		equals(other: SelectedSuggestionInfo): boolean;
 	}
 
 	export interface InlineCompletion {
@@ -6835,14 +6890,20 @@ declare namespace monaco.languages {
 		 * A list of commands associated with the inline completions of this list.
 		 */
 		readonly commands?: Command[];
+		readonly suppressSuggestions?: boolean | undefined;
+		/**
+		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
+		 */
+		readonly enableForwardStability?: boolean | undefined;
 	}
 
 	export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
 		provideInlineCompletions(model: editor.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 		/**
 		 * Will be called when an item is shown.
+		 * @param updatedInsertText Is useful to understand bracket completion.
 		*/
-		handleItemDidShow?(completions: T, item: T['items'][number]): void;
+		handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 		/**
 		 * Will be called when an item is partially accepted.
 		 */

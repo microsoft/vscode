@@ -22,7 +22,6 @@ import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Action } from 'vs/base/common/actions';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
@@ -39,6 +38,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isDiffEditorInput } from 'vs/workbench/common/editor';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -115,6 +115,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
@@ -144,7 +145,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	private async waitAndInitialize(): Promise<void> {
 		/* wait */
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		await Promise.all([this.extensionService.whenInstalledExtensionsRegistered(), this.userDataInitializationService.whenInitializationFinished()]);
 
 		/* initialize */
 		try {
@@ -169,8 +170,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	private async initialize(): Promise<void> {
 		const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
-		if (this.currentSessionId === undefined && this.useWorkbenchSessionId && (authenticationSession?.id)) {
-			this.currentSessionId = authenticationSession?.id;
+		if (this.currentSessionId === undefined && authenticationSession?.id) {
+			if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider && this.environmentService.options.settingsSyncOptions.enabled) {
+				this.currentSessionId = authenticationSession?.id;
+			}
+
+			// Backward compatibility
+			else if (this.useWorkbenchSessionId) {
+				this.currentSessionId = authenticationSession?.id;
+			}
 			this.useWorkbenchSessionId = false;
 		}
 
@@ -190,7 +198,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
-		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => isSuccessive)(() => this.onDidSuccessiveAuthFailures()));
+		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, bailout => bailout)(() => this.onDidAuthFailure()));
 		this.hasConflicts.set(this.userDataSyncService.conflicts.length > 0);
 		this._register(this.userDataSyncService.onDidChangeConflicts(conflicts => {
 			this.hasConflicts.set(conflicts.length > 0);
@@ -588,20 +596,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.update();
 	}
 
-	private async onDidSuccessiveAuthFailures(): Promise<void> {
+	private async onDidAuthFailure(): Promise<void> {
 		this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Report when there are successive auth failures during settings sync' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
 		await this.update();
-
-		if (this.userDataSyncEnablementService.isEnabled()) {
-			this.notificationService.notify({
-				severity: Severity.Error,
-				message: localize('successive auth failures', "Settings sync is suspended because of successive authorization failures. Please sign in again to continue synchronizing"),
-				actions: {
-					primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
-				}
-			});
-		}
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {

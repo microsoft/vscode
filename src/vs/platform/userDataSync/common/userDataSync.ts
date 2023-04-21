@@ -191,7 +191,7 @@ export interface IUserDataSyncStoreService {
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
-	readonly onTokenFailed: Event<void>;
+	readonly onTokenFailed: Event<UserDataSyncErrorCode>;
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
 
@@ -237,6 +237,7 @@ export function createSyncHeaders(executionId: string): IHeaders {
 export const enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
+	Forbidden = 'Forbidden', /* 403 */
 	NotFound = 'NotFound', /* 404 */
 	MethodNotFound = 'MethodNotFound', /* 405 */
 	Conflict = 'Conflict', /* 409 */
@@ -423,7 +424,7 @@ export interface IUserDataSyncResourceError extends IUserDataSyncResource {
 	readonly error: UserDataSyncError;
 }
 
-export interface IUserDataInitializer {
+export interface IUserDataSyncResourceInitializer {
 	initialize(userData: IUserData): Promise<void>;
 }
 

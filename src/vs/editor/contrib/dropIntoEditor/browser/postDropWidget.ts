@@ -6,16 +6,21 @@
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { toAction } from 'vs/base/common/actions';
+import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./postDropWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { DocumentOnDropEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
+export const changeDropTypeCommandId = 'editor.changeDropType';
+
+export const dropWidgetVisibleCtx = new RawContextKey<boolean>('dropWidgetVisible', false, localize('dropWidgetVisible', "Whether the drop widget is showing"));
 
 interface DropEditSet {
 	readonly activeEditIndex: number;
@@ -25,10 +30,13 @@ interface DropEditSet {
 class PostDropWidget extends Disposable implements IContentWidget {
 	private static readonly ID = 'editor.widget.postDropWidget';
 
-	readonly allowEditorOverflow = false;
+	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = true;
 
 	private domNode!: HTMLElement;
+	private button!: Button;
+
+	private readonly dropWidgetVisible: IContextKey<boolean>;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -36,10 +44,16 @@ class PostDropWidget extends Disposable implements IContentWidget {
 		private readonly edits: DropEditSet,
 		private readonly onSelectNewEdit: (editIndex: number) => void,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
 		this.create();
+
+		this.dropWidgetVisible = dropWidgetVisibleCtx.bindTo(contextKeyService);
+		this.dropWidgetVisible.set(true);
+		this._register(toDisposable(() => this.dropWidgetVisible.reset()));
 
 		this.editor.addContentWidget(this);
 		this.editor.layoutContentWidget(this);
@@ -51,34 +65,28 @@ class PostDropWidget extends Disposable implements IContentWidget {
 				this.dispose();
 			}
 		}));
+
+		this._register(Event.runAndSubscribe(_keybindingService.onDidUpdateKeybindings, () => {
+			this._updateButtonTitle();
+		}));
+	}
+
+	private _updateButtonTitle() {
+		const binding = this._keybindingService.lookupKeybinding(changeDropTypeCommandId)?.getLabel();
+		this.button.element.title = binding
+			? localize('postDropWidgetTitleWithBinding', "Show drop options... ({0})", binding)
+			: localize('postDropWidgetTitle', "Show drop options...");
 	}
 
 	private create(): void {
 		this.domNode = dom.$('.post-drop-widget');
 
-		const button = this._register(new Button(this.domNode, {
-			title: localize('postDropWidgetTile', "Drop options..."),
+		this.button = this._register(new Button(this.domNode, {
 			supportIcons: true,
-			...defaultButtonStyles,
 		}));
-		button.label = '$(clippy)';
+		this.button.label = '$(insert)';
 
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, e => {
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => {
-					const pos = dom.getDomNodePagePosition(button.element);
-					return { x: pos.left + pos.width, y: pos.top + pos.height };
-				},
-				getActions: () => {
-					return this.edits.allEdits.map((edit, i) => toAction({
-						id: '',
-						label: edit.label,
-						checked: i === this.edits.activeEditIndex,
-						run: () => this.onSelectNewEdit(i),
-					}));
-				}
-			});
-		}));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, () => this.showDropSelector()));
 	}
 
 	getId(): string {
@@ -95,6 +103,27 @@ class PostDropWidget extends Disposable implements IContentWidget {
 			preference: [ContentWidgetPositionPreference.BELOW]
 		};
 	}
+
+	showDropSelector() {
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => {
+				const pos = dom.getDomNodePagePosition(this.button.element);
+				return { x: pos.left + pos.width, y: pos.top + pos.height };
+			},
+			getActions: () => {
+				return this.edits.allEdits.map((edit, i) => toAction({
+					id: '',
+					label: edit.label,
+					checked: i === this.edits.activeEditIndex,
+					run: () => {
+						if (i !== this.edits.activeEditIndex) {
+							return this.onSelectNewEdit(i);
+						}
+					},
+				}));
+			}
+		});
+	}
 }
 
 export class PostDropWidgetManager extends Disposable {
@@ -107,7 +136,10 @@ export class PostDropWidgetManager extends Disposable {
 	) {
 		super();
 
-		this._register(_editor.onDidChangeModelContent(() => this.clear()));
+		this._register(Event.any(
+			_editor.onDidChangeModel,
+			_editor.onDidChangeModelContent,
+		)(() => this.clear()));
 	}
 
 	public show(range: Range, edits: DropEditSet, onDidSelectEdit: (newIndex: number) => void) {
@@ -119,6 +151,10 @@ export class PostDropWidgetManager extends Disposable {
 	}
 
 	public clear() {
-		this._currentWidget?.clear();
+		this._currentWidget.clear();
+	}
+
+	public changeExistingDropType() {
+		this._currentWidget.value?.showDropSelector();
 	}
 }

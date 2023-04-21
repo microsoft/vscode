@@ -4,6 +4,8 @@
 	"recommendations": [
 		"dbaeumer.vscode-eslint",
 		"EditorConfig.EditorConfig",
+		"GitHub.vscode-pull-request-github",
+		"ms-vscode.vscode-github-issue-notebooks",
 		"ms-vscode.vscode-selfhost-test-provider"
 	]
 }

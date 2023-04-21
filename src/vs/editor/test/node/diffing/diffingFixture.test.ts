@@ -17,7 +17,7 @@ suite('diff fixtures', () => {
 	const fixturesSrcDir = resolve(fixturesOutDir).replaceAll('\\', '/').replace('/out/vs/editor/', '/src/vs/editor/');
 	const folders = readdirSync(fixturesSrcDir);
 
-	function runTest(folder: string, diffingAlgoName: 'smart' | 'experimental') {
+	function runTest(folder: string, diffingAlgoName: 'legacy' | 'advanced') {
 		const folderPath = join(fixturesSrcDir, folder);
 		const files = readdirSync(folderPath);
 
@@ -29,7 +29,7 @@ suite('diff fixtures', () => {
 		const secondContent = readFileSync(join(folderPath, secondFileName), 'utf8').replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 		const secondContentLines = secondContent.split(/\n/);
 
-		const diffingAlgo = diffingAlgoName === 'smart' ? new SmartLinesDiffComputer() : new StandardLinesDiffComputer();
+		const diffingAlgo = diffingAlgoName === 'legacy' ? new SmartLinesDiffComputer() : new StandardLinesDiffComputer();
 
 		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER });
 
@@ -91,11 +91,11 @@ suite('diff fixtures', () => {
 	}
 
 	test(`uiae`, () => {
-		runTest('subword', 'experimental');
+		runTest('subword', 'advanced');
 	});
 
 	for (const folder of folders) {
-		for (const diffingAlgoName of ['smart', 'experimental'] as const) {
+		for (const diffingAlgoName of ['legacy', 'advanced'] as const) {
 			test(`${folder}-${diffingAlgoName}`, () => {
 				runTest(folder, diffingAlgoName);
 			});

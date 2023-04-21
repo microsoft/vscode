@@ -27,7 +27,7 @@ export function isWelcomeVM(item: unknown): item is IInteractiveWelcomeMessageVi
 }
 
 export interface IInteractiveSessionViewModel {
-	readonly sessionId: number;
+	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<void>;
 	readonly welcomeMessage: IInteractiveWelcomeMessageViewModel | undefined;

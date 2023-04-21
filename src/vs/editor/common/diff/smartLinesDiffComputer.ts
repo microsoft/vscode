@@ -82,7 +82,16 @@ export class SmartLinesDiffComputer implements ILinesDiffComputer {
 export interface IDiffComputationResult {
 	quitEarly: boolean;
 	identical: boolean;
+
+	/**
+	 * The changes as (legacy) line change array.
+	 */
 	changes: ILineChange[];
+
+	/**
+	 * The changes as (modern) line range mapping array.
+	 */
+	changes2: LineRangeMapping[];
 }
 
 /**

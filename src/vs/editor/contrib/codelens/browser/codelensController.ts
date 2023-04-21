@@ -223,6 +223,11 @@ export class CodeLensContribution implements IEditorContribution {
 
 			// Ask for all references again
 			scheduler.schedule();
+
+			// Cancel pending and active resolve requests
+			this._resolveCodeLensesScheduler.cancel();
+			this._resolveCodeLensesPromise?.cancel();
+			this._resolveCodeLensesPromise = undefined;
 		}));
 		this._localToDispose.add(this._editor.onDidFocusEditorWidget(() => {
 			scheduler.schedule();

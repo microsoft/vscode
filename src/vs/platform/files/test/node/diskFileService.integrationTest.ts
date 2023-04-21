@@ -1620,54 +1620,6 @@ flakySuite('Disk File Service', function () {
 		assert.ok(!error);
 	});
 
-	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - default', async () => {
-		return testFileExceedsMemoryLimit();
-	});
-
-	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-
-		return testFileExceedsMemoryLimit();
-	});
-
-	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
-
-		return testFileExceedsMemoryLimit();
-	});
-
-	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
-
-		return testFileExceedsMemoryLimit();
-	});
-
-	async function testFileExceedsMemoryLimit() {
-		await doTestFileExceedsMemoryLimit(false);
-
-		// Also test when the stat size is wrong
-		fileProvider.setSmallStatSize(true);
-		return doTestFileExceedsMemoryLimit(true);
-	}
-
-	async function doTestFileExceedsMemoryLimit(statSizeWrong: boolean) {
-		const resource = URI.file(join(testDir, 'index.html'));
-
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource, { limits: { memory: 10 } });
-		} catch (err) {
-			error = err;
-		}
-
-		assert.ok(error);
-		if (!statSizeWrong) {
-			assert.ok(error instanceof TooLargeFileOperationError);
-			assert.ok(typeof error.size === 'number');
-		}
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
-	}
-
 	test('readFile - FILE_TOO_LARGE - default', async () => {
 		return testFileTooLarge();
 	});
