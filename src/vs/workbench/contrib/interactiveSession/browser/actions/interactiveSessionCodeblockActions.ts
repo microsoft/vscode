@@ -261,10 +261,13 @@ export function registerInteractiveSessionCodeBlockActions() {
 
 			let terminal = await terminalService.getActiveOrCreateInstance();
 
-			// Why does getActiveOrCreateInstance return a disposed terminal?
-			terminal = terminal.isDisposed ? await terminalService.createTerminal() : terminal;
+			// Why does getActiveOrCreateInstance return a disposed terminal? #180018
+			// isFeatureTerminal = debug terminal
+			const unusableTerminal = terminal.isDisposed || terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.type === 'Task' || terminal.shellLaunchConfig.isFeatureTerminal;
+			terminal = unusableTerminal ? await terminalService.createTerminal() : terminal;
 
-			await terminal.focusWhenReady();
+			terminalService.setActiveInstance(terminal);
+			await terminal.focusWhenReady(true);
 			if (terminal.target === TerminalLocation.Editor) {
 				const existingEditors = editorService.findEditors(terminal.resource);
 				terminalEditorService.openEditor(terminal, { viewColumn: existingEditors?.[0].groupId });
