@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InteractiveEditorController, InteractiveEditorRunOptions, Recording } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_UNDO, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_UNDO, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { IAction2Options } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -338,11 +338,11 @@ export class FeebackHelpfulCommand extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.feedbackHelpful',
 			title: localize('feedback.helpful', 'Helpful'),
 			icon: Codicon.thumbsup,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE),
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			toggled: CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.isEqualTo('helpful'),
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_HAS_RESPONSE,
+				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
 				group: '2_feedback',
 				order: 1
 			}
@@ -360,11 +360,11 @@ export class FeebackUnhelpfulCommand extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.feedbackunhelpful',
 			title: localize('feedback.unhelpful', 'Unhelpful'),
 			icon: Codicon.thumbsdown,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE),
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			toggled: CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.isEqualTo('unhelpful'),
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_HAS_RESPONSE,
+				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
 				group: '2_feedback',
 				order: 2
 			}
@@ -383,11 +383,11 @@ export class ToggleInlineDiff extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.toggleInlineDiff',
 			title: localize('toggleInlineDiff', 'Toggle Inline Diff'),
 			icon: Codicon.diff,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE,),
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			toggled: CTX_INTERACTIVE_EDITOR_INLNE_DIFF,
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo(EditMode.Live),
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo(EditMode.Live), CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo('message')),
 				group: '1_main',
 				order: 1
 			}
@@ -406,14 +406,14 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.applyEdits',
 			title: localize('applyEdits', 'Apply Changes'),
 			icon: Codicon.check,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE),
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter
 			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_HAS_RESPONSE,
+				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo('message'),
 				group: '0_main',
 				order: 0
 			}
@@ -449,7 +449,7 @@ export class CancelSessionAction extends AbstractInteractiveEditorAction {
 			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_HAS_RESPONSE,
+				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo('message'),
 				group: '0_main',
 				order: 1
 			}

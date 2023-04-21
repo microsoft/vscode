@@ -96,10 +96,6 @@
 	align-items: center;
 }
 
-.monaco-editor .interactive-editor.preview .status {
-	flex-direction: row-reverse;
-}
-
 .monaco-editor .interactive-editor .status .actions.hidden {
 	display: none;
 }
@@ -165,7 +161,7 @@
 	display: none;
 }
 
-.monaco-editor .interactive-editor.preview .previewDiff {
+.monaco-editor .interactive-editor .previewDiff {
 	display: inherit;
 	padding: 6px;
 	border: 1px solid var(--vscode-interactiveEditor-border);
@@ -175,11 +171,11 @@
 	margin: 0 2px 6px 2px;
 }
 
-.monaco-editor .interactive-editor.preview .previewCreateTitle {
+.monaco-editor .interactive-editor .previewCreateTitle {
 	padding-top: 6px;
 }
 
-.monaco-editor .interactive-editor.preview .previewCreate {
+.monaco-editor .interactive-editor .previewCreate {
 	display: inherit;
 	padding: 6px;
 	border: 1px solid var(--vscode-interactiveEditor-border);

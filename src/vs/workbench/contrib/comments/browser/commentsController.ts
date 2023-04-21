@@ -540,6 +540,14 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
+	public expandUnresolved(): void {
+		for (const widget of this._commentWidgets) {
+			if (widget.commentThread.state === languages.CommentThreadState.Unresolved) {
+				widget.expand();
+			}
+		}
+	}
+
 	public nextCommentThread(): void {
 		this._findNearestCommentThread();
 	}
