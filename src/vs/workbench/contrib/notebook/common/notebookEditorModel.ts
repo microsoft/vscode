@@ -76,6 +76,18 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return Boolean(this._workingCopy?.model?.notebookModel);
 	}
 
+	async canDispose(): Promise<boolean> {
+		if (!this._workingCopy) {
+			return true;
+		}
+
+		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
+			return this._workingCopyManager.stored.canDispose(this._workingCopy);
+		} else {
+			return true;
+		}
+	}
+
 	isDirty(): boolean {
 		return this._workingCopy?.isDirty() ?? false;
 	}
