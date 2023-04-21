@@ -71,18 +71,14 @@ export class ColumnRange {
 
 export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 	const d = new DisposableStore();
-	let decorationIds: string[] = [];
+	const decorationsCollection = editor.createDecorationsCollection();
 	d.add(autorun(`Apply decorations from ${decorations.debugName}`, reader => {
 		const d = decorations.read(reader);
-		editor.changeDecorations(a => {
-			decorationIds = a.deltaDecorations(decorationIds, d);
-		});
+		decorationsCollection.set(d);
 	}));
 	d.add({
 		dispose: () => {
-			editor.changeDecorations(a => {
-				decorationIds = a.deltaDecorations(decorationIds, []);
-			});
+			decorationsCollection.clear();
 		}
 	});
 	return d;
