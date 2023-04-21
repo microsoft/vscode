@@ -739,17 +739,15 @@ export interface IParseContext {
 }
 
 
-namespace ShellConfiguration {
-
-	const properties: IMetaData<Tasks.IShellConfiguration, void>[] = [{ property: 'executable' }, { property: 'args' }, { property: 'quoting' }];
-
-	export function is(value: any): value is IShellConfiguration {
+const shellConfigurationProperties: IMetaData<Tasks.IShellConfiguration, void>[] = [{ property: 'executable' }, { property: 'args' }, { property: 'quoting' }];
+const ShellConfiguration = Object.freeze({
+	is(value: any): value is IShellConfiguration {
 		const candidate: IShellConfiguration = value;
 		return candidate && (Types.isString(candidate.executable) || Types.isStringArray(candidate.args));
-	}
+	},
 
-	export function from(this: void, config: IShellConfiguration | undefined, context: IParseContext): Tasks.IShellConfiguration | undefined {
-		if (!is(config)) {
+	from(this: void, config: IShellConfiguration | undefined, context: IParseContext): Tasks.IShellConfiguration | undefined {
+		if (!ShellConfiguration.is(config)) {
 			return undefined;
 		}
 		const result: IShellConfiguration = {};
@@ -764,31 +762,31 @@ namespace ShellConfiguration {
 		}
 
 		return result;
-	}
+	},
 
-	export function isEmpty(this: void, value: Tasks.IShellConfiguration): boolean {
-		return _isEmpty(value, properties, true);
-	}
+	isEmpty(this: void, value: Tasks.IShellConfiguration): boolean {
+		return _isEmpty(value, shellConfigurationProperties, true);
+	},
 
-	export function assignProperties(this: void, target: Tasks.IShellConfiguration | undefined, source: Tasks.IShellConfiguration | undefined): Tasks.IShellConfiguration | undefined {
-		return _assignProperties(target, source, properties);
-	}
+	assignProperties(this: void, target: Tasks.IShellConfiguration | undefined, source: Tasks.IShellConfiguration | undefined): Tasks.IShellConfiguration | undefined {
+		return _assignProperties(target, source, shellConfigurationProperties);
+	},
 
-	export function fillProperties(this: void, target: Tasks.IShellConfiguration, source: Tasks.IShellConfiguration): Tasks.IShellConfiguration | undefined {
-		return _fillProperties(target, source, properties, true);
-	}
+	fillProperties(this: void, target: Tasks.IShellConfiguration, source: Tasks.IShellConfiguration): Tasks.IShellConfiguration | undefined {
+		return _fillProperties(target, source, shellConfigurationProperties, true);
+	},
 
-	export function fillDefaults(this: void, value: Tasks.IShellConfiguration, context: IParseContext): Tasks.IShellConfiguration {
+	fillDefaults(this: void, value: Tasks.IShellConfiguration, context: IParseContext): Tasks.IShellConfiguration {
 		return value;
-	}
+	},
 
-	export function freeze(this: void, value: Tasks.IShellConfiguration): Readonly<Tasks.IShellConfiguration> | undefined {
+	freeze(this: void, value: Tasks.IShellConfiguration): Readonly<Tasks.IShellConfiguration> | undefined {
 		if (!value) {
 			return undefined;
 		}
 		return Object.freeze(value);
-	}
-}
+	},
+});
 
 namespace CommandOptions {
 

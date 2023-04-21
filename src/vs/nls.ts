@@ -155,6 +155,8 @@ export function create(key: string, data: IBundledStrings & IConsumerAPI): ICons
 
 /**
  * Invoked by the loader at run-time
+ *
+ * @skipMangle
  */
 export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
 	const pluginConfig: INLSPluginConfig = config['vs/nls'] ?? {};
