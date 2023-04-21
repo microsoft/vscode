@@ -96,6 +96,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		} else if (this.editor.getValue() === '    ') {
 			this.editor.onKeyDown((event) => {
 				if (event['code'] === 'Enter') {
+					event.stopPropagation();
 					this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
 				}
 			});
@@ -103,6 +104,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		} else if (this.editor.getValue() === '        ') {
 			this.editor.onKeyDown((event) => {
 				if (event['code'] === 'Enter') {
+					event.stopPropagation();
 					this.commandService.executeCommand(ApplyFileSnippetAction.Id);
 				}
 			});
