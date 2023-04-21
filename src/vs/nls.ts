@@ -145,6 +145,7 @@ export function setPseudoTranslation(value: boolean) {
 
 /**
  * Invoked in a built product at run-time
+ * @skipMangle
  */
 export function create(key: string, data: IBundledStrings & IConsumerAPI): IConsumerAPI {
 	return {
@@ -155,7 +156,6 @@ export function create(key: string, data: IBundledStrings & IConsumerAPI): ICons
 
 /**
  * Invoked by the loader at run-time
- *
  * @skipMangle
  */
 export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
