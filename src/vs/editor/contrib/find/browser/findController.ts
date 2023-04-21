@@ -26,7 +26,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -759,22 +759,46 @@ export class MoveToMatchFindAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
 		const controller = CommonFindController.get(editor);
-
 		if (!controller) {
+			return;
+		}
+
+		const matchesCount = controller.getState().matchesCount;
+		if (matchesCount < 1) {
+			const notificationService = accessor.get(INotificationService);
+			notificationService.notify({
+				severity: Severity.Warning,
+				message: nls.localize('findMatchAction.noResults', "No matches. Try searching for something else.")
+			});
 			return;
 		}
 
 		const quickInputService = accessor.get(IQuickInputService);
 		const inputBox = quickInputService.createInputBox();
-		inputBox.placeholder = nls.localize('findMatchAction.inputPlaceHolder', "Type a number to go to a specific match (between 1 and {0})", controller.getState().matchesCount);
+		inputBox.placeholder = nls.localize('findMatchAction.inputPlaceHolder', "Type a number to go to a specific match (between 1 and {0})", matchesCount);
+
+		const toFindMatchIndex = (value: string): number | undefined => {
+			const index = parseInt(value);
+			if (isNaN(index)) {
+				return undefined;
+			}
+
+			const matchCount = controller.getState().matchesCount;
+			if (index > 0 && index <= matchCount) {
+				return index - 1; // zero based
+			} else if (index < 0 && index >= -matchCount) {
+				return matchCount + index;
+			}
+
+			return undefined;
+		};
 
 		const updatePickerAndEditor = (value: string) => {
-			const index = parseInt(value);
-
-			if (!isNaN(index) && index > 0 && index <= controller.getState().matchesCount) {
+			const index = toFindMatchIndex(value);
+			if (typeof index === 'number') {
 				// valid
 				inputBox.validationMessage = undefined;
-				controller.goToMatch(index - 1);
+				controller.goToMatch(index);
 				const currentMatch = controller.getState().currentMatch;
 				if (currentMatch) {
 					this.addDecorations(editor, currentMatch);
@@ -789,9 +813,9 @@ export class MoveToMatchFindAction extends EditorAction {
 		});
 
 		inputBox.onDidAccept(() => {
-			const index = parseInt(inputBox.value);
-			if (!isNaN(index) && index > 0 && index <= controller.getState().matchesCount) {
-				controller.goToMatch(index - 1);
+			const index = toFindMatchIndex(inputBox.value);
+			if (typeof index === 'number') {
+				controller.goToMatch(index);
 				inputBox.hide();
 			} else {
 				inputBox.validationMessage = nls.localize('findMatchAction.inputValidationMessage', "Please type a number between 1 and {0}", controller.getState().matchesCount);
