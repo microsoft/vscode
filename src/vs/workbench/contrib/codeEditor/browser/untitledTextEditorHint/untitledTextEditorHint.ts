@@ -112,7 +112,15 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		} else if (this.editor.getValue() === '        ') {
 			this.editor.onKeyDown((event) => {
 				if (event['code'] === 'Enter') {
-					console.log('hi');
+					event.stopPropagation();
+
+					const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
+					this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
+
+					// Close the active editor as long as it is untitled (swap the editors out)
+					if (activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
+						this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
+					}
 				}
 			});
 
