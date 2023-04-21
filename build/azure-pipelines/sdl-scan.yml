@@ -86,12 +86,30 @@ stages:
             condition: eq(variables['Codeql.enabled'], 'True')
 
           - powershell: |
+              mkdir -Force .build/node-gyp
+            displayName: Create custom node-gyp directory
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+          - powershell: |
+              . ../../build/azure-pipelines/win32/exec.ps1
+              $ErrorActionPreference = "Stop"
+              # TODO: Should be replaced with upstream URL once https://github.com/nodejs/node-gyp/pull/2825
+              # gets merged.
+              exec { git clone https://github.com/rzhao271/node-gyp.git . } "Cloning rzhao271/node-gyp failed"
+              exec { git checkout 102b347da0c92c29f9c67df22e864e70249cf086 } "Checking out 102b347 failed"
+              exec { npm install } "Building rzhao271/node-gyp failed"
+            displayName: Install custom node-gyp
+            workingDirectory: .build/node-gyp
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+          - powershell: |
               . build/azure-pipelines/win32/exec.ps1
               . build/azure-pipelines/win32/retry.ps1
               $ErrorActionPreference = "Stop"
+              $env:npm_config_node_gyp = "$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
+              $env:npm_config_arch = "$(NPM_ARCH)"
               retry { exec { yarn --frozen-lockfile --check-files } }
             env:
-              npm_config_arch: "$(NPM_ARCH)"
               PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
               CHILD_CONCURRENCY: 1
