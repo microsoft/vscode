@@ -3779,7 +3779,8 @@ declare namespace monaco.editor {
 		enableSplitViewResizing?: boolean;
 		/**
 		 * The default ratio when rendering side-by-side editors.
-		 * Must be a number between 0.1 and 0.9, defaults to 0.5
+		 * Must be a number between 0 and 1, min sizes apply.
+		 * Defaults to 0.5
 		 */
 		splitViewDefaultRatio?: number;
 		/**
