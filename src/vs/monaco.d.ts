@@ -3509,7 +3509,7 @@ declare namespace monaco.editor {
 		/**
 		 * The history mode for suggestions.
 		 */
-		suggestSelection?: 'first' | 'last' | 'recentlyUsed' | 'recentlyUsedByPrefix';
+		suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		/**
 		 * The font size for the suggest widget.
 		 * Defaults to the editor font size.
@@ -4877,7 +4877,7 @@ declare namespace monaco.editor {
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
-		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'last' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
+		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, any>;
