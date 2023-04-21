@@ -1395,7 +1395,7 @@ begin
   if IsBackgroundUpdate() then
     Result := ''
   else
-    Result := '{#AppMutex}';
+    Result := '{#AppMutex},{#TunnelMutex}';
 end;
 
 function GetDestDir(Value: string): string;
@@ -1447,15 +1447,31 @@ begin
 end;
 #endif
 
+var
+	StartTunnelService: Boolean;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
 begin
+  if (CurStep = ssInstall) and CheckForMutexes('{#TunnelServiceMutex}') then
+  begin
+    // stop the tunnel service
+    Exec(ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"'), 'tunnel service uninstall', '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+
+    while (CheckForMutexes('{#TunnelServiceMutex}')) do
+    begin
+      Log('Tunnel service is still running, waiting');
+      Sleep(500);
+    end;
+		StartTunnelService := True
+  end;
+
   if IsBackgroundUpdate() and (CurStep = ssPostInstall) then
   begin
     CreateMutex('{#AppMutex}-ready');
 
-    while (CheckForMutexes('{#AppMutex}')) do
+    while (CheckForMutexes('{#AppMutex},{#TunnelMutex}')) do
     begin
       Log('Application is still running, waiting');
       Sleep(1000);
@@ -1463,6 +1479,14 @@ begin
 
     Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
   end;
+
+	if (CurStep = ssPostInstall) and StartTunnelService then
+	begin
+		// start the tunnel service
+    Exec(ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"'), 'tunnel service install', '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+		StartTunnelService := False
+	end;
+
 end;
 
 // https://stackoverflow.com/a/23838239/261019

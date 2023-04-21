@@ -36,12 +36,17 @@ pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
 
 /// Windows lock name for the running tunnel service. Used by the setup script
 /// to detect a tunnel process. See #179265.
-pub const TUNNEL_SERVICE_LOCK_NAME: Option<&'static str> =
-	option_env!("VSCODE_CLI_TUNNEL_SERVICE_MUTEX");
+pub const TUNNEL_SERVICE_LOCK_NAME: &str = match option_env!("VSCODE_CLI_TUNNEL_SERVICE_MUTEX") {
+	Some(n) => n,
+	None => "vscodetunnelserviceoss",
+};
 
 /// Windows lock name for the running tunnel without a service. Used by the setup
 /// script to detect a tunnel process. See #179265.
-pub const TUNNEL_CLI_LOCK_NAME: Option<&'static str> = option_env!("VSCODE_CLI_TUNNEL_CLI_MUTEX");
+pub const TUNNEL_CLI_LOCK_NAME: &str = match option_env!("VSCODE_CLI_TUNNEL_CLI_MUTEX") {
+	Some(n) => n,
+	None => "vscodetunneloss",
+};
 
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 
