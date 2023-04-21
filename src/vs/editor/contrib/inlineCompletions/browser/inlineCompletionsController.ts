@@ -37,7 +37,7 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
-		() => this.model.get()?.currentInlineCompletion.get()?.toSingleTextEdit(undefined),
+		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
 		(tx) => this.updateObservables(tx, VersionIdChangeReason.Other)
 	));
 
@@ -171,7 +171,7 @@ export class InlineCompletionsController extends Disposable {
 		let lastInlineCompletionId: string | undefined = undefined;
 		this._register(autorun('play audio cue & read suggestion', reader => {
 			const model = this.model.read(reader);
-			const currentInlineCompletion = model?.currentInlineCompletion.read(reader);
+			const currentInlineCompletion = model?.selectedInlineCompletion.read(reader);
 			if (!model || !currentInlineCompletion) {
 				lastInlineCompletionId = undefined;
 				return;

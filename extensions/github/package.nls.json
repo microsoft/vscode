@@ -1,7 +1,7 @@
 {
 	"displayName": "GitHub",
 	"description": "GitHub features for VS Code",
-	"config.branchProtection": "Controls whether to query branch protection information for GitHub repositories",
+	"config.branchProtection": "Controls whether to query repository rules for GitHub repositories",
 	"config.gitAuthentication": "Controls whether to enable automatic GitHub authentication for git commands within VS Code.",
 	"config.gitProtocol": "Controls which protocol is used to clone a GitHub repository",
 	"welcome.publishFolder": {

@@ -6,12 +6,10 @@
 import { Dimension, h } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,6 +17,9 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { interactiveEditorDiffInserted, interactiveEditorDiffRemoved, interactiveEditorRegionHighlight } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { Position } from 'vs/editor/common/core/position';
 
 export class InteractiveEditorDiffWidget extends ZoneWidget {
 
@@ -31,8 +32,8 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 	private _dim: Dimension | undefined;
 
 	constructor(
-		editor: ICodeEditor,
-		private readonly _originalModel: ITextModel,
+		editor: IActiveCodeEditor,
+		private readonly _textModelv0: ITextModel,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 	) {
@@ -52,6 +53,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			modifiedEditor: { contributions: [] }
 		}, editor);
 		this._disposables.add(this._diffEditor);
+		this._diffEditor.setModel({ original: this._textModelv0, modified: editor.getModel() });
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
@@ -73,59 +75,106 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		};
 		doStyle();
 		this._disposables.add(themeService.onDidColorThemeChange(doStyle));
-
 	}
 
 	protected override _fillContainer(container: HTMLElement): void {
 		container.appendChild(this._elements.domNode);
 	}
 
-	override show(range: IRange): void {
+	// --- show / hide --------------------
+
+	override show(): void {
+		throw new Error('not supported like this');
+	}
+
+	getEndPositionForChanges(range: Range, changes: LineRangeMapping[]): Position | undefined {
+		assertType(this.editor.hasModel());
+
+		const modified = this.editor.getModel();
+		const ranges = this._computeHiddenRanges(modified, range, changes);
+		if (!ranges) {
+			return undefined;
+		}
+		return ranges.modifiedHidden.getEndPosition();
+	}
+
+	showDiff(range: () => Range, changes: LineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
 		this._sessionStore.clear();
 
-		this.editor.setHiddenAreas([range], InteractiveEditorDiffWidget._hideId);
+		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
+			const result = this._diffEditor.getDiffComputationResult();
+			this._doShowForChanges(range(), result?.changes2 ?? []);
+		}));
+		this._doShowForChanges(range(), changes);
+	}
+
+	private _doShowForChanges(range: Range, changes: LineRangeMapping[]): void {
+		assertType(this.editor.hasModel());
+
 		const modified = this.editor.getModel();
-		const lineHeightDiff = Math.max(1, Math.abs(modified.getLineCount() - this._originalModel.getLineCount()) + (range.endLineNumber - range.startLineNumber));
+		const ranges = this._computeHiddenRanges(modified, range, changes);
+
+		if (!ranges) {
+			this.hide();
+			return;
+		}
+
+		this.editor.setHiddenAreas([ranges.modifiedHidden], InteractiveEditorDiffWidget._hideId);
+		this._diffEditor.getOriginalEditor().setHiddenAreas(ranges.originalDiffHidden, InteractiveEditorDiffWidget._hideId);
+		this._diffEditor.getModifiedEditor().setHiddenAreas(ranges.modifiedDiffHidden, InteractiveEditorDiffWidget._hideId);
+
+		const lineCountModified = ranges.modifiedHidden.endLineNumber - ranges.modifiedHidden.startLineNumber;
+		const lineCountOriginal = ranges.originalHidden.endLineNumber - ranges.originalHidden.startLineNumber;
+
+		const lineHeightDiff = 1 + Math.max(lineCountModified, lineCountOriginal);
 		const lineHeightPadding = (this.editor.getOption(EditorOption.lineHeight) / 12) /* padding-top/bottom*/;
 
-		this._diffEditor.setModel({ original: this._originalModel, modified });
-		this._diffEditor.revealRange(range, ScrollType.Immediate);
-		this._diffEditor.getModifiedEditor().setHiddenAreas(invertRange(range, modified), InteractiveEditorDiffWidget._hideId);
+		const position = ranges.modifiedHidden.getEndPosition();
+		super.show(position, lineHeightDiff + lineHeightPadding);
+	}
 
-		const updateHiddenAreasOriginal = () => {
-			// todo@jrieken this needs work when both are equal
-			const changes = this._diffEditor.getLineChanges();
-			if (!changes) {
-				return;
-			}
-			let startLine = Number.MAX_VALUE;
-			let endLine = 0;
-			for (const change of changes) {
-				startLine = Math.min(startLine, change.originalStartLineNumber, change.modifiedStartLineNumber);
-				endLine = Math.max(endLine, change.originalEndLineNumber || change.originalStartLineNumber, change.modifiedEndLineNumber || change.modifiedStartLineNumber);
-			}
-			const combinedRange = this._originalModel.validateRange({ startLineNumber: startLine, startColumn: 1, endLineNumber: endLine, endColumn: Number.MAX_VALUE });
+	private _computeHiddenRanges(model: ITextModel, range: Range, changes: LineRangeMapping[]) {
+		if (changes.length === 0) {
+			return undefined;
+		}
 
-			const hiddenRangesOriginal = invertRange(combinedRange, this._originalModel);
-			this._diffEditor.getOriginalEditor().setHiddenAreas(hiddenRangesOriginal, InteractiveEditorDiffWidget._hideId);
+		let originalLineRange = changes[0].originalRange;
+		let modifiedLineRange = changes[0].modifiedRange;
+		for (let i = 1; i < changes.length; i++) {
+			originalLineRange = originalLineRange.join(changes[i].originalRange);
+			modifiedLineRange = modifiedLineRange.join(changes[i].modifiedRange);
+		}
 
-			// const hiddenRangesModified = invertRange(combinedRange, modified);
-			// this._diffEditor.getModifiedEditor().setHiddenAreas(hiddenRangesModified, InteractiveEditorDiffWidget._hideId);
-		};
-		this._diffEditor.onDidUpdateDiff(updateHiddenAreasOriginal, undefined, this._sessionStore);
-		updateHiddenAreasOriginal();
+		const startDelta = modifiedLineRange.startLineNumber - range.startLineNumber;
+		if (startDelta > 0) {
+			modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber - startDelta, modifiedLineRange.endLineNumberExclusive);
+			originalLineRange = new LineRange(originalLineRange.startLineNumber - startDelta, originalLineRange.endLineNumberExclusive);
+		}
 
-		super.show(new Position(range.endLineNumber, range.endColumn), lineHeightDiff + lineHeightPadding);
+		const endDelta = range.endLineNumber - (modifiedLineRange.endLineNumberExclusive - 1);
+		if (endDelta > 0) {
+			modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber, modifiedLineRange.endLineNumberExclusive + endDelta);
+			originalLineRange = new LineRange(originalLineRange.startLineNumber, originalLineRange.endLineNumberExclusive + endDelta);
+		}
+
+
+		const originalHidden = asRange(originalLineRange, this._textModelv0);
+		const originalDiffHidden = invertRange(originalHidden, this._textModelv0);
+		const modifiedHidden = asRange(modifiedLineRange, model);
+		const modifiedDiffHidden = invertRange(modifiedHidden, model);
+
+		return { originalHidden, originalDiffHidden, modifiedHidden, modifiedDiffHidden };
 	}
 
 	override hide(): void {
 		this.editor.setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
 		this._diffEditor.getOriginalEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
 		this._diffEditor.getModifiedEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
-		this._diffEditor.setModel(null);
 		super.hide();
 	}
+
+	// --- layout -------------------------
 
 	protected override _onWidth(widthInPixel: number): void {
 		if (this._dim) {
@@ -143,13 +192,29 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 	}
 }
 
-function invertRange(range: IRange, model: ITextModel): IRange[] {
-	const result: IRange[] = [];
-	if (range.startLineNumber > 1) {
-		result.push({ startLineNumber: 1, startColumn: 1, endLineNumber: range.startLineNumber - 1, endColumn: 1 });
-	}
-	if (range.endLineNumber < model.getLineCount()) {
-		result.push({ startLineNumber: range.endLineNumber + 1, startColumn: 1, endLineNumber: model.getLineCount(), endColumn: 1 });
+function invertRange(range: IRange, model: ITextModel): Range[] {
+	const result: Range[] = [];
+	if (Range.isEmpty(range)) {
+		//result.push(model.getFullModelRange());
+		// todo@jrieken
+		// cannot hide everything, return [] instead
+
+	} else {
+		if (range.startLineNumber > 1) {
+			result.push(new Range(1, 1, range.startLineNumber - 1, 1));
+		}
+		if (range.endLineNumber < model.getLineCount()) {
+			result.push(new Range(range.endLineNumber + 1, 1, model.getLineCount(), 1));
+		}
 	}
 	return result;
+}
+
+function asRange(lineRange: LineRange, model: ITextModel): Range {
+	if (lineRange.isEmpty) {
+		return new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, 1);
+	} else {
+		const endLine = lineRange.endLineNumberExclusive - 1;
+		return new Range(lineRange.startLineNumber, 1, endLine, model.getLineMaxColumn(endLine));
+	}
 }

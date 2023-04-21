@@ -21,11 +21,13 @@ import { IWorkspace, IWorkspaceContextService, WorkbenchState, isUntitledWorkspa
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from '../common/extHost.protocol';
 import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -201,8 +203,34 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- save & edit resources ---
 
+	async $save(uriComponents: UriComponents): Promise<UriComponents | undefined> {
+		const uri = URI.revive(uriComponents);
+
+		const editors = [...this._editorService.findEditors(uri, { supportSideBySide: SideBySideEditor.PRIMARY })];
+		const result = await this._editorService.save(editors, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
+
+		return firstOrDefault(this.saveResultToUris(result));
+	}
+
+	async $saveAs(uriComponents: UriComponents): Promise<UriComponents | undefined> {
+		const uri = URI.revive(uriComponents);
+
+		const editors = [...this._editorService.findEditors(uri, { supportSideBySide: SideBySideEditor.PRIMARY })];
+		const result = await this._editorService.save(editors, { reason: SaveReason.EXPLICIT, saveAs: true });
+
+		return firstOrDefault(this.saveResultToUris(result));
+	}
+
+	private saveResultToUris(result: ISaveEditorsResult): URI[] {
+		if (!result.success) {
+			return [];
+		}
+
+		return coalesce(result.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+	}
+
 	$saveAll(includeUntitled?: boolean): Promise<boolean> {
-		return this._editorService.saveAll({ includeUntitled });
+		return this._editorService.saveAll({ includeUntitled }).then(res => res.success);
 	}
 
 	$resolveProxy(url: string): Promise<string | undefined> {

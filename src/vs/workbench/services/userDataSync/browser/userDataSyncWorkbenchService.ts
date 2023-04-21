@@ -168,8 +168,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	private async initialize(): Promise<void> {
 		const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
-		if (this.currentSessionId === undefined && this.useWorkbenchSessionId && (authenticationSession?.id)) {
-			this.currentSessionId = authenticationSession?.id;
+		if (this.currentSessionId === undefined && authenticationSession?.id) {
+			if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider && this.environmentService.options.settingsSyncOptions.enabled) {
+				this.currentSessionId = authenticationSession?.id;
+			}
+
+			// Backward compatibility
+			else if (this.useWorkbenchSessionId) {
+				this.currentSessionId = authenticationSession?.id;
+			}
 			this.useWorkbenchSessionId = false;
 		}
 

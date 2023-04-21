@@ -7,7 +7,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
@@ -22,7 +21,7 @@ import { NaiveCwdDetectionCapability } from 'vs/platform/terminal/common/capabil
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { FlowControlConstants, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IReconnectionProperties, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProcessOptions, ProcessPropertyType, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -39,6 +38,7 @@ import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
 
 const enum ProcessConstants {
 	/**
@@ -116,6 +116,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommandDetectionCapability>());
 	readonly onRestoreCommands = this._onRestoreCommands.event;
+	private _cwdWorkspaceFolder: IWorkspaceFolder | undefined;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
 	get shouldPersist(): boolean { return !!this.reconnectionProperties || (this._process ? this._process.shouldPersist : false); }
@@ -146,7 +147,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
-
+		this._cwdWorkspaceFolder = getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this.getLatency();
 		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
@@ -239,9 +240,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this.backend = backend;
 
 			// Create variable resolver
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-			const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-			const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
+			const variableResolver = terminalEnvironment.createVariableResolver(this._cwdWorkspaceFolder, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
 
 			// resolvedUserHome is needed here as remote resolvers can launch local terminals before
 			// they're connected to the remote.
@@ -282,7 +281,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
 						},
 						windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
-						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
+						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
+						workspaceFolder: this._cwdWorkspaceFolder,
 					};
 					try {
 						newProcess = await backend.createProcess(
@@ -409,6 +409,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	// Fetch any extension environment additions and apply them
 	private async _resolveEnvironment(backend: ITerminalBackend, variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
+		const workspaceFolder = getWorkspaceForTerminal(shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
 		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		this._configHelper.showRecommendations(shellLaunchConfig);
@@ -431,8 +432,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// info widget. While technically these could differ due to the slight change of a race
 			// condition, the chance is minimal plus the impact on the user is also not that great
 			// if it happens - it's not worth adding plumbing to sync back the resolved collection.
-			await this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, variableResolver);
-			if (this._extEnvironmentVariableCollection.map.size > 0) {
+			await this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
+			if (this._extEnvironmentVariableCollection.getVariableMap({ workspaceFolder }).size) {
 				this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 				this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 			}
@@ -471,7 +472,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
 			},
 			windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
-			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
+			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
+			workspaceFolder: this._cwdWorkspaceFolder,
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, options, shouldPersist);
@@ -647,7 +649,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private _onEnvironmentVariableCollectionChange(newCollection: IMergedEnvironmentVariableCollection): void {
-		const diff = this._extEnvironmentVariableCollection!.diff(newCollection);
+		const diff = this._extEnvironmentVariableCollection!.diff(newCollection, { workspaceFolder: this._cwdWorkspaceFolder });
 		if (diff === undefined) {
 			// If there are no longer differences, remove the stale info indicator
 			if (this.environmentVariableInfo instanceof EnvironmentVariableInfoStale) {

@@ -12,6 +12,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
@@ -600,6 +601,7 @@ export interface ITerminalProcessOptions {
 	};
 	windowsEnableConpty: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	workspaceFolder: IWorkspaceFolder | undefined;
 }
 
 export interface ITerminalEnvironment {

@@ -193,7 +193,7 @@ export const config = {
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
-		const electron = require('gulp-atom-electron');
+		const electron = require('@vscode/gulp-electron');
 		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 		const electronOpts = _.extend({}, config, {

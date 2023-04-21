@@ -3,20 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-mod is_integrated;
+import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IIssueMainService } from 'vs/platform/issue/common/issue';
 
-pub mod command;
-pub mod errors;
-pub mod http;
-pub mod input;
-pub mod io;
-pub mod machine;
-pub mod prereqs;
-pub mod ring_buffer;
-pub mod sync;
-pub use is_integrated::*;
-pub mod app_lock;
-pub mod file_lock;
-pub mod os;
-pub mod tar;
-pub mod zipper;
+registerMainProcessRemoteService(IIssueMainService, 'issue');

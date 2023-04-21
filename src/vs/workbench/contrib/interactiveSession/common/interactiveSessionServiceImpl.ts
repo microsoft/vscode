@@ -21,7 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveSessionWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveProviderInfo, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -534,7 +534,12 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		});
 	}
 
-	getProviderIds(): string[] {
-		return Array.from(this._providers.keys());
+	getProviderInfos(): IInteractiveProviderInfo[] {
+		return Array.from(this._providers.values()).map(provider => {
+			return {
+				id: provider.id,
+				displayName: provider.displayName
+			};
+		});
 	}
 }

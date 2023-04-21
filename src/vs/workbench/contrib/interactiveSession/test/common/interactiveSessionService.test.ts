@@ -25,6 +25,8 @@ class SimpleTestProvider extends Disposable implements IInteractiveProvider {
 
 	lastInitialState = undefined;
 
+	readonly displayName = 'Test';
+
 	private _onDidChangeState = this._register(new Emitter());
 
 	constructor(readonly id: string) {
@@ -107,6 +109,7 @@ suite('InteractiveSession', () => {
 		function getFailProvider(providerId: string) {
 			return new class implements IInteractiveProvider {
 				readonly id = providerId;
+				readonly displayName = 'Test';
 
 				lastInitialState = undefined;
 
@@ -133,6 +136,7 @@ suite('InteractiveSession', () => {
 		const id = 'testProvider';
 		testService.registerProvider({
 			id,
+			displayName: 'Test',
 			prepareSession: function (initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined> {
 				throw new Error('Function not implemented.');
 			},
@@ -144,6 +148,7 @@ suite('InteractiveSession', () => {
 		assert.throws(() => {
 			testService.registerProvider({
 				id,
+				displayName: 'Test',
 				prepareSession: function (initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined> {
 					throw new Error('Function not implemented.');
 				},

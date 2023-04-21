@@ -975,76 +975,81 @@ export class DebugSession implements IDebugSession {
 			}
 		}));
 
+		const statusQueue = new Queue<void>();
 		this.rawListeners.push(this.raw.onDidStop(async event => {
-			this.passFocusScheduler.cancel();
-			this.stoppedDetails.push(event.body);
-			await this.fetchThreads(event.body);
-			// If the focus for the current session is on a non-existent thread, clear the focus.
-			const focusedThread = this.debugService.getViewModel().focusedThread;
-			const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
-			if (focusedThreadDoesNotExist) {
-				this.debugService.focusStackFrame(undefined, undefined);
-			}
-			const thread = typeof event.body.threadId === 'number' ? this.getThread(event.body.threadId) : undefined;
-			if (thread) {
-				// Call fetch call stack twice, the first only return the top stack frame.
-				// Second retrieves the rest of the call stack. For performance reasons #25605
-				const promises = this.model.refreshTopOfCallstack(<Thread>thread);
-				const focus = async () => {
-					if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
-						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-						if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
-							// Only take focus if nothing is focused, or if the focus is already on the current session
-							const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
-							await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
-						}
-
-						if (thread.stoppedDetails) {
-							if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
-								await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
-							}
-
-							if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
-								await this.hostService.focus({ force: true /* Application may not be active */ });
-							}
-						}
-					}
-				};
-
-				await promises.topCallStack;
-				focus();
-				await promises.wholeCallStack;
-				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize' || focusedStackFrame.presentationHint === 'deemphasize') {
-					// The top stack frame can be deemphesized so try to focus again #68616
-					focus();
+			statusQueue.queue(async () => {
+				this.passFocusScheduler.cancel();
+				this.stoppedDetails.push(event.body);
+				await this.fetchThreads(event.body);
+				// If the focus for the current session is on a non-existent thread, clear the focus.
+				const focusedThread = this.debugService.getViewModel().focusedThread;
+				const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
+				if (focusedThreadDoesNotExist) {
+					this.debugService.focusStackFrame(undefined, undefined);
 				}
-			}
-			this._onDidChangeState.fire();
+				const thread = typeof event.body.threadId === 'number' ? this.getThread(event.body.threadId) : undefined;
+				if (thread) {
+					// Call fetch call stack twice, the first only return the top stack frame.
+					// Second retrieves the rest of the call stack. For performance reasons #25605
+					const promises = this.model.refreshTopOfCallstack(<Thread>thread);
+					const focus = async () => {
+						if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
+							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+							if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
+								// Only take focus if nothing is focused, or if the focus is already on the current session
+								const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
+								await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
+							}
+
+							if (thread.stoppedDetails) {
+								if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
+									await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+								}
+
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
+									await this.hostService.focus({ force: true /* Application may not be active */ });
+								}
+							}
+						}
+					};
+
+					await promises.topCallStack;
+					focus();
+					await promises.wholeCallStack;
+					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+					if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize' || focusedStackFrame.presentationHint === 'deemphasize') {
+						// The top stack frame can be deemphesized so try to focus again #68616
+						focus();
+					}
+				}
+				this._onDidChangeState.fire();
+			});
 		}));
 
 		this.rawListeners.push(this.raw.onDidThread(event => {
-			if (event.body.reason === 'started') {
-				// debounce to reduce threadsRequest frequency and improve performance
-				if (!this.fetchThreadsScheduler) {
-					this.fetchThreadsScheduler = new RunOnceScheduler(() => {
-						this.fetchThreads();
-					}, 100);
-					this.rawListeners.push(this.fetchThreadsScheduler);
+			statusQueue.queue(async () => {
+				if (event.body.reason === 'started') {
+					// debounce to reduce threadsRequest frequency and improve performance
+					if (!this.fetchThreadsScheduler) {
+						this.fetchThreadsScheduler = new RunOnceScheduler(() => {
+							this.fetchThreads();
+						}, 100);
+						this.rawListeners.push(this.fetchThreadsScheduler);
+					}
+					if (!this.fetchThreadsScheduler.isScheduled()) {
+						this.fetchThreadsScheduler.schedule();
+					}
+				} else if (event.body.reason === 'exited') {
+					this.model.clearThreads(this.getId(), true, event.body.threadId);
+					const viewModel = this.debugService.getViewModel();
+					const focusedThread = viewModel.focusedThread;
+					this.passFocusScheduler.cancel();
+					if (focusedThread && event.body.threadId === focusedThread.threadId) {
+						// De-focus the thread in case it was focused
+						this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, { explicit: false });
+					}
 				}
-				if (!this.fetchThreadsScheduler.isScheduled()) {
-					this.fetchThreadsScheduler.schedule();
-				}
-			} else if (event.body.reason === 'exited') {
-				this.model.clearThreads(this.getId(), true, event.body.threadId);
-				const viewModel = this.debugService.getViewModel();
-				const focusedThread = viewModel.focusedThread;
-				this.passFocusScheduler.cancel();
-				if (focusedThread && event.body.threadId === focusedThread.threadId) {
-					// De-focus the thread in case it was focused
-					this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, { explicit: false });
-				}
-			}
+			});
 		}));
 
 		this.rawListeners.push(this.raw.onDidTerminateDebugee(async event => {
@@ -1057,21 +1062,23 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidContinued(event => {
-			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
-			if (typeof threadId === 'number') {
-				this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
-				const tokens = this.cancellationMap.get(threadId);
-				this.cancellationMap.delete(threadId);
-				tokens?.forEach(t => t.cancel());
-			} else {
-				this.stoppedDetails = [];
-				this.cancelAllRequests();
-			}
-			this.lastContinuedThreadId = threadId;
-			// We need to pass focus to other sessions / threads with a timeout in case a quick stop event occurs #130321
-			this.passFocusScheduler.schedule();
-			this.model.clearThreads(this.getId(), false, threadId);
-			this._onDidChangeState.fire();
+			statusQueue.queue(async () => {
+				const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
+				if (typeof threadId === 'number') {
+					this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
+					const tokens = this.cancellationMap.get(threadId);
+					this.cancellationMap.delete(threadId);
+					tokens?.forEach(t => t.cancel());
+				} else {
+					this.stoppedDetails = [];
+					this.cancelAllRequests();
+				}
+				this.lastContinuedThreadId = threadId;
+				// We need to pass focus to other sessions / threads with a timeout in case a quick stop event occurs #130321
+				this.passFocusScheduler.schedule();
+				this.model.clearThreads(this.getId(), false, threadId);
+				this._onDidChangeState.fire();
+			});
 		}));
 
 		const outputQueue = new Queue<void>();
