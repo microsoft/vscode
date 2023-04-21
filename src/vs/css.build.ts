@@ -49,6 +49,8 @@ const inlinedResources: string[] = [];
 
 /**
  * Invoked by the loader at build-time
+ *
+ * @skipMangle
  */
 export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
 	if (!fs) {

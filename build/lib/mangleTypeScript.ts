@@ -21,13 +21,15 @@ class ShortIdent {
 
 	private _value = 0;
 	private readonly _isNameTaken: (name: string) => boolean;
+	private _prefix: string;
 
-	constructor(isNameTaken: (name: string) => boolean) {
+	constructor(prefix: string, isNameTaken: (name: string) => boolean) {
+		this._prefix = prefix;
 		this._isNameTaken = name => ShortIdent._keywords.has(name) || isNameTaken(name);
 	}
 
 	next(): string {
-		const candidate = ShortIdent.convert(this._value);
+		const candidate = this._prefix + ShortIdent.convert(this._value);
 		this._value++;
 		if (this._isNameTaken(candidate)) {
 			// try again
@@ -181,7 +183,7 @@ class ClassData {
 
 		data.replacements = new Map();
 
-		const identPool = new ShortIdent(name => {
+		const identPool = new ShortIdent('', name => {
 
 			// locally taken
 			if (data._isNameTaken(name)) {
@@ -267,6 +269,34 @@ class ClassData {
 	}
 }
 
+class FunctionData {
+	private static idents = new ShortIdent('f$', () => false);
+
+	readonly replacementName: string;
+
+	constructor(
+		readonly fileName: string,
+		readonly node: ts.FunctionDeclaration
+	) {
+		// TODO: Could likely be smarter and use a different ident pool for each file
+		this.replacementName = FunctionData.idents.next();
+	}
+
+	shouldMangle(): boolean {
+		// Don't mangle functions we've explicitly opted out
+		if (this.node.getFullText().includes('@skipMangle')) {
+			return false;
+		}
+
+		// Don't mangle functions in the monaco editor API.
+		if (this.node.getSourceFile().fileName.endsWith('standaloneEditor.ts')) {
+			return false;
+		}
+
+		return true;
+	}
+}
+
 class StaticLanguageServiceHost implements ts.LanguageServiceHost {
 
 	private readonly _cmdLine: ts.ParsedCommandLine;
@@ -339,6 +369,7 @@ export interface MangleOutput {
 export class Mangler {
 
 	private readonly allClassDataByKey = new Map<string, ClassData>();
+	private readonly allExportedFunctionsByKey = new Map<string, FunctionData>();
 
 	private readonly service: ts.LanguageService;
 
@@ -348,7 +379,7 @@ export class Mangler {
 
 	computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Map<string, MangleOutput> {
 
-		// STEP: find all classes and their field info
+		// STEP find all classes and their field info. Find all exported functions.
 
 		const visit = (node: ts.Node): void => {
 			if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
@@ -359,6 +390,18 @@ export class Mangler {
 				}
 				this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 			}
+
+			if (ts.isFunctionDeclaration(node) && node.modifiers?.find(m => m.kind === ts.SyntaxKind.ExportKeyword)) {
+				if (node.name && node.body) { // On named function and not on the overload
+					const anchor = node.name;
+					const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
+					if (this.allExportedFunctionsByKey.has(key)) {
+						throw new Error('DUPE?');
+					}
+					this.allExportedFunctionsByKey.set(key, new FunctionData(node.getSourceFile().fileName, node));
+				}
+			}
+
 			ts.forEachChild(node, visit);
 		};
 
@@ -367,7 +410,7 @@ export class Mangler {
 				ts.forEachChild(file, visit);
 			}
 		}
-		this.log(`Done collecting classes: ${this.allClassDataByKey.size}`);
+		this.log(`Done collecting. Classes: ${this.allClassDataByKey.size}. Exported functions: ${this.allExportedFunctionsByKey.size}`);
 
 
 		//  STEP: connect sub and super-types
@@ -433,7 +476,7 @@ export class Mangler {
 		for (const data of this.allClassDataByKey.values()) {
 			ClassData.fillInReplacement(data);
 		}
-		this.log(`Done creating replacements`);
+		this.log(`Done creating class replacements`);
 
 		// STEP: prepare rename edits
 		type Edit = { newText: string; offset: number; length: number };
@@ -446,6 +489,13 @@ export class Mangler {
 			} else {
 				edits.push(edit);
 			}
+		};
+		const appendRename = (newText: string, loc: ts.RenameLocation) => {
+			appendEdit(loc.fileName, {
+				newText: (loc.prefixText || '') + newText + (loc.suffixText || ''),
+				offset: loc.textSpan.start,
+				length: loc.textSpan.length
+			});
 		};
 
 		for (const data of this.allClassDataByKey.values()) {
@@ -472,12 +522,20 @@ export class Mangler {
 				const newText = data.lookupShortName(name);
 				const locations = this.service.findRenameLocations(data.fileName, info.pos, false, false, true) ?? [];
 				for (const loc of locations) {
-					appendEdit(loc.fileName, {
-						newText: (loc.prefixText || '') + newText + (loc.suffixText || ''),
-						offset: loc.textSpan.start,
-						length: loc.textSpan.length
-					});
+					appendRename(newText, loc);
 				}
+			}
+		}
+
+		for (const data of this.allExportedFunctionsByKey.values()) {
+			if (!data.shouldMangle) {
+				continue;
+			}
+
+			const newText = data.replacementName;
+			const locations = this.service.findRenameLocations(data.fileName, data.node.name!.getStart(), false, false, true) ?? [];
+			for (const loc of locations) {
+				appendRename(newText, loc);
 			}
 		}
 
@@ -588,6 +646,8 @@ async function _run() {
 	const projectPath = path.join(__dirname, '../../src/tsconfig.json');
 	const projectBase = path.dirname(projectPath);
 	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '2');
+
+	fs.cpSync(projectBase, newProjectBase, { recursive: true });
 
 	for await (const [fileName, contents] of new Mangler(projectPath, console.log).computeNewFileContents(new Set(['saveState']))) {
 		const newFilePath = path.join(newProjectBase, path.relative(projectBase, fileName));
