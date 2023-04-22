@@ -92,6 +92,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			quickAccess: {
 				show(link: string) {
 					activationResult = { link, source: 'search' };
+					return Promise.resolve();
 				}
 			}
 		} as Partial<IQuickInputService>);

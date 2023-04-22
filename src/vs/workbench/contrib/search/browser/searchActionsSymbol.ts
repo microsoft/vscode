@@ -40,8 +40,8 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IQuickInputService).quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IQuickInputService).quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 	}
 });
 

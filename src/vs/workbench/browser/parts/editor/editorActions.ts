@@ -1603,10 +1603,8 @@ export class ShowEditorsInActiveGroupByMostRecentlyUsedAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-
-		quickInputService.quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IQuickInputService).quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
 	}
 }
 
@@ -1631,9 +1629,7 @@ export class ShowAllEditorsByAppearanceAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-
-		quickInputService.quickAccess.show(AllEditorsByAppearanceQuickAccess.PREFIX);
+		return accessor.get(IQuickInputService).quickAccess.show(AllEditorsByAppearanceQuickAccess.PREFIX);
 	}
 }
 
@@ -1651,9 +1647,7 @@ export class ShowAllEditorsByMostRecentlyUsedAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-
-		quickInputService.quickAccess.show(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX);
+		return accessor.get(IQuickInputService).quickAccess.show(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX);
 	}
 }
 
@@ -1673,7 +1667,7 @@ abstract class AbstractQuickAccessEditorAction extends Action2 {
 
 		const keybindings = keybindingService.lookupKeybindings(this.desc.id);
 
-		quickInputService.quickAccess.show(this.prefix, {
+		return quickInputService.quickAccess.show(this.prefix, {
 			quickNavigateConfiguration: { keybindings },
 			itemActivation: this.itemActivation
 		});
@@ -1770,7 +1764,7 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action2 {
 			itemActivation = ItemActivation.FIRST;
 		}
 
-		quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings }, itemActivation });
+		return quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings }, itemActivation });
 	}
 }
 

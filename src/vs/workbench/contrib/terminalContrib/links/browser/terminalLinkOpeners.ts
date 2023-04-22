@@ -130,7 +130,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		}
 
 		// Fallback to searching quick access
-		return this._quickInputService.quickAccess.show(text);
+		return await this._quickInputService.quickAccess.show(text);
 	}
 
 	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {

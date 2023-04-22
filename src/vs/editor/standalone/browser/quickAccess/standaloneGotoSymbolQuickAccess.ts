@@ -60,8 +60,8 @@ export class GotoSymbolAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show(AbstractGotoSymbolQuickAccessProvider.PREFIX, { itemActivation: ItemActivation.NONE });
+	run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IQuickInputService).quickAccess.show(AbstractGotoSymbolQuickAccessProvider.PREFIX, { itemActivation: ItemActivation.NONE });
 	}
 }
 

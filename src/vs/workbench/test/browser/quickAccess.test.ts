@@ -138,7 +138,7 @@ suite('QuickAccess', () => {
 		disposables.add(registry.registerQuickAccessProvider(providerDescriptor2));
 		disposables.add(registry.registerQuickAccessProvider(providerDescriptor3));
 
-		accessor.quickInputService.quickAccess.show('test');
+		await accessor.quickInputService.quickAccess.show('test');
 		assert.strictEqual(providerDefaultCalled, false);
 		assert.strictEqual(provider1Called, true);
 		assert.strictEqual(provider2Called, false);
@@ -153,7 +153,7 @@ suite('QuickAccess', () => {
 		assert.strictEqual(provider3Disposed, false);
 		provider1Called = false;
 
-		accessor.quickInputService.quickAccess.show('test something');
+		await accessor.quickInputService.quickAccess.show('test something');
 		assert.strictEqual(providerDefaultCalled, false);
 		assert.strictEqual(provider1Called, false);
 		assert.strictEqual(provider2Called, true);
@@ -170,7 +170,7 @@ suite('QuickAccess', () => {
 		provider1Canceled = false;
 		provider1Disposed = false;
 
-		accessor.quickInputService.quickAccess.show('usedefault');
+		await accessor.quickInputService.quickAccess.show('usedefault');
 		assert.strictEqual(providerDefaultCalled, true);
 		assert.strictEqual(provider1Called, false);
 		assert.strictEqual(provider2Called, false);
@@ -277,13 +277,13 @@ suite('QuickAccess', () => {
 		disposables.add(registry.registerQuickAccessProvider(slowProviderDescriptor));
 		disposables.add(registry.registerQuickAccessProvider(fastAndSlowProviderDescriptor));
 
-		accessor.quickInputService.quickAccess.show('fast');
+		await accessor.quickInputService.quickAccess.show('fast');
 		assert.strictEqual(fastProviderCalled, true);
 		assert.strictEqual(slowProviderCalled, false);
 		assert.strictEqual(fastAndSlowProviderCalled, false);
 		fastProviderCalled = false;
 
-		accessor.quickInputService.quickAccess.show('slow');
+		await accessor.quickInputService.quickAccess.show('slow');
 		await timeout(2);
 
 		assert.strictEqual(fastProviderCalled, false);
@@ -292,7 +292,7 @@ suite('QuickAccess', () => {
 		assert.strictEqual(fastAndSlowProviderCalled, false);
 		slowProviderCalled = false;
 
-		accessor.quickInputService.quickAccess.show('bothFastAndSlow');
+		await accessor.quickInputService.quickAccess.show('bothFastAndSlow');
 		await timeout(2);
 
 		assert.strictEqual(fastProviderCalled, false);
@@ -301,9 +301,9 @@ suite('QuickAccess', () => {
 		assert.strictEqual(fastAndSlowProviderCanceled, false);
 		fastAndSlowProviderCalled = false;
 
-		accessor.quickInputService.quickAccess.show('slow');
-		accessor.quickInputService.quickAccess.show('bothFastAndSlow');
-		accessor.quickInputService.quickAccess.show('fast');
+		await accessor.quickInputService.quickAccess.show('slow');
+		await accessor.quickInputService.quickAccess.show('bothFastAndSlow');
+		await accessor.quickInputService.quickAccess.show('fast');
 
 		assert.strictEqual(fastProviderCalled, true);
 		assert.strictEqual(slowProviderCalled, true);

@@ -7,9 +7,9 @@ import { localize } from 'vs/nls';
 import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
-// import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-// import { timeout } from 'vs/base/common/async';
+import { raceTimeout, timeout } from 'vs/base/common/async';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
@@ -34,7 +34,6 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
-import { timeout } from 'vs/base/common/async';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
@@ -44,15 +43,11 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	private static SEMANTIC_SIMILARITY_THRESHOLD = 0.8;
 	private static SEMANTIC_SIMILARITY_DEBOUNCE = 200;
 
-	// TODO: bring this back once we have a chosen strategy for FastAndSlowPicks where Fast is also Promise based
 	// If extensions are not yet registered, we wait for a little moment to give them
 	// a chance to register so that the complete set of commands shows up as result
 	// We do not want to delay functionality beyond that time though to keep the commands
 	// functional.
-	// private readonly extensionRegistrationRace = Promise.race([
-	// 	timeout(800),
-	// 	this.extensionService.whenInstalledExtensionsRegistered()
-	// ]);
+	private readonly extensionRegistrationRace = raceTimeout(this.extensionService.whenInstalledExtensionsRegistered(), 800);
 
 	private useSemanticSimilarity = false;
 
@@ -69,7 +64,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
-		// @IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
@@ -103,6 +98,10 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		this.updateOptions();
 	}
 
+	async initialize(): Promise<void> {
+		await this.extensionRegistrationRace;
+	}
+
 	private get configuration() {
 		const commandPaletteConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.commandPalette;
 
@@ -126,11 +125,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	}
 
 	protected getCommandPicks(token: CancellationToken): Array<ICommandQuickPick> {
-
-		// TODO: bring this back once we have a chosen strategy for FastAndSlowPicks where Fast is also Promise based
-		// wait for extensions registration or 800ms once
-		// await this.extensionRegistrationRace;
-
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -249,7 +243,7 @@ export class ShowAllCommandsAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IQuickInputService).quickAccess.show(CommandsQuickAccessProvider.PREFIX);
+		return accessor.get(IQuickInputService).quickAccess.show(CommandsQuickAccessProvider.PREFIX);
 	}
 }
 

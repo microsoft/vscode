@@ -68,8 +68,8 @@ export class GotoLineAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show(StandaloneCommandsQuickAccessProvider.PREFIX);
+	run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IQuickInputService).quickAccess.show(StandaloneCommandsQuickAccessProvider.PREFIX);
 	}
 }
 

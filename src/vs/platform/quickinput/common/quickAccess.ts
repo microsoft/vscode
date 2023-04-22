@@ -55,7 +55,7 @@ export interface IQuickAccessController {
 	/**
 	 * Open the quick access picker with the optional value prefilled.
 	 */
-	show(value?: string, options?: IQuickAccessOptions): void;
+	show(value?: string, options?: IQuickAccessOptions): Promise<void>;
 
 	/**
 	 * Same as `show()` but instead of executing the selected pick item,
@@ -106,6 +106,11 @@ export interface IQuickAccessProvider {
 	 * closes or is replaced by another picker.
 	 */
 	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, options?: IQuickAccessProviderRunOptions): IDisposable;
+
+	/**
+	 * An optional method that is called to asynchronously initialize the provider.
+	 */
+	initialize?(): Promise<void>;
 }
 
 export interface IQuickAccessProviderHelp {

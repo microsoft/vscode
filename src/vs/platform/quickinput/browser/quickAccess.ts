@@ -36,16 +36,17 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		return this.doShowOrPick(value, true, options);
 	}
 
-	show(value = '', options?: IQuickAccessOptions): void {
-		this.doShowOrPick(value, false, options);
+	async show(value = '', options?: IQuickAccessOptions): Promise<void> {
+		await this.doShowOrPick(value, false, options);
+		return;
 	}
 
 	private doShowOrPick(value: string, pick: true, options?: IQuickAccessOptions): Promise<IQuickPickItem[] | undefined>;
-	private doShowOrPick(value: string, pick: false, options?: IQuickAccessOptions): void;
-	private doShowOrPick(value: string, pick: boolean, options?: IQuickAccessOptions): Promise<IQuickPickItem[] | undefined> | void {
+	private doShowOrPick(value: string, pick: false, options?: IQuickAccessOptions): Promise<void>;
+	private async doShowOrPick(value: string, pick: boolean, options?: IQuickAccessOptions): Promise<IQuickPickItem[] | undefined | void> {
 
 		// Find provider for the value to show
-		const [provider, descriptor] = this.getOrInstantiateProvider(value);
+		const [provider, descriptor] = await this.getOrInstantiateProvider(value);
 
 		// Return early if quick access is already showing on that same prefix
 		const visibleQuickAccess = this.visibleQuickAccess;
@@ -189,10 +190,10 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 		// Whenever the value changes, check if the provider has
 		// changed and if so - re-create the picker from the beginning
-		disposables.add(picker.onDidChangeValue(value => {
-			const [providerForValue] = this.getOrInstantiateProvider(value);
+		disposables.add(picker.onDidChangeValue(async value => {
+			const [providerForValue] = await this.getOrInstantiateProvider(value);
 			if (providerForValue !== provider) {
-				this.show(value, {
+				await this.show(value, {
 					// do not rewrite value from user typing!
 					preserveValue: true,
 					// persist the value of the providerOptions from the original showing
@@ -213,7 +214,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		return disposables;
 	}
 
-	private getOrInstantiateProvider(value: string): [IQuickAccessProvider | undefined, IQuickAccessProviderDescriptor | undefined] {
+	private async getOrInstantiateProvider(value: string): Promise<[IQuickAccessProvider | undefined, IQuickAccessProviderDescriptor | undefined]> {
 		const providerDescriptor = this.registry.getQuickAccessProvider(value);
 		if (!providerDescriptor) {
 			return [undefined, undefined];
@@ -222,6 +223,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		let provider = this.mapProviderToDescriptor.get(providerDescriptor);
 		if (!provider) {
 			provider = this.instantiationService.createInstance(providerDescriptor.ctor);
+			await provider.initialize?.();
 			this.mapProviderToDescriptor.set(providerDescriptor, provider);
 		}
 

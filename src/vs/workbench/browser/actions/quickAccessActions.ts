@@ -144,9 +144,8 @@ registerAction2(class QuickAccessAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, prefix: undefined): void {
-		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
+	run(accessor: ServicesAccessor, prefix: undefined): Promise<void> {
+		return accessor.get(IQuickInputService).quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
 	}
 });
 
@@ -162,9 +161,8 @@ registerAction2(class QuickAccessAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(undefined, {
+	run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IQuickInputService).quickAccess.show(undefined, {
 			preserveValue: true,
 			providerOptions: {
 				includeHelp: true,
@@ -174,10 +172,8 @@ registerAction2(class QuickAccessAction extends Action2 {
 	}
 });
 
-CommandsRegistry.registerCommand('workbench.action.quickOpenPreviousEditor', async accessor => {
-	const quickInputService = accessor.get(IQuickInputService);
-
-	quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
+CommandsRegistry.registerCommand('workbench.action.quickOpenPreviousEditor', accessor => {
+	return accessor.get(IQuickInputService).quickAccess.show('', { itemActivation: ItemActivation.SECOND });
 });
 
 //#endregion

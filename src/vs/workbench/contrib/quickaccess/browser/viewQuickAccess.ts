@@ -239,8 +239,8 @@ export class OpenViewPickerAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IQuickInputService).quickAccess.show(ViewQuickAccessProvider.PREFIX);
+	run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IQuickInputService).quickAccess.show(ViewQuickAccessProvider.PREFIX);
 	}
 }
 
@@ -273,7 +273,7 @@ export class QuickAccessViewPickerAction extends Action2 {
 
 		const keys = keybindingService.lookupKeybindings(QuickAccessViewPickerAction.ID);
 
-		quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys }, itemActivation: ItemActivation.FIRST });
+		return quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys }, itemActivation: ItemActivation.FIRST });
 	}
 }
 

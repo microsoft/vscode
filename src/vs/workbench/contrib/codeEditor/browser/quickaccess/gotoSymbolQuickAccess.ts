@@ -260,8 +260,8 @@ class GotoSymbolAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		accessor.get(IQuickInputService).quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX, { itemActivation: ItemActivation.NONE });
+	run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IQuickInputService).quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX, { itemActivation: ItemActivation.NONE });
 	}
 }
 
