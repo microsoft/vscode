@@ -771,6 +771,16 @@ suite('ExtHostConfiguration', function () {
 		testObject.$acceptConfigurationChanged(newConfigData, configEventData);
 	});
 
+	test('get array value is returning cloned value', function () {
+		const testObject = createExtHostConfiguration({ 'test': { 'setting': [] } });
+
+		const value: string[] = testObject.getConfiguration().get('test.setting', []);
+		value.push('a');
+
+		const actual = testObject.getConfiguration().get('test.setting', []);
+		assert.deepStrictEqual(actual, []);
+	});
+
 	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {
 		return new WorkspaceFolder({ uri, name, index });
 	}
