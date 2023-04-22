@@ -5,12 +5,11 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -19,7 +18,8 @@ import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
-import { InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveSessionEditorOptions extends IEditorOptions {
 	providerId: string;
@@ -28,16 +28,15 @@ export interface IInteractiveSessionEditorOptions extends IEditorOptions {
 export class InteractiveSessionEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.interactiveSession';
 
-	private widget: InteractiveSessionWidget | undefined;
-	private widgetDisposables = this._register(new DisposableStore());
+	private widget!: InteractiveSessionWidget;
 
-	private parentElement: HTMLElement | undefined;
-	private dimension: dom.Dimension | undefined;
-
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
+	private _scopedContextKeyService!: IScopedContextKeyService;
 	override get scopedContextKeyService() {
-		return this._scopedContextKeyService.value;
+		return this._scopedContextKeyService;
 	}
+
+	private _memento: Memento | undefined;
+	private _viewState: IViewState | undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -45,18 +44,31 @@ export class InteractiveSessionEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 	) {
 		super(InteractiveSessionEditor.ID, telemetryService, themeService, storageService);
 	}
 
 	public async clear() {
-		if (this.widget) {
-			await this.widget.clear();
+		if (this.widget?.viewModel) {
+			this.interactiveSessionService.clearSession(this.widget.viewModel.sessionId);
 		}
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
-		this.parentElement = parent;
+		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
+		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+
+		this.widget = this._register(
+			scopedInstantiationService.createInstance(InteractiveSessionWidget, { resource: true }, () => editorBackground, () => SIDE_BAR_BACKGROUND, () => SIDE_BAR_BACKGROUND));
+		this._register(this.widget.onDidChangeViewModel(() => {
+			// TODO replace with listening for model disposal
+			// This part is a bit odd. The widget's session and model will change. When that happens, store the latest session id
+			// on the EditorInput so that it can be restored when the editor moves or the window reloads.
+			(this.input! as InteractiveSessionEditorInput).sessionId = this.widget!.viewModel?.sessionId;
+		}));
+		this.widget.render(parent);
+		this.widget.setVisible(true);
 	}
 
 	public override focus(): void {
@@ -65,46 +77,36 @@ export class InteractiveSessionEditor extends EditorPane {
 		}
 	}
 
+	override clearInput(): void {
+		this.saveState();
+		super.clearInput();
+	}
+
 	override async setInput(input: InteractiveSessionEditorInput, options: IInteractiveSessionEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, context, token);
-
-		this.widgetDisposables.clear();
 
 		const editorModel = await input.resolve();
 		if (!editorModel) {
 			throw new Error(`Failed to get model for interactive session editor. id: ${input.sessionId}`);
 		}
 
-		if (!this.parentElement) {
-			throw new Error('InteractiveSessionEditor lifecycle issue: Parent element not set');
+		if (!this.widget) {
+			throw new Error('InteractiveSessionEditor lifecycle issue: no editor widget');
 		}
 
-		this._scopedContextKeyService.value = this._register(this.contextKeyService.createScoped(this.parentElement));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-
-		if (this.widget) {
-			dom.clearNode(this.parentElement);
-		}
-
-		const memento = new Memento(input.resource.path, this.storageService);
-		this.widget = this.widgetDisposables.add(
-			scopedInstantiationService.createInstance(InteractiveSessionWidget, editorModel.model.providerId, editorModel.model, { resource: input.resource }, () => editorBackground, () => SIDE_BAR_BACKGROUND, () => SIDE_BAR_BACKGROUND, memento));
-		this.widget.render(this.parentElement);
-		this.widget.setVisible(true);
-
-		this.widgetDisposables.add(this.widget.onDidChangeViewModel(() => {
-			// This part is a bit odd. The widget's session and model will change. When that happens, store the latest session id
-			// on the EditorInput so that it can be restored when the editor moves or the window reloads.
-			input.sessionId = this.widget!.viewModel?.sessionId;
-		}));
-
-		if (this.dimension) {
-			this.layout(this.dimension, undefined);
-		}
+		this._memento = new Memento('interactive-session-editor-' + editorModel.model.sessionId, this.storageService);
+		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
+		this.widget.setModel(editorModel.model, { ...this._viewState });
 	}
 
 	protected override saveState(): void {
 		this.widget?.saveState();
+
+		if (this._memento && this._viewState) {
+			const widgetViewState = this.widget.getViewState();
+			this._viewState!.inputValue = widgetViewState.inputValue;
+			this._memento!.saveMemento();
+		}
 	}
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {
@@ -112,8 +114,6 @@ export class InteractiveSessionEditor extends EditorPane {
 			const width = Math.min(dimension.width, 600);
 			this.widget.layout(dimension.height, width);
 		}
-
-		this.dimension = dimension;
 	}
 }
 
