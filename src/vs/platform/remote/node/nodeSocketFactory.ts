@@ -6,10 +6,15 @@
 import * as net from 'net';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { makeRawSocketHeaders } from 'vs/platform/remote/common/managedSocket';
-import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteConnectionType, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
-export const nodeSocketFactory = new class implements ISocketFactory<WebSocketRemoteConnection> {
+export const nodeSocketFactory = new class implements ISocketFactory<RemoteConnectionType.WebSocket> {
+
+	supports(connectTo: WebSocketRemoteConnection): boolean {
+		return true;
+	}
+
 	connect({ host, port }: WebSocketRemoteConnection, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {
 		const errorListener = (err: any) => callback(err, undefined);
 

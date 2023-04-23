@@ -62,7 +62,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	constructor(
 		public readonly runningLocation: RemoteRunningLocation,
 		private readonly _initDataProvider: IRemoteExtensionHostDataProvider,
-		@IRemoteSocketFactoryService private readonly socketFactories: IRemoteSocketFactoryService,
+		@IRemoteSocketFactoryService private readonly remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -85,26 +85,21 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	}
 
 	public start(): Promise<IMessagePassingProtocol> {
+		const options: IConnectionOptions = {
+			commit: this._productService.commit,
+			quality: this._productService.quality,
+			addressProvider: {
+				getAddress: async () => {
+					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
+					return { connectTo: authority.connectTo, connectionToken: authority.connectionToken };
+				}
+			},
+			remoteSocketFactoryService: this.remoteSocketFactoryService,
+			signService: this._signService,
+			logService: this._logService,
+			ipcLogger: null
+		};
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
-			const socketFactory = this.socketFactories.create(resolverResult.authority.connectTo);
-			if (!socketFactory) {
-				throw new Error('No socket factory found for remote authority');
-			}
-
-			const options: IConnectionOptions = {
-				commit: this._productService.commit,
-				quality: this._productService.quality,
-				socketFactory,
-				addressProvider: {
-					getAddress: async () => {
-						const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
-						return { connectTo: authority.connectTo, connectionToken: authority.connectionToken };
-					}
-				},
-				signService: this._signService,
-				logService: this._logService,
-				ipcLogger: null
-			};
 
 			const startParams: IRemoteExtensionHostStartParams = {
 				language: platform.language,

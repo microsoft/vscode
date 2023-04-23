@@ -9,8 +9,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ISocket, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, RemoteConnectionType, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export interface IWebSocketFactory {
 	create(url: string, debugLabel: string): IWebSocket;
@@ -265,11 +265,16 @@ class BrowserSocket implements ISocket {
 }
 
 
-export class BrowserSocketFactory implements ISocketFactory<WebSocketRemoteConnection> {
+export class BrowserSocketFactory implements ISocketFactory<RemoteConnectionType.WebSocket> {
+
 	private readonly _webSocketFactory: IWebSocketFactory;
 
 	constructor(webSocketFactory: IWebSocketFactory | null | undefined) {
 		this._webSocketFactory = webSocketFactory || defaultWebSocketFactory;
+	}
+
+	supports(connectTo: WebSocketRemoteConnection): boolean {
+		return true;
 	}
 
 	connect({ host, port }: WebSocketRemoteConnection, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {

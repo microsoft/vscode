@@ -18,6 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteAuthorityResolverError, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
 const RECONNECT_TIMEOUT = 30 * 1000 /* 30s */;
@@ -78,17 +79,9 @@ interface ISimpleConnectionOptions<T extends RemoteConnection = RemoteConnection
 	connectionToken: string | undefined;
 	reconnectionToken: string;
 	reconnectionProtocol: PersistentProtocol | null;
-	socketFactory: ISocketFactory<T>;
+	remoteSocketFactoryService: IRemoteSocketFactoryService;
 	signService: ISignService;
 	logService: ILogService;
-}
-
-export interface IConnectCallback {
-	(err: any | undefined, socket: ISocket | undefined): void;
-}
-
-export interface ISocketFactory<T extends RemoteConnection> {
-	connect(connectTo: T, path: string, query: string, debugLabel: string, callback: IConnectCallback): void;
 }
 
 function createTimeoutCancellation(millis: number): CancellationToken {
@@ -191,12 +184,12 @@ function readOneControlMessage<T>(protocol: PersistentProtocol, timeoutCancellat
 	return result.promise;
 }
 
-function createSocket<T extends RemoteConnection>(logService: ILogService, socketFactory: ISocketFactory<T>, connectTo: T, path: string, query: string, debugConnectionType: string, debugLabel: string, timeoutCancellationToken: CancellationToken): Promise<ISocket> {
+function createSocket<T extends RemoteConnection>(logService: ILogService, remoteSocketFactoryService: IRemoteSocketFactoryService, connectTo: T, path: string, query: string, debugConnectionType: string, debugLabel: string, timeoutCancellationToken: CancellationToken): Promise<ISocket> {
 	const result = new PromiseWithTimeout<ISocket>(timeoutCancellationToken);
 	const sw = StopWatch.create(false);
 	logService.info(`Creating a socket (${debugLabel})...`);
 	performance.mark(`code/willCreateSocket/${debugConnectionType}`);
-	socketFactory.connect(connectTo, path, query, debugLabel, (err: any, socket: ISocket | undefined) => {
+	remoteSocketFactoryService.connect(connectTo, path, query, debugLabel, (err: any, socket: ISocket | undefined) => {
 		if (result.didTimeout) {
 			performance.mark(`code/didCreateSocketError/${debugConnectionType}`);
 			logService.info(`Creating a socket (${debugLabel}) finished after ${sw.elapsed()} ms, but this is too late and has timed out already.`);
@@ -243,7 +236,7 @@ async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(opt
 
 	let socket: ISocket;
 	try {
-		socket = await createSocket(options.logService, options.socketFactory, options.connectTo, getRemoteServerRootPath(options), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
+		socket = await createSocket(options.logService, options.remoteSocketFactoryService, options.connectTo, getRemoteServerRootPath(options), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
 	} catch (error) {
 		options.logService.error(`${logPrefix} socketFactory.connect() failed or timed out. Error:`);
 		options.logService.error(error);
@@ -391,8 +384,8 @@ async function doConnectRemoteAgentTunnel(options: ISimpleConnectionOptions, sta
 export interface IConnectionOptions<T extends RemoteConnection = RemoteConnection> {
 	commit: string | undefined;
 	quality: string | undefined;
-	socketFactory: ISocketFactory<T>;
 	addressProvider: IAddressProvider<T>;
+	remoteSocketFactoryService: IRemoteSocketFactoryService;
 	signService: ISignService;
 	logService: ILogService;
 	ipcLogger: IIPCLogger | null;
@@ -407,7 +400,7 @@ async function resolveConnectionOptions<T extends RemoteConnection>(options: ICo
 		connectionToken: connectionToken,
 		reconnectionToken: reconnectionToken,
 		reconnectionProtocol: reconnectionProtocol,
-		socketFactory: options.socketFactory,
+		remoteSocketFactoryService: options.remoteSocketFactoryService,
 		signService: options.signService,
 		logService: options.logService
 	};

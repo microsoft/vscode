@@ -155,7 +155,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 export class BaseTunnelService extends AbstractTunnelService {
 	public constructor(
-		@IRemoteSocketFactoryService private readonly socketFactories: IRemoteSocketFactoryService,
+		@IRemoteSocketFactoryService private readonly remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@ILogService logService: ILogService,
 		@ISignService private readonly signService: ISignService,
 		@IProductService private readonly productService: IProductService,
@@ -179,40 +179,33 @@ export class BaseTunnelService extends AbstractTunnelService {
 			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, privacy, protocol);
 		} else {
 			this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
-			return addressProvider.getAddress().then(address => {
-				const socketFactory = this.socketFactories.create(address.connectTo);
-				if (!socketFactory) {
-					throw new Error(`No socket factory found for ${address.connectTo}`);
-				}
+			const options: IConnectionOptions = {
+				commit: this.productService.commit,
+				quality: this.productService.quality,
+				addressProvider,
+				remoteSocketFactoryService: this.remoteSocketFactoryService,
+				signService: this.signService,
+				logService: this.logService,
+				ipcLogger: null
+			};
 
-				const options: IConnectionOptions = {
-					commit: this.productService.commit,
-					quality: this.productService.quality,
-					socketFactory,
-					addressProvider,
-					signService: this.signService,
-					logService: this.logService,
-					ipcLogger: null
-				};
-
-				const tunnel = createRemoteTunnel(options, localHost, remoteHost, remotePort, localPort);
-				this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created without provider.');
-				this.addTunnelToMap(remoteHost, remotePort, tunnel);
-				return tunnel;
-			});
+			const tunnel = createRemoteTunnel(options, localHost, remoteHost, remotePort, localPort);
+			this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created without provider.');
+			this.addTunnelToMap(remoteHost, remotePort, tunnel);
+			return tunnel;
 		}
 	}
 }
 
 export class TunnelService extends BaseTunnelService {
 	public constructor(
-		@IRemoteSocketFactoryService socketFactories: IRemoteSocketFactoryService,
+		@IRemoteSocketFactoryService remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@ILogService logService: ILogService,
 		@ISignService signService: ISignService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(socketFactories, logService, signService, productService, configurationService);
+		super(remoteSocketFactoryService, logService, signService, productService, configurationService);
 	}
 }
 
@@ -221,7 +214,7 @@ export class SharedTunnelsService extends Disposable implements ISharedTunnelsSe
 	private readonly _tunnelServices: Map<string, ITunnelService> = new Map();
 
 	public constructor(
-		@IRemoteSocketFactoryService protected readonly socketFactories: IRemoteSocketFactoryService,
+		@IRemoteSocketFactoryService protected readonly remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@ILogService protected readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@ISignService private readonly signService: ISignService,
@@ -233,7 +226,7 @@ export class SharedTunnelsService extends Disposable implements ISharedTunnelsSe
 	async openTunnel(authority: string, addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localHost: string, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> {
 		this.logService.trace(`ForwardedPorts: (SharedTunnelService) openTunnel request for ${remoteHost}:${remotePort} on local port ${localPort}.`);
 		if (!this._tunnelServices.has(authority)) {
-			const tunnelService = new TunnelService(this.socketFactories, this.logService, this.signService, this.productService, this.configurationService);
+			const tunnelService = new TunnelService(this.remoteSocketFactoryService, this.logService, this.signService, this.productService, this.configurationService);
 			this._register(tunnelService);
 			this._tunnelServices.set(authority, tunnelService);
 			tunnelService.onTunnelClosed(async () => {

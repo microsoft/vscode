@@ -19,7 +19,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ManagedRemoteConnection, RemoteConnectionType, RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { IConnectCallback, IRemoteSocketFactoryService, ISocketFactory } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -461,34 +461,39 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	private registerManagedSocketFactory(messaging: ManagedRemoteConnection, proxy: IExtensionHostProxy) {
-		this._remoteSocketFactoryService.register(RemoteConnectionType.Managed, resolved => {
-			if (resolved.id !== messaging.id) {
-				return undefined;
+		const that = this;
+		this._remoteSocketFactoryService.register(RemoteConnectionType.Managed, new class implements ISocketFactory<RemoteConnectionType.Managed> {
+
+			supports(connectTo: ManagedRemoteConnection): boolean {
+				return (connectTo.id === messaging.id);
 			}
 
-			return {
-				connect: ({ id: factoryId }, path, query, debugLabel, callback) => {
-					proxy.openRemoteSocket(factoryId).then(socketId => {
-						const half: RemoteSocketHalf = {
-							onClose: new Emitter(),
-							onData: new Emitter(),
-							onEnd: new Emitter(),
-						};
-						this._remoteSockets.set(socketId, half);
+			connect(connectTo: ManagedRemoteConnection, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {
+				if (connectTo.id !== messaging.id) {
+					return callback(new Error('Invalid connectTo'), undefined);
+				}
 
-						ManagedSocket.connect(socketId, proxy, path, query, debugLabel, half)
-							.then(
-								socket => {
-									socket.onDidDispose(() => this._remoteSockets.delete(socketId));
-									callback(undefined, socket);
-								},
-								err => {
-									this._remoteSockets.delete(socketId);
-									callback(err, undefined);
-								});
-					}).catch(err => callback(err, undefined));
-				},
-			};
+				const factoryId = connectTo.id;
+				proxy.openRemoteSocket(factoryId).then(socketId => {
+					const half: RemoteSocketHalf = {
+						onClose: new Emitter(),
+						onData: new Emitter(),
+						onEnd: new Emitter(),
+					};
+					that._remoteSockets.set(socketId, half);
+
+					ManagedSocket.connect(socketId, proxy, path, query, debugLabel, half)
+						.then(
+							socket => {
+								socket.onDidDispose(() => that._remoteSockets.delete(socketId));
+								callback(undefined, socket);
+							},
+							err => {
+								that._remoteSockets.delete(socketId);
+								callback(err, undefined);
+							});
+				}).catch(err => callback(err, undefined));
+			}
 		});
 	}
 

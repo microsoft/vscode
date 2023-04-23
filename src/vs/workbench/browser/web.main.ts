@@ -295,10 +295,10 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Remote Agent
-		const socketFactories = new RemoteSocketFactoryService();
-		socketFactories.register(RemoteConnectionType.WebSocket, () => new BrowserSocketFactory(this.configuration.webSocketFactory));
-		serviceCollection.set(IRemoteSocketFactoryService, socketFactories);
-		const remoteAgentService = this._register(new RemoteAgentService(socketFactories, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService));
+		const remoteSocketFactoryService = new RemoteSocketFactoryService();
+		remoteSocketFactoryService.register(RemoteConnectionType.WebSocket, new BrowserSocketFactory(this.configuration.webSocketFactory));
+		serviceCollection.set(IRemoteSocketFactoryService, remoteSocketFactoryService);
+		const remoteAgentService = this._register(new RemoteAgentService(remoteSocketFactoryService, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, bufferLogger, logService, loggerService, logsPath);

@@ -15,15 +15,29 @@ export const enum RemoteConnectionType {
 	Managed
 }
 
-export interface ManagedRemoteConnection {
-	type: RemoteConnectionType.Managed;
-	id: number;
+export class ManagedRemoteConnection {
+	public readonly type = RemoteConnectionType.Managed;
+
+	constructor(
+		public readonly id: number
+	) { }
+
+	public toString(): string {
+		return `Managed(${this.id})`;
+	}
 }
 
-export interface WebSocketRemoteConnection {
-	type: RemoteConnectionType.WebSocket;
-	host: string;
-	port: number;
+export class WebSocketRemoteConnection {
+	public readonly type = RemoteConnectionType.WebSocket;
+
+	constructor(
+		public readonly host: string,
+		public readonly port: number,
+	) { }
+
+	public toString(): string {
+		return `WebSocket(${this.host}:${this.port})`;
+	}
 }
 
 export type RemoteConnection = WebSocketRemoteConnection | ManagedRemoteConnection;

@@ -156,7 +156,6 @@ import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } f
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ExtensionType, IExtension, IExtensionDescription, IRelaxedExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -1938,10 +1937,6 @@ class TestLanguageDetectionService implements ILanguageDetectionService {
 export class TestRemoteAgentService implements IRemoteAgentService {
 
 	declare readonly _serviceBrand: undefined;
-
-	socketFactory: ISocketFactory<any> = {
-		connect() { }
-	};
 
 	getConnection(): IRemoteAgentConnection | null { return null; }
 	async getEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }

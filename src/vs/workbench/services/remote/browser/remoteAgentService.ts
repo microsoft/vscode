@@ -23,7 +23,7 @@ import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSoc
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
 	constructor(
-		@IRemoteSocketFactoryService socketFactories: IRemoteSocketFactoryService,
+		@IRemoteSocketFactoryService remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
@@ -31,7 +31,7 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 		@ISignService signService: ISignService,
 		@ILogService logService: ILogService
 	) {
-		super(socketFactories, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService);
+		super(remoteSocketFactoryService, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService);
 	}
 }
 

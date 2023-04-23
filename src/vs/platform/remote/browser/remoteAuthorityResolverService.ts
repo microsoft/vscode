@@ -13,7 +13,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, RemoteConnectionType, ResolvedAuthority, ResolvedOptions, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData, RemoteConnectionType, ResolvedAuthority, ResolvedOptions, ResolverResult, WebSocketRemoteConnection, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getRemoteServerRootPath, parseAuthorityWithOptionalPort } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
@@ -86,7 +86,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		this._logService.info(`Resolved connection token (${authorityPrefix}) after ${sw.elapsed()} ms`);
 		const defaultPort = (/^https:/.test(window.location.href) ? 443 : 80);
 		const { host, port } = parseAuthorityWithOptionalPort(authority, defaultPort);
-		const result: ResolverResult = { authority: { authority, connectTo: { type: RemoteConnectionType.WebSocket, host: host, port: port }, connectionToken } };
+		const result: ResolverResult = { authority: { authority, connectTo: new WebSocketRemoteConnection(host, port), connectionToken } };
 		RemoteAuthorities.set(authority, host, port);
 		this._cache.set(authority, result);
 		this._onDidChangeConnectionData.fire();
