@@ -16,7 +16,7 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IRemoteConnectionData, MessagePassingType } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteConnectionData, RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtHostContext, ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -217,7 +217,7 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 		const resolved = await this._actual.$resolveAuthority(remoteAuthority, resolveAttempt);
 		if (resolved.type === 'ok') {
 			resolved.value.authority.toString = function () {
-				return this.messaging.type === MessagePassingType.Managed ? `ManagedSocket#${this.messaging.id}` : `${this.messaging.host}:${this.messaging.type}`;
+				return this.connectTo.type === RemoteConnectionType.Managed ? `ManagedSocket#${this.connectTo.id}` : `${this.connectTo.host}:${this.connectTo.type}`;
 			};
 		}
 

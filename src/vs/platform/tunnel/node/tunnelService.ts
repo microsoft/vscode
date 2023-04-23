@@ -17,7 +17,7 @@ import { connectRemoteAgentTunnel, IAddressProvider, IConnectionOptions } from '
 import { AbstractTunnelService, isAllInterfaces, ISharedTunnelsService as ISharedTunnelsService, isLocalhost, isPortPrivileged, ITunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { OS } from 'vs/base/common/platform';
-import { IRemoteSocketFactoryCollection } from 'vs/platform/remote/common/remoteSocketFactoryCollection';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
 	let readyTunnel: NodeRemoteTunnel | undefined;
@@ -155,7 +155,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 export class BaseTunnelService extends AbstractTunnelService {
 	public constructor(
-		@IRemoteSocketFactoryCollection private readonly socketFactories: IRemoteSocketFactoryCollection,
+		@IRemoteSocketFactoryService private readonly socketFactories: IRemoteSocketFactoryService,
 		@ILogService logService: ILogService,
 		@ISignService private readonly signService: ISignService,
 		@IProductService private readonly productService: IProductService,
@@ -206,7 +206,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 
 export class TunnelService extends BaseTunnelService {
 	public constructor(
-		@IRemoteSocketFactoryCollection socketFactories: IRemoteSocketFactoryCollection,
+		@IRemoteSocketFactoryService socketFactories: IRemoteSocketFactoryService,
 		@ILogService logService: ILogService,
 		@ISignService signService: ISignService,
 		@IProductService productService: IProductService,
@@ -221,7 +221,7 @@ export class SharedTunnelsService extends Disposable implements ISharedTunnelsSe
 	private readonly _tunnelServices: Map<string, ITunnelService> = new Map();
 
 	public constructor(
-		@IRemoteSocketFactoryCollection protected readonly socketFactories: IRemoteSocketFactoryCollection,
+		@IRemoteSocketFactoryService protected readonly socketFactories: IRemoteSocketFactoryService,
 		@ILogService protected readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@ISignService private readonly signService: ISignService,

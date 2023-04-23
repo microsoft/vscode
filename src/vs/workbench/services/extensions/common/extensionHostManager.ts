@@ -18,8 +18,8 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ManagedMessagingPassing, MessagePassingType, RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteSocketFactoryCollection } from 'vs/platform/remote/common/remoteSocketFactoryCollection';
+import { ManagedRemoteConnection, RemoteConnectionType, RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -126,7 +126,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		extensionHost: IExtensionHost,
 		initialActivationEvents: string[],
 		private readonly _internalExtensionService: IInternalExtensionService,
-		@IRemoteSocketFactoryCollection private readonly _remoteSocketFactoryCollection: IRemoteSocketFactoryCollection,
+		@IRemoteSocketFactoryService private readonly _remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -439,8 +439,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			intervalLogger.dispose();
 			if (resolverResult.type === 'ok') {
 				logInfo(`returned ${resolverResult.value.authority}`);
-				if (resolverResult.value.authority.messaging.type === MessagePassingType.Managed) {
-					this.registerManagedSocketFactory(resolverResult.value.authority.messaging, proxy);
+				if (resolverResult.value.authority.connectTo.type === RemoteConnectionType.Managed) {
+					this.registerManagedSocketFactory(resolverResult.value.authority.connectTo, proxy);
 				}
 			} else {
 				logError(`returned an error`, resolverResult.error);
@@ -460,8 +460,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		}
 	}
 
-	private registerManagedSocketFactory(messaging: ManagedMessagingPassing, proxy: IExtensionHostProxy) {
-		this._remoteSocketFactoryCollection.register(MessagePassingType.Managed, resolved => {
+	private registerManagedSocketFactory(messaging: ManagedRemoteConnection, proxy: IExtensionHostProxy) {
+		this._remoteSocketFactoryService.register(RemoteConnectionType.Managed, resolved => {
 			if (resolved.id !== messaging.id) {
 				return undefined;
 			}

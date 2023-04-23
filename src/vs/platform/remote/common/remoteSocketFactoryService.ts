@@ -6,11 +6,11 @@
 import { mapFind } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { MessagePassingOfType, MessagePassingType, ResolvedAuthorityMessagePassing } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteConnectionOfType, RemoteConnectionType, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
-export const IRemoteSocketFactoryCollection = createDecorator<IRemoteSocketFactoryCollection>('remoteSocketFactoryCollection');
+export const IRemoteSocketFactoryService = createDecorator<IRemoteSocketFactoryService>('remoteSocketFactoryService');
 
-export interface IRemoteSocketFactoryCollection {
+export interface IRemoteSocketFactoryService {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -19,32 +19,32 @@ export interface IRemoteSocketFactoryCollection {
 	 * @param factory function that returns the socket factory, or undefined if
 	 * it can't handle the data.
 	 */
-	register<T extends MessagePassingType>(
+	register<T extends RemoteConnectionType>(
 		type: T,
-		factory: (messagePassing: MessagePassingOfType<T>) => ISocketFactory<MessagePassingOfType<T>> | undefined
+		factory: (messagePassing: RemoteConnectionOfType<T>) => ISocketFactory<RemoteConnectionOfType<T>> | undefined
 	): void;
 
 	/**
 	 * Gets a socket factory for the given message passing data.
 	 */
-	create<T extends ResolvedAuthorityMessagePassing>(messagePassing: T): ISocketFactory<T> | undefined;
+	create<T extends RemoteConnection>(messagePassing: T): ISocketFactory<T> | undefined;
 }
 
-export class RemoteSocketFactoryCollection implements IRemoteSocketFactoryCollection {
+export class RemoteSocketFactoryService implements IRemoteSocketFactoryService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly factories: { [T in MessagePassingType]?: ((messagePassing: MessagePassingOfType<T>) => ISocketFactory<MessagePassingOfType<T>> | undefined)[] } = {};
+	private readonly factories: { [T in RemoteConnectionType]?: ((messagePassing: RemoteConnectionOfType<T>) => ISocketFactory<RemoteConnectionOfType<T>> | undefined)[] } = {};
 
 
-	public register<T extends MessagePassingType>(
+	public register<T extends RemoteConnectionType>(
 		type: T,
-		factory: (messagePassing: MessagePassingOfType<T>) => ISocketFactory<MessagePassingOfType<T>> | undefined
+		factory: (messagePassing: RemoteConnectionOfType<T>) => ISocketFactory<RemoteConnectionOfType<T>> | undefined
 	): void {
 		this.factories[type] ??= [];
 		this.factories[type]!.push(factory);
 	}
 
-	public create<T extends ResolvedAuthorityMessagePassing>(messagePassing: T): ISocketFactory<T> | undefined {
+	public create<T extends RemoteConnection>(messagePassing: T): ISocketFactory<T> | undefined {
 		return mapFind(
 			(this.factories[messagePassing.type] || []) as ((messagePassing: T) => ISocketFactory<T> | undefined)[],
 			factory => factory(messagePassing),

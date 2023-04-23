@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, MessagePassingType, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData, RemoteConnectionType, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
@@ -62,7 +62,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		}
 		const connectionToken = this._connectionTokens.get(authority);
 		return {
-			connectTo: request.value!.authority.messaging,
+			connectTo: request.value!.authority.connectTo,
 			connectionToken: connectionToken
 		};
 	}
@@ -77,9 +77,9 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, options?: ResolvedOptions): void {
 		if (this._resolveAuthorityRequests.has(resolvedAuthority.authority)) {
 			const request = this._resolveAuthorityRequests.get(resolvedAuthority.authority)!;
-			if (resolvedAuthority.messaging.type === MessagePassingType.WebSocket) {
+			if (resolvedAuthority.connectTo.type === RemoteConnectionType.WebSocket) {
 				// todo@connor4312 need to implement some kind of loopback for ext host based messaging
-				RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.messaging.host, resolvedAuthority.messaging.port);
+				RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.connectTo.host, resolvedAuthority.connectTo.port);
 			}
 			if (resolvedAuthority.connectionToken) {
 				RemoteAuthorities.setConnectionToken(resolvedAuthority.authority, resolvedAuthority.connectionToken);

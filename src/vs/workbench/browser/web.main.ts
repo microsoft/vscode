@@ -18,7 +18,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
-import { IRemoteAuthorityResolverService, MessagePassingType } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -84,7 +84,7 @@ import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/brow
 import { timeout } from 'vs/base/common/async';
 import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 import { LogService } from 'vs/platform/log/common/logService';
-import { IRemoteSocketFactoryCollection, RemoteSocketFactoryCollection } from 'vs/platform/remote/common/remoteSocketFactoryCollection';
+import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 
 export class BrowserMain extends Disposable {
@@ -295,9 +295,9 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Remote Agent
-		const socketFactories = new RemoteSocketFactoryCollection();
-		socketFactories.register(MessagePassingType.WebSocket, () => new BrowserSocketFactory(this.configuration.webSocketFactory));
-		serviceCollection.set(IRemoteSocketFactoryCollection, socketFactories);
+		const socketFactories = new RemoteSocketFactoryService();
+		socketFactories.register(RemoteConnectionType.WebSocket, () => new BrowserSocketFactory(this.configuration.webSocketFactory));
+		serviceCollection.set(IRemoteSocketFactoryService, socketFactories);
 		const remoteAgentService = this._register(new RemoteAgentService(socketFactories, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 

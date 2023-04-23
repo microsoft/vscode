@@ -7,10 +7,10 @@ import * as net from 'net';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { makeRawSocketHeaders } from 'vs/platform/remote/common/managedSocket';
 import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { WebSocketMessagingPassing } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
-export const nodeSocketFactory = new class implements ISocketFactory<WebSocketMessagingPassing> {
-	connect({ host, port }: WebSocketMessagingPassing, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {
+export const nodeSocketFactory = new class implements ISocketFactory<WebSocketRemoteConnection> {
+	connect({ host, port }: WebSocketRemoteConnection, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {
 		const errorListener = (err: any) => callback(err, undefined);
 
 		const socket = net.createConnection({ host: host, port: port }, () => {

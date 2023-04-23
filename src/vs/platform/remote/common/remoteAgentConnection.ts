@@ -16,7 +16,7 @@ import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client, ConnectionHealth, ISocket, PersistentProtocol, ProtocolConstants, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { RemoteAuthorityResolverError, ResolvedAuthorityMessagePassing } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverError, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -71,7 +71,7 @@ export interface OKMessage {
 export type HandshakeMessage = AuthRequest | SignRequest | ConnectionTypeRequest | ErrorMessage | OKMessage;
 
 
-interface ISimpleConnectionOptions<T = unknown> {
+interface ISimpleConnectionOptions<T extends RemoteConnection = RemoteConnection> {
 	commit: string | undefined;
 	quality: string | undefined;
 	connectTo: T;
@@ -87,7 +87,7 @@ export interface IConnectCallback {
 	(err: any | undefined, socket: ISocket | undefined): void;
 }
 
-export interface ISocketFactory<T> {
+export interface ISocketFactory<T extends RemoteConnection> {
 	connect(connectTo: T, path: string, query: string, debugLabel: string, callback: IConnectCallback): void;
 }
 
@@ -191,7 +191,7 @@ function readOneControlMessage<T>(protocol: PersistentProtocol, timeoutCancellat
 	return result.promise;
 }
 
-function createSocket<T>(logService: ILogService, socketFactory: ISocketFactory<T>, connectTo: T, path: string, query: string, debugConnectionType: string, debugLabel: string, timeoutCancellationToken: CancellationToken): Promise<ISocket> {
+function createSocket<T extends RemoteConnection>(logService: ILogService, socketFactory: ISocketFactory<T>, connectTo: T, path: string, query: string, debugConnectionType: string, debugLabel: string, timeoutCancellationToken: CancellationToken): Promise<ISocket> {
 	const result = new PromiseWithTimeout<ISocket>(timeoutCancellationToken);
 	const sw = StopWatch.create(false);
 	logService.info(`Creating a socket (${debugLabel})...`);
@@ -236,7 +236,7 @@ function raceWithTimeoutCancellation<T>(promise: Promise<T>, timeoutCancellation
 	return result.promise;
 }
 
-async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptions<unknown>, connectionType: ConnectionType, args: any | undefined, timeoutCancellationToken: CancellationToken): Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean }> {
+async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(options: ISimpleConnectionOptions<T>, connectionType: ConnectionType, args: any | undefined, timeoutCancellationToken: CancellationToken): Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean }> {
 	const logPrefix = connectLogPrefix(options, connectionType);
 
 	options.logService.trace(`${logPrefix} 1/6. invoking socketFactory.connect().`);
@@ -388,7 +388,7 @@ async function doConnectRemoteAgentTunnel(options: ISimpleConnectionOptions, sta
 	return protocol;
 }
 
-export interface IConnectionOptions<T = unknown> {
+export interface IConnectionOptions<T extends RemoteConnection = RemoteConnection> {
 	commit: string | undefined;
 	quality: string | undefined;
 	socketFactory: ISocketFactory<T>;
@@ -398,7 +398,7 @@ export interface IConnectionOptions<T = unknown> {
 	ipcLogger: IIPCLogger | null;
 }
 
-async function resolveConnectionOptions<T>(options: IConnectionOptions<T>, reconnectionToken: string, reconnectionProtocol: PersistentProtocol | null): Promise<ISimpleConnectionOptions<T>> {
+async function resolveConnectionOptions<T extends RemoteConnection>(options: IConnectionOptions<T>, reconnectionToken: string, reconnectionProtocol: PersistentProtocol | null): Promise<ISimpleConnectionOptions<T>> {
 	const { connectTo, connectionToken } = await options.addressProvider.getAddress();
 	return {
 		commit: options.commit,
@@ -413,12 +413,12 @@ async function resolveConnectionOptions<T>(options: IConnectionOptions<T>, recon
 	};
 }
 
-export interface IAddress<T = ResolvedAuthorityMessagePassing> {
+export interface IAddress<T extends RemoteConnection = RemoteConnection> {
 	connectTo: T;
 	connectionToken: string | undefined;
 }
 
-export interface IAddressProvider<T = ResolvedAuthorityMessagePassing> {
+export interface IAddressProvider<T extends RemoteConnection = RemoteConnection> {
 	getAddress(): Promise<IAddress<T>>;
 }
 
@@ -445,7 +445,7 @@ export async function connectRemoteAgentExtensionHost(options: IConnectionOption
 /**
  * Will attempt to connect 5 times. If it fails 5 consecutive times, it will give up.
  */
-async function createInitialConnection<T extends PersistentConnection, O>(options: IConnectionOptions<O>, connectionFactory: (simpleOptions: ISimpleConnectionOptions<O>) => Promise<T>): Promise<T> {
+async function createInitialConnection<T extends PersistentConnection, O extends RemoteConnection>(options: IConnectionOptions<O>, connectionFactory: (simpleOptions: ISimpleConnectionOptions<O>) => Promise<T>): Promise<T> {
 	const MAX_ATTEMPTS = 5;
 
 	for (let attempt = 1; ; attempt++) {

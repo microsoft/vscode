@@ -843,7 +843,7 @@ export class NativeWindow extends Disposable {
 						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
 							getAddress: async (): Promise<IAddress> => {
 								const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
-								return { connectTo: authority.messaging, connectionToken: authority.connectionToken };
+								return { connectTo: authority.connectTo, connectionToken: authority.connectionToken };
 							}
 						} : undefined;
 						let tunnel = await this.tunnelService.getExistingTunnel(portMappingRequest.address, portMappingRequest.port);

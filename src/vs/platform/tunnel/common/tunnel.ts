@@ -110,7 +110,7 @@ export interface ITunnel {
 export interface ISharedTunnelsService {
 	readonly _serviceBrand: undefined;
 
-	openTunnel(authority: string, addressProvider: IAddressProvider<unknown> | undefined, remoteHost: string | undefined, remotePort: number, localHost: string, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
+	openTunnel(authority: string, addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localHost: string, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 }
 
 export interface ITunnelService {
@@ -126,7 +126,7 @@ export interface ITunnelService {
 	readonly onAddedTunnelProvider: Event<void>;
 
 	canTunnel(uri: URI): boolean;
-	openTunnel(addressProvider: IAddressProvider<unknown> | undefined, remoteHost: string | undefined, remotePort: number, localHost?: string, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
+	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localHost?: string, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 	getExistingTunnel(remoteHost: string, remotePort: number): Promise<RemoteTunnel | undefined>;
 	setEnvironmentTunnel(remoteHost: string, remotePort: number, localAddress: string, privacy: string, protocol: string): void;
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;

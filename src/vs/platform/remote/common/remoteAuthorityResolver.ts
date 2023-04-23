@@ -10,29 +10,29 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
-export const enum MessagePassingType {
+export const enum RemoteConnectionType {
 	WebSocket,
 	Managed
 }
 
-export interface ManagedMessagingPassing {
-	type: MessagePassingType.Managed;
+export interface ManagedRemoteConnection {
+	type: RemoteConnectionType.Managed;
 	id: number;
 }
 
-export interface WebSocketMessagingPassing {
-	type: MessagePassingType.WebSocket;
+export interface WebSocketRemoteConnection {
+	type: RemoteConnectionType.WebSocket;
 	host: string;
 	port: number;
 }
 
-export type ResolvedAuthorityMessagePassing = WebSocketMessagingPassing | ManagedMessagingPassing;
+export type RemoteConnection = WebSocketRemoteConnection | ManagedRemoteConnection;
 
-export type MessagePassingOfType<T extends MessagePassingType> = ResolvedAuthorityMessagePassing & { type: T };
+export type RemoteConnectionOfType<T extends RemoteConnectionType> = RemoteConnection & { type: T };
 
 export interface ResolvedAuthority {
 	readonly authority: string;
-	readonly messaging: ResolvedAuthorityMessagePassing;
+	readonly connectTo: RemoteConnection;
 	readonly connectionToken: string | undefined;
 }
 
@@ -69,7 +69,7 @@ export interface ResolverResult {
 }
 
 export interface IRemoteConnectionData {
-	connectTo: ResolvedAuthorityMessagePassing;
+	connectTo: RemoteConnection;
 	connectionToken: string | undefined;
 }
 

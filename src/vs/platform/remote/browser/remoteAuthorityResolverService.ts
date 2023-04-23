@@ -13,7 +13,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, MessagePassingType, ResolvedAuthority, ResolvedOptions, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData, RemoteConnectionType, ResolvedAuthority, ResolvedOptions, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getRemoteServerRootPath, parseAuthorityWithOptionalPort } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
@@ -71,7 +71,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		const resolverResult = this._cache.get(authority)!;
 		const connectionToken = this._connectionTokens.get(authority) || resolverResult.authority.connectionToken;
 		return {
-			connectTo: resolverResult.authority.messaging,
+			connectTo: resolverResult.authority.connectTo,
 			connectionToken: connectionToken
 		};
 	}
@@ -86,7 +86,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		this._logService.info(`Resolved connection token (${authorityPrefix}) after ${sw.elapsed()} ms`);
 		const defaultPort = (/^https:/.test(window.location.href) ? 443 : 80);
 		const { host, port } = parseAuthorityWithOptionalPort(authority, defaultPort);
-		const result: ResolverResult = { authority: { authority, messaging: { type: MessagePassingType.WebSocket, host: host, port: port }, connectionToken } };
+		const result: ResolverResult = { authority: { authority, connectTo: { type: RemoteConnectionType.WebSocket, host: host, port: port }, connectionToken } };
 		RemoteAuthorities.set(authority, host, port);
 		this._cache.set(authority, result);
 		this._onDidChangeConnectionData.fire();
@@ -104,9 +104,9 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, options?: ResolvedOptions): void {
 		if (this._resolveAuthorityRequests.has(resolvedAuthority.authority)) {
 			const request = this._resolveAuthorityRequests.get(resolvedAuthority.authority)!;
-			if (resolvedAuthority.messaging.type === MessagePassingType.WebSocket) {
+			if (resolvedAuthority.connectTo.type === RemoteConnectionType.WebSocket) {
 				// todo@connor4312 need to implement some kind of loopback for ext host based messaging
-				RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.messaging.host, resolvedAuthority.messaging.port);
+				RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.connectTo.host, resolvedAuthority.connectTo.port);
 			}
 			if (resolvedAuthority.connectionToken) {
 				RemoteAuthorities.setConnectionToken(resolvedAuthority.authority, resolvedAuthority.connectionToken);

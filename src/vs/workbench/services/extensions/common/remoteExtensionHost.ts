@@ -18,7 +18,7 @@ import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConnectionOptions, IRemoteExtensionHostStartParams, connectRemoteAgentExtensionHost } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteSocketFactoryCollection } from 'vs/platform/remote/common/remoteSocketFactoryCollection';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -62,7 +62,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	constructor(
 		public readonly runningLocation: RemoteRunningLocation,
 		private readonly _initDataProvider: IRemoteExtensionHostDataProvider,
-		@IRemoteSocketFactoryCollection private readonly socketFactories: IRemoteSocketFactoryCollection,
+		@IRemoteSocketFactoryService private readonly socketFactories: IRemoteSocketFactoryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -86,7 +86,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public start(): Promise<IMessagePassingProtocol> {
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
-			const socketFactory = this.socketFactories.create(resolverResult.authority.messaging);
+			const socketFactory = this.socketFactories.create(resolverResult.authority.connectTo);
 			if (!socketFactory) {
 				throw new Error('No socket factory found for remote authority');
 			}
@@ -98,7 +98,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				addressProvider: {
 					getAddress: async () => {
 						const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
-						return { connectTo: authority.messaging, connectionToken: authority.connectionToken };
+						return { connectTo: authority.connectTo, connectionToken: authority.connectionToken };
 					}
 				},
 				signService: this._signService,

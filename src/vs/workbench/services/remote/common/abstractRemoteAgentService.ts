@@ -19,7 +19,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IRemoteSocketFactoryCollection } from 'vs/platform/remote/common/remoteSocketFactoryCollection';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -29,7 +29,7 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
-		@IRemoteSocketFactoryCollection private readonly socketFactories: IRemoteSocketFactoryCollection,
+		@IRemoteSocketFactoryService private readonly socketFactories: IRemoteSocketFactoryService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
@@ -149,7 +149,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
 		private readonly _quality: string | undefined,
-		private readonly _socketFactories: IRemoteSocketFactoryCollection,
+		private readonly _socketFactories: IRemoteSocketFactoryService,
 		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		private readonly _signService: ISignService,
 		private readonly _logService: ILogService
@@ -196,7 +196,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		const start = Date.now();
 		try {
 			const { authority } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-			const socketFactory = this._socketFactories.create(authority.messaging);
+			const socketFactory = this._socketFactories.create(authority.connectTo);
 			if (!socketFactory) {
 				throw new Error(`No socket factory found for ${authority}`);
 			}
@@ -213,7 +213,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 							this._onReconnecting.fire(undefined);
 						}
 						const { authority } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-						return { connectTo: authority.messaging, connectionToken: authority.connectionToken };
+						return { connectTo: authority.connectTo, connectionToken: authority.connectionToken };
 					}
 				},
 				signService: this._signService,

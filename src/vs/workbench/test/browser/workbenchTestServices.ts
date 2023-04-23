@@ -167,7 +167,7 @@ import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions,
 import { Codicon } from 'vs/base/common/codicons';
 import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
-import { IRemoteSocketFactoryCollection, RemoteSocketFactoryCollection } from 'vs/platform/remote/common/remoteSocketFactoryCollection';
+import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -326,7 +326,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
-	instantiationService.stub(IRemoteSocketFactoryCollection, new RemoteSocketFactoryCollection());
+	instantiationService.stub(IRemoteSocketFactoryService, new RemoteSocketFactoryService());
 
 	return instantiationService;
 }

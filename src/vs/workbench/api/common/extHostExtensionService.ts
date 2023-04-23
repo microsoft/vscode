@@ -26,7 +26,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ResolvedAuthority as ExtHostResolvedAuthority } from 'vs/workbench/api/common/extHostTypes';
-import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix, TunnelInformation, MessagePassingType } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix, TunnelInformation, RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
@@ -850,7 +850,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			if (result instanceof ExtHostResolvedAuthority) {
 				authority = {
 					authority: remoteAuthority,
-					messaging: { type: MessagePassingType.WebSocket, host: result.host, port: result.port },
+					connectTo: { type: RemoteConnectionType.WebSocket, host: result.host, port: result.port },
 					connectionToken: result.connectionToken
 				};
 			} else {
@@ -858,7 +858,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				this._managedSocketFactories.set(factoryId, result.makeConnection);
 				authority = {
 					authority: remoteAuthority,
-					messaging: { type: MessagePassingType.Managed, id: factoryId },
+					connectTo: { type: RemoteConnectionType.Managed, id: factoryId },
 					connectionToken: result.connectionToken
 				};
 			}

@@ -623,7 +623,7 @@ export class TunnelModel extends Disposable {
 			const addressProvider: IAddressProvider | undefined = authority ? {
 				getAddress: async () => {
 					const r = await this.remoteAuthorityResolverService.resolveAuthority(authority);
-					return { connectTo: r.authority.messaging, connectionToken: r.authority.connectionToken };
+					return { connectTo: r.authority.connectTo, connectionToken: r.authority.connectionToken };
 				}
 			} : undefined;
 

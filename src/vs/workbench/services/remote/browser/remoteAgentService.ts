@@ -18,12 +18,12 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IRemoteSocketFactoryCollection } from 'vs/platform/remote/common/remoteSocketFactoryCollection';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
 	constructor(
-		@IRemoteSocketFactoryCollection socketFactories: IRemoteSocketFactoryCollection,
+		@IRemoteSocketFactoryService socketFactories: IRemoteSocketFactoryService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
