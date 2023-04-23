@@ -515,7 +515,7 @@ export interface IEditorOptions {
 	/**
 	 * The history mode for suggestions.
 	 */
-	suggestSelection?: 'first' | 'last' | 'recentlyUsed' | 'recentlyUsedByPrefix';
+	suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
@@ -5506,8 +5506,8 @@ export const EditorOptions = {
 	)),
 	suggestSelection: register(new EditorStringEnumOption(
 		EditorOption.suggestSelection, 'suggestSelection',
-		'first' as 'first' | 'last' | 'recentlyUsed' | 'recentlyUsedByPrefix',
-		['first', 'last', 'recentlyUsed', 'recentlyUsedByPrefix'] as const,
+		'first' as 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix',
+		['first', 'recentlyUsed', 'recentlyUsedByPrefix'] as const,
 		{
 			markdownEnumDescriptions: [
 				nls.localize('suggestSelection.first', "Always select the first suggestion."),
