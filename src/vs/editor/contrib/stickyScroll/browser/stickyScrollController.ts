@@ -42,6 +42,7 @@ export interface IStickyScrollController {
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 	selectEditor(): void;
+        _createEndLineSticky(lineNumber: number): void;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -51,6 +52,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private readonly _stickyScrollWidget: StickyScrollWidget;
 	private readonly _stickyLineCandidateProvider: IStickyLineCandidateProvider;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
+        private readonly _endLineSticky: ISticky | null = null;
 
 	private _widgetState: StickyScrollWidgetState;
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
@@ -389,6 +391,41 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}
 	}
+
+        private _createEndLineSticky(lineNumber: number): void {
+    const model = this._editor.getModel();
+    if (!model) {
+        return;
+    }
+
+    const lastLine = model.getLineCount();
+    const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
+
+    // Create a new sticky line for the end of the block
+    const endLineSticky: ISticky = {
+        lineNumber: lastLine,
+        maxLineNumber: lastLine,
+        isAfterLines: true,
+        setScrollPosition: (position) => {
+            // Scroll to the last line if it is not already visible
+            const visibleRanges = this._editor.getVisibleRanges();
+            const lastVisibleRange = visibleRanges[visibleRanges.length - 1];
+            if (!lastVisibleRange.containsPosition(position)) {
+                this._editor.setScrollPosition({
+                    scrollTop: lastLineMaxColumn,
+                    scrollType: ScrollType.Immediate
+                });
+            }
+        },
+        dispose: () => {
+            this._endLineSticky = null;
+        }
+    };
+
+    // Update the _endLineSticky property
+    this._endLineSticky = endLineSticky;
+}
+
 
 	findScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
