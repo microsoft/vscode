@@ -23,6 +23,7 @@ import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbenc
 import { IStoredFileWorkingCopySaveParticipant, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -90,6 +91,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILogService private readonly logService: ILogService,
 	) {
 	}
 
@@ -119,10 +121,11 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		const disposable = new DisposableStore();
 		try {
 			for (const cmd of settingItems) {
-				this.commandService.executeCommand(cmd);
+				await this.commandService.executeCommand(cmd);
 			}
 		} catch {
 			// Failure to apply a code action should not block other on save actions
+			this.logService.warn('CodeActionsOnSave failed to apply a code action');
 		} finally {
 			progress.report({ increment: 100 });
 			disposable.dispose();
