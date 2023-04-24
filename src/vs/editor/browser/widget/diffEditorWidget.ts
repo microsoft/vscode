@@ -58,6 +58,7 @@ import { defaultInsertColor, defaultRemoveColor, diffDiagonalFill, diffInserted,
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { getThemeTypeSelector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -1910,6 +1911,7 @@ const DECORATIONS = {
 
 	arrowRevertChange: ModelDecorationOptions.register({
 		description: 'diff-editor-arrow-revert-change',
+		glyphMarginHoverMessage: new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true }).appendMarkdown(nls.localize('revertChangeHoverMessage', 'Click to revert change')),
 		glyphMarginClassName: 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight),
 		zIndex: 10001,
 	}),
