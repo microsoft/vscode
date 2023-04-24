@@ -203,25 +203,20 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- save & edit resources ---
 
-	async $save(uriComponents: UriComponents): Promise<UriComponents | undefined> {
+	async $save(uriComponents: UriComponents, options: { saveAs: boolean }): Promise<UriComponents | undefined> {
 		const uri = URI.revive(uriComponents);
 
 		const editors = [...this._editorService.findEditors(uri, { supportSideBySide: SideBySideEditor.PRIMARY })];
-		const result = await this._editorService.save(editors, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
+		const result = await this._editorService.save(editors, {
+			reason: SaveReason.EXPLICIT,
+			saveAs: options.saveAs,
+			force: !options.saveAs
+		});
 
-		return firstOrDefault(this.saveResultToUris(result));
+		return firstOrDefault(this._saveResultToUris(result));
 	}
 
-	async $saveAs(uriComponents: UriComponents): Promise<UriComponents | undefined> {
-		const uri = URI.revive(uriComponents);
-
-		const editors = [...this._editorService.findEditors(uri, { supportSideBySide: SideBySideEditor.PRIMARY })];
-		const result = await this._editorService.save(editors, { reason: SaveReason.EXPLICIT, saveAs: true });
-
-		return firstOrDefault(this.saveResultToUris(result));
-	}
-
-	private saveResultToUris(result: ISaveEditorsResult): URI[] {
+	private _saveResultToUris(result: ISaveEditorsResult): URI[] {
 		if (!result.success) {
 			return [];
 		}

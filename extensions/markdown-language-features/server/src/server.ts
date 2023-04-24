@@ -97,7 +97,14 @@ export async function startServer(connection: Connection, serverConfig: {
 					interFileDependencies: true,
 					workspaceDiagnostics: false,
 				},
-				codeActionProvider: { resolveProvider: true },
+				codeActionProvider: {
+					resolveProvider: true,
+					codeActionKinds: [
+						organizeLinkDefKind,
+						'quickfix',
+						'refactor',
+					]
+				},
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
 				documentSymbolProvider: true,

@@ -1100,7 +1100,7 @@ class InlineCompletionAdapterBase {
 
 	disposeCompletions(pid: number): void { }
 
-	handleDidShowCompletionItem(pid: number, idx: number): void { }
+	handleDidShowCompletionItem(pid: number, idx: number, updatedInsertText: string): void { }
 
 	handlePartialAccept(pid: number, idx: number, acceptedCharacters: number): void { }
 }
@@ -1209,11 +1209,11 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		data?.dispose();
 	}
 
-	override handleDidShowCompletionItem(pid: number, idx: number): void {
+	override handleDidShowCompletionItem(pid: number, idx: number, updatedInsertText: string): void {
 		const completionItem = this._references.get(pid)?.items[idx];
 		if (completionItem) {
 			if (this._provider.handleDidShowCompletionItem && this._isAdditionsProposedApiEnabled) {
-				this._provider.handleDidShowCompletionItem(completionItem);
+				this._provider.handleDidShowCompletionItem(completionItem, updatedInsertText);
 			}
 		}
 	}
@@ -2207,9 +2207,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, InlineCompletionAdapterBase, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined, token);
 	}
 
-	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number): void {
+	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void {
 		this._withAdapter(handle, InlineCompletionAdapterBase, async adapter => {
-			adapter.handleDidShowCompletionItem(pid, idx);
+			adapter.handleDidShowCompletionItem(pid, idx, updatedInsertText);
 		}, undefined, undefined);
 	}
 

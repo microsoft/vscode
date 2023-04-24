@@ -558,13 +558,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	async save(uri: URI): Promise<URI | undefined> {
-		const result = await this._proxy.$save(uri);
+		const result = await this._proxy.$save(uri, { saveAs: false });
 
 		return URI.revive(result);
 	}
 
 	async saveAs(uri: URI): Promise<URI | undefined> {
-		const result = await this._proxy.$saveAs(uri);
+		const result = await this._proxy.$save(uri, { saveAs: true });
 
 		return URI.revive(result);
 	}

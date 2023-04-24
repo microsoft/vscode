@@ -7,10 +7,11 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -21,13 +22,14 @@ import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
-import { PostDropWidgetManager } from 'vs/editor/contrib/dropIntoEditor/browser/postDropWidget';
+import { PostDropWidgetManager, changeDropTypeCommandId, dropWidgetVisibleCtx } from 'vs/editor/contrib/dropIntoEditor/browser/postDropWidget';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
 import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { registerDefaultDropProviders } from './defaultOnDropProviders';
 
@@ -58,8 +60,8 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	) {
 		super();
 
-		this._dropProgressManager = this._register(new InlineProgressManager('dropIntoEditor', editor, instantiationService));
-		this._postDropWidgetManager = this._register(new PostDropWidgetManager(editor, instantiationService));
+		this._dropProgressManager = this._register(instantiationService.createInstance(InlineProgressManager, 'dropIntoEditor', editor));
+		this._postDropWidgetManager = this._register(instantiationService.createInstance(PostDropWidgetManager, editor));
 
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 
@@ -68,6 +70,10 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 
 	public clearWidgets() {
 		this._postDropWidgetManager.clear();
+	}
+
+	public changeDropType() {
+		this._postDropWidgetManager.changeExistingDropType();
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
@@ -210,3 +216,20 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 }
 
 registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.BeforeFirstInteraction);
+
+registerEditorCommand(new class extends EditorCommand {
+	constructor() {
+		super({
+			id: changeDropTypeCommandId,
+			precondition: dropWidgetVisibleCtx,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Period,
+			}
+		});
+	}
+
+	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, _args: any) {
+		DropIntoEditorController.get(editor)?.changeDropType();
+	}
+});

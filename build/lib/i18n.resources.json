@@ -513,10 +513,6 @@
 		{
 			"name": "vs/workbench/services/localization",
 			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/accessibility",
-			"project": "vscode-workbench"
 		}
 	]
 }

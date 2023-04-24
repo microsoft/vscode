@@ -141,7 +141,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	protected _onExtensionHostExit(code: number): void {
 		// Dispose everything associated with the extension host
-		this.stopExtensionHosts();
+		this._doStopExtensionHosts();
 
 		const automatedWindow = window as unknown as IAutomatedWindow;
 		if (typeof automatedWindow.codeAutomationExit === 'function') {

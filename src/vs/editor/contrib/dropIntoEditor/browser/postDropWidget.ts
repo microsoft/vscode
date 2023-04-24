@@ -13,9 +13,14 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { Range } from 'vs/editor/common/core/range';
 import { DocumentOnDropEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
+export const changeDropTypeCommandId = 'editor.changeDropType';
+
+export const dropWidgetVisibleCtx = new RawContextKey<boolean>('dropWidgetVisible', false, localize('dropWidgetVisible', "Whether the drop widget is showing"));
 
 interface DropEditSet {
 	readonly activeEditIndex: number;
@@ -31,16 +36,24 @@ class PostDropWidget extends Disposable implements IContentWidget {
 	private domNode!: HTMLElement;
 	private button!: Button;
 
+	private readonly dropWidgetVisible: IContextKey<boolean>;
+
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly range: Range,
 		private readonly edits: DropEditSet,
 		private readonly onSelectNewEdit: (editIndex: number) => void,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
 		this.create();
+
+		this.dropWidgetVisible = dropWidgetVisibleCtx.bindTo(contextKeyService);
+		this.dropWidgetVisible.set(true);
+		this._register(toDisposable(() => this.dropWidgetVisible.reset()));
 
 		this.editor.addContentWidget(this);
 		this.editor.layoutContentWidget(this);
@@ -52,37 +65,28 @@ class PostDropWidget extends Disposable implements IContentWidget {
 				this.dispose();
 			}
 		}));
+
+		this._register(Event.runAndSubscribe(_keybindingService.onDidUpdateKeybindings, () => {
+			this._updateButtonTitle();
+		}));
+	}
+
+	private _updateButtonTitle() {
+		const binding = this._keybindingService.lookupKeybinding(changeDropTypeCommandId)?.getLabel();
+		this.button.element.title = binding
+			? localize('postDropWidgetTitleWithBinding', "Show drop options... ({0})", binding)
+			: localize('postDropWidgetTitle', "Show drop options...");
 	}
 
 	private create(): void {
 		this.domNode = dom.$('.post-drop-widget');
 
 		this.button = this._register(new Button(this.domNode, {
-			title: localize('postDropWidgetTile', "Drop options..."),
 			supportIcons: true,
 		}));
 		this.button.label = '$(insert)';
 
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, e => {
-			this._contextMenuService.showContextMenu({
-				getAnchor: () => {
-					const pos = dom.getDomNodePagePosition(this.button.element);
-					return { x: pos.left + pos.width, y: pos.top + pos.height };
-				},
-				getActions: () => {
-					return this.edits.allEdits.map((edit, i) => toAction({
-						id: '',
-						label: edit.label,
-						checked: i === this.edits.activeEditIndex,
-						run: () => {
-							if (i !== this.edits.activeEditIndex) {
-								return this.onSelectNewEdit(i);
-							}
-						},
-					}));
-				}
-			});
-		}));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, () => this.showDropSelector()));
 	}
 
 	getId(): string {
@@ -98,6 +102,27 @@ class PostDropWidget extends Disposable implements IContentWidget {
 			position: this.range.getEndPosition(),
 			preference: [ContentWidgetPositionPreference.BELOW]
 		};
+	}
+
+	showDropSelector() {
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => {
+				const pos = dom.getDomNodePagePosition(this.button.element);
+				return { x: pos.left + pos.width, y: pos.top + pos.height };
+			},
+			getActions: () => {
+				return this.edits.allEdits.map((edit, i) => toAction({
+					id: '',
+					label: edit.label,
+					checked: i === this.edits.activeEditIndex,
+					run: () => {
+						if (i !== this.edits.activeEditIndex) {
+							return this.onSelectNewEdit(i);
+						}
+					},
+				}));
+			}
+		});
 	}
 }
 
@@ -127,5 +152,9 @@ export class PostDropWidgetManager extends Disposable {
 
 	public clear() {
 		this._currentWidget.clear();
+	}
+
+	public changeExistingDropType() {
+		this._currentWidget.value?.showDropSelector();
 	}
 }

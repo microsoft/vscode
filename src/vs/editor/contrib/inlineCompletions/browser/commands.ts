@@ -71,7 +71,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		controller?.model.get()?.trigger(undefined);
+		controller?.model.get()?.triggerExplicitly();
 	}
 }
 
@@ -98,6 +98,31 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		controller?.model.get()?.acceptNextWord(controller.editor);
+	}
+}
+
+export class AcceptNextLineOfInlineCompletion extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.acceptNextLine',
+			label: nls.localize('action.inlineSuggest.acceptNextLine', "Accept Next Line Of Inline Suggestion"),
+			alias: 'Accept Next Line Of Inline Suggestion',
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible),
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib + 1,
+			},
+			menuOpts: [{
+				menuId: MenuId.InlineSuggestionToolbar,
+				title: nls.localize('acceptLine', 'Accept Line'),
+				group: 'secondary',
+				order: 2,
+			}],
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.get(editor);
+		controller?.model.get()?.acceptNextLine(controller.editor);
 	}
 }
 
