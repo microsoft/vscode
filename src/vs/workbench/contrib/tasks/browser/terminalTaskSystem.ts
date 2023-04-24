@@ -555,14 +555,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						promises.push(promise);
 						if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
 							const promiseResult = await promise;
-							if (promiseResult.exitCode === 0) {
-								promise = Promise.resolve(promiseResult);
-							} else {
-								promise = Promise.reject(promiseResult);
+							if (promiseResult.exitCode !== 0) {
 								break;
 							}
 						}
-						promises.push(promise);
 					} else {
 						this._log(nls.localize('dependencyFailed',
 							'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
