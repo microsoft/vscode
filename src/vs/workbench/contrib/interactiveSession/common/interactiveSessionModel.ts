@@ -166,7 +166,7 @@ export interface IInteractiveSessionModel {
 }
 
 export interface ISerializableInteractiveSessionsData {
-	[providerId: string]: ISerializableInteractiveSessionData[];
+	[sessionId: string]: ISerializableInteractiveSessionData;
 }
 
 export interface ISerializableInteractiveSessionRequestData {

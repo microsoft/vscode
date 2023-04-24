@@ -5,7 +5,6 @@
 
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { groupBy } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
@@ -110,7 +109,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	private readonly _providers = new Map<string, IInteractiveProvider>();
 	private readonly _sessionModels = new Map<string, InteractiveSessionModel>();
 	private readonly _pendingRequests = new Map<string, CancelablePromise<void>>();
-	private readonly _unprocessedPersistedSessions: ISerializableInteractiveSessionsData;
+	private readonly _persistedSessions: ISerializableInteractiveSessionsData;
 	private readonly _hasProvider: IContextKey<boolean>;
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IInteractiveSessionUserActionEvent>());
@@ -130,11 +129,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		const sessionData = storageService.get(serializedInteractiveSessionKey, StorageScope.WORKSPACE, '');
 		if (sessionData) {
-			this._unprocessedPersistedSessions = this.deserializeInteractiveSessions(sessionData);
-			const countsForLog = Object.keys(this._unprocessedPersistedSessions).map(key => `${key}: ${this._unprocessedPersistedSessions[key].length}`).join(', ');
-			this.trace('constructor', `Restored persisted sessions: ${countsForLog}`);
+			this._persistedSessions = this.deserializeInteractiveSessions(sessionData);
+			const countsForLog = Object.keys(this._persistedSessions).length;
+			this.trace('constructor', `Restored ${countsForLog} persisted sessions`);
 		} else {
-			this._unprocessedPersistedSessions = {};
+			this._persistedSessions = {};
 			this.trace('constructor', 'No persisted sessions');
 		}
 
@@ -195,7 +194,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 				throw new Error('Expected array');
 			}
 
-			return groupBy(arrayOfSessions, item => item.providerId);
+			const sessions = arrayOfSessions.reduce((acc, session) => {
+				acc[session.sessionId] = session;
+				return acc;
+			}, {} as ISerializableInteractiveSessionsData);
+			return sessions;
 		} catch (err) {
 			this.error('deserializeInteractiveSessions', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
 			return {};
@@ -243,8 +246,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		if (!session) {
 			if (sessionHistory) {
 				// sessionHistory was not used, so store it for later
-				const providerData = this._unprocessedPersistedSessions[model.providerId];
-				providerData?.unshift(sessionHistory);
+				this._persistedSessions[sessionHistory.sessionId] = sessionHistory;
 			}
 
 			this.trace('startSession', 'Provider returned no session');
@@ -267,27 +269,13 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			return model;
 		}
 
-		const sessionData = this.findPersistedSession(sessionId);
+		const sessionData = this._persistedSessions[sessionId];
 		if (!sessionData) {
 			return undefined;
 		}
 
-		this._unprocessedPersistedSessions[sessionData.providerId] =
-			this._unprocessedPersistedSessions[sessionData.providerId].filter(item => item.sessionId !== sessionId);
+		delete this._persistedSessions[sessionId];
 		return this._startSession(sessionData.providerId, sessionData, CancellationToken.None);
-	}
-
-	private findPersistedSession(sessionId: string): ISerializableInteractiveSessionData | undefined {
-		// TODO maybe this should just be keyed by sessionId
-		for (const provider of Object.keys(this._unprocessedPersistedSessions)) {
-			for (const session of this._unprocessedPersistedSessions[provider]) {
-				if (session.sessionId === sessionId) {
-					return session;
-				}
-			}
-		}
-
-		return undefined;
 	}
 
 	async sendRequest(sessionId: string, request: string | IInteractiveSessionReplyFollowup): Promise<boolean> {
