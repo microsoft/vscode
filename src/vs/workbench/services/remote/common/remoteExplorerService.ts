@@ -562,6 +562,8 @@ export class TunnelModel extends Disposable {
 							privacy: tunnel.privacy,
 							elevateIfNeeded: true
 						});
+					} else if (tunnel.source.source === TunnelSource.Extension && !alreadyForwarded) {
+						this.unrestoredExtensionTunnels.set(makeAddress(tunnel.remoteHost, tunnel.remotePort), tunnel);
 					}
 				}
 			}
