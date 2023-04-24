@@ -20,38 +20,6 @@ declare module 'typescript/lib/tsserverlibrary' {
 			readonly _serverType?: ServerType;
 		}
 
-		interface GetMoveToRefactoringFileSuggestionsRequest extends Request {
-			command: 'getMoveToRefactoringFileSuggestions';
-			arguments: GetMoveToRefactoringFileSuggestionsRequestArgs;
-		}
-
-		type GetMoveToRefactoringFileSuggestionsRequestArgs = FileLocationOrRangeRequestArgs & {
-			triggerReason?: RefactorTriggerReason;
-			kind?: string;
-		};
-
-		interface GetMoveToRefactoringFileSuggestionsResponse extends Response {
-			body?: {
-				newFilename: string;
-				files: string[];
-			};
-		}
-
-		interface GetEditsForMoveToFileRefactorRequest extends Request {
-			command: 'getEditsForMoveToFileRefactor';
-			arguments: GetEditsForMoveToFileRefactorRequestArgs;
-		}
-
-		interface GetEditsForMoveToFileRefactorResponse extends Response {
-			body?: RefactorEditInfo;
-		}
-
-		type GetEditsForMoveToFileRefactorRequestArgs = FileLocationOrRangeRequestArgs & {
-			refactor: string;
-			action: string;
-			filepath: string;
-		};
-
 		interface LinkedEditingRangesBody {
 			ranges: TextSpan[];
 			wordPattern?: string;
