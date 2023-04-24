@@ -73,18 +73,18 @@ suite('InteractiveSession', () => {
 		testDisposables.clear();
 	});
 
-	test('Restores state for the correct provider', async () => {
+	test('retrieveSession', async () => {
 		const testService = instantiationService.createInstance(InteractiveSessionService);
 		const provider1 = new SimpleTestProvider('provider1');
 		const provider2 = new SimpleTestProvider('provider2');
 		testService.registerProvider(provider1);
 		testService.registerProvider(provider2);
 
-		let session1 = testService.startSession('provider1', true, CancellationToken.None);
+		const session1 = testService.startSession('provider1', CancellationToken.None);
 		await session1.waitForInitialization();
 		session1!.addRequest('request 1');
 
-		let session2 = testService.startSession('provider2', true, CancellationToken.None);
+		const session2 = testService.startSession('provider2', CancellationToken.None);
 		await session2.waitForInitialization();
 		session2!.addRequest('request 2');
 
@@ -97,10 +97,10 @@ suite('InteractiveSession', () => {
 		const testService2 = instantiationService.createInstance(InteractiveSessionService);
 		testService2.registerProvider(provider1);
 		testService2.registerProvider(provider2);
-		session1 = testService2.startSession('provider1', true, CancellationToken.None);
-		await session1.waitForInitialization();
-		session2 = testService2.startSession('provider2', true, CancellationToken.None);
-		await session2.waitForInitialization();
+		const retrieved1 = testService2.retrieveSession(session1.sessionId);
+		await retrieved1!.waitForInitialization();
+		const retrieved2 = testService2.retrieveSession(session2.sessionId);
+		await retrieved2!.waitForInitialization();
 		assert.deepStrictEqual(provider1.lastInitialState, { state: 'provider1_state' });
 		assert.deepStrictEqual(provider2.lastInitialState, { state: 'provider2_state' });
 	});
@@ -127,7 +127,7 @@ suite('InteractiveSession', () => {
 		const provider1 = getFailProvider('provider1');
 		testService.registerProvider(provider1);
 
-		const session1 = testService.startSession('provider1', true, CancellationToken.None);
+		const session1 = testService.startSession('provider1', CancellationToken.None);
 		await assert.rejects(() => session1.waitForInitialization());
 	});
 
@@ -179,7 +179,7 @@ suite('InteractiveSession', () => {
 
 		testService.registerProvider(provider);
 
-		const model = testService.startSession('testProvider', true, CancellationToken.None);
+		const model = testService.startSession('testProvider', CancellationToken.None);
 		const commands = await testService.getSlashCommands(model.sessionId, CancellationToken.None);
 
 		assert.strictEqual(commands?.length, 1);
@@ -192,7 +192,7 @@ suite('InteractiveSession', () => {
 		const testService = instantiationService.createInstance(InteractiveSessionService);
 		testService.registerProvider(new SimpleTestProvider('testProvider'));
 
-		const model = testService.startSession('testProvider', true, CancellationToken.None);
+		const model = testService.startSession('testProvider', CancellationToken.None);
 		assert.strictEqual(model.getRequests().length, 0);
 
 		await testService.sendInteractiveRequestToProvider(model.sessionId, { message: 'test request' });
@@ -203,7 +203,7 @@ suite('InteractiveSession', () => {
 		const testService = instantiationService.createInstance(InteractiveSessionService);
 		testService.registerProvider(new SimpleTestProvider('testProvider'));
 
-		const model = testService.startSession('testProvider', true, CancellationToken.None);
+		const model = testService.startSession('testProvider', CancellationToken.None);
 		assert.strictEqual(model.getRequests().length, 0);
 
 		await testService.addCompleteRequest(model.sessionId, 'test request', { message: 'test response' });
