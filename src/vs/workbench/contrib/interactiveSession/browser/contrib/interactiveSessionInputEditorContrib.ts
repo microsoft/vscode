@@ -62,7 +62,7 @@ class InputEditorDecorations extends Disposable {
 
 	private async updateInputEditorDecorations() {
 		const value = this.widget.inputEditor.getValue();
-		const slashCommands = await this.widget.getSlashCommands();
+		const slashCommands = await this.widget.getSlashCommands(); // TODO this async call can lead to a flicker of the placeholder text when switching editor tabs
 
 		if (!value) {
 			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
