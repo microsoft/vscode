@@ -31,6 +31,7 @@ import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -333,6 +334,9 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
+
+		// hide/cancel inline completions when invoking IE
+		InlineCompletionsController.get(this._editor)?.hide();
 
 		const editMode = this._getMode();
 
