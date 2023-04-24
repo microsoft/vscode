@@ -65,11 +65,11 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
+	private providerId: string | undefined;
 
 	public readonly inputUri = URI.parse(`${InteractiveSessionInputPart.INPUT_SCHEME}:input-${InteractiveSessionInputPart._counter++}`);
 
 	constructor(
-		private readonly providerId: string,
 		// private readonly editorOptions: InteractiveSessionEditorOptions, // TODO this should be used
 		@IInteractiveSessionWidgetHistoryService private readonly historyService: IInteractiveSessionWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
@@ -79,10 +79,16 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		super();
 
 		this.inputEditorHasText = CONTEXT_INTERACTIVE_INPUT_HAS_TEXT.bindTo(contextKeyService);
-
-		const history = this.historyService.getHistory(this.providerId);
-		this.history = new HistoryNavigator(history, 50);
+		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
+	}
+
+	setState(providerId: string, inputValue: string): void {
+		this.providerId = providerId;
+		const history = this.historyService.getHistory(providerId);
+		this.history = new HistoryNavigator(history, 50);
+
+		this.setValue(inputValue);
 	}
 
 	get element(): HTMLElement {
@@ -102,13 +108,15 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 			(this.history.previous() ?? this.history.first()) : this.history.next())
 			?? '';
 
-		this.inputEditor.setValue(historyInput);
 		aria.status(historyInput);
-		if (historyInput) {
-			// always leave cursor at the end.
-			this.inputEditor.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
-		}
+		this.setValue(historyInput);
 		this.setHistoryNavigationEnablement(true);
+	}
+
+	private setValue(value: string): void {
+		this.inputEditor.setValue(value);
+		// always leave cursor at the end
+		this.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
 	}
 
 	focus() {
@@ -240,6 +248,6 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 
 	saveState(): void {
 		const inputHistory = this.history.getHistory();
-		this.historyService.saveHistory(this.providerId, inputHistory);
+		this.historyService.saveHistory(this.providerId!, inputHistory);
 	}
 }

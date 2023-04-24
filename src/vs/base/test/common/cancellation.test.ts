@@ -108,6 +108,12 @@ suite('CancellationToken', function () {
 		assert.strictEqual(count, 1);
 	});
 
+	test('dispose does not cancel', function () {
+		const source = new CancellationTokenSource();
+		source.dispose();
+		assert.strictEqual(source.token.isCancellationRequested, false);
+	});
+
 	test('parent cancels child', function () {
 
 		const parent = new CancellationTokenSource();

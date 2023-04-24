@@ -658,7 +658,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 			return;
 		}
-		this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._instanceId);
+		this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._instanceId, newCollection);
 		this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 	}
 }

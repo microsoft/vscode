@@ -37,7 +37,7 @@
 	cursor: text;
 }
 
-.monaco-editor .interactive-editor .monaco-editor-background {
+.monaco-editor .interactive-editor .body .content .input .monaco-editor-background {
 	background-color: var(--vscode-interactiveEditorInput-background);
 }
 
@@ -216,4 +216,9 @@
 
 .monaco-editor .interactive-editor-diff-widget {
 	padding: 6px 0;
+}
+
+.monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor-background,
+.monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
+	background-color: var(--vscode-interactiveEditor-regionHighlight);
 }

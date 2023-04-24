@@ -24,6 +24,8 @@
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
 	"win32AppUserModelId": "Microsoft.CodeOSS",
 	"win32ShellNameShort": "C&ode - OSS",
+	"win32TunnelServiceMutex": "vscodetunnelserviceoss",
+	"win32TunnelMutex": "vscodetunneloss",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
 	"linuxIconName": "code-oss",
 	"licenseFileName": "LICENSE.txt",

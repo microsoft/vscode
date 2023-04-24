@@ -31,6 +31,7 @@ import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -334,6 +335,9 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
 
+		// hide/cancel inline completions when invoking IE
+		InlineCompletionsController.get(this._editor)?.hide();
+
 		const editMode = this._getMode();
 
 		this._ctsSession.dispose(true);
@@ -434,14 +438,14 @@ export class InteractiveEditorController implements IEditorContribution {
 					this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
 					return;
 				}
-				for (const change of e.changes) {
-					if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
-						this._ctsSession.cancel();
-						this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
-						this._currentSession!.teldata.terminalEdits = true;
-						break;
-					}
-				}
+				// for (const change of e.changes) {
+				// 	if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
+				// 		this._ctsSession.cancel();
+				// 		this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
+				// 		this._currentSession!.teldata.terminalEdits = true;
+				// 		break;
+				// 	}
+				// }
 			}
 
 		}, undefined, store);
