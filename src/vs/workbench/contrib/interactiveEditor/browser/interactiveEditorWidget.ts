@@ -386,6 +386,7 @@ class InteractiveEditorWidget {
 		this._elements.statusLabel.innerText = '';
 		this._elements.markdownMessage.classList.toggle('hidden', false);
 		this._isLastStatusUpdateAMessage = true;
+		delete this._elements.statusLabel.dataset['state'];
 		this._onDidChangeHeight.fire();
 		return true;
 	}
@@ -397,13 +398,15 @@ class InteractiveEditorWidget {
 		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const isLastMessageUpdated = this._isLastStatusUpdateAMessage;
+			const statusLabel = this._elements.statusLabel.innerText;
+			const markdownMessage = this._elements.message.firstChild;
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
 				let updateDone = false;
 				if (isLastMessageUpdated) {
-					updateDone = this.updateMarkdownMessage(this._elements.message.firstChild);
+					updateDone = this.updateMarkdownMessage(markdownMessage);
 				} else {
-					updateDone = this.updateMessage(this._elements.statusLabel.innerText, { ...ops, classes });
+					updateDone = this.updateMessage(statusLabel, { classes });
 				}
 				if (!updateDone) {
 					reset(this._elements.statusLabel);
