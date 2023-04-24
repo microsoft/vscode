@@ -920,7 +920,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: false
 		},
-		// TODO: example setting command
 		[NotebookSetting.codeActionsOnSave]: {
 			markdownDescription: nls.localize('notebook.codeActionsOnSave', "Experimental. Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `notebook.format`:`true`"),
 			type: 'object',
