@@ -196,17 +196,6 @@ function onScrollHandler(e: globalThis.Event) {
 	} else {
 		target.classList.add('more-above');
 	}
-	e.stopPropagation();
-}
-
-function onKeypressHandler(e: KeyboardEvent) {
-	if (e.ctrlKey || e.shiftKey) {
-		return;
-	}
-	if (e.code === 'ArrowDown' || e.code === 'End' || e.code === 'ArrowUp' || e.code === 'Home') {
-		// These should change the scroll position, not adjust the selected cell in the notebook
-		e.stopPropagation();
-	}
 }
 
 // if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
@@ -216,8 +205,6 @@ function initializeScroll(scrollableElement: HTMLElement, disposables: Disposabl
 		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
 		scrollableElement.addEventListener('scroll', onScrollHandler);
 		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
-		scrollableElement.addEventListener('keydown', onKeypressHandler);
-		disposables.push({ dispose: () => scrollableElement.removeEventListener('keydown', onKeypressHandler) });
 		scrollableElement.tabIndex = 0;
 	}
 }
