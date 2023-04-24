@@ -189,26 +189,24 @@ function createSocket<T extends RemoteConnection>(logService: ILogService, remot
 	const sw = StopWatch.create(false);
 	logService.info(`Creating a socket (${debugLabel})...`);
 	performance.mark(`code/willCreateSocket/${debugConnectionType}`);
-	remoteSocketFactoryService.connect(connectTo, path, query, debugLabel, (err: any, socket: ISocket | undefined) => {
+
+	remoteSocketFactoryService.connect(connectTo, path, query, debugLabel).then((socket) => {
 		if (result.didTimeout) {
 			performance.mark(`code/didCreateSocketError/${debugConnectionType}`);
 			logService.info(`Creating a socket (${debugLabel}) finished after ${sw.elapsed()} ms, but this is too late and has timed out already.`);
-			if (err) {
-				logService.error(err);
-			}
 			socket?.dispose();
 		} else {
-			if (err || !socket) {
-				performance.mark(`code/didCreateSocketError/${debugConnectionType}`);
-				logService.info(`Creating a socket (${debugLabel}) returned an error after ${sw.elapsed()} ms.`);
-				result.reject(err);
-			} else {
-				performance.mark(`code/didCreateSocketOK/${debugConnectionType}`);
-				logService.info(`Creating a socket (${debugLabel}) was successful after ${sw.elapsed()} ms.`);
-				result.resolve(socket);
-			}
+			performance.mark(`code/didCreateSocketOK/${debugConnectionType}`);
+			logService.info(`Creating a socket (${debugLabel}) was successful after ${sw.elapsed()} ms.`);
+			result.resolve(socket);
 		}
+	}, (err) => {
+		performance.mark(`code/didCreateSocketError/${debugConnectionType}`);
+		logService.info(`Creating a socket (${debugLabel}) returned an error after ${sw.elapsed()} ms.`);
+		logService.error(err);
+		result.reject(err);
 	});
+
 	return result.promise;
 }
 

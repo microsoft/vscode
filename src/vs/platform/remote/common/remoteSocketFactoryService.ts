@@ -20,16 +20,12 @@ export interface IRemoteSocketFactoryService {
 	 */
 	register<T extends RemoteConnectionType>(type: T, factory: ISocketFactory<T>): void;
 
-	connect(connectTo: RemoteConnection, path: string, query: string, debugLabel: string, callback: IConnectCallback): void;
+	connect(connectTo: RemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket>;
 }
 
 export interface ISocketFactory<T extends RemoteConnectionType> {
 	supports(connectTo: RemoteConnectionOfType<T>): boolean;
-	connect(connectTo: RemoteConnectionOfType<T>, path: string, query: string, debugLabel: string, callback: IConnectCallback): void;
-}
-
-export interface IConnectCallback {
-	(err: any | undefined, socket: ISocket | undefined): void;
+	connect(connectTo: RemoteConnectionOfType<T>, path: string, query: string, debugLabel: string): Promise<ISocket>;
 }
 
 export class RemoteSocketFactoryService implements IRemoteSocketFactoryService {
@@ -47,11 +43,11 @@ export class RemoteSocketFactoryService implements IRemoteSocketFactoryService {
 		return factories.find(factory => factory.supports(messagePassing));
 	}
 
-	public connect(connectTo: RemoteConnection, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {
+	public connect(connectTo: RemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
 		const socketFactory = this.getSocketFactory(connectTo);
 		if (!socketFactory) {
 			throw new Error(`No socket factory found for ${connectTo}`);
 		}
-		return socketFactory.connect(connectTo, path, query, debugLabel, callback);
+		return socketFactory.connect(connectTo, path, query, debugLabel);
 	}
 }

@@ -9,7 +9,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ISocket, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { ISocketFactory } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, RemoteConnectionType, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export interface IWebSocketFactory {
@@ -277,16 +277,15 @@ export class BrowserSocketFactory implements ISocketFactory<RemoteConnectionType
 		return true;
 	}
 
-	connect({ host, port }: WebSocketRemoteConnection, path: string, query: string, debugLabel: string, callback: IConnectCallback): void {
-		const webSocketSchema = (/^https:/.test(window.location.href) ? 'wss' : 'ws');
-		const socket = this._webSocketFactory.create(`${webSocketSchema}://${(/:/.test(host) && !/\[/.test(host)) ? `[${host}]` : host}:${port}${path}?${query}&skipWebSocketFrames=false`, debugLabel);
-		const errorListener = socket.onError((err) => callback(err, undefined));
-		socket.onOpen(() => {
-			errorListener.dispose();
-			callback(undefined, new BrowserSocket(socket, debugLabel));
+	connect({ host, port }: WebSocketRemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
+		return new Promise<ISocket>((resolve, reject) => {
+			const webSocketSchema = (/^https:/.test(window.location.href) ? 'wss' : 'ws');
+			const socket = this._webSocketFactory.create(`${webSocketSchema}://${(/:/.test(host) && !/\[/.test(host)) ? `[${host}]` : host}:${port}${path}?${query}&skipWebSocketFrames=false`, debugLabel);
+			const errorListener = socket.onError(reject);
+			socket.onOpen(() => {
+				errorListener.dispose();
+				resolve(new BrowserSocket(socket, debugLabel));
+			});
 		});
 	}
 }
-
-
-
