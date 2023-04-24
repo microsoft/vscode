@@ -380,7 +380,6 @@ class InteractiveEditorWidget {
 		this._elements.statusLabel.innerText = '';
 		this._elements.markdownMessage.classList.toggle('hidden', false);
 		this._onDidChangeHeight.fire();
-		return true;
 	}
 
 	updateStatus(message: string, ops: { classes?: string[]; resetAfter?: number; keepMessage?: boolean } = {}) {
