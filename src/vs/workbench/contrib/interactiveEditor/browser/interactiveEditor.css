@@ -100,36 +100,34 @@
 	display: none;
 }
 
-.monaco-editor .interactive-editor .status .link {
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-	font-size: 12px;
-	white-space: nowrap;
-	/* margin-top: auto; */
-}
-
 .monaco-editor .interactive-editor .status .label {
 	overflow: hidden;
-	font-size: 12px;
+	padding-left: 10px;
 	margin-left: auto;
 }
 
-.monaco-editor .interactive-editor .status .label.message>span>p {
-	margin: 0px;
+.monaco-editor .interactive-editor .markdownMessage {
+	padding-top: 10px;
+}
+
+.monaco-editor .interactive-editor .markdownMessage.hidden {
+	display: none;
+}
+
+.monaco-editor .interactive-editor .markdownMessage .message * {
+	margin: unset;
+}
+
+.monaco-editor .interactive-editor .markdownMessage .message {
+	margin-left: 5px;
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 	display: -webkit-box;
 }
 
-.monaco-editor .interactive-editor .status .link .status-link  {
-	padding-left: 10px;
-}
-
-.monaco-editor .interactive-editor .status .link  .status-link .codicon {
-	line-height: unset;
-	font-size: 12px;
-	padding-right: 4px;
+.monaco-editor .interactive-editor .markdownMessage .messageActions {
+	direction: rtl;
 }
 
 .monaco-editor .interactive-editor .status .label A {

@@ -5,7 +5,7 @@
 
 import 'vs/css!./interactiveEditor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -14,10 +14,10 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ITextModel } from 'vs/editor/common/model';
-import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset, append } from 'vs/base/browser/dom';
-import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
+import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
+import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -37,7 +37,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IAction } from 'vs/base/common/actions';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -94,31 +95,6 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	readOnly: true,
 };
 
-class StatusLink extends Disposable {
-
-	private readonly _domNode: HTMLAnchorElement;
-	private readonly _onClicked = this._register(new Emitter<void>());
-	readonly onClicked = this._onClicked.event;
-
-	constructor(container: HTMLElement) {
-		super();
-		const linkNode = document.createElement('a');
-		const codicon = renderLabelWithIcons('$(comment-discussion)' + localize('viewInChat', 'View in Chat'));
-		reset(linkNode, ...codicon);
-		this._domNode = append(container, linkNode);
-		this._domNode.classList.add('status-link');
-		this._register(addDisposableListener(this._domNode, 'click', () => this._onClicked.fire()));
-	}
-
-	show(): void {
-		this._domNode.style.display = 'flex';
-	}
-
-	hide(): void {
-		this._domNode.style.display = 'none';
-	}
-}
-
 class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
@@ -143,8 +119,11 @@ class InteractiveEditorWidget {
 			h('div.previewCreate.hidden@previewCreate'),
 			h('div.status@status', [
 				h('div.actions.hidden@statusToolbar'),
-				h('span.label@statusLabel'),
-				h('span.link@statusLink'),
+				h('div.label@statusLabel')
+			]),
+			h('div.markdownMessage.hidden@markdownMessage', [
+				h('div.message@message'),
+				h('div.messageActions@messageActions')
 			]),
 		]
 	);
@@ -173,10 +152,6 @@ class InteractiveEditorWidget {
 
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
-
-	private readonly _statusLink: StatusLink;
-	private readonly _statusLinkListener = this._store.add(new MutableDisposable());
-
 	constructor(
 		parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
@@ -234,15 +209,15 @@ class InteractiveEditorWidget {
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
 
-		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, {
+		const workbenchToolbarOptions = {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: {
 				primaryGroup: () => true,
 				useSeparatorsInPrimaryActions: true
 			},
-			actionViewItemProvider: (action, options) => createActionViewItem(this._instantiationService, action, options)
-		});
-
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => createActionViewItem(this._instantiationService, action, options)
+		};
+		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, workbenchToolbarOptions);
 		this._historyStore.add(statusToolbar);
 
 		// preview editors
@@ -251,7 +226,14 @@ class InteractiveEditorWidget {
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
-		this._statusLink = new StatusLink(this._elements.statusLink);
+		this._elements.message.tabIndex = 0;
+		this._elements.message.setAttribute('aria-label', 'Copilot Inline Message');
+		this._elements.message.setAttribute('role', 'alert');
+		this._elements.statusLabel.tabIndex = 0;
+		this._elements.statusLabel.setAttribute('aria-label', 'Copilot Status Update');
+		this._elements.statusLabel.setAttribute('role', 'alert');
+		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
+		this._historyStore.add(markdownMessageToolbar);
 	}
 
 	dispose(): void {
@@ -290,10 +272,11 @@ class InteractiveEditorWidget {
 	getHeight(): number {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this.inputEditor.getContentHeight() + 12 /* padding and border */;
+		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage);
 		const previewDiffHeight = this._previewDiffEditor.getModel().modified ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
-		return base + editorHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
+		return base + editorHeight + markdownMessageHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
@@ -392,32 +375,27 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	updateMessage(message: string | HTMLElement, ops: { linkListener?: () => void; isMessageReply?: boolean; classes?: string[]; resetAfter?: number } = {}) {
-		this._statusLinkListener.clear();
-		if (ops.isMessageReply) {
-			this._statusLink.show();
-			this._statusLinkListener.value = this._statusLink.onClicked(() => ops.linkListener?.());
-		} else {
-			this._statusLink.hide();
-		}
+	updateMarkdownMessage(message: Node) {
+		reset(this._elements.message, message);
+		this._elements.statusLabel.innerText = '';
+		this._elements.markdownMessage.classList.toggle('hidden', false);
+		this._onDidChangeHeight.fire();
+	}
+
+	updateStatus(message: string, ops: { classes?: string[]; resetAfter?: number; keepMessage?: boolean } = {}) {
 		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
-			const messageNow = this._elements.statusLabel.innerText;
+			const statusLabel = this._elements.statusLabel.innerText;
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
-				if (messageNow) {
-					this.updateMessage(messageNow, { ...ops, classes });
-				} else {
-					reset(this._elements.statusLabel);
-				}
+				this.updateStatus(statusLabel, { classes, keepMessage: true });
 			}, ops.resetAfter);
+		} else if (!isTempMessage && !ops.keepMessage) {
+			this._elements.markdownMessage.classList.toggle('hidden', true);
 		}
-
 		this._elements.status.classList.toggle('hidden', false);
-
 		reset(this._elements.statusLabel, message);
 		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
-		this._elements.statusLabel.classList.toggle('message', ops.isMessageReply);
 		if (isTempMessage) {
 			this._elements.statusLabel.dataset['state'] = 'temp';
 		} else {

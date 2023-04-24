@@ -472,6 +472,7 @@ class GrammarTokens extends Disposable {
 			if (tokenizationSupport?.backgroundTokenizerShouldOnlyVerifyTokens && tokenizationSupport.createBackgroundTokenizer) {
 				this._debugBackgroundTokens = new ContiguousTokensStore(this._languageIdCodec);
 				this._debugBackgroundStates = new TrackingTokenizationStateStore(this._textModel.getLineCount());
+				this._debugBackgroundTokenizer.clear();
 				this._debugBackgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, {
 					setTokens: (tokens) => {
 						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);

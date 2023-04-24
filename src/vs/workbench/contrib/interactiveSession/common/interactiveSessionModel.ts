@@ -166,7 +166,7 @@ export interface IInteractiveSessionModel {
 }
 
 export interface ISerializableInteractiveSessionsData {
-	[providerId: string]: ISerializableInteractiveSessionData[];
+	[sessionId: string]: ISerializableInteractiveSessionData;
 }
 
 export interface ISerializableInteractiveSessionRequestData {
@@ -181,7 +181,7 @@ export interface ISerializableInteractiveSessionRequestData {
 
 export interface ISerializableInteractiveSessionData {
 	sessionId: string;
-	// welcomeMessage: string | undefined;
+	welcomeMessage: (string | IInteractiveSessionReplyFollowup[])[] | undefined;
 	requests: ISerializableInteractiveSessionRequestData[];
 	requesterUsername: string;
 	responderUsername: string;
@@ -266,6 +266,11 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 			return [];
 		}
 
+		if (obj.welcomeMessage) {
+			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
+			this._welcomeMessage = new InteractiveSessionWelcomeMessageModel(content, obj.responderUsername, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri));
+		}
+
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
 			const request = new InteractiveRequestModel(raw.message, obj.requesterUsername, obj.requesterAvatarIconUri && URI.revive(obj.requesterAvatarIconUri));
 			if (raw.response || raw.responseErrorDetails) {
@@ -281,7 +286,11 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 
 		this._session = session;
-		this._welcomeMessage = welcomeMessage;
+		if (!this._welcomeMessage) {
+			// Could also have loaded the welcome message from persisted data
+			this._welcomeMessage = welcomeMessage;
+		}
+
 		this._isInitializedDeferred.complete();
 
 		if (session.onDidChangeState) {
@@ -378,7 +387,13 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 			requesterAvatarIconUri: this._session!.requesterAvatarIconUri,
 			responderUsername: this._session!.responderUsername,
 			responderAvatarIconUri: this._session!.responderAvatarIconUri,
-			// welcomeMessage: this._welcomeMessage,
+			welcomeMessage: this._welcomeMessage?.content.map(c => {
+				if (Array.isArray(c)) {
+					return c;
+				} else {
+					return c.value;
+				}
+			}),
 			requests: this._requests.map((r): ISerializableInteractiveSessionRequestData => {
 				return {
 					providerResponseId: r.response?.providerResponseId,

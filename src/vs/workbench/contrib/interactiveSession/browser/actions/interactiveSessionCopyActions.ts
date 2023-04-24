@@ -35,6 +35,7 @@ export function registerInteractiveSessionCopyActions() {
 			if (widget) {
 				const viewModel = widget.viewModel;
 				const sessionAsText = viewModel?.getItems()
+					.filter((item): item is (IInteractiveRequestViewModel | IInteractiveResponseViewModel) => isRequestVM(item) || isResponseVM(item))
 					.map(stringifyItem)
 					.join('\n\n');
 				if (sessionAsText) {

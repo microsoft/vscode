@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { OpenJsDocLinkCommand, OpenJsDocLinkCommand_Args } from '../../commands/openJsDocLink';
 import type * as Proto from '../../tsServer/protocol/protocol';
+import * as typeConverters from '../../typeConverters';
 
 export interface IFilePathToResourceConverter {
 	/**
@@ -160,13 +162,15 @@ function convertLinkTags(
 			case 'link':
 				if (currentLink) {
 					if (currentLink.target) {
-						const link = filePathConverter.toResource(currentLink.target.file)
-							.with({
-								fragment: `L${currentLink.target.start.line},${currentLink.target.start.offset}`
-							});
+						const file = filePathConverter.toResource(currentLink.target.file);
+						const args: OpenJsDocLinkCommand_Args = {
+							file: { ...file.toJSON(), $mid: undefined }, // Prevent VS Code from trying to transform the uri,
+							position: typeConverters.Position.fromLocation(currentLink.target.start)
+						};
+						const command = `command:${OpenJsDocLinkCommand.id}?${encodeURIComponent(JSON.stringify([args]))}`;
 
 						const linkText = currentLink.text ? currentLink.text : escapeMarkdownSyntaxTokensForCode(currentLink.name ?? '');
-						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${link.toString()})`);
+						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${command})`);
 					} else {
 						const text = currentLink.text ?? currentLink.name;
 						if (text) {
@@ -232,6 +236,7 @@ export function documentationToMarkdown(
 	const out = new vscode.MarkdownString();
 	appendDocumentationAsMarkdown(out, documentation, tags, filePathConverter);
 	out.baseUri = baseUri;
+	out.isTrusted = { enabledCommands: [OpenJsDocLinkCommand.id] };
 	return out;
 }
 
@@ -251,5 +256,8 @@ export function appendDocumentationAsMarkdown(
 			out.appendMarkdown('\n\n' + tagsPreview);
 		}
 	}
+
+	out.isTrusted = { enabledCommands: [OpenJsDocLinkCommand.id] };
+
 	return out;
 }

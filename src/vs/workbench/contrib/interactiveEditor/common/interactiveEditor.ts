@@ -118,6 +118,7 @@ export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<EditMode>('con
 // --- menus
 
 export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidget');
+export const MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE = MenuId.for('interactiveEditorWidget.markdownMessage');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_STATUS = MenuId.for('interactiveEditorWidget.status');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_UNDO = MenuId.for('interactiveEditorWidget.undo');
 MenuRegistry.appendMenuItem(MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, {
