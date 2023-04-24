@@ -64,18 +64,37 @@ export interface IPickerQuickAccessProviderOptions<T extends IPickerQuickAccessI
 	/**
 	 * Enables support for opening picks in the background via gesture.
 	 */
-	canAcceptInBackground?: boolean;
+	readonly canAcceptInBackground?: boolean;
 
 	/**
 	 * Enables to show a pick entry when no results are returned from a search.
 	 */
-	noResultsPick?: T | ((filter: string) => T);
+	readonly noResultsPick?: T | ((filter: string) => T);
 }
 
 export type Pick<T> = T | IQuickPickSeparator;
 export type PicksWithActive<T> = { items: readonly Pick<T>[]; active?: T };
 export type Picks<T> = readonly Pick<T>[] | PicksWithActive<T>;
-export type FastAndSlowPicks<T> = { picks: Picks<T>; additionalPicks: Promise<Picks<T>> };
+export type FastAndSlowPicks<T> = {
+
+	/**
+	 * Picks that will show instantly or after a short delay
+	 * based on the `mergeDelay` property to reduce flicker.
+	 */
+	readonly picks: Picks<T>;
+
+	/**
+	 * Picks that will show after they have been resolved.
+	 */
+	readonly additionalPicks: Promise<Picks<T>>;
+
+	/**
+	 * A delay in milliseconds to wait before showing the
+	 * `picks` to give a chance to merge with `additionalPicks`
+	 * for reduced flicker.
+	 */
+	readonly mergeDelay?: number;
+};
 
 function isPicksWithActive<T>(obj: unknown): obj is PicksWithActive<T> {
 	const candidate = obj as PicksWithActive<T>;
@@ -90,8 +109,6 @@ function isFastAndSlowPicks<T>(obj: unknown): obj is FastAndSlowPicks<T> {
 }
 
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
-
-	private static FAST_PICKS_RACE_DELAY = 200; // timeout before we accept fast results before slow results are present
 
 	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions<T>) {
 		super();
@@ -158,51 +175,50 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				return true;
 			};
 
-			// No Picks
-			if (providedPicks === null) {
-				// Ignore
-			}
-
-			// Fast and Slow Picks
-			else if (isFastAndSlowPicks(providedPicks)) {
+			const applyFastAndSlowPicks = async (fastAndSlowPicks: FastAndSlowPicks<T>): Promise<void> => {
 				let fastPicksApplied = false;
 				let slowPicksApplied = false;
 
 				await Promise.all([
 
-					// Fast Picks: to reduce amount of flicker, we race against
-					// the slow picks over 500ms and then set the fast picks.
-					// If the slow picks are faster, we reduce the flicker by
-					// only setting the items once.
+					// Fast Picks: if `mergeDelay` is configured, in order to reduce
+					// amount of flicker, we race against the slow picks over some delay
+					// and then set the fast picks.
+					// If the slow picks are faster, we reduce the flicker by only
+					// setting the items once.
+
 					(async () => {
-						await timeout(PickerQuickAccessProvider.FAST_PICKS_RACE_DELAY);
-						if (picksToken.isCancellationRequested) {
-							return;
+						if (typeof fastAndSlowPicks.mergeDelay === 'number') {
+							await timeout(fastAndSlowPicks.mergeDelay);
+							if (picksToken.isCancellationRequested) {
+								return;
+							}
 						}
 
 						if (!slowPicksApplied) {
-							fastPicksApplied = applyPicks(providedPicks.picks, true /* skip over empty to reduce flicker */);
+							fastPicksApplied = applyPicks(fastAndSlowPicks.picks, true /* skip over empty to reduce flicker */);
 						}
 					})(),
 
 					// Slow Picks: we await the slow picks and then set them at
 					// once together with the fast picks, but only if we actually
 					// have additional results.
+
 					(async () => {
 						picker.busy = true;
 						try {
-							const awaitedAdditionalPicks = await providedPicks.additionalPicks;
+							const awaitedAdditionalPicks = await fastAndSlowPicks.additionalPicks;
 							if (picksToken.isCancellationRequested) {
 								return;
 							}
 
 							let picks: readonly Pick<T>[];
 							let activePick: Pick<T> | undefined = undefined;
-							if (isPicksWithActive(providedPicks.picks)) {
-								picks = providedPicks.picks.items;
-								activePick = providedPicks.picks.active;
+							if (isPicksWithActive(fastAndSlowPicks.picks)) {
+								picks = fastAndSlowPicks.picks.items;
+								activePick = fastAndSlowPicks.picks.active;
 							} else {
-								picks = providedPicks.picks;
+								picks = fastAndSlowPicks.picks;
 							}
 
 							let additionalPicks: readonly Pick<T>[];
@@ -243,6 +259,16 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 						}
 					})()
 				]);
+			};
+
+			// No Picks
+			if (providedPicks === null) {
+				// Ignore
+			}
+
+			// Fast and Slow Picks
+			else if (isFastAndSlowPicks(providedPicks)) {
+				await applyFastAndSlowPicks(providedPicks);
 			}
 
 			// Fast Picks
@@ -259,7 +285,11 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 						return;
 					}
 
-					applyPicks(awaitedPicks);
+					if (isFastAndSlowPicks(awaitedPicks)) {
+						await applyFastAndSlowPicks(awaitedPicks);
+					} else {
+						applyPicks(awaitedPicks);
+					}
 				} finally {
 					if (!picksToken.isCancellationRequested) {
 						picker.busy = false;
@@ -343,5 +373,5 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 	 * @returns the picks either directly, as promise or combined fast and slow results.
 	 * Pickers can return `null` to signal that no change in picks is needed.
 	 */
-	protected abstract _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Picks<T> | Promise<Picks<T>> | FastAndSlowPicks<T> | null;
+	protected abstract _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Picks<T> | Promise<Picks<T> | FastAndSlowPicks<T>> | FastAndSlowPicks<T> | null;
 }

@@ -434,14 +434,14 @@ export class InteractiveEditorController implements IEditorContribution {
 					this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
 					return;
 				}
-				for (const change of e.changes) {
-					if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
-						this._ctsSession.cancel();
-						this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
-						this._currentSession!.teldata.terminalEdits = true;
-						break;
-					}
-				}
+				// for (const change of e.changes) {
+				// 	if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
+				// 		this._ctsSession.cancel();
+				// 		this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
+				// 		this._currentSession!.teldata.terminalEdits = true;
+				// 		break;
+				// 	}
+				// }
 			}
 
 		}, undefined, store);
