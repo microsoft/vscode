@@ -1318,7 +1318,7 @@ class Trait<T> {
 			} else {
 				const insertedNode = insertedNodesMap.get(id);
 
-				if (insertedNode) {
+				if (insertedNode && insertedNode.visible) {
 					nodes.push(insertedNode);
 				}
 			}
