@@ -482,7 +482,6 @@
     "@types/node": "16.x"
   },
   "dependencies": {
-    "@emmetio/abbreviation": "^2.2.0",
     "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
     "@emmetio/html-matcher": "^0.3.3",
     "@emmetio/math-expression": "^1.0.4",

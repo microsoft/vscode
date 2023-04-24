@@ -2,13 +2,6 @@
 # yarn lockfile v1
 
 
-"@emmetio/abbreviation@^2.2.0":
-  version "2.2.2"
-  resolved "https://registry.yarnpkg.com/@emmetio/abbreviation/-/abbreviation-2.2.2.tgz#746762fd9e7a8c2ea604f580c62e3cfe250e6989"
-  integrity sha512-TtE/dBnkTCct8+LntkqVrwqQao6EnPAs1YN3cUgxOxTaBlesBCY37ROUAVZrRlG64GNnVShdl/b70RfAI3w5lw==
-  dependencies:
-    "@emmetio/scanner" "^1.0.0"
-
 "@emmetio/abbreviation@^2.3.1":
   version "2.3.1"
   resolved "https://registry.yarnpkg.com/@emmetio/abbreviation/-/abbreviation-2.3.1.tgz#b5ec06b9629ec63292f3a378e716dcb3071924ea"
