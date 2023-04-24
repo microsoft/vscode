@@ -15,7 +15,6 @@ export interface IInteractiveSessionWidget {
 	readonly providerId: string;
 
 	acceptInput(query?: string): void;
-	clear(): void;
 	focusLastMessage(): void;
 	focusInput(): void;
 	getSlashCommands(): Promise<IInteractiveSlashCommand[] | undefined>;

@@ -52,6 +52,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 
 		const unreg = this._interactiveSessionService.registerProvider({
 			id,
+			displayName: registration.label,
 			prepareSession: async (initialState, token) => {
 				const session = await this._proxy.$prepareInteractiveSession(handle, initialState, token);
 				if (!session) {

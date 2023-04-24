@@ -3,17 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.post-drop-widget .monaco-button {
-	box-shadow:  0 0 8px 2px var(--vscode-widget-shadow);
+.post-drop-widget {
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
 	border: 1px solid var(--vscode-widget-border, transparent);
 	border-radius: 4px;
+	background-color: var(--vscode-editorWidget-background);
+	overflow: hidden;
+}
+
+.post-drop-widget .monaco-button {
 	padding: 2px;
-	color: var(--vscode-input-foreground);
-	background-color:  var(--vscode-editorWidget-background);
+	border: none;
+	border-radius: 0;
 }
 
 .post-drop-widget .monaco-button:hover {
-	background-color: var(--vscode-inputOption-hoverBackground) !important;
+	background-color: var(--vscode-button-secondaryHoverBackground) !important;
 }
 
 .post-drop-widget .monaco-button .codicon {

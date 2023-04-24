@@ -25,7 +25,13 @@ class DefaultTextDropProvider implements DocumentOnDropEditProvider {
 	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
 		const textEntry = dataTransfer.get('text') ?? dataTransfer.get(Mimes.text);
 		if (!textEntry) {
-			return undefined;
+			return;
+		}
+
+		// Suppress if there's also a uriList entry.
+		// Typically the uri-list contains the same text as the text entry so showing both is confusing.
+		if (dataTransfer.has(Mimes.uriList)) {
+			return;
 		}
 
 		const text = await textEntry.asString();

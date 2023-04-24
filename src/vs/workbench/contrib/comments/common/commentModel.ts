@@ -85,6 +85,15 @@ export class CommentsModel {
 		this.updateResourceCommentThreads();
 	}
 
+	public deleteCommentsByOwner(owner?: string): void {
+		if (owner) {
+			this.commentThreadsMap.set(owner, []);
+		} else {
+			this.commentThreadsMap.clear();
+		}
+		this.updateResourceCommentThreads();
+	}
+
 	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
 		const { owner, removed, changed, added } = event;
 

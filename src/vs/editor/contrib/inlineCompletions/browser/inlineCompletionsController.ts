@@ -43,7 +43,7 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly textModelVersionId = observableValue<number, VersionIdChangeReason>('textModelVersionId', -1);
 	private readonly cursorPosition = observableValue<Position>('cursorPosition', new Position(1, 1));
-	public readonly model = disposableObservableValue<InlineCompletionsModel | undefined>('textModelVersionId', undefined);
+	public readonly model = disposableObservableValue<InlineCompletionsModel | undefined>('inlineCompletionModel', undefined);
 
 	private ghostTextWidget = this._register(this.instantiationService.createInstance(GhostTextWidget, this.editor, {
 		ghostText: this.model.map((v, reader) => v?.ghostText.read(reader)),
@@ -74,8 +74,8 @@ export class InlineCompletionsController extends Disposable {
 		const enabled = observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).enabled);
 
 		this._register(Event.runAndSubscribe(editor.onDidChangeModel, () => {
-			this.model.set(undefined, undefined); // This disposes the model (do this outside of the transaction to dispose autoruns)
 			transaction(tx => {
+				this.model.set(undefined, tx); // This disposes the model
 				this.updateObservables(tx, VersionIdChangeReason.Other);
 				const textModel = editor.getModel();
 				if (textModel) {
@@ -100,7 +100,7 @@ export class InlineCompletionsController extends Disposable {
 			this.updateObservables(tx,
 				e.isUndoing ? VersionIdChangeReason.Undo
 					: e.isRedoing ? VersionIdChangeReason.Redo
-						: this.model.get()?.isAcceptingPartialWord ? VersionIdChangeReason.AcceptWord
+						: this.model.get()?.isAcceptingPartially ? VersionIdChangeReason.AcceptWord
 							: VersionIdChangeReason.Other
 			)
 		)));
@@ -129,7 +129,7 @@ export class InlineCompletionsController extends Disposable {
 					inlineSuggestCommitId,
 					'acceptSelectedSuggestion',
 				]);
-				if (commands.has(e.commandId) && editor.hasTextFocus()) {
+				if (commands.has(e.commandId) && editor.hasTextFocus() && enabled.get()) {
 					transaction(tx => {
 						this.model.get()?.trigger(tx);
 					});
@@ -214,5 +214,11 @@ export class InlineCompletionsController extends Disposable {
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
 		return this.ghostTextWidget.ownsViewZone(viewZoneId);
+	}
+
+	hide() {
+		transaction(tx => {
+			this?.model.get()?.stop(tx);
+		});
 	}
 }

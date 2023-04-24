@@ -149,6 +149,23 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: WorkspaceHasCommenting
 });
 
+const EXPAND_UNRESOLVED_COMMENT_COMMAND = 'workbench.action.expandUnresolvedComments';
+CommandsRegistry.registerCommand({
+	id: EXPAND_UNRESOLVED_COMMENT_COMMAND,
+	handler: (accessor) => {
+		return getActiveController(accessor)?.expandUnresolved();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: EXPAND_UNRESOLVED_COMMENT_COMMAND,
+		title: nls.localize('comments.expandUnresolved', "Expand Unresolved Comments"),
+		category: 'Comments'
+	},
+	when: WorkspaceHasCommenting
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.submitComment',
 	weight: KeybindingWeight.EditorContrib,

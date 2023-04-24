@@ -229,15 +229,21 @@ export class GlyphMarginOverlay extends DedupOverlay {
 					if (decorations.length === 0) {
 						continue;
 					}
-					decorations.sort((a, b) => {
-						// Sort decorations to render in descending order by zIndex
-						return b.zIndex - a.zIndex;
-					});
+					decorations.sort((a, b) => b.zIndex - a.zIndex);
+					// Render winning decorations with the same zIndex together
 					const winningDecoration: RenderedDecoration = decorations[0];
+					const winningDecorationClassNames = [winningDecoration.className];
+					for (let i = 1; i < decorations.length; i += 1) {
+						const decoration = decorations[i];
+						if (decoration.zIndex !== winningDecoration.zIndex) {
+							break;
+						}
+						winningDecorationClassNames.push(decoration.className);
+					}
 					const left = (this._glyphMarginLeft + (lane - 1) * this._lineHeight).toString();
 					css += (
 						'<div class="cgmr codicon '
-						+ winningDecoration.className // TODO@joyceerhl Implement overflow for remaining decorations
+						+ winningDecorationClassNames.join(' ') // TODO@joyceerhl Implement overflow for remaining decorations
 						+ common
 						+ 'left:' + left + 'px;"></div>'
 					);

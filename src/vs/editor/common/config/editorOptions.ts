@@ -726,6 +726,12 @@ export interface IDiffEditorBaseOptions {
 	 */
 	enableSplitViewResizing?: boolean;
 	/**
+	 * The default ratio when rendering side-by-side editors.
+	 * Must be a number between 0 and 1, min sizes apply.
+	 * Defaults to 0.5
+	 */
+	splitViewDefaultRatio?: number;
+	/**
 	 * Render the differences in two side-by-side editors.
 	 * Defaults to true.
 	 */
@@ -1067,6 +1073,16 @@ class EditorIntOption<K extends EditorOption> extends SimpleEditorOption<K, numb
 	public override validate(input: any): number {
 		return EditorIntOption.clampedInt(input, this.defaultValue, this.minimum, this.maximum);
 	}
+}
+/**
+ * @internal
+ */
+export function clampedFloat<T extends number>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
+	if (typeof value === 'undefined') {
+		return defaultValue;
+	}
+	const r = EditorFloatOption.float(value, defaultValue);
+	return EditorFloatOption.clamp(r, minimum, maximum);
 }
 
 class EditorFloatOption<K extends EditorOption> extends SimpleEditorOption<K, number> {
