@@ -431,6 +431,10 @@ class Slice implements ISequence {
 			// don't break between \r and \n
 			return 0;
 		}
+		if (prevCategory === CharBoundaryCategory.LineBreakLF) {
+			// prefer the linebreak before the change
+			return 150;
+		}
 
 		let score = 0;
 		if (prevCategory !== nextCategory) {
@@ -512,6 +516,7 @@ const enum CharBoundaryCategory {
 	End,
 	Other,
 	Space,
+	Separator, // , or ;
 	LineBreakCR,
 	LineBreakLF,
 }
@@ -523,8 +528,9 @@ const score: Record<CharBoundaryCategory, number> = {
 	[CharBoundaryCategory.End]: 10,
 	[CharBoundaryCategory.Other]: 2,
 	[CharBoundaryCategory.Space]: 3,
-	[CharBoundaryCategory.LineBreakCR]: 10,
-	[CharBoundaryCategory.LineBreakLF]: 10,
+	[CharBoundaryCategory.Separator]: 23,
+	[CharBoundaryCategory.LineBreakCR]: 30,
+	[CharBoundaryCategory.LineBreakLF]: 30,
 };
 
 function getCategoryBoundaryScore(category: CharBoundaryCategory): number {
@@ -546,6 +552,8 @@ function getCategory(charCode: number): CharBoundaryCategory {
 		return CharBoundaryCategory.WordNumber;
 	} else if (charCode === -1) {
 		return CharBoundaryCategory.End;
+	} else if (charCode === CharCode.Comma || charCode === CharCode.Semicolon) {
+		return CharBoundaryCategory.Separator;
 	} else {
 		return CharBoundaryCategory.Other;
 	}
