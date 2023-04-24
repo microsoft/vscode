@@ -1524,7 +1524,7 @@ export class ContextKeyNotRegexExpr implements IContextKeyExpression {
 	}
 
 	public serialize(): string {
-		throw new Error('Method not implemented.');
+		return `!(${this._actual.serialize()})`;
 	}
 
 	public keys(): string[] {
