@@ -277,13 +277,16 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 	constructor(
 		action: SubmenuItemAction,
 		options: IDropdownMenuActionViewItemOptions | undefined,
+		@IKeybindingService protected _keybindingService: IKeybindingService,
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
 		@IThemeService protected _themeService: IThemeService
 	) {
-		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
+		const dropdownOptions: IDropdownMenuActionViewItemOptions = {
+			...options,
 			menuAsChild: options?.menuAsChild ?? false,
 			classNames: options?.classNames ?? (ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined),
-		});
+			keybindingProvider: options?.keybindingProvider ?? (action => _keybindingService.lookupKeybinding(action.id))
+		};
 
 		super(action, { getActions: () => action.actions }, _contextMenuService, dropdownOptions);
 	}

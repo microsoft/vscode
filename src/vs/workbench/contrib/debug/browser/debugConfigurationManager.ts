@@ -133,11 +133,13 @@ export class ConfigurationManager implements IConfigurationManager {
 			return config;
 		};
 
+		let resolvedType = config.type ?? type;
 		let result: IConfig | null | undefined = config;
-		for (let seen = new Set(); result && !seen.has(result.type);) {
-			seen.add(result?.type);
-			result = await resolveDebugConfigurationForType(result.type, result);
+		for (let seen = new Set(); result && !seen.has(resolvedType);) {
+			seen.add(resolvedType);
+			result = await resolveDebugConfigurationForType(resolvedType, result);
 			result = await resolveDebugConfigurationForType('*', result);
+			resolvedType = result?.type ?? type!;
 		}
 
 		return result;

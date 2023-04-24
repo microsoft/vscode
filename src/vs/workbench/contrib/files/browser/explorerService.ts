@@ -297,7 +297,7 @@ export class ExplorerService implements IExplorerService {
 			}
 			await this.view.selectResource(item ? item.resource : undefined, reveal);
 		} catch (error) {
-			root.isError = true;
+			root.error = error;
 			await this.view.refresh(false, root);
 		}
 	}

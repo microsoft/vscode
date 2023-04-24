@@ -12,13 +12,13 @@ import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fromGitUri } from './uri';
-import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider } from './api/git';
+import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider } from './api/git';
 import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
-import { OperationKind } from './operation';
+import { IBranchProtectionProviderRegistry } from './branchProtection';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -92,7 +92,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
+export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -151,6 +151,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	private _onDidChangePostCommitCommandsProviders = new EventEmitter<void>();
 	readonly onDidChangePostCommitCommandsProviders = this._onDidChangePostCommitCommandsProviders.event;
+
+	private branchProtectionProviders = new Map<Uri, Set<BranchProtectionProvider>>();
+
+	private _onDidChangeBranchProtectionProviders = new EventEmitter<Uri>();
+	readonly onDidChangeBranchProtectionProviders = this._onDidChangeBranchProtectionProviders.event;
 
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
@@ -477,7 +482,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 			// Open repository
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this.globalState, this.logger, this.telemetryReporter);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
@@ -588,19 +593,13 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		checkForSubmodules();
 
 		const updateOperationInProgressContext = () => {
-			let commitInProgress = false;
 			let operationInProgress = false;
 			for (const { repository } of this.openRepositories.values()) {
-				if (repository.operations.isRunning(OperationKind.Commit)) {
-					commitInProgress = true;
-				}
-
 				if (repository.operations.shouldDisableCommands()) {
 					operationInProgress = true;
 				}
 			}
 
-			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
 			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 
@@ -767,6 +766,31 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		return [...this.remoteSourcePublishers.values()];
 	}
 
+	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable {
+		const providerDisposables: Disposable[] = [];
+
+		this.branchProtectionProviders.set(root, (this.branchProtectionProviders.get(root) ?? new Set()).add(provider));
+		providerDisposables.push(provider.onDidChangeBranchProtection(uri => this._onDidChangeBranchProtectionProviders.fire(uri)));
+
+		this._onDidChangeBranchProtectionProviders.fire(root);
+
+		return toDisposable(() => {
+			const providers = this.branchProtectionProviders.get(root);
+
+			if (providers && providers.has(provider)) {
+				providers.delete(provider);
+				this.branchProtectionProviders.set(root, providers);
+				this._onDidChangeBranchProtectionProviders.fire(root);
+			}
+
+			dispose(providerDisposables);
+		});
+	}
+
+	getBranchProtectionProviders(root: Uri): BranchProtectionProvider[] {
+		return [...(this.branchProtectionProviders.get(root) ?? new Set()).values()];
+	}
+
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable {
 		this.postCommitCommandsProviders.add(provider);
 		this._onDidChangePostCommitCommandsProviders.fire();
@@ -795,24 +819,32 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
-		if (!workspace.workspaceFolders || workspace.workspaceFolders.length === 0) {
+		const workspaceFolders = (workspace.workspaceFolders || [])
+			.filter(folder => folder.uri.scheme === 'file');
+
+		if (workspaceFolders.length === 0) {
 			return true;
 		}
 
-		const result = await Promise.all(workspace.workspaceFolders.map(async folder => {
+		const result = await Promise.all(workspaceFolders.map(async folder => {
 			const workspaceFolderRealPath = await this.getWorkspaceFolderRealPath(folder);
-			return pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath);
+			return workspaceFolderRealPath ? pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath) : undefined;
 		}));
 
 		return !result.some(r => r);
 	}
 
-	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string> {
+	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string | undefined> {
 		let result = this._workspaceFolders.get(workspaceFolder.uri.fsPath);
 
 		if (!result) {
-			result = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
-			this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
+			try {
+				result = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
+				this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
+			} catch (err) {
+				// noop - Workspace folder does not exist
+				this.logger.trace(`Failed to resolve workspace folder: "${workspaceFolder.uri.fsPath}". ${err}`);
+			}
 		}
 
 		return result;
@@ -820,18 +852,14 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	private async showParentRepositoryNotification(): Promise<void> {
 		const message = this.parentRepositories.size === 1 ?
-			workspace.workspaceFolders !== undefined ?
-				l10n.t('We found a git repository in one of the parent folders of this workspace. Would you like to open the repository?') :
-				l10n.t('We found a git repository in one of the parent folders of the open file(s). Would you like to open the repository?') :
-			workspace.workspaceFolders !== undefined ?
-				l10n.t('We found git repositories in one of the parent folders of this workspace. Would you like to open the repositories?') :
-				l10n.t('We found git repositories in one of the parent folders of the open file(s). Would you like to open the repositories?');
+			l10n.t('A git repository was found in the parent folders of the workspace or the open file(s). Would you like to open the repository?') :
+			l10n.t('Git repositories were found in the parent folders of the workspace or the open file(s). Would you like to open the repositories?');
 
 		const yes = l10n.t('Yes');
 		const always = l10n.t('Always');
 		const never = l10n.t('Never');
 
-		const choice = await window.showWarningMessage(message, yes, always, never);
+		const choice = await window.showInformationMessage(message, yes, always, never);
 		if (choice === yes) {
 			// Open Parent Repositories
 			commands.executeCommand('git.openRepositoriesInParentFolders');

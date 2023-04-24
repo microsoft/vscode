@@ -44,6 +44,7 @@ export class ResultCodeEditorView extends CodeEditorView {
 		});
 
 		this.htmlElements.gutterDiv.style.width = '5px';
+		this.htmlElements.root.classList.add(`result`);
 
 		this._register(
 			autorunWithStore((reader, store) => {

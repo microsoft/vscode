@@ -83,21 +83,19 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 				label: button,
 				run: () => {
 					sendTelemetry('accept');
-					this.telemetryService.getTelemetryInfo().then(info => {
-						let surveyUrl = `${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}`;
+					let surveyUrl = `${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(this.telemetryService.machineId)}`;
 
-						const usedParams = this.productService.surveys
-							?.filter(surveyData => surveyData.surveyId && surveyData.languageId)
-							// Counts provided by contrib/surveys/browser/languageSurveys
-							.filter(surveyData => this.storageService.getNumber(`${surveyData.surveyId}.editedCount`, StorageScope.APPLICATION, 0) > 0)
-							.map(surveyData => `${encodeURIComponent(surveyData.languageId)}Lang=1`)
-							.join('&');
-						if (usedParams) {
-							surveyUrl += `&${usedParams}`;
-						}
-						this.openerService.open(URI.parse(surveyUrl));
-						this.skipSurvey();
-					});
+					const usedParams = this.productService.surveys
+						?.filter(surveyData => surveyData.surveyId && surveyData.languageId)
+						// Counts provided by contrib/surveys/browser/languageSurveys
+						.filter(surveyData => this.storageService.getNumber(`${surveyData.surveyId}.editedCount`, StorageScope.APPLICATION, 0) > 0)
+						.map(surveyData => `${encodeURIComponent(surveyData.languageId)}Lang=1`)
+						.join('&');
+					if (usedParams) {
+						surveyUrl += `&${usedParams}`;
+					}
+					this.openerService.open(URI.parse(surveyUrl));
+					this.skipSurvey();
 				}
 			}, {
 				label: nls.localize('remindLater', "Remind Me later"),
@@ -128,8 +126,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 				waitTimeToShowSurvey = timeToRemind;
 			}
 		} else {
-			const info = await this.telemetryService.getTelemetryInfo();
-			const timeFromInstall = Date.now() - new Date(info.firstSessionDate).getTime();
+			const timeFromInstall = Date.now() - new Date(this.telemetryService.firstSessionDate).getTime();
 			const isNewInstall = !isNaN(timeFromInstall) && timeFromInstall < MAX_INSTALL_AGE;
 
 			// Installation is older than MAX_INSTALL_AGE

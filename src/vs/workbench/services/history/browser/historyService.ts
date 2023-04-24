@@ -111,7 +111,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			mouseBackForwardSupportListener.clear();
 
 			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
-				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
 			}
 		};
 
@@ -124,17 +125,26 @@ export class HistoryService extends Disposable implements IHistoryService {
 		handleMouseBackForwardSupport();
 	}
 
-	private onMouseDown(event: MouseEvent): void {
+	private onMouseDownOrUp(event: MouseEvent, isMouseDown: boolean): void {
 
 		// Support to navigate in history when mouse buttons 4/5 are pressed
+		// We want to trigger this on mouse down for a faster experience
+		// but we also need to prevent mouse up from triggering the default
+		// which is to navigate in the browser history.
+
 		switch (event.button) {
 			case 3:
 				EventHelper.stop(event);
-				this.goBack();
+				if (isMouseDown) {
+					this.goBack();
+				}
 				break;
 			case 4:
 				EventHelper.stop(event);
-				this.goForward();
+				if (isMouseDown) {
+					this.goForward();
+				}
+
 				break;
 		}
 	}
@@ -160,12 +170,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
 
 		// Listen to selection changes if the editor pane
-		// is having a selection concept. We use `accumulate`
-		// on the event to reduce the pressure on the editor
-		// to reduce input latency.
-
+		// is having a selection concept.
 		if (isEditorPaneWithSelection(activeEditorPane)) {
-			this.activeEditorListeners.add(Event.accumulate(activeEditorPane.onDidChangeSelection)(e => this.handleActiveEditorSelectionChangeEvents(activeEditorGroup, activeEditorPane, e)));
+			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e)));
 		}
 
 		// Context keys
@@ -201,10 +208,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.handleActiveEditorChangeInNavigationStacks(group, editorPane);
 	}
 
-	private handleActiveEditorSelectionChangeEvents(group: IEditorGroup, editorPane: IEditorPaneWithSelection, events: IEditorPaneSelectionChangeEvent[]): void {
-		for (const event of events) {
-			this.handleActiveEditorSelectionChangeInNavigationStacks(group, editorPane, event);
-		}
+	private handleActiveEditorSelectionChangeEvent(group: IEditorGroup, editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
+		this.handleActiveEditorSelectionChangeInNavigationStacks(group, editorPane, event);
 	}
 
 	private move(event: FileOperationEvent): void {

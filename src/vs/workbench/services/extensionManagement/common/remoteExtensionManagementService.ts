@@ -4,59 +4,68 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
-import { ILocalExtension, IGalleryExtension, InstallOptions, InstallVSIXOptions, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
+import { ProfileAwareExtensionManagementChannelClient } from 'vs/workbench/services/extensionManagement/common/extensionManagementChannelClient';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ExtensionEventResult } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-export class RemoteExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
-
-	readonly onDidChangeProfile = Event.None;
-	get onProfileAwareInstallExtension() { return super.onInstallExtension; }
-	get onProfileAwareDidInstallExtensions() { return super.onDidInstallExtensions; }
-	get onProfileAwareUninstallExtension() { return super.onUninstallExtension; }
-	get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
+export class RemoteExtensionManagementService extends ProfileAwareExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
-		@IUserDataProfilesService private readonly userDataProfileService: IUserDataProfilesService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(channel);
+		super(channel, userDataProfileService, uriIdentityService);
 	}
 
-	override getInstalled(type: ExtensionType | null = null, profileLocation?: URI): Promise<ILocalExtension[]> {
-		this.validateProfileLocation({ profileLocation });
-		return super.getInstalled(type);
-	}
-
-	override uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		options = this.validateProfileLocation(options);
-		return super.uninstall(extension, options);
-	}
-
-	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
-		options = this.validateProfileLocation(options);
-		return super.install(vsix, options);
-	}
-
-	override async installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension> {
-		options = this.validateProfileLocation(options);
-		return super.installFromGallery(extension, options);
-	}
-
-	private validateProfileLocation<T extends { profileLocation?: URI }>(options?: T): T | undefined {
-		if (options?.profileLocation) {
-			if (!this.uriIdentityService.extUri.isEqual(options?.profileLocation, this.userDataProfileService.defaultProfile.extensionsResource)) {
-				throw new Error('This opertaion is not supported in remote scenario');
-			}
-			options = { ...options, profileLocation: undefined };
+	protected async filterEvent(e: ExtensionEventResult): Promise<boolean> {
+		if (e.applicationScoped) {
+			return true;
 		}
-		return options;
+		if (!e.profileLocation && this.userDataProfileService.currentProfile.isDefault) {
+			return true;
+		}
+		const currentRemoteProfile = await this.remoteUserDataProfilesService.getRemoteProfile(this.userDataProfileService.currentProfile);
+		if (this.uriIdentityService.extUri.isEqual(currentRemoteProfile.extensionsResource, e.profileLocation)) {
+			return true;
+		}
+		return false;
 	}
 
+	protected override getProfileLocation(profileLocation: URI): Promise<URI>;
+	protected override getProfileLocation(profileLocation?: URI): Promise<URI | undefined>;
+	protected override async getProfileLocation(profileLocation?: URI): Promise<URI | undefined> {
+		if (!profileLocation && this.userDataProfileService.currentProfile.isDefault) {
+			return undefined;
+		}
+		profileLocation = await super.getProfileLocation(profileLocation);
+		let profile = this.userDataProfilesService.profiles.find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, profileLocation));
+		if (profile) {
+			profile = await this.remoteUserDataProfilesService.getRemoteProfile(profile);
+		} else {
+			profile = (await this.remoteUserDataProfilesService.getRemoteProfiles()).find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, profileLocation));
+		}
+		return profile?.extensionsResource;
+	}
+
+	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveData: boolean | ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+		const remoteProfiles = await this.remoteUserDataProfilesService.getRemoteProfiles();
+		const previousProfile = remoteProfiles.find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, previousProfileLocation));
+		const currentProfile = remoteProfiles.find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, currentProfileLocation));
+		if (previousProfile?.id === currentProfile?.id) {
+			return { added: [], removed: [] };
+		}
+		if (preserveData === true && currentProfile?.isDefault) {
+			preserveData = false;
+		}
+		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveData);
+	}
 }

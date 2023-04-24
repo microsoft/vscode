@@ -63,6 +63,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 
 const $ = DOM.$;
 
@@ -2047,7 +2048,7 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string, linkify = true): string {
-	return text.replace(/`#([^#]*)#`|'#([^#]*)#'/g, (match, backticksGroup, quotesGroup) => {
+	return text.replace(/`#([^#\s`]+)#`|'#([^#\s']+)#'/g, (match, backticksGroup, quotesGroup) => {
 		const settingKey: string = backticksGroup ?? quotesGroup;
 		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
 		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
@@ -2271,7 +2272,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
-				findWidgetEnabled: false
+				findWidgetEnabled: false,
+				renderIndentGuides: RenderIndentGuides.None
 			},
 			instantiationService,
 			contextKeyService,
@@ -2281,27 +2283,25 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 
 		this.getHTMLElement().classList.add('settings-editor-tree');
 
-		this.style({
-			...getListStyles({
-				listBackground: editorBackground,
-				listActiveSelectionBackground: editorBackground,
-				listActiveSelectionForeground: foreground,
-				listFocusAndSelectionBackground: editorBackground,
-				listFocusAndSelectionForeground: foreground,
-				listFocusBackground: editorBackground,
-				listFocusForeground: foreground,
-				listHoverForeground: foreground,
-				listHoverBackground: editorBackground,
-				listHoverOutline: editorBackground,
-				listFocusOutline: editorBackground,
-				listInactiveSelectionBackground: editorBackground,
-				listInactiveSelectionForeground: foreground,
-				listInactiveFocusBackground: editorBackground,
-				listInactiveFocusOutline: editorBackground,
-			}),
+		this.style(getListStyles({
+			listBackground: editorBackground,
+			listActiveSelectionBackground: editorBackground,
+			listActiveSelectionForeground: foreground,
+			listFocusAndSelectionBackground: editorBackground,
+			listFocusAndSelectionForeground: foreground,
+			listFocusBackground: editorBackground,
+			listFocusForeground: foreground,
+			listHoverForeground: foreground,
+			listHoverBackground: editorBackground,
+			listHoverOutline: editorBackground,
+			listFocusOutline: editorBackground,
+			listInactiveSelectionBackground: editorBackground,
+			listInactiveSelectionForeground: foreground,
+			listInactiveFocusBackground: editorBackground,
+			listInactiveFocusOutline: editorBackground,
 			treeIndentGuidesStroke: undefined,
 			treeInactiveIndentGuidesStroke: undefined,
-		});
+		}));
 
 		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.list.smoothScrolling')) {

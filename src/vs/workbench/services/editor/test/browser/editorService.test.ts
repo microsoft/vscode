@@ -2068,7 +2068,9 @@ suite('EditorService', () => {
 		await service.openEditor(input2, { pinned: true });
 		await service.openEditor(sameInput1, { pinned: true }, SIDE_GROUP);
 
-		await service.save({ groupId: rootGroup.id, editor: input1 });
+		const res1 = await service.save({ groupId: rootGroup.id, editor: input1 });
+		assert.strictEqual(res1.success, true);
+		assert.strictEqual(res1.editors[0], input1);
 		assert.strictEqual(input1.gotSaved, true);
 
 		input1.gotSaved = false;
@@ -2079,7 +2081,9 @@ suite('EditorService', () => {
 		input2.dirty = true;
 		sameInput1.dirty = true;
 
-		await service.save({ groupId: rootGroup.id, editor: input1 }, { saveAs: true });
+		const res2 = await service.save({ groupId: rootGroup.id, editor: input1 }, { saveAs: true });
+		assert.strictEqual(res2.success, true);
+		assert.strictEqual(res2.editors[0], input1);
 		assert.strictEqual(input1.gotSavedAs, true);
 
 		input1.gotSaved = false;
@@ -2102,8 +2106,9 @@ suite('EditorService', () => {
 		input2.dirty = true;
 		sameInput1.dirty = true;
 
-		const saveRes = await service.saveAll();
-		assert.strictEqual(saveRes, true);
+		const res3 = await service.saveAll();
+		assert.strictEqual(res3.success, true);
+		assert.strictEqual(res3.editors.length, 2);
 		assert.strictEqual(input1.gotSaved, true);
 		assert.strictEqual(input2.gotSaved, true);
 
@@ -2161,7 +2166,8 @@ suite('EditorService', () => {
 		sameInput1.dirty = true;
 
 		const saveRes = await service.saveAll({ excludeSticky: true });
-		assert.strictEqual(saveRes, true);
+		assert.strictEqual(saveRes.success, true);
+		assert.strictEqual(saveRes.editors.length, 2);
 		assert.strictEqual(input1.gotSaved, false);
 		assert.strictEqual(input2.gotSaved, true);
 		assert.strictEqual(sameInput1.gotSaved, true);

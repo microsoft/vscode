@@ -354,7 +354,7 @@ export class SettingsInitializer extends AbstractInitializer {
 		super(SyncResource.Settings, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
 	}
 
-	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+	protected async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
 		const settingsSyncContent = remoteUserData.syncData ? this.parseSettingsSyncContent(remoteUserData.syncData.content) : null;
 		if (!settingsSyncContent) {
 			this.logService.info('Skipping initializing settings because remote settings does not exist.');

@@ -23,13 +23,13 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { isSafari } from 'vs/base/browser/browser';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { Color, RGBA } from 'vs/base/common/color';
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
@@ -119,7 +119,7 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), new MockContextKeyService().createKey('', true)!, true);
+		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, new TerminalCapabilityStore(), new MockContextKeyService().createKey('', true)!, true);
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -131,19 +131,13 @@ suite('XtermTerminal', () => {
 	});
 
 	suite('theme', () => {
-		test('should apply correct background color based on the current view', () => {
+		test('should apply correct background color based on getBackgroundColor', () => {
 			themeService.setTheme(new TestColorTheme({
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), new MockContextKeyService().createKey('', true)!, true);
+			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) }, new TerminalCapabilityStore(), new MockContextKeyService().createKey('', true)!, true);
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
-			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Sidebar);
-			strictEqual(xterm.raw.options.theme?.background, '#00ff00');
-			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Panel);
-			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
-			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.AuxiliaryBar);
-			strictEqual(xterm.raw.options.theme?.background, '#00ff00');
 		});
 		test('should react to and apply theme changes', () => {
 			themeService.setTheme(new TestColorTheme({
@@ -171,9 +165,9 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), new MockContextKeyService().createKey('', true)!, true);
+			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, new TerminalCapabilityStore(), new MockContextKeyService().createKey('', true)!, true);
 			deepStrictEqual(xterm.raw.options.theme, {
-				background: '#000100',
+				background: undefined,
 				foreground: '#000200',
 				cursor: '#000300',
 				cursorAccent: '#000400',
@@ -223,7 +217,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightWhite': '#16000f',
 			}));
 			deepStrictEqual(xterm.raw.options.theme, {
-				background: '#00010f',
+				background: undefined,
 				foreground: '#00020f',
 				cursor: '#00030f',
 				cursorAccent: '#00040f',

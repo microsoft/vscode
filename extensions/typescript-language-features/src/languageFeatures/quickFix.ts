@@ -5,19 +5,19 @@
 
 import * as vscode from 'vscode';
 import { Command, CommandManager } from '../commands/commandManager';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { TelemetryReporter } from '../logging/telemetry';
+import * as fixNames from '../tsServer/protocol/fixNames';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { nulToken } from '../utils/cancellation';
-import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as fixNames from '../utils/fixNames';
 import { memoize } from '../utils/memoize';
 import { equals } from '../utils/objects';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
+import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 type ApplyCodeActionCommand_args = {
 	readonly resource: vscode.Uri;
@@ -228,7 +228,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<VsCodeCodeAction[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}
@@ -386,6 +386,7 @@ const preferredFixes = new Map<string, { readonly priority: number; readonly the
 	[fixNames.constructorForDerivedNeedSuperCall, { priority: 2 }],
 	[fixNames.extendsInterfaceBecomesImplements, { priority: 2 }],
 	[fixNames.awaitInSyncFunction, { priority: 2 }],
+	[fixNames.removeUnnecessaryAwait, { priority: 2 }],
 	[fixNames.classIncorrectlyImplementsInterface, { priority: 3 }],
 	[fixNames.classDoesntImplementInheritedAbstractMember, { priority: 3 }],
 	[fixNames.unreachableCode, { priority: 2 }],
@@ -394,6 +395,7 @@ const preferredFixes = new Map<string, { readonly priority: number; readonly the
 	[fixNames.spelling, { priority: 0 }],
 	[fixNames.addMissingAwait, { priority: 2 }],
 	[fixNames.addMissingOverride, { priority: 2 }],
+	[fixNames.addMissingNewOperator, { priority: 2 }],
 	[fixNames.fixImport, { priority: 1, thereCanOnlyBeOne: true }],
 ]);
 

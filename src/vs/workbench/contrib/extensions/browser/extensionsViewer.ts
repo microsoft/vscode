@@ -80,7 +80,7 @@ export class ExtensionsGridView extends Disposable {
 	}
 }
 
-export interface IExtensionTemplateData {
+interface IExtensionTemplateData {
 	icon: HTMLImageElement;
 	name: HTMLElement;
 	identifier: HTMLElement;
@@ -89,18 +89,18 @@ export interface IExtensionTemplateData {
 	extensionData: IExtensionData;
 }
 
-export interface IUnknownExtensionTemplateData {
+interface IUnknownExtensionTemplateData {
 	identifier: HTMLElement;
 }
 
-export interface IExtensionData {
+interface IExtensionData {
 	extension: IExtension;
 	hasChildren: boolean;
 	getChildren: () => Promise<IExtensionData[] | null>;
 	parent: IExtensionData | null;
 }
 
-export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
+class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 
 	public hasChildren({ hasChildren }: IExtensionData): boolean {
 		return hasChildren;
@@ -112,7 +112,7 @@ export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 
 }
 
-export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
+class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
 
 	public getHeight(element: IExtensionData): number {
 		return 62;
@@ -122,7 +122,7 @@ export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
 	}
 }
 
-export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExtensionTemplateData> {
+class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExtensionTemplateData> {
 
 	static readonly TEMPLATE_ID = 'extension-template';
 
@@ -186,7 +186,7 @@ export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData
 	}
 }
 
-export class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IUnknownExtensionTemplateData> {
+class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IUnknownExtensionTemplateData> {
 
 	static readonly TEMPLATE_ID = 'unknown-extension-template';
 

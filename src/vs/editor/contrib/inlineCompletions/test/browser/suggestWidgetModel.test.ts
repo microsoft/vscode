@@ -12,8 +12,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
-import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetPreviewModel';
 import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
@@ -28,24 +26,21 @@ import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/com
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import * as assert from 'assert';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { rangeStartsWith } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
+import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { autorun } from 'vs/base/common/observable';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 suite('Suggest Widget Model', () => {
-	test('rangeStartsWith', () => {
-		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 1, 1)), true);
-		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 10, 5)), true);
-		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 10, 4)), true);
-		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 9, 6)), true);
-
-		assert.strictEqual(rangeStartsWith(new Range(2, 1, 10, 5), new Range(1, 1, 10, 5)), false);
-		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 10, 6)), false);
-		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 11, 4)), false);
+	setup(() => {
+		setUnexpectedErrorHandler(function (err) {
+			throw err;
+		});
 	});
 
 	// This test is skipped because the fix for this causes https://github.com/microsoft/vscode/issues/166023
@@ -55,9 +50,10 @@ suite('Suggest Widget Model', () => {
 			async ({ editor, editorViewModel, context, model }) => {
 				let last: boolean | undefined = undefined;
 				const history = new Array<boolean>();
-				model.onDidChange(() => {
-					if (last !== model.isActive) {
-						last = model.isActive;
+				const d = autorun('debug', reader => {
+					const selectedSuggestItem = !!model.selectedSuggestItem.read(reader);
+					if (last !== selectedSuggestItem) {
+						last = selectedSuggestItem;
 						history.push(last);
 					}
 				});
@@ -77,6 +73,8 @@ suite('Suggest Widget Model', () => {
 				await timeout(1000);
 
 				assert.deepStrictEqual(history.splice(0), [false]);
+
+				d.dispose();
 			}
 		);
 	});
@@ -89,11 +87,11 @@ suite('Suggest Widget Model', () => {
 				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
 				suggestController.triggerSuggest();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'h', 'h[ello]']);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'h[ello]']);
 
 				context.keyboardType('.');
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['h', 'hello', 'hello.', 'hello.[hello]']);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['h', 'hello.[hello]']);
 
 				suggestController.cancelSuggestWidget();
 
@@ -101,27 +99,6 @@ suite('Suggest Widget Model', () => {
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello.']);
 			}
 		);
-	});
-
-	test('minimizeInlineCompletion', async () => {
-		const model = createTextModel('fun');
-		const result = minimizeInlineCompletion(model, {
-			range: new Range(1, 1, 1, 4),
-			filterText: 'function',
-			insertText: 'function',
-			snippetInfo: undefined,
-			additionalTextEdits: [],
-		})!;
-
-		assert.deepStrictEqual({
-			range: result.range.toString(),
-			text: result.insertText
-		}, {
-			range: '[1,4 -> 1,4]',
-			text: 'ction'
-		});
-
-		model.dispose();
 	});
 });
 
@@ -148,7 +125,7 @@ const provider: CompletionItemProvider = {
 async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	text: string,
 	options: TestCodeEditorInstantiationOptions & { provider?: CompletionItemProvider; fakeClock?: boolean; serviceCollection?: never },
-	callback: (args: { editor: ITestCodeEditor; editorViewModel: ViewModel; model: SuggestWidgetPreviewModel; context: GhostTextContext }) => Promise<void>
+	callback: (args: { editor: ITestCodeEditor; editorViewModel: ViewModel; model: InlineCompletionsModel; context: GhostTextContext }) => Promise<void>
 ): Promise<void> {
 	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
 		const disposableStore = new DisposableStore();
@@ -178,6 +155,10 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				}],
 				[ILabelService, new class extends mock<ILabelService>() { }],
 				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+				[IAudioCueService, {
+					playAudioCue: async () => { },
+					isEnabled(cue: unknown) { return false; },
+				} as any]
 			);
 
 			if (options.provider) {
@@ -190,11 +171,12 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
 				editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 				editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
-				const cache = disposableStore.add(new SharedInlineCompletionCache());
-				const model = instantiationService.createInstance(SuggestWidgetPreviewModel, editor, cache);
+				editor.registerAndInstantiateContribution(InlineCompletionsController.ID, InlineCompletionsController);
+				const model = InlineCompletionsController.get(editor)?.model.get()!;
+
 				const context = new GhostTextContext(model, editor);
 				await callback({ editor, editorViewModel, model, context });
-				model.dispose();
+				context.dispose();
 			});
 		} finally {
 			disposableStore.dispose();

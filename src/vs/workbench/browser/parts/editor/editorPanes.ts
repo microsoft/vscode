@@ -25,7 +25,7 @@ import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/edit
 import { isCancellationError } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPromptButton, IPromptCancelButton } from 'vs/platform/dialogs/common/dialogs';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 export interface IOpenEditorResult {
@@ -153,7 +153,7 @@ export class EditorPanes extends Disposable {
 		// Show as modal dialog when explicit user action unless disabled
 		let errorHandled = false;
 		if (options?.source === EditorOpenSource.USER && (!isEditorOpenError(error) || error.allowDialog)) {
-			errorHandled = await this.doShowErrorDialog(error, editor, errorHandled);
+			errorHandled = await this.doShowErrorDialog(error, editor);
 		}
 
 		// Return early if the user dealt with the error already
@@ -173,7 +173,7 @@ export class EditorPanes extends Disposable {
 		};
 	}
 
-	private async doShowErrorDialog(error: Error, editor: EditorInput, errorHandled: boolean): Promise<boolean> {
+	private async doShowErrorDialog(error: Error, editor: EditorInput): Promise<boolean> {
 		let severity = Severity.Error;
 		let message: string | undefined = undefined;
 		let detail: string | undefined = toErrorMessage(error);
@@ -192,42 +192,49 @@ export class EditorPanes extends Disposable {
 			message = localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName());
 		}
 
-		const buttons: string[] = [];
+		const buttons: IPromptButton<IAction | undefined>[] = [];
 		if (errorActions && errorActions.length > 0) {
 			for (const errorAction of errorActions) {
-				buttons.push(errorAction.label);
+				buttons.push({
+					label: errorAction.label,
+					run: () => errorAction
+				});
 			}
 		} else {
-			buttons.push(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"));
+			buttons.push({
+				label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+				run: () => undefined
+			});
 		}
 
-		let cancelId: number | undefined = undefined;
+		let cancelButton: IPromptCancelButton<undefined> | undefined = undefined;
 		if (buttons.length === 1) {
-			buttons.push(localize('cancel', "Cancel"));
-			cancelId = 1;
+			cancelButton = {
+				run: () => {
+					errorHandled = true; // treat cancel as handled and do not show placeholder
+
+					return undefined;
+				}
+			};
 		}
 
-		const result = await this.dialogService.show(
-			severity,
+		let errorHandled = false;  // by default, show placeholder
+
+		const { result } = await this.dialogService.prompt({
+			type: severity,
 			message,
+			detail,
 			buttons,
-			{ detail, cancelId }
-		);
+			cancelButton
+		});
 
-		if (typeof cancelId === 'number' && result.choice === cancelId) {
-			errorHandled = true; // treat cancel as handled and do not show placeholder
-		} else if (errorActions) {
-			const errorAction = errorActions[result.choice];
-			if (errorAction) {
-				const result = errorAction.run();
-				if (result instanceof Promise) {
-					result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
-				}
-
-				errorHandled = true; // treat custom error action as handled and do not show placeholder
+		if (result) {
+			const errorActionResult = result.run();
+			if (errorActionResult instanceof Promise) {
+				errorActionResult.catch(error => this.dialogService.error(toErrorMessage(error)));
 			}
-		} else {
-			errorHandled = false; // show placeholder when generic "OK" is clicked
+
+			errorHandled = true; // treat custom error action as handled and do not show placeholder
 		}
 
 		return errorHandled;
@@ -416,6 +423,12 @@ export class EditorPanes extends Disposable {
 
 			if (!operation.isCurrent()) {
 				cancelled = true;
+			}
+		} catch (error) {
+			if (!operation.isCurrent()) {
+				cancelled = true;
+			} else {
+				throw error;
 			}
 		} finally {
 			operation.stop();

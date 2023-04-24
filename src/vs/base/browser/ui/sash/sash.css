@@ -107,8 +107,11 @@
 	position: absolute;
 	width: 100%;
 	height: 100%;
-	transition: background-color 0.1s ease-out;
 	background: transparent;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-sash:before {
+	transition: background-color 0.1s ease-out;
 }
 
 .monaco-sash.hover:before,

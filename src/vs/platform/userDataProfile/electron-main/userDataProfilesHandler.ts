@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILifecycleMainService, } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ICodeWindow, LoadReason } from 'vs/platform/window/electron-main/window';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { IAnyWorkspaceIdentifier, isEmptyWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
@@ -31,7 +31,7 @@ export class UserDataProfilesHandler extends Disposable {
 	private async unsetProfileForWorkspace(window: ICodeWindow): Promise<void> {
 		const workspace = this.getWorkspace(window);
 		const profile = this.userDataProfilesService.getProfileForWorkspace(workspace);
-		if (profile && (isEmptyWorkspaceIdentifier(workspace) || profile.isTransient)) {
+		if (profile?.isTransient) {
 			this.userDataProfilesService.unsetWorkspace(workspace, profile.isTransient);
 			if (profile.isTransient) {
 				await this.userDataProfilesService.cleanUpTransientProfiles();

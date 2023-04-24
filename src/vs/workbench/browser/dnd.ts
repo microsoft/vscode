@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { addDisposableListener, DragAndDropObserver, EventType } from 'vs/base/browser/dom';
+import { DragAndDropObserver, EventType, addDisposableListener } from 'vs/base/browser/dom';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
@@ -19,14 +19,14 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { CodeDataTransfers, createDraggedEditorInputFromRawResourcesData, Extensions, extractEditorsAndFilesDropData, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat } from 'vs/platform/dnd/browser/dnd';
+import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat, LocalSelectionTransfer, createDraggedEditorInputFromRawResourcesData, extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extractSelection } from 'vs/platform/opener/common/opener';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { EditorResourceAccessor, GroupIdentifier, IEditorIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -47,10 +47,6 @@ export class DraggedEditorGroupIdentifier {
 	constructor(readonly identifier: GroupIdentifier) { }
 }
 
-export class DraggedTreeItemsIdentifier {
-
-	constructor(readonly identifier: string) { }
-}
 
 export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
@@ -331,56 +327,6 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	if (draggedEditors.length) {
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
-	}
-}
-
-//#endregion
-
-
-//#region DND Utilities
-
-/**
- * A singleton to store transfer data during drag & drop operations that are only valid within the application.
- */
-export class LocalSelectionTransfer<T> {
-
-	private static readonly INSTANCE = new LocalSelectionTransfer();
-
-	private data?: T[];
-	private proto?: T;
-
-	private constructor() {
-		// protect against external instantiation
-	}
-
-	static getInstance<T>(): LocalSelectionTransfer<T> {
-		return LocalSelectionTransfer.INSTANCE as LocalSelectionTransfer<T>;
-	}
-
-	hasData(proto: T): boolean {
-		return proto && proto === this.proto;
-	}
-
-	clearData(proto: T): void {
-		if (this.hasData(proto)) {
-			this.proto = undefined;
-			this.data = undefined;
-		}
-	}
-
-	getData(proto: T): T[] | undefined {
-		if (this.hasData(proto)) {
-			return this.data;
-		}
-
-		return undefined;
-	}
-
-	setData(data: T[], proto: T): void {
-		if (proto) {
-			this.data = data;
-			this.proto = proto;
-		}
 	}
 }
 

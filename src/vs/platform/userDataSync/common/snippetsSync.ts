@@ -515,7 +515,7 @@ export class SnippetsInitializer extends AbstractInitializer {
 		super(SyncResource.Snippets, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
 	}
 
-	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+	protected async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
 		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
 		if (!remoteSnippets) {
 			this.logService.info('Skipping initializing snippets because remote snippets does not exist.');

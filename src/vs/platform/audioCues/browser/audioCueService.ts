@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -11,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { IObservable, observableFromEvent, derived, IObserver } from 'vs/base/common/observable';
+import { observableFromEvent, derived } from 'vs/base/common/observable';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -27,7 +26,7 @@ export interface IAudioCueService {
 
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
-
+	sounds: Map<string, HTMLAudioElement> = new Map();
 	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
@@ -49,7 +48,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	public async playAudioCues(cues: AudioCue[]): Promise<void> {
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
 		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound));
-		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound)));
+		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 	}
 
 	private getVolumeInPercent(): number {
@@ -61,7 +60,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		return Math.max(Math.min(volume, 100), 0);
 	}
 
-	private playingSounds = new Set<Sound>();
+	private readonly playingSounds = new Set<Sound>();
 
 	public async playSound(sound: Sound, allowManyInParallel = false): Promise<void> {
 		if (!allowManyInParallel && this.playingSounds.has(sound)) {
@@ -69,24 +68,21 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 
 		this.playingSounds.add(sound);
-		const url = FileAccess.asBrowserUri(
-			`vs/platform/audioCues/browser/media/${sound.fileName}`
-		).toString();
-		const audio = new Audio(url);
-		audio.volume = this.getVolumeInPercent() / 100;
-		audio.addEventListener('ended', () => {
-			this.playingSounds.delete(sound);
-		});
+		const url = FileAccess.asBrowserUri(`vs/platform/audioCues/browser/media/${sound.fileName}`).toString(true);
+
 		try {
-			try {
-				// Don't play when loading takes more than 1s, due to loading, decoding or playing issues.
-				// Delayed sounds are very confusing.
-				await raceTimeout(audio.play(), 1000);
-			} catch (e) {
-				console.error('Error while playing sound', e);
+			const sound = this.sounds.get(url);
+			if (sound) {
+				sound.volume = this.getVolumeInPercent() / 100;
+				await sound.play();
+			} else {
+				const playedSound = await playAudio(url, this.getVolumeInPercent() / 100);
+				this.sounds.set(url, playedSound);
 			}
+		} catch (e) {
+			console.error('Error while playing sound', e);
 		} finally {
-			audio.remove();
+			this.playingSounds.delete(sound);
 		}
 	}
 
@@ -130,40 +126,30 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	public onEnabledChanged(cue: AudioCue): Event<void> {
-		return eventFromObservable(this.isEnabledCache.get(cue));
+		return Event.fromObservableLight(this.isEnabledCache.get(cue));
 	}
 }
 
-function eventFromObservable(observable: IObservable<any>): Event<void> {
-	return (listener) => {
-		let count = 0;
-		let didChange = false;
-		const observer: IObserver = {
-			beginUpdate() {
-				count++;
-			},
-			endUpdate() {
-				count--;
-				if (count === 0 && didChange) {
-					didChange = false;
-					listener();
-				}
-			},
-			handleChange() {
-				if (count === 0) {
-					listener();
-				} else {
-					didChange = true;
-				}
-			}
-		};
-		observable.addObserver(observer);
-		return {
-			dispose() {
-				observable.removeObserver(observer);
-			}
-		};
-	};
+/**
+ * Play the given audio url.
+ * @volume value between 0 and 1
+ */
+function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
+	return new Promise((resolve, reject) => {
+		const audio = new Audio(url);
+		audio.volume = volume;
+		audio.addEventListener('ended', () => {
+			resolve(audio);
+		});
+		audio.addEventListener('error', (e) => {
+			// When the error event fires, ended might not be called
+			reject(e.error);
+		});
+		audio.play().catch(e => {
+			// When play fails, the error event is not fired.
+			reject(e);
+		});
+	});
 }
 
 class Cache<TArg, TValue> {
@@ -278,6 +264,12 @@ export class AudioCue {
 		name: localize('audioCues.taskFailed', 'Task Failed'),
 		sound: Sound.taskFailed,
 		settingsKey: 'audioCues.taskFailed'
+	});
+
+	public static readonly terminalCommandFailed = AudioCue.register({
+		name: localize('audioCues.terminalCommandFailed', 'Terminal Command Failed'),
+		sound: Sound.error,
+		settingsKey: 'audioCues.terminalCommandFailed'
 	});
 
 	public static readonly terminalBell = AudioCue.register({

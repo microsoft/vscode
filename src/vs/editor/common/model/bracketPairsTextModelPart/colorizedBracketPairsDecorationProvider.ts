@@ -54,8 +54,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 			return [];
 		}
 
-		const result = this.textModel.bracketPairs.getBracketsInRange(range).map<IModelDecoration>(bracket =>
-		({
+		const result = this.textModel.bracketPairs.getBracketsInRange(range, true).map<IModelDecoration>(bracket => ({
 			id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
 			options: {
 				description: 'BracketPairColorization',

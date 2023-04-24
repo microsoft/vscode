@@ -237,10 +237,11 @@
 	min-width: 0;
 }
 
-.monaco-list-row.disabled .extension-list-item .details .description {
+.monaco-list-row.disabled .extension-list-item {
 	color: var(--vscode-disabledForeground);
 }
 
+.monaco-list-row.disabled.selected .extension-list-item .details .header .name,
 .monaco-list-row.disabled.selected .extension-list-item .details .description {
 	color: unset;
 }

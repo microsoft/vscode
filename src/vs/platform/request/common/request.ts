@@ -5,10 +5,13 @@
 
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { getErrorMessage } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CONTEXT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, LogLevelToString } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
@@ -19,6 +22,64 @@ export interface IRequestService {
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
 	resolveProxy(url: string): Promise<string | undefined>;
+}
+
+class LoggableHeaders {
+
+	private headers: IHeaders | undefined;
+
+	constructor(private readonly original: IHeaders) { }
+
+	toJSON(): any {
+		if (!this.headers) {
+			const headers = Object.create(null);
+			for (const key in this.original) {
+				if (key.toLowerCase() === 'authorization' || key.toLowerCase() === 'proxy-authorization') {
+					headers[key] = '*****';
+				} else {
+					headers[key] = this.original[key];
+				}
+			}
+			this.headers = headers;
+		}
+		return this.headers;
+	}
+
+}
+
+export abstract class AbstractRequestService extends Disposable implements IRequestService {
+
+	declare readonly _serviceBrand: undefined;
+
+	protected readonly logger: ILogger;
+	private counter = 0;
+
+	constructor(
+		remote: boolean,
+		loggerService: ILoggerService
+	) {
+		super();
+		this.logger = loggerService.createLogger(remote ? 'remotenetwork' : 'network', {
+			name: remote ? localize('remote request', "Network Requests (Remote)") : localize('request', "Network Requests"),
+			when: CONTEXT_LOG_LEVEL.isEqualTo(LogLevelToString(LogLevel.Trace)).serialize()
+		});
+	}
+
+	protected async logAndRequest(stack: string, options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		const prefix = `${stack} #${++this.counter}: ${options.url}`;
+		this.logger.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
+		try {
+			const result = await request();
+			this.logger.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
+			return result;
+		} catch (error) {
+			this.logger.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			throw error;
+		}
+	}
+
+	abstract request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
+	abstract resolveProxy(url: string): Promise<string | undefined>;
 }
 
 export function isSuccess(context: IRequestContext): boolean {
@@ -60,7 +121,6 @@ export async function asJson<T = {}>(context: IRequestContext): Promise<T | null
 		throw err;
 	}
 }
-
 
 export function updateProxyConfigurationsScope(scope: ConfigurationScope): void {
 	registerProxyConfigurations(scope);
@@ -119,4 +179,4 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 	configurationRegistry.updateConfigurations({ add: [proxyConfiguration], remove: oldProxyConfiguration ? [oldProxyConfiguration] : [] });
 }
 
-registerProxyConfigurations(ConfigurationScope.MACHINE);
+registerProxyConfigurations(ConfigurationScope.APPLICATION);

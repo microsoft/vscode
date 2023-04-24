@@ -8,6 +8,10 @@ export function base64Encode(text: string): string {
 }
 
 export function base64Decode(text: string): string {
-	const data = atob(text);
-	return data;
+	// modification of https://stackoverflow.com/a/38552302
+	const replacedCharacters = text.replace(/-/g, '+').replace(/_/g, '/');
+	const decodedText = decodeURIComponent(atob(replacedCharacters).split('').map(function (c) {
+		return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+	}).join(''));
+	return decodedText;
 }

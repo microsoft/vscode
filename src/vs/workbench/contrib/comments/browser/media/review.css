@@ -43,7 +43,7 @@
 }
 
 .review-widget .body .review-comment .comment-actions .monaco-toolbar {
-	height: 21px;
+	height: 22px;
 }
 
 .review-widget .body .review-comment .comment-title .comment-header-info {
@@ -136,6 +136,7 @@
 
 .review-widget .body .review-comment .review-comment-contents .comment-body {
 	padding-top: 4px;
+	max-height: 20em;
 }
 
 .review-widget .body .review-comment .review-comment-contents .comment-reactions {
@@ -335,7 +336,7 @@
 	border: 0px;
 	outline: 1px solid transparent;
 	background-color: var(--vscode-peekViewTitle-background);
-	color: var(--vscode--editor-foreground);
+	color: var(--vscode-editor-foreground);
 	font-size: inherit;
 	font-family: var(--monaco-monospace-font);
 }
@@ -367,9 +368,14 @@
 	margin: 10px 0;
 }
 
+.review-widget .body .edit-container .form-actions {
+	padding-top: 10px;
+}
+
 .review-widget .body .edit-textarea {
 	height: 90px;
 	margin: 5px 0 10px 0;
+	margin-right: 12px;
 }
 
 .review-widget .body .comment-form .monaco-text-button,
@@ -467,7 +473,8 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
 
-.monaco-editor .comment-thread:before {
+.monaco-editor .comment-thread:before,
+.monaco-editor .comment-thread-unresolved:before {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
 
@@ -489,24 +496,30 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread {
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread,
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread-unresolved {
 	margin-left: 13px;
 }
 
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before,
-.monaco-editor .comment-range-glyph.comment-thread:before {
+.monaco-editor .comment-range-glyph.comment-thread:before,
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	position: absolute;
 	height: 100%;
 	width: 9px;
 	left: -6px;
 	z-index: 10;
-	color: var(--vscode-editorGutter-commentGlyphForground);
+	color: var(--vscode-editorGutter-commentGlyphForeground);
 	text-align: center;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	justify-content: center;
+}
+
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+	color: var(--vscode-editorGutter-commentUnresolvedGlyphForeground);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.multiline-add {
@@ -526,12 +539,13 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	padding-left: 1px;
 }
 
-.monaco-editor .comment-range-glyph.comment-thread {
+.monaco-editor .comment-range-glyph.comment-thread,
+.monaco-editor .comment-range-glyph.comment-thread-unresolved {
 	z-index: 20;
 }
 
-.monaco-editor .comment-range-glyph.comment-thread:before {
-	content: "\ea6b";
+.monaco-editor .comment-range-glyph.comment-thread:before,
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	font-family: "codicon";
 	font-size: 13px;
 	width: 18px !important;
@@ -541,6 +555,14 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	margin-left: -5px;
 	padding-top: 1px;
 	padding-left: 1px;
+}
+
+.monaco-editor .comment-range-glyph.comment-thread:before {
+	content: "\ea6b";
+
+}
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+	content: "\ec0a";
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,

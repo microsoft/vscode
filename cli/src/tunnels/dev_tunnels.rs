@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 use crate::auth;
 use crate::constants::{
-	CONTROL_PORT, PROTOCOL_VERSION_TAG, PROTOCOL_VERSION_TAG_PREFIX, TUNNEL_SERVICE_USER_AGENT, IS_INTERACTIVE_CLI,
+	CONTROL_PORT, IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, PROTOCOL_VERSION_TAG_PREFIX,
+	TUNNEL_SERVICE_USER_AGENT,
 };
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{
@@ -30,8 +31,6 @@ use tunnels::management::{
 	new_tunnel_management, HttpError, TunnelLocator, TunnelManagementClient, TunnelRequestOptions,
 	NO_REQUEST_OPTIONS,
 };
-
-use super::name_generator;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PersistedTunnel {
@@ -318,12 +317,13 @@ impl DevTunnels {
 		persisted: PersistedTunnel,
 		name: &str,
 	) -> Result<(Tunnel, PersistedTunnel), AnyError> {
-		self.check_is_name_free(name).await?;
+		let name = name.to_ascii_lowercase();
+		self.check_is_name_free(&name).await?;
 
 		debug!(self.log, "Tunnel name changed, applying updates...");
 
 		let (mut full_tunnel, mut persisted, is_new) = self
-			.get_or_create_tunnel(persisted, Some(name), NO_REQUEST_OPTIONS)
+			.get_or_create_tunnel(persisted, Some(&name), NO_REQUEST_OPTIONS)
 			.await?;
 		if is_new {
 			return Ok((full_tunnel, persisted));
@@ -338,7 +338,7 @@ impl DevTunnels {
 		)
 		.map_err(|e| wrap(e, "failed to rename tunnel"))?;
 
-		persisted.name = name.to_string();
+		persisted.name = name;
 		self.launcher_tunnel.save(Some(persisted.clone()))?;
 
 		Ok((new_tunnel, persisted))
@@ -379,15 +379,15 @@ impl DevTunnels {
 	/// this attempts to reuse or create a tunnel of a preferred name or of a generated friendly tunnel name.
 	pub async fn start_new_launcher_tunnel(
 		&mut self,
-		preferred_name: Option<String>,
+		preferred_name: Option<&str>,
 		use_random_name: bool,
 	) -> Result<ActiveTunnel, AnyError> {
 		let (mut tunnel, persisted) = match self.launcher_tunnel.load() {
 			Some(mut persisted) => {
-				if let Some(name) = preferred_name {
-					if persisted.name.ne(&name) {
-						(_, persisted) = self.update_tunnel_name(persisted, &name).await?;
-					}
+				let as_lowercase = persisted.name.to_ascii_lowercase();
+				let preferred_name = preferred_name.unwrap_or(&as_lowercase);
+				if persisted.name != preferred_name {
+					(_, persisted) = self.update_tunnel_name(persisted, preferred_name).await?;
 				}
 
 				let (tunnel, persisted, _) = self
@@ -632,18 +632,21 @@ impl DevTunnels {
 
 	async fn get_name_for_tunnel(
 		&mut self,
-		preferred_name: Option<String>,
+		preferred_name: Option<&str>,
 		mut use_random_name: bool,
 	) -> Result<String, AnyError> {
 		let existing_tunnels = self.list_all_server_tunnels().await?;
 		let is_name_free = |n: &str| {
-			!existing_tunnels
-				.iter()
-				.any(|v| v.tags.iter().any(|t| t == n))
+			!existing_tunnels.iter().any(|v| {
+				v.status
+					.as_ref()
+					.and_then(|s| s.host_connection_count.as_ref().map(|c| c.get_count()))
+					.unwrap_or(0) > 0 && v.tags.iter().any(|t| t == n)
+			})
 		};
 
 		if let Some(machine_name) = preferred_name {
-			let name = machine_name;
+			let name = machine_name.to_ascii_lowercase();
 			if let Err(e) = is_valid_name(&name) {
 				info!(self.log, "{} is an invalid name", e);
 				return Err(AnyError::from(wrap(e, "invalid name")));
@@ -658,19 +661,31 @@ impl DevTunnels {
 			use_random_name = true;
 		}
 
-		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
-		if use_random_name || !*IS_INTERACTIVE_CLI {
-			while !is_name_free(&placeholder_name) {
-				placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
+		let mut placeholder_name =
+			clean_hostname_for_tunnel(&gethostname::gethostname().to_string_lossy());
+		placeholder_name.make_ascii_lowercase();
+
+		if !is_name_free(&placeholder_name) {
+			for i in 2.. {
+				let fixed_name = format!("{}{}", placeholder_name, i);
+				if is_name_free(&fixed_name) {
+					placeholder_name = fixed_name;
+					break;
+				}
 			}
+		}
+
+		if use_random_name || !*IS_INTERACTIVE_CLI {
 			return Ok(placeholder_name);
 		}
 
 		loop {
-			let name = prompt_placeholder(
+			let mut name = prompt_placeholder(
 				"What would you like to call this machine?",
 				&placeholder_name,
 			)?;
+
+			name.make_ascii_lowercase();
 
 			if let Err(e) = is_valid_name(&name) {
 				info!(self.log, "{}", e);
@@ -957,5 +972,51 @@ impl Backoff {
 
 	pub fn reset(&mut self) {
 		self.failures = 0;
+	}
+}
+
+/// Cleans up the hostname so it can be used as a tunnel name.
+/// See TUNNEL_NAME_PATTERN in the tunnels SDK for the rules we try to use.
+fn clean_hostname_for_tunnel(hostname: &str) -> String {
+	let mut out = String::new();
+	for char in hostname.chars().take(60) {
+		match char {
+			'-' | '_' | ' ' => {
+				out.push('-');
+			}
+			'0'..='9' | 'a'..='z' | 'A'..='Z' => {
+				out.push(char);
+			}
+			_ => {}
+		}
+	}
+
+	let trimmed = out.trim_matches('-');
+	if trimmed.len() < 2 {
+		"remote-machine".to_string() // placeholder if the result was empty
+	} else {
+		trimmed.to_owned()
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn test_clean_hostname_for_tunnel() {
+		assert_eq!(
+			clean_hostname_for_tunnel("hello123"),
+			"hello123".to_string()
+		);
+		assert_eq!(
+			clean_hostname_for_tunnel("-cool-name-"),
+			"cool-name".to_string()
+		);
+		assert_eq!(
+			clean_hostname_for_tunnel("cool!name with_chars"),
+			"coolname-with-chars".to_string()
+		);
+		assert_eq!(clean_hostname_for_tunnel("z"), "remote-machine".to_string());
 	}
 }

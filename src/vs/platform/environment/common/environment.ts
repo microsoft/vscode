@@ -61,13 +61,11 @@ export interface IEnvironmentService {
 
 	// --- settings sync
 	userDataSyncHome: URI;
-	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
 
 	// --- continue edit session
 	continueOn?: string;
 	editSessionId?: string;
-	editSessionsLogResource: URI;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -79,7 +77,7 @@ export interface IEnvironmentService {
 	extensionTestsLocationURI?: URI;
 
 	// --- logging
-	logsPath: string;
+	logsHome: URI;
 	logLevel?: string;
 	extensionLogLevel?: [string, string][];
 	verbose: boolean;
@@ -87,7 +85,6 @@ export interface IEnvironmentService {
 
 	// --- telemetry
 	disableTelemetry: boolean;
-	telemetryLogResource: URI;
 	serviceMachineIdResource: URI;
 
 	// --- Policy
@@ -138,7 +135,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	tmpDir: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
-	installSourcePath: string;
 
 	// --- extensions
 	extensionsPath: string;
@@ -149,6 +145,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	disableKeytar?: boolean;
 
 	crossOriginIsolated?: boolean;
+	isRemoteServer?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

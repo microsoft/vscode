@@ -367,6 +367,16 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(await ctrl.getRange(15, 10), VSBuffer.fromString('67890'));
 		});
 
+		test('corrects offsets for marked ranges', async () => {
+			const ctrl = storage.getOutputController('a');
+
+			const a1 = ctrl.append(VSBuffer.fromString('12345'), 1);
+			const a2 = ctrl.append(VSBuffer.fromString('67890'), 1234);
+
+			assert.deepStrictEqual(await ctrl.getRange(a1.offset, 5), VSBuffer.fromString('12345'));
+			assert.deepStrictEqual(await ctrl.getRange(a2.offset, 5), VSBuffer.fromString('67890'));
+		});
+
 		test('reads stored output ranges', async () => {
 			const ctrl = storage.getOutputController('a');
 

@@ -37,7 +37,7 @@ export const enum DefaultGutterClickAction {
 	ContextMenu = 'contextMenu',
 }
 
-export const testingConfiguation: IConfigurationNode = {
+export const testingConfiguration: IConfigurationNode = {
 	id: 'testing',
 	order: 21,
 	title: localize('testConfigurationTitle', "Testing"),

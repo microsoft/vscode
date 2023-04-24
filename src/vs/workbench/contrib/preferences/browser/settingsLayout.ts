@@ -202,7 +202,12 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/mergeEditor',
 					label: localize('mergeEditor', 'Merge Editor'),
 					settings: ['mergeEditor.*']
-				}
+				},
+				{
+					id: 'features/interactiveSession',
+					label: localize('interactiveSession', 'Interactive Session'),
+					settings: ['interactiveSession.*']
+				},
 			]
 		},
 		{

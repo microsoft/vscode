@@ -12,12 +12,13 @@ import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
-import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	widgetAriaLabel?: string;

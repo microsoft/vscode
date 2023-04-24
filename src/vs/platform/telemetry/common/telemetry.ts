@@ -8,13 +8,6 @@ import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } fro
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
-export interface ITelemetryInfo {
-	sessionId: string;
-	machineId: string;
-	firstSessionDate: string;
-	msftInternal?: boolean;
-}
-
 export interface ITelemetryData {
 	from?: string;
 	target?: string;
@@ -23,36 +16,39 @@ export interface ITelemetryData {
 
 export interface ITelemetryService {
 
+	readonly _serviceBrand: undefined;
+
+	readonly telemetryLevel: TelemetryLevel;
+
+	readonly sessionId: string;
+	readonly machineId: string;
+	readonly firstSessionDate: string;
+	readonly msftInternal?: boolean;
+
 	/**
 	 * Whether error telemetry will get sent. If false, `publicLogError` will no-op.
 	 */
 	readonly sendErrorTelemetry: boolean;
 
-	readonly _serviceBrand: undefined;
-
 	/**
 	 * @deprecated Use publicLog2 and the typescript GDPR annotation where possible
 	 */
-	publicLog(eventName: string, data?: ITelemetryData): Promise<void>;
+	publicLog(eventName: string, data?: ITelemetryData): void;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.
 	 * Do not call this unless you have been given approval.
 	 */
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void>;
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
 
 	/**
 	 * @deprecated Use publicLogError2 and the typescript GDPR annotation where possible
 	 */
-	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void>;
+	publicLogError(errorEventName: string, data?: ITelemetryData): void;
 
-	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void>;
-
-	getTelemetryInfo(): Promise<ITelemetryInfo>;
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
 
 	setExperimentProperty(name: string, value: string): void;
-
-	readonly telemetryLevel: TelemetryLevel;
 }
 
 export interface ITelemetryEndpoint {
@@ -66,8 +62,8 @@ export const ICustomEndpointTelemetryService = createDecorator<ICustomEndpointTe
 export interface ICustomEndpointTelemetryService {
 	readonly _serviceBrand: undefined;
 
-	publicLog(endpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData): Promise<void>;
-	publicLogError(endpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData): Promise<void>;
+	publicLog(endpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData): void;
+	publicLogError(endpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData): void;
 }
 
 // Keys
@@ -94,4 +90,8 @@ export const enum TelemetryConfiguration {
 	CRASH = 'crash',
 	ERROR = 'error',
 	ON = 'all'
+}
+
+export interface ICommonProperties {
+	[name: string]: string | boolean | undefined;
 }

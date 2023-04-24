@@ -790,7 +790,7 @@ export class TunnelPanel extends ViewPane {
 		this.tunnelViewMultiSelectionContext = TunnelViewMultiSelectionContextKey.bindTo(contextKeyService);
 		this.portChangableContextKey = PortChangableContextKey.bindTo(contextKeyService);
 
-		const overlayContextKeyService = this._register(this.contextKeyService.createOverlay([['view', TunnelPanel.ID]]));
+		const overlayContextKeyService = this.contextKeyService.createOverlay([['view', TunnelPanel.ID]]);
 		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, overlayContextKeyService));
 		const updateActions = () => {
 			this.titleActions = [];
@@ -949,7 +949,7 @@ export class TunnelPanel extends ViewPane {
 
 	private onFocusChanged(event: ITableEvent<ITunnelItem>) {
 		if (event.indexes.length > 0 && event.elements.length > 0) {
-			this.lastFocus = event.indexes;
+			this.lastFocus = [...event.indexes];
 		}
 		const elements = event.elements;
 		const item = elements && elements.length ? elements[0] : undefined;

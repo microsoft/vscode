@@ -22,6 +22,7 @@ import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextMo
 import { Position } from 'vs/editor/common/core/position';
 import { CallbackIterable } from 'vs/base/common/arrays';
 import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
+import { ClosingBracketKind, OpeningBracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
 
 export class BracketPairsTree extends Disposable {
 	private readonly didChangeEmitter = new Emitter<void>();
@@ -55,8 +56,7 @@ export class BracketPairsTree extends Disposable {
 	) {
 		super();
 
-		if (textModel.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Uninitialized) {
-			// There are no token information yet
+		if (!textModel.tokenization.hasTokens) {
 			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageId());
 			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
 			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, true);
@@ -66,7 +66,8 @@ export class BracketPairsTree extends Disposable {
 			// Directly create the tree with token information.
 			this.initialAstWithoutTokens = undefined;
 			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined, false);
-		} else if (textModel.tokenization.backgroundTokenizationState === BackgroundTokenizationState.InProgress) {
+		} else {
+			// We missed some token changes already, so we cannot use the fast tokenizer + delta increments
 			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined, true);
 			this.astWithTokens = this.initialAstWithoutTokens;
 		}
@@ -102,6 +103,7 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public handleContentChanged(change: IModelContentChangedEvent) {
+		// Must be sorted in ascending order
 		const edits = change.changes.map(c => {
 			const range = Range.lift(c.range);
 			return new TextEditInfo(
@@ -151,14 +153,14 @@ export class BracketPairsTree extends Disposable {
 		return result;
 	}
 
-	public getBracketsInRange(range: Range): CallbackIterable<BracketInfo> {
+	public getBracketsInRange(range: Range, onlyColorizedBrackets: boolean): CallbackIterable<BracketInfo> {
 		this.flushQueue();
 
 		const startOffset = toLength(range.startLineNumber - 1, range.startColumn - 1);
 		const endOffset = toLength(range.endLineNumber - 1, range.endColumn - 1);
 		return new CallbackIterable(cb => {
 			const node = this.initialAstWithoutTokens || this.astWithTokens!;
-			collectBrackets(node, lengthZero, node.length, startOffset, endOffset, cb, 0, 0, new Map());
+			collectBrackets(node, lengthZero, node.length, startOffset, endOffset, cb, 0, 0, new Map(), onlyColorizedBrackets);
 		});
 	}
 
@@ -255,7 +257,8 @@ function collectBrackets(
 	level: number,
 	nestingLevelOfEqualBracketType: number,
 	levelPerBracketType: Map<string, number>,
-	parentPairIsIncomplete: boolean = false
+	onlyColorizedBrackets: boolean,
+	parentPairIsIncomplete: boolean = false,
 ): boolean {
 	if (level > 200) {
 		return true;
@@ -283,7 +286,7 @@ function collectBrackets(
 							continue whileLoop;
 						}
 
-						const shouldContinue = collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, push, level, 0, levelPerBracketType);
+						const shouldContinue = collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, push, level, 0, levelPerBracketType, onlyColorizedBrackets);
 						if (!shouldContinue) {
 							return false;
 						}
@@ -293,6 +296,8 @@ function collectBrackets(
 				return true;
 			}
 			case AstNodeKind.Pair: {
+				const colorize = !onlyColorizedBrackets || !node.closingBracket || (node.closingBracket.bracketInfo as ClosingBracketKind).closesColorized(node.openingBracket.bracketInfo as OpeningBracketKind);
+
 				let levelPerBracket = 0;
 				if (levelPerBracketType) {
 					let existing = levelPerBracketType.get(node.openingBracket.text);
@@ -300,8 +305,10 @@ function collectBrackets(
 						existing = 0;
 					}
 					levelPerBracket = existing;
-					existing++;
-					levelPerBracketType.set(node.openingBracket.text, existing);
+					if (colorize) {
+						existing++;
+						levelPerBracketType.set(node.openingBracket.text, existing);
+					}
 				}
 
 				const childCount = node.childrenLength;
@@ -316,19 +323,36 @@ function collectBrackets(
 						lengthGreaterThanEqual(nodeOffsetEnd, startOffset)
 					) {
 						const childEndsAfterEnd = lengthGreaterThanEqual(nodeOffsetEnd, endOffset);
-						if (childEndsAfterEnd) {
+						if (childEndsAfterEnd && child.kind !== AstNodeKind.Bracket) {
 							// No child after this child in the requested window, don't recurse
+							// Don't do this for brackets because of unclosed/unopened brackets
 							node = child;
-							level++;
-							nestingLevelOfEqualBracketType = levelPerBracket + 1;
+							if (colorize) {
+								level++;
+								nestingLevelOfEqualBracketType = levelPerBracket + 1;
+							} else {
+								nestingLevelOfEqualBracketType = levelPerBracket;
+							}
 							continue whileLoop;
 						}
 
-						const shouldContinue = collectBrackets(
-							child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, push, level + 1, levelPerBracket + 1, levelPerBracketType, !node.closingBracket
-						);
-						if (!shouldContinue) {
-							return false;
+						if (colorize || child.kind !== AstNodeKind.Bracket || !node.closingBracket) {
+							const shouldContinue = collectBrackets(
+								child,
+								nodeOffsetStart,
+								nodeOffsetEnd,
+								startOffset,
+								endOffset,
+								push,
+								colorize ? level + 1 : level,
+								colorize ? levelPerBracket + 1 : levelPerBracket,
+								levelPerBracketType,
+								onlyColorizedBrackets,
+								!node.closingBracket,
+							);
+							if (!shouldContinue) {
+								return false;
+							}
 						}
 					}
 					nodeOffsetStart = nodeOffsetEnd;
@@ -468,4 +492,3 @@ function collectBracketPairs(
 	}
 	return shouldContinue;
 }
-

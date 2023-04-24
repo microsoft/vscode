@@ -114,7 +114,6 @@ suite('AbstractKeybindingService', () => {
 
 			const contextKeyService: IContextKeyService = {
 				_serviceBrand: undefined,
-				dispose: undefined!,
 				onDidChangeContext: undefined!,
 				bufferChangeEvents() { },
 				createKey: undefined!,

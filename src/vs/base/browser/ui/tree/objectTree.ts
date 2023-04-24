@@ -8,7 +8,7 @@ import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from '
 import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModel, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { memoize } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -52,7 +52,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
 	}
 
-	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
+	setChildren(element: T | null, children: Iterable<IObjectTreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
 		this.model.setChildren(element, children, options);
 	}
 

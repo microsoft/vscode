@@ -75,8 +75,7 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 }
 
 export interface IProfileImportOptions {
-	readonly donotPrompt?: boolean;
-	readonly previewAsTempProfile?: boolean;
+	readonly preview?: boolean;
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
@@ -89,6 +88,7 @@ export interface IUserDataProfileImportExportService {
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
+	createFromCurrentProfile(name: string): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
@@ -99,6 +99,10 @@ export const enum ProfileResourceType {
 	Tasks = 'tasks',
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
+}
+
+export interface IProfileResourceInitializer {
+	initialize(content: string): Promise<void>;
 }
 
 export interface IProfileResource {
@@ -134,8 +138,8 @@ export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Co
 
 export const ProfilesMenu = new MenuId('Profiles');
 export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
-export const PROFILES_TTILE = { value: localize('profiles', "Profiles"), original: 'Profiles' };
-export const PROFILES_CATEGORY = { ...PROFILES_TTILE };
+export const PROFILES_TITLE = { value: localize('profiles', "Profiles"), original: 'Profiles' };
+export const PROFILES_CATEGORY = { ...PROFILES_TITLE };
 export const PROFILE_EXTENSION = 'code-profile';
 export const PROFILE_FILTER = [{ name: localize('profile', "Profile"), extensions: [PROFILE_EXTENSION] }];
 export const PROFILES_ENABLEMENT_CONTEXT = new RawContextKey<boolean>('profiles.enabled', true);

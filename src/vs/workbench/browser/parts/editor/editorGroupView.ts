@@ -15,9 +15,9 @@ import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, f
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
+import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
 import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorPanes } from 'vs/workbench/browser/parts/editor/editorPanes';
@@ -1544,8 +1544,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// No auto-save on focus change or custom confirmation handler: ask user
 		if (!autoSave) {
 
-			// Switch to editor that we want to handle for confirmation
-			await this.doOpenEditor(editor);
+			// Switch to editor that we want to handle for confirmation unless showing already
+			if (!this.activeEditor || !this.activeEditor.matches(editor)) {
+				await this.doOpenEditor(editor);
+			}
 
 			// Let editor handle confirmation if implemented
 			if (typeof editor.closeHandler?.confirm === 'function') {
@@ -1950,29 +1952,3 @@ export interface EditorReplacement extends IEditorReplacement {
 	readonly replacement: EditorInput;
 	readonly options?: IEditorOptions;
 }
-
-registerThemingParticipant((theme, collector) => {
-
-	// Focused Empty Group Border
-	const focusedEmptyGroupBorder = theme.getColor(EDITOR_GROUP_FOCUSED_EMPTY_BORDER);
-	if (focusedEmptyGroupBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty.active:focus {
-				outline-width: 1px;
-				outline-color: ${focusedEmptyGroupBorder};
-				outline-offset: -2px;
-				outline-style: solid;
-			}
-
-			.monaco-workbench .part.editor > .content.empty .editor-group-container.empty.active:focus {
-				outline: none; /* never show outline for empty group if it is the last */
-			}
-		`);
-	} else {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container.empty.active:focus {
-				outline: none; /* disable focus outline unless active empty group border is defined */
-			}
-		`);
-	}
-});

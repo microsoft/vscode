@@ -117,19 +117,18 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		const isRemoteWindow = !!this.environmentService.remoteAuthority;
 
 		if (!isRemoteWindow) {
-			this.extensionService.stopExtensionHosts();
+			this.extensionService.stopExtensionHosts(true); // TODO@sandy081 adopt support for extension host to veto stopping
 		}
 
 		// In a remote window update current profile before reloading so that data is preserved from current profile if asked to preserve
 		await this.userDataProfileService.updateCurrentProfile(profile, preserveData);
 
 		if (isRemoteWindow) {
-			const result = await this.dialogService.confirm({
-				type: 'info',
+			const { confirmed } = await this.dialogService.confirm({
 				message: reloadMessage ?? localize('reload message', "Switching a profile requires reloading VS Code."),
 				primaryButton: localize('reload button', "&&Reload"),
 			});
-			if (result.confirmed) {
+			if (confirmed) {
 				await this.hostService.reload();
 			}
 		} else {

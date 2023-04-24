@@ -29,7 +29,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.conditional.cpp",
+		"t": "source.cpp meta.preprocessor.conditional",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": "_UCRT",
-		"t": "source.cpp meta.preprocessor.conditional.cpp entity.name.function.preprocessor.cpp",
+		"t": "source.cpp meta.preprocessor.conditional entity.name.function.preprocessor.cpp",
 		"r": {
 			"dark_plus": "entity.name.function.preprocessor: #569CD6",
 			"light_plus": "entity.name.function.preprocessor: #0000FF",

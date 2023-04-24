@@ -2124,7 +2124,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.indexOf(input2), 1);
 		assert.strictEqual(group.indexOf(input3), 2);
 
-		group.moveEditor(input1, 2); // moved out of sticky range
+		group.moveEditor(input1, 2); // moved out of sticky range//
 		assert.strictEqual(group.isSticky(input1), false);
 		assert.strictEqual(group.isSticky(input2), true);
 		assert.strictEqual(group.isSticky(input3), false);
@@ -2171,7 +2171,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.indexOf(input2), 1);
 		assert.strictEqual(group.indexOf(input3), 2);
 
-		group.moveEditor(input3, 0); // moved into sticky range
+		group.moveEditor(input3, 0); // moved into sticky range//
 		assert.strictEqual(group.isSticky(input1), true);
 		assert.strictEqual(group.isSticky(input2), false);
 		assert.strictEqual(group.isSticky(input3), true);
@@ -2324,5 +2324,41 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group2Events.opened[0].editorIndex, 0);
 		assert.strictEqual(group2Events.opened[1].editor, input2group2);
 		assert.strictEqual(group2Events.opened[1].editorIndex, 1);
+	});
+
+	test('moving editor sends sticky event when sticky changes', () => {
+		const group1 = createEditorGroupModel();
+
+		const input1group1 = input();
+		const input2group1 = input();
+		const input3group1 = input();
+
+		// Open all the editors
+		group1.openEditor(input1group1, { pinned: true, active: true, index: 0, sticky: true });
+		group1.openEditor(input2group1, { pinned: true, active: false, index: 1 });
+		group1.openEditor(input3group1, { pinned: true, active: false, index: 2 });
+
+		const group1Events = groupListener(group1);
+
+		group1.moveEditor(input2group1, 0);
+		assert.strictEqual(group1Events.sticky[0].editor, input2group1);
+		assert.strictEqual(group1Events.sticky[0].editorIndex, 0);
+
+		const group2 = createEditorGroupModel();
+
+		const input1group2 = input();
+		const input2group2 = input();
+		const input3group2 = input();
+
+		// Open all the editors
+		group2.openEditor(input1group2, { pinned: true, active: true, index: 0, sticky: true });
+		group2.openEditor(input2group2, { pinned: true, active: false, index: 1 });
+		group2.openEditor(input3group2, { pinned: true, active: false, index: 2 });
+
+		const group2Events = groupListener(group2);
+
+		group2.moveEditor(input1group2, 1);
+		assert.strictEqual(group2Events.unsticky[0].editor, input1group2);
+		assert.strictEqual(group2Events.unsticky[0].editorIndex, 1);
 	});
 });

@@ -21,13 +21,14 @@ import { regExpFlags } from 'vs/base/common/strings';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { canceled } from 'vs/base/common/errors';
+import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { LineRangeMapping, LineRange, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputerOptions, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -131,15 +132,34 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
+	public computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[] | null | undefined, pretty: boolean = false): Promise<languages.TextEdit[] | undefined> {
 		if (isNonEmptyArray(edits)) {
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
 			}
 			const sw = StopWatch.create(true);
-			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
+			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, pretty));
 			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
 			return Promise.race([result, timeout(1000).then(() => edits)]);
+
+		} else {
+			return Promise.resolve(undefined);
+		}
+	}
+
+	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
+		if (isNonEmptyArray(edits)) {
+			if (!canSyncModel(this._modelService, resource)) {
+				return Promise.resolve(edits); // File too large
+			}
+			const sw = StopWatch.create(true);
+			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits, { ignoreTrimWhitespace: false, maxComputationTimeMs: 1000 })).catch((err) => {
+				onUnexpectedError(err);
+				// In case of an exception, fall back to computeMoreMinimalEdits
+				return this.computeMoreMinimalEdits(resource, edits, true);
+			});
+			result.finally(() => this._logService.trace('FORMAT#computeHumanReadableDiff', resource.toString(true), sw.elapsed()));
+			return result;
 
 		} else {
 			return Promise.resolve(undefined);
@@ -528,15 +548,27 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[]): Promise<languages.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[], pretty: boolean): Promise<languages.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeMoreMinimalEdits(resource.toString(), edits);
+			return proxy.computeMoreMinimalEdits(resource.toString(), edits, pretty);
+		});
+	}
+
+	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[], options: ILinesDiffComputerOptions): Promise<languages.TextEdit[]> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			return proxy.computeHumanReadableDiff(resource.toString(), edits, options);
 		});
 	}
 
 	public computeLinks(resource: URI): Promise<languages.ILink[] | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeLinks(resource.toString());
+		});
+	}
+
+	public computeDefaultDocumentColors(resource: URI): Promise<languages.IColorInformation[] | null> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			return proxy.computeDefaultDocumentColors(resource.toString());
 		});
 	}
 

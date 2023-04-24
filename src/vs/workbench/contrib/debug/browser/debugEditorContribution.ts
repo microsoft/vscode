@@ -42,7 +42,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
+import { DebugHoverWidget, ShowDebugHoverResult } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -326,9 +326,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					this.enableEditorHover();
 					if (debugHoverWasVisible && this.hoverPosition) {
 						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
-						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
-						const range = new Range(this.hoverPosition.lineNumber, this.hoverPosition.column, this.hoverPosition.lineNumber, this.hoverPosition.column);
-						hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false);
+						this.showEditorHover(this.hoverPosition, false);
 					}
 
 					const onKeyUp = new DomEmitter(document, 'keyup');
@@ -376,8 +374,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
-			return this.hoverWidget.showAt(position, focus);
+			const result = await this.hoverWidget.showAt(position, focus);
+			if (result === ShowDebugHoverResult.NOT_AVAILABLE) {
+				// When no expression available fallback to editor hover
+				this.showEditorHover(position, focus);
+			}
 		}
+	}
+
+	private showEditorHover(position: Position, focus: boolean) {
+		const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, focus);
 	}
 
 	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {
