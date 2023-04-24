@@ -436,14 +436,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.inputPart.saveState();
 		return { inputValue: this.inputPart.inputEditor.getValue() };
 	}
-
-	public override dispose(): void {
-		super.dispose();
-
-		if (this.viewModel) {
-			this.interactiveSessionService.releaseSession(this.viewModel.sessionId);
-		}
-	}
 }
 
 export class InteractiveSessionWidgetService implements IInteractiveSessionWidgetService {
