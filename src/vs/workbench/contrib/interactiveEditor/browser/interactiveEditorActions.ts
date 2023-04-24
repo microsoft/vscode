@@ -413,7 +413,6 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo('message'),
 				group: '0_main',
 				order: 0
 			}
@@ -449,7 +448,6 @@ export class CancelSessionAction extends AbstractInteractiveEditorAction {
 			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo('message'),
 				group: '0_main',
 				order: 1
 			}
