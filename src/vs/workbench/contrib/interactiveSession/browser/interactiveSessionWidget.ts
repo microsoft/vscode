@@ -176,18 +176,14 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private onDidChangeItems() {
 		if (this.tree && this.visible) {
-			const items: InteractiveTreeItem[] = this.viewModel?.getItems() ?? [];
-			if (this.viewModel?.welcomeMessage) {
-				items.unshift(this.viewModel.welcomeMessage);
-			}
-
-			const treeItems = items.map(item => {
-				return <ITreeElement<InteractiveTreeItem>>{
-					element: item,
-					collapsed: false,
-					collapsible: false
-				};
-			});
+			const treeItems = (this.viewModel?.getItems() ?? [])
+				.map(item => {
+					return <ITreeElement<InteractiveTreeItem>>{
+						element: item,
+						collapsed: false,
+						collapsible: false
+					};
+				});
 
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
@@ -202,7 +198,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				}
 			});
 
-			const lastItem = items[items.length - 1];
+			const lastItem = treeItems[treeItems.length - 1]?.element;
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 				this.renderFollowups(lastItem.replyFollowups);
 			} else {
