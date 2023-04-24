@@ -268,6 +268,21 @@ export interface PushErrorHandler {
 	handlePushError(repository: Repository, remote: Remote, refspec: string, error: Error & { gitErrorCode: GitErrorCodes }): Promise<boolean>;
 }
 
+export interface BranchProtection {
+	readonly remote: string;
+	readonly rules: BranchProtectionRule[];
+}
+
+export interface BranchProtectionRule {
+	readonly include?: string[];
+	readonly exclude?: string[];
+}
+
+export interface BranchProtectionProvider {
+	onDidChangeBranchProtection: Event<Uri>;
+	provideBranchProtection(): BranchProtection[];
+}
+
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface PublishEvent {
@@ -294,6 +309,7 @@ export interface API {
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
+	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
 }
 
 export interface GitExtension {

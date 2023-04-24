@@ -140,6 +140,11 @@
 	vertical-align: text-bottom;
 }
 
+/* Links in descriptions & validations */
+.quick-input-message a {
+	color: inherit;
+}
+
 .quick-input-progress.monaco-progress-container {
 	position: relative;
 }

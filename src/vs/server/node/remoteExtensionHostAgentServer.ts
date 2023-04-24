@@ -666,14 +666,10 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		console.warn(connectionToken.message);
 		process.exit(1);
 	}
-	const disposables = new DisposableStore();
-	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, disposables);
 
-	// Set the unexpected error handler after the services have been initialized, to avoid having
-	// the telemetry service overwrite our handler
-	let didLogAboutSIGPIPE = false;
-	instantiationService.invokeFunction((accessor) => {
-		const logService = accessor.get(ILogService);
+	// setting up error handlers, first with console.error, then, once available, using the log service
+
+	function initUnexpectedErrorHandler(handler: (err: any) => void) {
 		setUnexpectedErrorHandler(err => {
 			// See https://github.com/microsoft/vscode-remote-release/issues/6481
 			// In some circumstances, console.error will throw an asynchronous error. This asynchronous error
@@ -682,18 +678,38 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			if (isSigPipeError(err) && err.stack && /unexpectedErrorHandler/.test(err.stack)) {
 				return;
 			}
-			logService.error(err);
+			handler(err);
 		});
-		process.on('SIGPIPE', () => {
-			// See https://github.com/microsoft/vscode-remote-release/issues/6543
-			// We would normally install a SIGPIPE listener in bootstrap.js
-			// But in certain situations, the console itself can be in a broken pipe state
-			// so logging SIGPIPE to the console will cause an infinite async loop
-			if (!didLogAboutSIGPIPE) {
-				didLogAboutSIGPIPE = true;
-				onUnexpectedError(new Error(`Unexpected SIGPIPE`));
-			}
-		});
+	}
+
+	const unloggedErrors: any[] = [];
+	initUnexpectedErrorHandler((error: any) => {
+		unloggedErrors.push(error);
+		console.error(error);
+	});
+	let didLogAboutSIGPIPE = false;
+	process.on('SIGPIPE', () => {
+		// See https://github.com/microsoft/vscode-remote-release/issues/6543
+		// We would normally install a SIGPIPE listener in bootstrap.js
+		// But in certain situations, the console itself can be in a broken pipe state
+		// so logging SIGPIPE to the console will cause an infinite async loop
+		if (!didLogAboutSIGPIPE) {
+			didLogAboutSIGPIPE = true;
+			onUnexpectedError(new Error(`Unexpected SIGPIPE`));
+		}
+	});
+
+	const disposables = new DisposableStore();
+	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, disposables);
+
+	// Set the unexpected error handler after the services have been initialized, to avoid having
+	// the telemetry service overwrite our handler
+	instantiationService.invokeFunction((accessor) => {
+		const logService = accessor.get(ILogService);
+		unloggedErrors.forEach(error => logService.error(error));
+		unloggedErrors.length = 0;
+
+		initUnexpectedErrorHandler((error: any) => logService.error(error));
 	});
 
 	//

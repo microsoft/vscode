@@ -663,20 +663,8 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private validateReadFileLimits(resource: URI, size: number, options?: IReadFileStreamOptions): void {
-		if (options?.limits) {
-			let tooLargeErrorResult: FileOperationResult | undefined = undefined;
-
-			if (typeof options.limits.memory === 'number' && size > options.limits.memory) {
-				tooLargeErrorResult = FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
-			}
-
-			if (typeof options.limits.size === 'number' && size > options.limits.size) {
-				tooLargeErrorResult = FileOperationResult.FILE_TOO_LARGE;
-			}
-
-			if (typeof tooLargeErrorResult === 'number') {
-				throw new TooLargeFileOperationError(localize('fileTooLargeError', "Unable to read file '{0}' that is too large to open", this.resourceForError(resource)), tooLargeErrorResult, size, options);
-			}
+		if (typeof options?.limits?.size === 'number' && size > options.limits.size) {
+			throw new TooLargeFileOperationError(localize('fileTooLargeError', "Unable to read file '{0}' that is too large to open", this.resourceForError(resource)), FileOperationResult.FILE_TOO_LARGE, size, options);
 		}
 	}
 

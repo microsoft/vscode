@@ -6,12 +6,12 @@
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { IIndexTreeModelSpliceOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModel, IObjectTreeModelOptions, IObjectTreeModelSetChildrenOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 
 // Exported only for test reasons, do not use directly
-export interface ICompressedTreeElement<T> extends ITreeElement<T> {
+export interface ICompressedTreeElement<T> extends IObjectTreeElement<T> {
 	readonly children?: Iterable<ICompressedTreeElement<T>>;
 	readonly incompressible?: boolean;
 }
@@ -22,7 +22,7 @@ export interface ICompressedTreeNode<T> {
 	readonly incompressible: boolean;
 }
 
-function noCompress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompressedTreeNode<T>> {
+function noCompress<T>(element: ICompressedTreeElement<T>): ICompressedTreeElement<ICompressedTreeNode<T>> {
 	const elements = [element.element];
 	const incompressible = element.incompressible || false;
 
@@ -35,7 +35,7 @@ function noCompress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompre
 }
 
 // Exported only for test reasons, do not use directly
-export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompressedTreeNode<T>> {
+export function compress<T>(element: ICompressedTreeElement<T>): ICompressedTreeElement<ICompressedTreeNode<T>> {
 	const elements = [element.element];
 	const incompressible = element.incompressible || false;
 
@@ -65,7 +65,7 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<IC
 	};
 }
 
-function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0): ICompressedTreeElement<T> {
+function _decompress<T>(element: ICompressedTreeElement<ICompressedTreeNode<T>>, index = 0): ICompressedTreeElement<T> {
 	let children: Iterable<ICompressedTreeElement<T>>;
 
 	if (index < element.element.elements.length - 1) {
@@ -93,7 +93,7 @@ function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0
 }
 
 // Exported only for test reasons, do not use directly
-export function decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>): ICompressedTreeElement<T> {
+export function decompress<T>(element: ICompressedTreeElement<ICompressedTreeNode<T>>): ICompressedTreeElement<T> {
 	return _decompress(element, 0);
 }
 
@@ -205,7 +205,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	private _setChildren(
 		node: ICompressedTreeNode<T> | null,
-		children: Iterable<ITreeElement<ICompressedTreeNode<T>>>,
+		children: Iterable<IObjectTreeElement<ICompressedTreeNode<T>>>,
 		options: IIndexTreeModelSpliceOptions<ICompressedTreeNode<T>, TFilterData>,
 	): void {
 		const insertedElements = new Set<T | null>();

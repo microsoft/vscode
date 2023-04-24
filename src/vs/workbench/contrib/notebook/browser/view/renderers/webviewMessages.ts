@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { PreloadOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import type { PreloadOptions, RenderOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface BaseToWebviewMessage {
@@ -200,6 +200,8 @@ export interface ICreationRequestMessage {
 	readonly requiredPreloads: readonly IControllerPreload[];
 	readonly initiallyHidden?: boolean;
 	readonly rendererId?: string | undefined;
+	readonly executionId?: string | undefined;
+	readonly createOnIdle: boolean;
 }
 
 export interface IContentWidgetTopRequest {
@@ -373,12 +375,9 @@ export interface INotebookStylesMessage {
 export interface INotebookOptionsMessage {
 	readonly type: 'notebookOptions';
 	readonly options: PreloadOptions;
+	readonly renderOptions: RenderOptions;
 }
 
-export interface INotebookUpdateWorkspaceTrust {
-	readonly type: 'updateWorkspaceTrust';
-	readonly isTrusted: boolean;
-}
 export interface ITokenizedCodeBlockMessage {
 	readonly type: 'tokenizedCodeBlock';
 	readonly codeBlockId: string;
@@ -393,7 +392,7 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean };
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean };
 }
 
 
@@ -411,11 +410,20 @@ export interface IFindStopMessage {
 	readonly type: 'findStop';
 }
 
+export interface ISearchPreviewInfo {
+	line: string;
+	range: {
+		start: number;
+		end: number;
+	};
+}
+
 export interface IFindMatch {
 	readonly type: 'preview' | 'output';
 	readonly cellId: string;
 	readonly id: string;
 	readonly index: number;
+	readonly searchPreviewInfo?: ISearchPreviewInfo;
 }
 
 export interface IDidFindMessage extends BaseToWebviewMessage {
@@ -452,6 +460,14 @@ export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
 	readonly data?: Record<string, string>;
 }
 
+export interface IPerformanceMessage extends BaseToWebviewMessage {
+	readonly type: 'notebookPerformanceMessage';
+	readonly executionId: string;
+	readonly cellId: string;
+	readonly duration: number;
+	readonly rendererId: string;
+}
+
 
 export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
@@ -483,7 +499,8 @@ export type FromWebviewMessage = WebviewInitialized |
 	IDidFindHighlightMessage |
 	IOutputResizedMessage |
 	IGetOutputItemMessage |
-	ILogRendererDebugMessage;
+	ILogRendererDebugMessage |
+	IPerformanceMessage;
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
@@ -508,7 +525,6 @@ export type ToWebviewMessage = IClearMessage |
 	IInitializeMarkupCells |
 	INotebookStylesMessage |
 	INotebookOptionsMessage |
-	INotebookUpdateWorkspaceTrust |
 	ITokenizedCodeBlockMessage |
 	ITokenizedStylesChangedMessage |
 	IFindMessage |

@@ -21,9 +21,9 @@ export class MainThreadLocalization extends Disposable implements MainThreadLoca
 		super();
 	}
 
-	async $fetchBuiltInBundleUri(id: string): Promise<URI | undefined> {
+	async $fetchBuiltInBundleUri(id: string, language: string): Promise<URI | undefined> {
 		try {
-			const uri = await this.languagePackService.getBuiltInExtensionTranslationsUri(id);
+			const uri = await this.languagePackService.getBuiltInExtensionTranslationsUri(id, language);
 			return uri;
 		} catch (e) {
 			return undefined;

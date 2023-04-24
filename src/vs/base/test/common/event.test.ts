@@ -235,6 +235,27 @@ suite('Event', function () {
 		}
 	});
 
+	test('throwingListener (custom handler)', () => {
+
+		const allError: any[] = [];
+
+		const a = new Emitter<undefined>({
+			onListenerError(e) { allError.push(e); }
+		});
+		let hit = false;
+		a.event(function () {
+			// eslint-disable-next-line no-throw-literal
+			throw 9;
+		});
+		a.event(function () {
+			hit = true;
+		});
+		a.fire(undefined);
+		assert.strictEqual(hit, true);
+		assert.deepStrictEqual(allError, [9]);
+
+	});
+
 	test('reusing event function and context', function () {
 		let counter = 0;
 		function listener() {
@@ -1048,6 +1069,26 @@ suite('Event utils', () => {
 	});
 
 	suite('accumulate', () => {
+		test('should not fire after a listener is disposed with undefined or []', async () => {
+			const eventEmitter = new Emitter<number>();
+			const event = eventEmitter.event;
+			const accumulated = Event.accumulate(event, 0);
+
+			const calls1: number[][] = [];
+			const calls2: number[][] = [];
+			const listener1 = accumulated((e) => calls1.push(e));
+			accumulated((e) => calls2.push(e));
+
+			eventEmitter.fire(1);
+			await timeout(1);
+			assert.deepStrictEqual(calls1, [[1]]);
+			assert.deepStrictEqual(calls2, [[1]]);
+
+			listener1.dispose();
+			await timeout(1);
+			assert.deepStrictEqual(calls1, [[1]]);
+			assert.deepStrictEqual(calls2, [[1]], 'should not fire after a listener is disposed with undefined or []');
+		});
 		test('should accumulate a single event', async () => {
 			const eventEmitter = new Emitter<number>();
 			const event = eventEmitter.event;
@@ -1233,7 +1274,6 @@ suite('Event utils', () => {
 			await timeout(1);
 			assert.deepStrictEqual(calls, [1], 'should fire with the first event, not the second (after listener dispose)');
 		});
-
 
 		test('should flush events when the emitter is disposed', async () => {
 			const emitter = new Emitter<number>();

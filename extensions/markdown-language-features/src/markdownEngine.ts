@@ -412,6 +412,9 @@ async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Opti
 
 function normalizeHighlightLang(lang: string | undefined) {
 	switch (lang && lang.toLowerCase()) {
+		case 'shell':
+			return 'sh';
+
 		case 'py3':
 			return 'python';
 

@@ -9,7 +9,7 @@ const gulp = require('gulp');
 const path = require('path');
 const task = require('./lib/task');
 const util = require('./lib/util');
-const electron = require('gulp-atom-electron');
+const electron = require('@vscode/gulp-electron');
 const { config } = require('./lib/electron');
 const filter = require('gulp-filter');
 const deps = require('./lib/dependencies');
@@ -21,7 +21,6 @@ const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: null, opts: { stats: true } },
-	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },
@@ -81,8 +80,7 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 				// We don't build the prebuilt node files so we don't scan them
 				'!**/prebuilds/**/*.node',
 				// These are 3rd party modules that we should ignore
-				'!**/@parcel/watcher/**/*',
-				'!**/native-is-elevated/**/*']))
+				'!**/@parcel/watcher/**/*']))
 			.pipe(gulp.dest(destinationExe));
 	};
 
