@@ -27,6 +27,9 @@ export async function provideInlineCompletions(
 	token: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
+	// Important: Don't use position after the await calls, as the model could have been changed in the meantime!
+	const defaultReplaceRange = getDefaultRange(position, model);
+
 	const providers = registry.all(model);
 	const providerResults = await Promise.all(providers.map(async provider => {
 		try {
@@ -37,8 +40,6 @@ export async function provideInlineCompletions(
 		}
 		return ({ provider, completions: undefined });
 	}));
-
-	const defaultReplaceRange = getDefaultRange(position, model);
 
 	const itemsByHash = new Map<string, InlineCompletionItem>();
 	const lists: InlineCompletionList[] = [];
