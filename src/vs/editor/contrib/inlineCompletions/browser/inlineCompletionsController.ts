@@ -215,4 +215,10 @@ export class InlineCompletionsController extends Disposable {
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
 		return this.ghostTextWidget.ownsViewZone(viewZoneId);
 	}
+
+	hide() {
+		transaction(tx => {
+			this?.model.get()?.stop(tx);
+		});
+	}
 }
