@@ -116,7 +116,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	public readonly onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent> = this._onDidPerformUserAction.event;
 
 	constructor(
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -137,13 +137,17 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			this.trace('constructor', 'No persisted sessions');
 		}
 
-		this._register(storageService.onWillSaveState(e => {
-			const allSessions = Array.from(this._sessionModels.values())
-				.filter(session => session.getRequests().length > 0);
-			const serialized = JSON.stringify(allSessions);
-			this.trace('onWillSaveState', `Persisting ${this._sessionModels.size} sessions`);
-			storageService.store(serializedInteractiveSessionKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		}));
+		this._register(storageService.onWillSaveState(() => this.saveState()));
+	}
+
+	private saveState(): void {
+		let allSessions: (InteractiveSessionModel | ISerializableInteractiveSessionData)[] = Array.from(this._sessionModels.values())
+			.filter(session => session.getRequests().length > 0);
+		allSessions = allSessions.concat(Object.values(this._persistedSessions));
+		this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
+
+		const serialized = JSON.stringify(allSessions);
+		this.storageService.store(serializedInteractiveSessionKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	notifyUserAction(action: IInteractiveSessionUserActionEvent): void {
