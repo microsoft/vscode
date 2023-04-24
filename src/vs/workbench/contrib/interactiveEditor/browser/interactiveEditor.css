@@ -58,6 +58,7 @@
 .monaco-editor .interactive-editor .body .content .input .editor-container {
 	vertical-align: middle;
 }
+
 .monaco-editor .interactive-editor .body .toolbar {
 	display: flex;
 	flex-direction: column;
@@ -91,6 +92,9 @@
 
 .monaco-editor .interactive-editor .status {
 	padding: 6px 0px 2px 0px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
 }
 
 .monaco-editor .interactive-editor .status .actions.hidden {
@@ -99,12 +103,15 @@
 
 .monaco-editor .interactive-editor .status .label {
 	overflow: hidden;
-	display: block;
-	padding-left: 5px;
-	padding-right: 5px;
+	padding-left: 10px;
 }
 
-.monaco-editor .interactive-editor .status .label.message {
+/* the below does not work, how to unset the paragraph css ? */
+.monaco-editor .interactive-editor .markdownMessage > * {
+	margin: unset
+}
+
+.monaco-editor .interactive-editor .markdownMessage {
 	margin: 0px;
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
@@ -112,6 +119,9 @@
 	display: -webkit-box;
 }
 
+.monaco-editor .interactive-editor .markdownActions > * {
+	direction: rtl;
+}
 
 .monaco-editor .interactive-editor .status .label A {
 	color: var(--vscode-textLink-foreground);
