@@ -103,6 +103,11 @@
 .monaco-editor .interactive-editor .status .label {
 	overflow: hidden;
 	padding-left: 10px;
+	margin-left: auto;
+}
+
+.monaco-editor .interactive-editor .markdownMessage {
+	padding-top: 10px;
 }
 
 .monaco-editor .interactive-editor .markdownMessage.hidden {
