@@ -57,11 +57,11 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 	Mimes.latex,
 	Mimes.markdown,
 	'application/json',
-	Mimes.text,
 	'text/html',
 	'image/svg+xml',
 	'image/png',
 	'image/jpeg',
+	Mimes.text,
 ];
 
 /**
