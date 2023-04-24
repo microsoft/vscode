@@ -121,7 +121,7 @@ class InteractiveEditorWidget {
 				h('div.actions.hidden@statusToolbar'),
 				h('div.label@statusLabel')
 			]),
-			h('div.markdownMessage@markdownMessage', [
+			h('div.markdownMessage.hidden@markdownMessage', [
 				h('div.message@message'),
 				h('div.messageActions@messageActions')
 			]),
@@ -384,7 +384,7 @@ class InteractiveEditorWidget {
 		}
 		reset(this._elements.message, message);
 		this._elements.statusLabel.innerText = '';
-		this._elements.message.style.display = '-webkit-box';
+		this._elements.markdownMessage.classList.toggle('hidden', false);
 		this._isLastStatusUpdateAMessage = true;
 		this._onDidChangeHeight.fire();
 		return true;
@@ -418,7 +418,7 @@ class InteractiveEditorWidget {
 		} else {
 			delete this._elements.statusLabel.dataset['state'];
 		}
-		this._elements.message.style.display = 'none';
+		this._elements.markdownMessage.classList.toggle('hidden', true);
 		this._isLastStatusUpdateAMessage = false;
 		this._onDidChangeHeight.fire();
 		return true;

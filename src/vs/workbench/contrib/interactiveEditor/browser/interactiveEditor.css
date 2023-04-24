@@ -105,6 +105,10 @@
 	padding-left: 10px;
 }
 
+.monaco-editor .interactive-editor .markdownMessage.hidden {
+	display: none;
+}
+
 .monaco-editor .interactive-editor .markdownMessage .message {
 	margin: 0px;
 	-webkit-line-clamp: 3;
