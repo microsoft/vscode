@@ -9807,10 +9807,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.1.0-dev.20230417:
-  version "5.1.0-dev.20230417"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230417.tgz#3c6acdd4e49858bc10f7bdf535e768513ebc55e9"
-  integrity sha512-bEjKfPjxAgvrUViweybCkB++3y9qyF4hCBeXOf998QQDJpLAcaQWmub4IoPZ5yTvrkuGuNzFpy46tytA4p1fbA==
+typescript@^5.1.0-dev.20230424:
+  version "5.1.0-dev.20230424"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230424.tgz#6b560143787fd346682077dbbad5e1135a476870"
+  integrity sha512-yhQpzzjyLCyXORVY8AgJYaWpm235ZzG/boelYvgloE7v+kCucAdegsBf7duLJzXc/8+wABR2diYMbjPpd5c3Ww==
 
 typical@^4.0.0:
   version "4.0.0"
