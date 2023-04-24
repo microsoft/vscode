@@ -3836,6 +3836,10 @@ declare namespace monaco.editor {
 		 * Diff Algorithm
 		*/
 		diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
+		/**
+		 * Whether the diff editor aria label should be verbose.
+		 */
+		accessibilityVerbose?: boolean;
 	}
 
 	/**
