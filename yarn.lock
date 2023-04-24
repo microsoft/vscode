@@ -1392,18 +1392,18 @@
   dependencies:
     node-addon-api "^3.0.2"
 
-"@vscode/windows-mutex@0.4.2":
-  version "0.4.2"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-mutex/-/windows-mutex-0.4.2.tgz#3f796896c3bc2cf32bfe7148e608edb0cb7247db"
-  integrity sha512-7MSBH22cI7OwxXImjJ3VJ7QeHrEbumtyi/xqTgv6xqZCIZfUk/eu5MMBD2Vkehut8dGZU4xIjqt5AGdm0uPixQ==
+"@vscode/windows-mutex@0.4.3":
+  version "0.4.3"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-mutex/-/windows-mutex-0.4.3.tgz#be3af521b40518c8dc27e06199c6fb4ed134ad69"
+  integrity sha512-MZNLa40k3pF7g2+jVRefeHCna8Rhm8062nE3FxO8Zlak97A1BcZw56DiGYIzowrBbsBBiAVEE5d2rnlvLvorQg==
   dependencies:
     bindings "^1.2.1"
-    nan "^2.14.0"
+    nan "^2.17.0"
 
-"@vscode/windows-process-tree@0.4.2":
-  version "0.4.2"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.4.2.tgz#54d010fdeb06dfe3a9c6d58fcb3ed9acfc962f33"
-  integrity sha512-b20865s1HG1VtGt887KrB1blwFS6p4L1Fl1o/WplO9j7sGBle8sLqkNnGXbCaRNgdIgfXtitmzG366FVynJZdQ==
+"@vscode/windows-process-tree@0.4.3":
+  version "0.4.3"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.4.3.tgz#2263c44a64fcf01d2f6c733cb0670cbde6e8f59a"
+  integrity sha512-/Dnm+vIgZlGDxBqrnr99/W2Dz+d5Jwkiq3PgRITYHjqFjEvACLmJEnWz2scnM7/TXbqx89W4iJKDp9JbUxp3uA==
   dependencies:
     nan "^2.17.0"
 
@@ -6869,7 +6869,7 @@ nan@^2.12.1:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
   integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
 
-nan@^2.14.0, nan@^2.17.0:
+nan@^2.17.0:
   version "2.17.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.17.0.tgz#c0150a2368a182f033e9aa5195ec76ea41a199cb"
   integrity sha512-2ZTgtl0nJsO0KQCjEpxcIr5D+Yv90plTitZt9JBfQvVJDS5seMl3FOvsh3+9CoYWXf/1l5OaZzzF6nDm4cagaQ==
@@ -6912,9 +6912,9 @@ native-is-elevated@0.6.0:
   integrity sha512-HW1wDo4WYZC7W68kaS0cs7FtDTrcFoAY1APc4SlU4Un/FuL7pjilXFEteBCA58EWClKk0912JLIoekOJ/NohnQ==
 
 native-keymap@^3.3.2:
-  version "3.3.3"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.3.3.tgz#cdc92331721e289605f1fb55ca4609ce52888845"
-  integrity sha512-TKBPTNHWK+8be1htLFNy/fsDtxv5A2z4IwvQ/XeiDkNgAthqdlImxza/dDBu3eN2lqNnFSkJl0fZ8221hV92hg==
+  version "3.3.4"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.3.4.tgz#593f176f89442218286624b7754e1bdcb4660982"
+  integrity sha512-dFxL5bzWDsnPT6dZbtq9OXuETdgNMio5o0IeUTGXvwH9WqMMR/1Aytt/zz+e281qEko8iFmt98saOX7EN7BRPg==
 
 native-watchdog@^1.4.1:
   version "1.4.2"
