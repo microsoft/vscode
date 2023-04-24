@@ -20,10 +20,15 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { Memento } from 'vs/workbench/common/memento';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveSessionViewOptions {
 	readonly providerId: string;
+}
+
+interface IViewPaneState extends IViewState {
+	sessionId?: string;
 }
 
 export const INTERACTIVE_SIDEBAR_PANEL_ID = 'workbench.panel.interactiveSessionSidebar';
@@ -35,7 +40,7 @@ export class InteractiveSessionViewPane extends ViewPane {
 
 	private modelDisposables = this._register(new DisposableStore());
 	private memento: Memento;
-	private viewState: IViewState;
+	private viewState: IViewPaneState;
 
 	constructor(
 		private readonly interactiveSessionViewOptions: IInteractiveSessionViewOptions,
@@ -56,18 +61,19 @@ export class InteractiveSessionViewPane extends ViewPane {
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + this.interactiveSessionViewOptions.providerId, this.storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewPaneState;
 	}
 
-	private updateModel(initial = false): void {
+	private updateModel(model?: IInteractiveSessionModel | undefined): void {
 		this.modelDisposables.clear();
 
-		const model = this.interactiveSessionService.startSession(this.interactiveSessionViewOptions.providerId, initial, CancellationToken.None);
+		model = model ?? this.interactiveSessionService.startSession(this.interactiveSessionViewOptions.providerId, CancellationToken.None);
 		if (!model) {
 			throw new Error('Could not start interactive session');
 		}
 
 		this._widget.setModel(model, { ...this.viewState });
+		this.viewState.sessionId = model.sessionId;
 		this.modelDisposables.add(model.onDidDispose(() => {
 			this.updateModel();
 		}));
@@ -84,7 +90,8 @@ export class InteractiveSessionViewPane extends ViewPane {
 		}));
 		this._widget.render(parent);
 
-		this.updateModel(true);
+		const initialModel = this.viewState.sessionId ? this.interactiveSessionService.retrieveSession(this.viewState.sessionId) : undefined;
+		this.updateModel(initialModel);
 	}
 
 	acceptInput(query?: string): void {
