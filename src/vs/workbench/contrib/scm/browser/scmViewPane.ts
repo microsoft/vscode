@@ -356,7 +356,7 @@ interface ResourceTemplate {
 	fileLabel: IResourceLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
-	actionsContextType: 'resource' | 'folder' | undefined;
+	actionBarMenu: IMenu | undefined;
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
 }
@@ -420,7 +420,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const decorationIcon = append(element, $('.decoration-icon'));
 		const disposables = combinedDisposable(actionBar, fileLabel);
 
-		return { element, name, fileLabel, decorationIcon, actionBar, actionsContextType: undefined, elementDisposables: new DisposableStore(), disposables };
+		return { element, name, fileLabel, decorationIcon, actionBar, actionBarMenu: undefined, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
@@ -437,21 +437,21 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
-				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element!.resourceGroup.provider);
-				this._renderActionBar(template, resourceOrFolder, 'resource', menus.getResourceMenu(resourceOrFolder.element));
+				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
+				this._renderActionBar(template, resourceOrFolder, menus.getResourceMenu(resourceOrFolder.element));
 
 				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
 				strikethrough = resourceOrFolder.element.decorations.strikeThrough;
 			} else {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
-				this._renderActionBar(template, resourceOrFolder, 'folder', menus.getResourceFolderMenu(resourceOrFolder.context));
+				this._renderActionBar(template, resourceOrFolder, menus.getResourceFolderMenu(resourceOrFolder.context));
 
 				matches = createMatches(node.filterData as FuzzyScore | undefined);
 				template.element.classList.remove('faded');
 			}
 		} else {
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
-			this._renderActionBar(template, resourceOrFolder, 'resource', menus.getResourceMenu(resourceOrFolder));
+			this._renderActionBar(template, resourceOrFolder, menus.getResourceMenu(resourceOrFolder));
 
 			[matches, descriptionMatches] = this._processFilterData(uri, node.filterData);
 			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
@@ -499,7 +499,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		});
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(folder.context.provider);
-		this._renderActionBar(template, folder, 'folder', menus.getResourceFolderMenu(folder.context));
+		this._renderActionBar(template, folder, menus.getResourceFolderMenu(folder.context));
 
 		template.name.classList.remove('strike-through');
 		template.element.classList.remove('faded');
@@ -518,14 +518,14 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.disposables.dispose();
 	}
 
-	private _renderActionBar(template: ResourceTemplate, resourceOrFolder: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, actionsContextType: 'folder' | 'resource', menu: IMenu): void {
-		if (!template.actionsContextType || template.actionsContextType !== actionsContextType) {
+	private _renderActionBar(template: ResourceTemplate, resourceOrFolder: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, menu: IMenu): void {
+		if (!template.actionBarMenu || template.actionBarMenu !== menu) {
 			template.actionBar.clear();
 			template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
+			template.actionBarMenu = menu;
 		}
 
 		template.actionBar.context = resourceOrFolder;
-		template.actionsContextType = actionsContextType;
 	}
 
 	private _processFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
