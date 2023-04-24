@@ -20,9 +20,9 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	private readonly lastAcceptedPickerValues = new Map<IQuickAccessProviderDescriptor, string>();
 
 	private visibleQuickAccess: {
-		picker: IQuickPick<IQuickPickItem>;
-		descriptor: IQuickAccessProviderDescriptor | undefined;
-		value: string;
+		readonly picker: IQuickPick<IQuickPickItem>;
+		readonly descriptor: IQuickAccessProviderDescriptor | undefined;
+		readonly value: string;
 	} | undefined = undefined;
 
 	constructor(
