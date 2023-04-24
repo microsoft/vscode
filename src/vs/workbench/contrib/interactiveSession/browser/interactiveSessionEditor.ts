@@ -20,6 +20,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSessionEditorOptions extends IEditorOptions {
 	providerId: string;
@@ -61,12 +62,6 @@ export class InteractiveSessionEditor extends EditorPane {
 
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(InteractiveSessionWidget, { resource: true }, () => editorBackground, () => SIDE_BAR_BACKGROUND, () => SIDE_BAR_BACKGROUND));
-		this._register(this.widget.onDidChangeViewModel(() => {
-			// TODO replace with listening for model disposal
-			// This part is a bit odd. The widget's session and model will change. When that happens, store the latest session id
-			// on the EditorInput so that it can be restored when the editor moves or the window reloads.
-			(this.input! as InteractiveSessionEditorInput).sessionId = this.widget!.viewModel?.sessionId;
-		}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}
@@ -94,9 +89,22 @@ export class InteractiveSessionEditor extends EditorPane {
 			throw new Error('InteractiveSessionEditor lifecycle issue: no editor widget');
 		}
 
-		this._memento = new Memento('interactive-session-editor-' + editorModel.model.sessionId, this.storageService);
+		this.updateModel(editorModel.model, options);
+	}
+
+	private updateModel(model: IInteractiveSessionModel, options: IInteractiveSessionEditorOptions): void {
+		this._memento = new Memento('interactive-session-editor-' + model.sessionId, this.storageService);
 		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
-		this.widget.setModel(editorModel.model, { ...this._viewState });
+		this.widget.setModel(model, { ...this._viewState });
+		const listener = model.onDidDispose(() => {
+			// TODO go back to swapping out the EditorInput when the session is restarted instead of this listener
+			listener.dispose();
+			const newModel = this.interactiveSessionService.startSession(options.providerId, false, CancellationToken.None);
+			if (newModel) {
+				(this.input as InteractiveSessionEditorInput).sessionId = newModel.sessionId;
+				this.updateModel(newModel, options);
+			}
+		});
 	}
 
 	protected override saveState(): void {
