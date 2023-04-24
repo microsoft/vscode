@@ -6,7 +6,7 @@
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD, VS_HC_LIGHT_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD, VS_HC_LIGHT_THEME, ThemeSettingDefaults, COLOR_THEME_LIGHT_INITIAL_COLORS, COLOR_THEME_DARK_INITIAL_COLORS } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -587,22 +587,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	// constructors
 
 	static createUnloadedThemeForThemeType(themeType: ColorScheme, colorMap?: { [id: string]: string }): ColorThemeData {
-		if (!colorMap) {
-			if (themeType === ColorScheme.LIGHT) {
-				colorMap = {
-					'activityBar.background': '#f8f8f8',
-					'statusBar.background': '#f8f8f8',
-					'statusBar.noFolderBackground': '#f8f8f8'
-				};
-			} else {
-				colorMap = {
-					'activityBar.background': '#181818',
-					'statusBar.background': '#181818',
-					'statusBar.noFolderBackground': '#1f1f1f',
-				};
-			}
-
-		}
 		return ColorThemeData.createUnloadedTheme(getThemeTypeSelector(themeType), colorMap);
 	}
 
