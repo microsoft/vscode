@@ -69,7 +69,7 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	override async resolve(): Promise<InteractiveSessionEditorModel | null> {
 		const model = typeof this.sessionId === 'string' ?
 			this.interactiveSessionService.retrieveSession(this.sessionId) :
-			this.interactiveSessionService.startSession(this.options.providerId, false, CancellationToken.None);
+			this.interactiveSessionService.startSession(this.options.providerId, CancellationToken.None);
 
 		if (!model) {
 			return null;
