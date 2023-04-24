@@ -205,6 +205,7 @@ function initializeScroll(scrollableElement: HTMLElement, disposables: Disposabl
 		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
 		scrollableElement.addEventListener('scroll', onScrollHandler);
 		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
+		scrollableElement.tabIndex = 0;
 	}
 }
 
@@ -351,6 +352,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	}
 	#container div.output .scrollable.scrollbar-visible {
 		border-color: var(--vscode-editorWidget-border);
+	}
+	#container div.output .scrollable.scrollbar-visible:focus{
+		outline: 0;
+		border-color: var(--theme-input-focus-border-color);
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
