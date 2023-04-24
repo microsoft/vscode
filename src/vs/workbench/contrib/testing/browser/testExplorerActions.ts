@@ -838,9 +838,31 @@ export class ShowMostRecentOutputAction extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor) {
+	public async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const terminalOutputService = accessor.get(ITestingOutputTerminalService);
 		const result = accessor.get(ITestResultService).results[0];
-		accessor.get(ITestingOutputTerminalService).open(result);
+
+		if (!result.tasks.length) {
+			return;
+		}
+
+		let index = 0;
+		if (result.tasks.length > 1) {
+			const picked = await quickInputService.pick(
+				result.tasks.map((t, i) => ({ label: t.name || localize('testing.pickTaskUnnamed', "Run #{0}", i), index: i })),
+				{ placeHolder: localize('testing.pickTask', "Pick a run to show output for") }
+			);
+
+			if (!picked) {
+				return;
+			}
+
+			index = picked.index;
+		}
+
+
+		terminalOutputService.open(result, index);
 	}
 }
 
