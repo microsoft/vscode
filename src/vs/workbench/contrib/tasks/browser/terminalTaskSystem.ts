@@ -524,11 +524,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _executeTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
-		if (encounteredDependencies.has(task.getCommonTaskId())) {
-			this._showDependencyCycleMessage(task);
-			return Promise.resolve({});
-		}
-
 		this._showTaskLoadErrors(task);
 
 		const mapKey = task.getMapKey();
@@ -540,15 +535,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			alreadyResolved = alreadyResolved ?? new Map<string, string>();
 			const promises: Promise<ITaskSummary>[] = [];
 			if (task.configurationProperties.dependsOn) {
+				encounteredDependencies = new Set(encounteredDependencies).add(task.getCommonTaskId());
 				for (const dependency of task.configurationProperties.dependsOn) {
 					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 					if (dependencyTask) {
 						this._adoptConfigurationForDependencyTask(dependencyTask, task);
 						const key = dependencyTask.getMapKey();
-						let promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
+						let promise;
+						if (encounteredDependencies.has(dependencyTask.getCommonTaskId())) {
+							this._showDependencyCycleMessage(dependencyTask);
+							promise = Promise.resolve<ITaskSummary>({});
+						} else {
+							promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
+						}
 						if (!promise) {
 							this._fireTaskEvent(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
-							encounteredDependencies.add(task.getCommonTaskId());
 							promise = this._executeDependencyTask(dependencyTask, resolver, trigger, encounteredDependencies, alreadyResolved);
 						}
 						promises.push(promise);
@@ -575,7 +576,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 			if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
 				return Promise.all(promises).then((summaries): Promise<ITaskSummary> | ITaskSummary => {
-					encounteredDependencies.delete(task.getCommonTaskId());
 					for (const summary of summaries) {
 						if (summary.exitCode !== 0) {
 							this._removeInstances(task);
@@ -590,7 +590,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			} else {
 				return Promise.all(promises).then((summaries): ITaskSummary => {
-					encounteredDependencies.delete(task.getCommonTaskId());
 					for (const summary of summaries) {
 						if (summary.exitCode !== 0) {
 							return { exitCode: summary.exitCode };
