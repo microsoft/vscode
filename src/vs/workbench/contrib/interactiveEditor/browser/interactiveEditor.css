@@ -109,8 +109,12 @@
 	display: none;
 }
 
+.monaco-editor .interactive-editor .markdownMessage .message * {
+	margin: unset;
+}
+
 .monaco-editor .interactive-editor .markdownMessage .message {
-	margin: 0px;
+	margin-left: 5px;
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
 	overflow: hidden;

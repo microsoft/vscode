@@ -152,9 +152,6 @@ class InteractiveEditorWidget {
 
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
-
-	private _isLastStatusUpdateAMessage: boolean = false;
-
 	constructor(
 		parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
@@ -378,40 +375,24 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	updateMarkdownMessage(message: Node | null) {
-		if (!message) {
-			return false;
-		}
+	updateMarkdownMessage(message: Node) {
 		reset(this._elements.message, message);
 		this._elements.statusLabel.innerText = '';
 		this._elements.markdownMessage.classList.toggle('hidden', false);
-		this._isLastStatusUpdateAMessage = true;
-		delete this._elements.statusLabel.dataset['state'];
 		this._onDidChangeHeight.fire();
 		return true;
 	}
 
-	updateMessage(message: string, ops: { classes?: string[]; resetAfter?: number } = {}): boolean {
-		if (!message) {
-			return false;
-		}
+	updateStatus(message: string, ops: { classes?: string[]; resetAfter?: number; keepMessage?: boolean } = {}) {
 		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
-			const isLastMessageUpdated = this._isLastStatusUpdateAMessage;
 			const statusLabel = this._elements.statusLabel.innerText;
-			const markdownMessage = this._elements.message.firstChild;
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
-				let updateDone = false;
-				if (isLastMessageUpdated) {
-					updateDone = this.updateMarkdownMessage(markdownMessage);
-				} else {
-					updateDone = this.updateMessage(statusLabel, { classes });
-				}
-				if (!updateDone) {
-					reset(this._elements.statusLabel);
-				}
+				this.updateStatus(statusLabel, { classes, keepMessage: true });
 			}, ops.resetAfter);
+		} else if (!isTempMessage && !ops.keepMessage) {
+			this._elements.markdownMessage.classList.toggle('hidden', true);
 		}
 		this._elements.status.classList.toggle('hidden', false);
 		reset(this._elements.statusLabel, message);
@@ -421,10 +402,7 @@ class InteractiveEditorWidget {
 		} else {
 			delete this._elements.statusLabel.dataset['state'];
 		}
-		this._elements.markdownMessage.classList.toggle('hidden', true);
-		this._isLastStatusUpdateAMessage = false;
 		this._onDidChangeHeight.fire();
-		return true;
 	}
 
 	reset() {
