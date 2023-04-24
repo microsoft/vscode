@@ -59,6 +59,11 @@ const CORE_TYPES = [
 	'URL',
 	'URLSearchParams',
 	'ReadonlyArray',
+	'Event',
+	'EventTarget',
+	'BroadcastChannel',
+	'performance',
+	'Blob'
 ];
 
 // Types that are defined in a common layer but are known to be only
