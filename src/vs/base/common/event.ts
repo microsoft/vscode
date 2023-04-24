@@ -599,13 +599,13 @@ export namespace Event {
 		private _counter = 0;
 		private _hasChanged = false;
 
-		constructor(readonly obs: IObservable<T, any>, store: DisposableStore | undefined) {
+		constructor(readonly _observable: IObservable<T, any>, store: DisposableStore | undefined) {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
-					obs.addObserver(this);
+					_observable.addObserver(this);
 				},
 				onDidRemoveLastListener: () => {
-					obs.removeObserver(this);
+					_observable.removeObserver(this);
 				}
 			};
 			if (!store) {
@@ -618,27 +618,76 @@ export namespace Event {
 		}
 
 		beginUpdate<T>(_observable: IObservable<T, void>): void {
-			// console.assert(_observable === this.obs);
+			// assert(_observable === this.obs);
 			this._counter++;
 		}
 
+		handlePossibleChange<T>(_observable: IObservable<T, unknown>): void {
+			// assert(_observable === this.obs);
+		}
+
 		handleChange<T, TChange>(_observable: IObservable<T, TChange>, _change: TChange): void {
+			// assert(_observable === this.obs);
 			this._hasChanged = true;
 		}
 
 		endUpdate<T>(_observable: IObservable<T, void>): void {
-			if (--this._counter === 0) {
+			// assert(_observable === this.obs);
+			this._counter--;
+			if (this._counter === 0) {
+				this._observable.reportChanges();
 				if (this._hasChanged) {
 					this._hasChanged = false;
-					this.emitter.fire(this.obs.get());
+					this.emitter.fire(this._observable.get());
 				}
 			}
 		}
 	}
 
+	/**
+	 * Creates an event emitter that is fired when the observable changes.
+	 * Each listeners subscribes to the emitter.
+	 */
 	export function fromObservable<T>(obs: IObservable<T, any>, store?: DisposableStore): Event<T> {
 		const observer = new EmitterObserver(obs, store);
 		return observer.emitter.event;
+	}
+
+	/**
+	 * Each listener is attached to the observable directly.
+	 */
+	export function fromObservableLight(observable: IObservable<any>): Event<void> {
+		return (listener) => {
+			let count = 0;
+			let didChange = false;
+			const observer: IObserver = {
+				beginUpdate() {
+					count++;
+				},
+				endUpdate() {
+					count--;
+					if (count === 0) {
+						observable.reportChanges();
+						if (didChange) {
+							didChange = false;
+							listener();
+						}
+					}
+				},
+				handlePossibleChange() {
+					// noop
+				},
+				handleChange() {
+					didChange = true;
+				}
+			};
+			observable.addObserver(observer);
+			return {
+				dispose() {
+					observable.removeObserver(observer);
+				}
+			};
+		};
 	}
 }
 

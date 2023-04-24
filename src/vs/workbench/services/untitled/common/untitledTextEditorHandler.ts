@@ -17,8 +17,8 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 
 interface ISerializedUntitledTextEditorInput {
 	resourceJSON: UriComponents;
@@ -83,36 +83,42 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 	}
 }
 
-export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
 	constructor(
-		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
+		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IPathService private readonly pathService: IPathService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
 
-		this.installHandler();
+		this._register(workingCopyEditorService.registerHandler(this));
 	}
 
-	private installHandler(): void {
-		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.resource.scheme === Schemas.untitled && workingCopy.typeId === NO_TYPE_ID,
-			isOpen: (workingCopy, editor) => editor instanceof UntitledTextEditorInput && isEqual(workingCopy.resource, editor.resource),
-			createEditor: workingCopy => {
-				let editorInputResource: URI;
+	handles(workingCopy: IWorkingCopyIdentifier): boolean {
+		return workingCopy.resource.scheme === Schemas.untitled && workingCopy.typeId === NO_TYPE_ID;
+	}
 
-				// If the untitled has an associated resource,
-				// ensure to restore the local resource it had
-				if (isUntitledWithAssociatedResource(workingCopy.resource)) {
-					editorInputResource = toLocalResource(workingCopy.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
-				} else {
-					editorInputResource = workingCopy.resource;
-				}
+	isOpen(workingCopy: IWorkingCopyIdentifier, editor: EditorInput): boolean {
+		if (!this.handles(workingCopy)) {
+			return false;
+		}
 
-				return this.textEditorService.createTextEditor({ resource: editorInputResource, forceUntitled: true });
-			}
-		}));
+		return editor instanceof UntitledTextEditorInput && isEqual(workingCopy.resource, editor.resource);
+	}
+
+	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
+		let editorInputResource: URI;
+
+		// If the untitled has an associated resource,
+		// ensure to restore the local resource it had
+		if (isUntitledWithAssociatedResource(workingCopy.resource)) {
+			editorInputResource = toLocalResource(workingCopy.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+		} else {
+			editorInputResource = workingCopy.resource;
+		}
+
+		return this.textEditorService.createTextEditor({ resource: editorInputResource, forceUntitled: true });
 	}
 }

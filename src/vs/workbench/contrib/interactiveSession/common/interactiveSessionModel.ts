@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInteractiveProgress, IInteractiveResponse, IInteractiveResponseErrorDetails, IInteractiveSession, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
@@ -100,10 +101,14 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._errorDetails;
 	}
 
+	public get providerId(): string {
+		return this._session.providerId;
+	}
+
 	constructor(
 		private _response: IMarkdownString,
+		private readonly _session: InteractiveSessionModel,
 		public readonly username: string,
-		public readonly providerId: string,
 		public readonly avatarIconUri?: URI,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
@@ -151,7 +156,7 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 export interface IInteractiveSessionModel {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IInteractiveSessionChangeEvent>;
-	readonly sessionId: number;
+	readonly sessionId: string;
 	readonly providerId: string;
 	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
 	readonly requestInProgress: boolean;
@@ -175,6 +180,8 @@ export interface ISerializableInteractiveSessionRequestData {
 }
 
 export interface ISerializableInteractiveSessionData {
+	sessionId: string;
+	// welcomeMessage: string | undefined;
 	requests: ISerializableInteractiveSessionRequestData[];
 	requesterUsername: string;
 	responderUsername: string;
@@ -201,8 +208,6 @@ export interface IInteractiveSessionClearEvent {
 }
 
 export class InteractiveSessionModel extends Disposable implements IInteractiveSessionModel {
-	private static nextId = 0;
-
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
@@ -227,8 +232,10 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return this._providerState;
 	}
 
-	private _sessionId = InteractiveSessionModel.nextId++;
-	get sessionId(): number {
+	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
+	// It's easier to be able to identify this model before its async initialization is complete
+	private _sessionId: string;
+	get sessionId(): string {
 		return this._sessionId;
 	}
 
@@ -247,6 +254,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this._sessionId = initialData ? initialData.sessionId : generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._providerState = initialData ? initialData.providerState : undefined;
 	}
@@ -261,24 +269,31 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
 			const request = new InteractiveRequestModel(raw.message, obj.requesterUsername, obj.requesterAvatarIconUri && URI.revive(obj.requesterAvatarIconUri));
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), obj.responderUsername, this.providerId, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri), true, raw.isCanceled, raw.vote, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this, obj.responderUsername, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri), true, raw.isCanceled, raw.vote, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
 	}
 
 	initialize(session: IInteractiveSession, welcomeMessage: InteractiveSessionWelcomeMessageModel | undefined): void {
+		if (this._session) {
+			throw new Error('InteractiveSessionModel is already initialized');
+		}
+
 		this._session = session;
 		this._welcomeMessage = welcomeMessage;
 		this._isInitializedDeferred.complete();
+
+		if (session.onDidChangeState) {
+			this._register(session.onDidChangeState(state => {
+				this._providerState = state;
+				this.logService.trace('InteractiveSessionModel#acceptNewSessionState');
+			}));
+		}
 	}
 
 	waitForInitialization(): Promise<void> {
 		return this._isInitializedDeferred.p;
-	}
-
-	acceptNewProviderState(providerState: any): void {
-		this._providerState = providerState;
 	}
 
 	clear(): void {
@@ -297,7 +312,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 
 		const request = new InteractiveRequestModel(message, this._session.requesterUsername, this._session.requesterAvatarIconUri);
-		request.response = new InteractiveResponseModel(new MarkdownString(''), this._session.responderUsername, this.providerId, this._session.responderAvatarIconUri);
+		request.response = new InteractiveResponseModel(new MarkdownString(''), this, this._session.responderUsername, this._session.responderAvatarIconUri);
 
 		this._requests.push(request);
 		this._onDidChange.fire({ kind: 'addRequest', request });
@@ -310,7 +325,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 
 		if (!request.response) {
-			request.response = new InteractiveResponseModel(new MarkdownString(''), this._session.responderUsername, this.providerId, this._session.responderAvatarIconUri);
+			request.response = new InteractiveResponseModel(new MarkdownString(''), this, this._session.responderUsername, this._session.responderAvatarIconUri);
 		}
 
 		if (request.response.isComplete) {
@@ -336,7 +351,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 
 		if (!request.response) {
-			request.response = new InteractiveResponseModel(new MarkdownString(''), this._session.responderUsername, this.providerId, this._session.responderAvatarIconUri);
+			request.response = new InteractiveResponseModel(new MarkdownString(''), this, this._session.responderUsername, this._session.responderAvatarIconUri);
 		}
 
 		request.response.complete(rawResponse.errorDetails);
@@ -358,10 +373,12 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 	toJSON(): ISerializableInteractiveSessionData {
 		return {
+			sessionId: this.sessionId,
 			requesterUsername: this._session!.requesterUsername,
 			requesterAvatarIconUri: this._session!.requesterAvatarIconUri,
 			responderUsername: this._session!.responderUsername,
 			responderAvatarIconUri: this._session!.responderAvatarIconUri,
+			// welcomeMessage: this._welcomeMessage,
 			requests: this._requests.map((r): ISerializableInteractiveSessionRequestData => {
 				return {
 					providerResponseId: r.response?.providerResponseId,
@@ -383,7 +400,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
 		if (!this._isInitializedDeferred.isSettled) {
-			this._isInitializedDeferred.error(new Error('model disposed'));
+			this._isInitializedDeferred.error(new Error('model disposed before initialization'));
 		}
 
 		super.dispose();

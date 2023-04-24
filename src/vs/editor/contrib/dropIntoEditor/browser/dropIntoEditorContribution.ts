@@ -7,31 +7,40 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { DocumentOnDropEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { PostDropWidgetManager } from 'vs/editor/contrib/dropIntoEditor/browser/postDropWidget';
+import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
+import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
+import { PostDropWidgetManager, changeDropTypeCommandId, dropWidgetVisibleCtx } from 'vs/editor/contrib/dropIntoEditor/browser/postDropWidget';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
+import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { localize } from 'vs/nls';
+import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { registerDefaultDropProviders } from './defaultOnDropProviders';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
-import { localize } from 'vs/nls';
 
 
 export class DropIntoEditorController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.dropIntoEditorController';
+
+	public static get(editor: ICodeEditor): DropIntoEditorController | null {
+		return editor.getContribution<DropIntoEditorController>(DropIntoEditorController.ID);
+	}
 
 	private operationIdPool = 0;
 	private _currentOperation?: { readonly id: number; readonly promise: CancelablePromise<void> };
@@ -39,21 +48,32 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	private readonly _dropProgressManager: InlineProgressManager;
 	private readonly _postDropWidgetManager: PostDropWidgetManager;
 
+	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
+
 	constructor(
 		editor: ICodeEditor,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ITreeViewsDnDService private readonly _treeViewsDragAndDropService: ITreeViewsDnDService,
 	) {
 		super();
 
-		this._dropProgressManager = this._register(new InlineProgressManager('dropIntoEditor', editor, instantiationService));
-		this._postDropWidgetManager = this._register(new PostDropWidgetManager(editor, instantiationService));
+		this._dropProgressManager = this._register(instantiationService.createInstance(InlineProgressManager, 'dropIntoEditor', editor));
+		this._postDropWidgetManager = this._register(instantiationService.createInstance(PostDropWidgetManager, editor));
 
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 
 		registerDefaultDropProviders(this._languageFeaturesService, workspaceContextService);
+	}
+
+	public clearWidgets() {
+		this._postDropWidgetManager.clear();
+	}
+
+	public changeDropType() {
+		this._postDropWidgetManager.changeExistingDropType();
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
@@ -126,9 +146,24 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			return new VSDataTransfer();
 		}
 
-		const textEditorDataTransfer = toVSDataTransfer(dragEvent.dataTransfer);
-		addExternalEditorsDropData(textEditorDataTransfer, dragEvent);
-		return textEditorDataTransfer;
+		const dataTransfer = toVSDataTransfer(dragEvent.dataTransfer);
+		addExternalEditorsDropData(dataTransfer, dragEvent);
+
+		if (this.treeItemsTransfer.hasData(DraggedTreeItemsIdentifier.prototype)) {
+			const data = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype);
+			if (Array.isArray(data)) {
+				for (const id of data) {
+					const treeDataTransfer = await this._treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
+					if (treeDataTransfer) {
+						for (const [type, value] of treeDataTransfer.entries()) {
+							dataTransfer.replace(type, value);
+						}
+					}
+				}
+			}
+		}
+
+		return dataTransfer;
 	}
 
 	private async applyDropResult(editor: ICodeEditor, position: IPosition, selectedEditIndex: number, allEdits: readonly DocumentOnDropEdit[], token: CancellationToken): Promise<void> {
@@ -181,3 +216,20 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 }
 
 registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.BeforeFirstInteraction);
+
+registerEditorCommand(new class extends EditorCommand {
+	constructor() {
+		super({
+			id: changeDropTypeCommandId,
+			precondition: dropWidgetVisibleCtx,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Period,
+			}
+		});
+	}
+
+	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, _args: any) {
+		DropIntoEditorController.get(editor)?.changeDropType();
+	}
+});

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { toAction } from 'vs/base/common/actions';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { PixelRatio } from 'vs/base/browser/browser';
-import { runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
@@ -39,6 +41,7 @@ import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } fro
 import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -668,7 +671,17 @@ export class NotebookService extends Disposable implements INotebookService {
 	async withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo> {
 		const selected = this.notebookProviderInfoStore.get(viewType);
 		if (!selected) {
-			throw new Error(`UNKNOWN notebook type '${viewType}'`);
+			const knownProvider = this.getViewTypeProvider(viewType);
+
+			const actions = knownProvider ? [
+				toAction({
+					id: 'workbench.notebook.action.installMissingViewType', label: localize('notebookOpenInstallMissingViewType', "Install extension for '{0}'", viewType), run: async () => {
+						await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
+					}
+				})
+			] : [];
+
+			throw createErrorWithActions(`UNKNOWN notebook type '${viewType}'`, actions);
 		}
 		await this.canResolve(selected.id);
 		const result = this._notebookProviders.get(selected.id);
@@ -679,13 +692,8 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 
-	private _persistSoonHandle?: IDisposable;
-
 	private _persistMementos(): void {
-		this._persistSoonHandle?.dispose();
-		this._persistSoonHandle = runWhenIdle(() => {
-			this._memento.saveMemento();
-		}, 100);
+		this._memento.saveMemento();
 	}
 
 	getViewTypeProvider(viewType: string): string | undefined {

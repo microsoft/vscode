@@ -744,7 +744,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			}
 
 			// TODO@joyceerhl debt: don't store working changes as a child of the folder
-			folders.push({ workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined, absoluteUri: workspaceFolder?.toString() });
+			folders.push({ workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined, absoluteUri: workspaceFolder?.uri.toString() });
 		}
 
 		// Look through all registered contributions to gather additional state

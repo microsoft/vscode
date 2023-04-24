@@ -26,6 +26,8 @@ declare module 'vscode' {
 		 * List of data transfer types that the provider supports.
 		 *
 		 * This can either be an exact mime type such as `image/png`, or a wildcard pattern such as `image/*`.
+		 *
+		 * Use `files` to indicate that the provider should be invoked if any {@link DataTransferFile files} are present in the {@link DataTransfer}.
 		 */
 		readonly dropMimeTypes: readonly string[];
 	}

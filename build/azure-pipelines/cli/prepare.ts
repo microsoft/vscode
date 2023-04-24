@@ -51,8 +51,8 @@ const setLauncherEnvironmentVars = () => {
 		['VSCODE_CLI_DOCUMENTATION_URL', product.documentationUrl],
 		['VSCODE_CLI_APPLICATION_NAME', product.applicationName],
 		['VSCODE_CLI_EDITOR_WEB_URL', product.tunnelApplicationConfig?.editorWebUrl],
-		['VSCODE_CLI_TUNNEL_SERVICE_MUTEX', product.tunnelApplicationConfig?.win32TunnelServiceMutex],
-		['VSCODE_CLI_TUNNEL_CLI_MUTEX', product.tunnelApplicationConfig?.win32TunnelMutex],
+		['VSCODE_CLI_TUNNEL_SERVICE_MUTEX', product.win32TunnelServiceMutex],
+		['VSCODE_CLI_TUNNEL_CLI_MUTEX', product.win32TunnelMutex],
 		['VSCODE_CLI_COMMIT', commit],
 		[
 			'VSCODE_CLI_WIN32_APP_IDS',

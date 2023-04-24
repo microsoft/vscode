@@ -6,7 +6,7 @@
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { EnvironmentVariableMutatorType, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentVariableMutator, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -16,7 +16,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 registerActiveInstanceAction({
 	id: TerminalCommandId.ShowEnvironmentContributions,
 	title: { value: localize('workbench.action.terminal.showEnvironmentContributions', "Show Environment Contributions"), original: 'Show Environment Contributions' },
-	run: async (activeInstance, c, accessor) => {
+	run: async (activeInstance, c, accessor, scope) => {
 		const collection = activeInstance.extEnvironmentVariableCollection;
 		if (collection) {
 			const editorService = accessor.get(IEditorService);
@@ -24,7 +24,7 @@ registerActiveInstanceAction({
 				resource: URI.from({
 					scheme: Schemas.untitled
 				}),
-				contents: describeEnvironmentChanges(collection),
+				contents: describeEnvironmentChanges(collection, scope as EnvironmentVariableScope | undefined),
 				languageId: 'markdown'
 			});
 		}
@@ -32,16 +32,33 @@ registerActiveInstanceAction({
 });
 
 
-function describeEnvironmentChanges(collection: IMergedEnvironmentVariableCollection): string {
+function describeEnvironmentChanges(collection: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined): string {
 	let content = `# ${localize('envChanges', 'Terminal Environment Changes')}`;
 	for (const [ext, coll] of collection.collections) {
 		content += `\n\n## ${localize('extension', 'Extension: {0}', ext)}`;
 		content += '\n';
-		for (const [variable, mutator] of coll.map.entries()) {
-			content += `\n- \`${mutatorTypeLabel(mutator.type, mutator.value, variable)}\``;
+		for (const [_, mutator] of coll.map.entries()) {
+			if (filterScope(mutator, scope) === false) {
+				continue;
+			}
+			content += `\n- \`${mutatorTypeLabel(mutator.type, mutator.value, mutator.variable)}\``;
 		}
 	}
 	return content;
+}
+
+function filterScope(
+	mutator: IEnvironmentVariableMutator,
+	scope: EnvironmentVariableScope | undefined
+): boolean {
+	if (!mutator.scope) {
+		return true;
+	}
+	// Only mutators which are applicable on the relevant workspace should be shown.
+	if (mutator.scope.workspaceFolder && scope?.workspaceFolder && mutator.scope.workspaceFolder.index === scope.workspaceFolder.index) {
+		return true;
+	}
+	return false;
 }
 
 function mutatorTypeLabel(type: EnvironmentVariableMutatorType, value: string, variable: string): string {

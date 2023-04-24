@@ -62,9 +62,11 @@ declare module 'vscode' {
 
 	interface DocumentPasteProviderMetadata {
 		/**
-		 * Mime types that `provideDocumentPasteEdits` should be invoked for.
+		 * Mime types that {@link DocumentPasteEditProvider.provideDocumentPasteEdits provideDocumentPasteEdits} should be invoked for.
 		 *
-		 * Use the special `files` mimetype to indicate the provider should be invoked if any files are present in the `DataTransfer`.
+		 * This can either be an exact mime type such as `image/png`, or a wildcard pattern such as `image/*`.
+		 *
+		 * Use `files` to indicate that the provider should be invoked if any {@link DataTransferFile files} are present in the {@link DataTransfer}..
 		 */
 		readonly pasteMimeTypes: readonly string[];
 	}

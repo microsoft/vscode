@@ -57,11 +57,11 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 	Mimes.latex,
 	Mimes.markdown,
 	'application/json',
-	Mimes.text,
 	'text/html',
 	'image/svg+xml',
 	'image/png',
 	'image/jpeg',
+	Mimes.text,
 ];
 
 /**
@@ -944,7 +944,7 @@ export const NotebookSetting = {
 	outputFontSize: 'notebook.output.fontSize',
 	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
 	outputFontFamily: 'notebook.output.fontFamily',
-	experimentalFindInMarkdownMode: 'notebook.experimental.findInMarkdownMode',
+	findScope: 'notebook.find.scope',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 } as const;

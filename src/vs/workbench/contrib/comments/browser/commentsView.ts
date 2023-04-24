@@ -191,6 +191,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 
 		this._register(this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this));
 		this._register(this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
+		this._register(this.commentService.onDidDeleteDataProvider(this.onDataProviderDeleted, this));
 
 		const styleElement = dom.createStyleSheet(container);
 		this.applyStyles(styleElement);
@@ -468,6 +469,14 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		if (didUpdate) {
 			this.refresh();
 		}
+	}
+
+	private onDataProviderDeleted(owner: string | undefined): void {
+		this.cachedFilterStats = undefined;
+		this.commentsModel.deleteCommentsByOwner(owner);
+
+		this.totalComments = 0;
+		this.refresh();
 	}
 
 	private updateSomeCommentsExpanded() {

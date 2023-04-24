@@ -321,7 +321,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 				const cell = this._notebookEditor.cellAt(i);
 
 				if (cell.getEditState() === CellEditState.Editing && cell.editStateSource === 'find') {
-					cell.updateEditState(CellEditState.Preview, 'find');
+					cell.updateEditState(CellEditState.Preview, 'closeFind');
 				}
 			}
 		}

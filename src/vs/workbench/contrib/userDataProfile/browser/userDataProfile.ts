@@ -27,7 +27,9 @@ import { getErrorMessage } from 'vs/base/common/errors';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IProfileTemplateInfo } from 'vs/base/common/product';
+import { IRequestService, asJson } from 'vs/platform/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const CREATE_EMPTY_PROFILE_ACTION_ID = 'workbench.profiles.actions.createEmptyProfile';
 const CREATE_EMPTY_PROFILE_ACTION_TITLE = {
@@ -40,6 +42,11 @@ const CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE = {
 	value: localize('save profile as', "Create from Current Profile..."),
 	original: 'Create from Current Profile...'
 };
+
+interface IProfileTemplateInfo {
+	readonly name: string;
+	readonly url: string;
+}
 
 type IProfileTemplateQuickPickItem = IQuickPickItem & IProfileTemplateInfo;
 
@@ -62,6 +69,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IProductService private readonly productService: IProductService,
+		@IRequestService private readonly requestService: IRequestService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -484,12 +493,12 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 				const quickPickItems: QuickPickItem[] = [{
 					id: CREATE_EMPTY_PROFILE_ACTION_ID,
-					label: CREATE_EMPTY_PROFILE_ACTION_TITLE.value,
+					label: localize('empty', "Empty Profile"),
 				}, {
 					id: CREATE_FROM_CURRENT_PROFILE_ACTION_ID,
-					label: CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE.value,
+					label: localize('using current', "Using Current Profile"),
 				}];
-				const profileTemplateQuickPickItems = that.getProfileTemplatesQuickPickItems();
+				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
 				if (profileTemplateQuickPickItems.length) {
 					quickPickItems.push({
 						type: 'separator',
@@ -500,13 +509,22 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					{
 						hideInput: true,
 						canPickMany: false,
-						title: localize('create profile title', "{0}: Create...", PROFILES_CATEGORY.value)
+						title: localize('create profile title', "Create Profile...")
 					});
 				if (pick) {
 					if (pick.id) {
 						return commandService.executeCommand(pick.id);
 					}
 					if ((<IProfileTemplateQuickPickItem>pick).url) {
+						type ProfileCreationFromTemplateActionClassification = {
+							owner: 'sandy081';
+							comment: 'Report profile creation from template action';
+							profileName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the profile created from template' };
+						};
+						type ProfileCreationFromTemplateActionEvent = {
+							profileName: string;
+						};
+						that.telemetryService.publicLog2<ProfileCreationFromTemplateActionEvent, ProfileCreationFromTemplateActionClassification>('profileCreationAction:builtinTemplate', { profileName: (<IProfileTemplateQuickPickItem>pick).name });
 						const uri = URI.parse((<IProfileTemplateQuickPickItem>pick).url);
 						return userDataProfileImportExportService.importProfile(uri);
 					}
@@ -589,13 +607,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const quickInputService = accessor.get(IQuickInputService);
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 				const notificationService = accessor.get(INotificationService);
-				const profileTemplateQuickPickItems = that.getProfileTemplatesQuickPickItems();
+				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
 				if (profileTemplateQuickPickItems.length) {
 					const pick = await quickInputService.pick(profileTemplateQuickPickItems,
 						{
 							hideInput: true,
 							canPickMany: false,
-							title: localize('create profile title', "{0}: Create...", PROFILES_CATEGORY.value)
+							title: localize('create profile from template title', "{0}: Create...", PROFILES_CATEGORY.value)
 						});
 					if ((<IProfileTemplateQuickPickItem>pick)?.url) {
 						const uri = URI.parse((<IProfileTemplateQuickPickItem>pick).url);
@@ -626,17 +644,32 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		}));
 	}
 
-	private getProfileTemplatesQuickPickItems(): IProfileTemplateQuickPickItem[] {
+	private async getProfileTemplatesQuickPickItems(): Promise<IProfileTemplateQuickPickItem[]> {
 		const quickPickItems: IProfileTemplateQuickPickItem[] = [];
-		if (this.productService.profileTemplates) {
-			for (const template of this.productService.profileTemplates) {
-				quickPickItems.push({
-					label: localize('create from template', "Create {0} Profile...", template.name),
-					...template
-				});
-			}
+		const profileTemplates = await this.getProfileTemplatesFromProduct();
+		for (const template of profileTemplates) {
+			quickPickItems.push({
+				label: template.name,
+				...template
+			});
 		}
 		return quickPickItems;
+	}
+
+	private async getProfileTemplatesFromProduct(): Promise<IProfileTemplateInfo[]> {
+		if (this.productService.profileTemplatesUrl) {
+			try {
+				const context = await this.requestService.request({ type: 'GET', url: this.productService.profileTemplatesUrl }, CancellationToken.None);
+				if (context.res.statusCode === 200) {
+					return (await asJson<IProfileTemplateInfo[]>(context)) || [];
+				} else {
+					this.logService.error('Could not get profile templates.', context.res.statusCode);
+				}
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+		return [];
 	}
 
 	private async reportWorkspaceProfileInfo(): Promise<void> {

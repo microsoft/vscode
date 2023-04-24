@@ -124,54 +124,45 @@ export class FindModel extends Disposable {
 		}
 
 		// we only update cell state if users are using the hybrid mode (both input and preview are enabled)
-		const updateEditingState = (editing: boolean) => {
+		const updateEditingState = () => {
 			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
 			if (!viewModel) {
 				return;
 			}
+			// search markup sources first to decide if a markup cell should be in editing mode
+			const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
+			const options: INotebookSearchOptions = {
+				regex: this._state.isRegex,
+				wholeWord: this._state.wholeWord,
+				caseSensitive: this._state.matchCase,
+				wordSeparators: wordSeparators,
+				includeMarkupInput: true,
+				includeCodeInput: false,
+				includeMarkupPreview: false,
+				includeOutput: false
+			};
 
-			if (!editing) {
-				for (let i = 0; i < viewModel.length; i++) {
-					const cell = viewModel.cellAt(i);
-					if (cell && cell.cellKind === CellKind.Markup) {
-						cell.updateEditState(CellEditState.Preview, 'Find');
-					}
-				}
-			} else {
-				// search markup sources first to decide if a markup cell should be in editing mode
-				const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
-				const options: INotebookSearchOptions = {
-					regex: this._state.isRegex,
-					wholeWord: this._state.wholeWord,
-					caseSensitive: this._state.matchCase,
-					wordSeparators: wordSeparators,
-					includeMarkupInput: true,
-					includeCodeInput: false,
-					includeMarkupPreview: false,
-					includeOutput: false
-				};
-
-				const contentMatches = viewModel.find(this._state.searchString, options);
-				for (let i = 0; i < viewModel.length; i++) {
-					const cell = viewModel.cellAt(i);
-					if (cell && cell.cellKind === CellKind.Markup) {
-						const foundContentMatch = contentMatches.find(m => m.cell.handle === cell.handle && m.contentMatches.length > 0);
-						cell.updateEditState(foundContentMatch ? CellEditState.Editing : CellEditState.Preview, 'Find');
+			const contentMatches = viewModel.find(this._state.searchString, options);
+			for (let i = 0; i < viewModel.length; i++) {
+				const cell = viewModel.cellAt(i);
+				if (cell && cell.cellKind === CellKind.Markup) {
+					const foundContentMatch = contentMatches.find(m => m.cell.handle === cell.handle && m.contentMatches.length > 0);
+					const targetState = foundContentMatch ? CellEditState.Editing : CellEditState.Preview;
+					if (cell.getEditState() !== targetState) {
+						cell.updateEditState(targetState, 'find');
 					}
 				}
 			}
 		};
 
+		if (this._state.replaceString.length === 0) {
+			return;
+		}
+
 		if (e.isReplaceRevealed) {
-			updateEditingState(this._state.replaceString.length > 0);
-		}
-
-		if (e.isRevealed && !this._state.isRevealed && this._state.isReplaceRevealed) {
-			updateEditingState(false);
-		}
-
-		if ((e.searchString || e.replaceString) && this._state.isRevealed && this._state.isReplaceRevealed && this._state.replaceString.length > 0) {
-			updateEditingState(true);
+			updateEditingState();
+		} else if ((e.filters || e.isRevealed || e.searchString || e.replaceString) && this._state.isRevealed && this._state.isReplaceRevealed) {
+			updateEditingState();
 		}
 	}
 
@@ -272,7 +263,9 @@ export class FindModel extends Disposable {
 			}
 		} else {
 			const match = findMatch.getMatch(matchIndex) as FindMatch;
-			findMatch.cell.updateEditState(CellEditState.Editing, 'find');
+			if (findMatch.cell.getEditState() !== CellEditState.Editing) {
+				findMatch.cell.updateEditState(CellEditState.Editing, 'find');
+			}
 			findMatch.cell.isInputCollapsed = false;
 			this._notebookEditor.focusElement(findMatch.cell);
 			this._notebookEditor.setCellEditorSelection(findMatch.cell, match.range);

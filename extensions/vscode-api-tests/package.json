@@ -25,6 +25,7 @@
     "portsAttributes",
     "quickPickSortByLabel",
     "resolvers",
+    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",

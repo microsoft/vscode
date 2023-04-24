@@ -566,6 +566,12 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		});
 	}
 
+	public computeDefaultDocumentColors(resource: URI): Promise<languages.IColorInformation[] | null> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			return proxy.computeDefaultDocumentColors(resource.toString());
+		});
+	}
+
 	public async textualSuggest(resources: URI[], leadingWord: string | undefined, wordDefRegExp: RegExp): Promise<{ words: string[]; duration: number } | null> {
 		const proxy = await this._withSyncedResources(resources);
 		const wordDef = wordDefRegExp.source;

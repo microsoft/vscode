@@ -506,7 +506,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 	protected _onExtensionHostExit(code: number): void {
 		// Dispose everything associated with the extension host
-		this.stopExtensionHosts();
+		this._doStopExtensionHosts();
 
 		// Dispose the management connection to avoid reconnecting after the extension host exits
 		const connection = this._remoteAgentService.getConnection();
@@ -799,8 +799,13 @@ class RestartExtensionHostAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IExtensionService).restartExtensionHost();
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const extensionService = accessor.get(IExtensionService);
+
+		const stopped = await extensionService.stopExtensionHosts();
+		if (stopped) {
+			extensionService.startExtensionHosts();
+		}
 	}
 }
 
