@@ -658,7 +658,7 @@ export class TunnelModel extends Disposable {
 				await this.storeForwarded();
 				await this.showPortMismatchModalIfNeeded(tunnel, localPort, attributes);
 				this._onForwardPort.fire(newForward);
-				if (this.unrestoredExtensionTunnels?.has(key)) {
+				if (this.unrestoredExtensionTunnels.has(key)) {
 					const updateProps = this.unrestoredExtensionTunnels.get(key);
 					this.unrestoredExtensionTunnels.delete(key);
 					if (updateProps) {
