@@ -27,6 +27,7 @@ export function isWelcomeVM(item: unknown): item is IInteractiveWelcomeMessageVi
 }
 
 export interface IInteractiveSessionViewModel {
+	readonly providerId: string;
 	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<void>;
@@ -102,6 +103,10 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 
 	get requestInProgress(): boolean {
 		return this._model.requestInProgress;
+	}
+
+	get providerId() {
+		return this._model.providerId;
 	}
 
 	constructor(

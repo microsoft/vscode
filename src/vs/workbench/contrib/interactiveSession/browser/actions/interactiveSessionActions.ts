@@ -8,7 +8,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-// import { CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -20,6 +19,7 @@ import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveS
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -155,7 +155,11 @@ export function registerInteractiveSessionActions() {
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const widgetService = accessor.get(IInteractiveSessionWidgetService);
-			await widgetService.lastFocusedWidget?.clear();
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			const sessionId = widgetService.lastFocusedWidget?.viewModel?.sessionId;
+			if (sessionId) {
+				interactiveSessionService.clearSession(sessionId);
+			}
 		}
 	});
 }

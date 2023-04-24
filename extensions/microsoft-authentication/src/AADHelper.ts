@@ -169,7 +169,7 @@ export class AzureActiveDirectoryService {
 				"login" : {
 					"owner": "TylerLeonhardt",
 					"comment": "Used to determine the usage of the Microsoft Auth Provider.",
-					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
+					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." },
 					"accountType": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what account types are being used." }
 				}
 			*/
