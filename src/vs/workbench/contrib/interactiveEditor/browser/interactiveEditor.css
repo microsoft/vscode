@@ -58,7 +58,6 @@
 .monaco-editor .interactive-editor .body .content .input .editor-container {
 	vertical-align: middle;
 }
-
 .monaco-editor .interactive-editor .body .toolbar {
 	display: flex;
 	flex-direction: column;
@@ -106,12 +105,7 @@
 	padding-left: 10px;
 }
 
-/* the below does not work, how to unset the paragraph css ? */
-.monaco-editor .interactive-editor .markdownMessage > * {
-	margin: unset
-}
-
-.monaco-editor .interactive-editor .markdownMessage {
+.monaco-editor .interactive-editor .markdownMessage .message {
 	margin: 0px;
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
@@ -119,7 +113,7 @@
 	display: -webkit-box;
 }
 
-.monaco-editor .interactive-editor .markdownActions > * {
+.monaco-editor .interactive-editor .markdownMessage .messageActions {
 	direction: rtl;
 }
 

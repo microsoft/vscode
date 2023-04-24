@@ -517,7 +517,6 @@ export class ViewInChatAction extends AbstractInteractiveEditorAction {
 			}
 		});
 	}
-
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
 		ctrl.viewInChat();
 	}

@@ -791,8 +791,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	feedbackLast(helpful: boolean) {
-		console.log('inside of feedback last');
-		console.log('this._currentSession?.lastResponse : ', this._currentSession?.lastResponse);
 		if (this._currentSession?.lastResponse) {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
 			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastResponse instanceof EditResponse ? this._currentSession.lastResponse.raw : this._currentSession.lastResponse, kind);

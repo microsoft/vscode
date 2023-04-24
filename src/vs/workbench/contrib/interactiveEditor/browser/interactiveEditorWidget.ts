@@ -37,6 +37,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
+import { IAction } from 'vs/base/common/actions';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -119,8 +121,10 @@ class InteractiveEditorWidget {
 				h('div.actions.hidden@statusToolbar'),
 				h('div.label@statusLabel')
 			]),
-			h('div.markdownMessage@markdownMessage'),
-			h('div.markdownActions@markdownMessageToolbar'),
+			h('div.markdownMessage@markdownMessage', [
+				h('div.message@message'),
+				h('div.messageActions@messageActions')
+			]),
 		]
 	);
 
@@ -149,7 +153,7 @@ class InteractiveEditorWidget {
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
 
-	private _isLastStatusUpdateMessage: boolean = false;
+	private _isLastStatusUpdateAMessage: boolean = false;
 
 	constructor(
 		parentEditor: ICodeEditor,
@@ -208,15 +212,15 @@ class InteractiveEditorWidget {
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
 
-		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, {
+		const workbenchToolbarOptions = {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: {
 				primaryGroup: () => true,
 				useSeparatorsInPrimaryActions: true
 			},
-			actionViewItemProvider: (action, options) => createActionViewItem(this._instantiationService, action, options)
-		});
-
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => createActionViewItem(this._instantiationService, action, options)
+		};
+		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, workbenchToolbarOptions);
 		this._historyStore.add(statusToolbar);
 
 		// preview editors
@@ -225,20 +229,13 @@ class InteractiveEditorWidget {
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
-		this._elements.markdownMessage.tabIndex = 0;
-		this._elements.markdownMessage.setAttribute('aria-label', 'Copilot Inline Message');
-		this._elements.markdownMessage.setAttribute('role', 'alert');
+		this._elements.message.tabIndex = 0;
+		this._elements.message.setAttribute('aria-label', 'Copilot Inline Message');
+		this._elements.message.setAttribute('role', 'alert');
 		this._elements.statusLabel.tabIndex = 0;
 		this._elements.statusLabel.setAttribute('aria-label', 'Copilot Status Update');
 		this._elements.statusLabel.setAttribute('role', 'alert');
-		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.markdownMessageToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			toolbarOptions: {
-				primaryGroup: () => true,
-				useSeparatorsInPrimaryActions: true
-			},
-			actionViewItemProvider: (action, options) => createActionViewItem(this._instantiationService, action, options)
-		});
+		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
 		this._historyStore.add(markdownMessageToolbar);
 	}
 
@@ -278,7 +275,7 @@ class InteractiveEditorWidget {
 	getHeight(): number {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this.inputEditor.getContentHeight() + 12 /* padding and border */;
-		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage) + getTotalHeight(this._elements.markdownMessageToolbar);
+		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage);
 		const previewDiffHeight = this._previewDiffEditor.getModel().modified ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
@@ -381,46 +378,38 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	updateMarkdownMessage(message: HTMLElement) {
-		console.log('inside of update markdown message');
-		console.log('message : ', message);
+	updateMarkdownMessage(message: Node | null) {
+		if (!message) {
+			return false;
+		}
+		reset(this._elements.message, message);
 		this._elements.statusLabel.innerText = '';
-		reset(this._elements.markdownMessage, message);
-		this._elements.markdownMessage.style.display = '-webkit-box';
-		this._isLastStatusUpdateMessage = true;
+		this._elements.message.style.display = '-webkit-box';
+		this._isLastStatusUpdateAMessage = true;
 		this._onDidChangeHeight.fire();
+		return true;
 	}
 
-	updateMessage(message: string | HTMLElement, ops: { classes?: string[]; resetAfter?: number } = {}) {
-		console.log('inside of update message');
-		console.log('message : ', message);
-		console.log('ops : ', ops);
-
+	updateMessage(message: string, ops: { classes?: string[]; resetAfter?: number } = {}): boolean {
+		if (!message) {
+			return false;
+		}
 		const isTempMessage = typeof ops.resetAfter === 'number';
-		console.log('isTempMessage : ', isTempMessage);
-		console.log('this._elements.statusLabel.dataset[state] : ', this._elements.statusLabel.dataset['state']);
-
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
-			const isLastMessageUpdated = this._isLastStatusUpdateMessage;
-			console.log('isLastMessageUpdated : ', isLastMessageUpdated);
-			const messageNow = isLastMessageUpdated ? this._elements.markdownMessage.firstChild : this._elements.statusLabel.innerText;
-			console.log('messageNow : ', messageNow);
+			const isLastMessageUpdated = this._isLastStatusUpdateAMessage;
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
-				if (messageNow) {
-					console.log('right before the second update');
-					console.log('isLastMessageUpdated : ', isLastMessageUpdated);
-					if (isLastMessageUpdated) {
-						this.updateMarkdownMessage(messageNow as HTMLElement);
-					} else {
-						this.updateMessage(messageNow as string, { ...ops, classes });
-					}
+				let updateDone = false;
+				if (isLastMessageUpdated) {
+					updateDone = this.updateMarkdownMessage(this._elements.message.firstChild);
 				} else {
+					updateDone = this.updateMessage(this._elements.statusLabel.innerText, { ...ops, classes });
+				}
+				if (!updateDone) {
 					reset(this._elements.statusLabel);
 				}
 			}, ops.resetAfter);
 		}
-
 		this._elements.status.classList.toggle('hidden', false);
 		reset(this._elements.statusLabel, message);
 		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
@@ -429,9 +418,10 @@ class InteractiveEditorWidget {
 		} else {
 			delete this._elements.statusLabel.dataset['state'];
 		}
-		this._elements.markdownMessage.style.display = 'none';
-		this._isLastStatusUpdateMessage = false;
+		this._elements.message.style.display = 'none';
+		this._isLastStatusUpdateAMessage = false;
 		this._onDidChangeHeight.fire();
+		return true;
 	}
 
 	reset() {
