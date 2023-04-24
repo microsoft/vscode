@@ -17,8 +17,11 @@ import { fetching } from './node/fetch';
 const CLIENT_ID = '01ab8ac9400c4e429b23';
 const GITHUB_TOKEN_URL = 'https://vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
 
-const TIMED_OUT_ERROR = 'Timed out';
+// This is the error message that we throw if the login was cancelled for any reason. Extensions
+// calling `getSession` can handle this error to know that the user cancelled the login.
 const CANCELLATION_ERROR = 'Cancelled';
+// These error messages are internal and should not be shown to the user in any way.
+const TIMED_OUT_ERROR = 'Timed out';
 const USER_CANCELLATION_ERROR = 'User Cancelled';
 const NETWORK_ERROR = 'network error';
 
