@@ -158,6 +158,7 @@ export interface IInteractiveSessionModel {
 	readonly onDidChange: Event<IInteractiveSessionChangeEvent>;
 	readonly sessionId: string;
 	readonly providerId: string;
+	// readonly title: string;
 	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
@@ -181,6 +182,7 @@ export interface ISerializableInteractiveSessionRequestData {
 
 export interface ISerializableInteractiveSessionData {
 	sessionId: string;
+	creationDate: number;
 	welcomeMessage: (string | IInteractiveSessionReplyFollowup[])[] | undefined;
 	requests: ISerializableInteractiveSessionRequestData[];
 	requesterUsername: string;
@@ -248,6 +250,8 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
 	}
 
+	private _creationDate: number;
+
 	constructor(
 		public readonly providerId: string,
 		initialData: ISerializableInteractiveSessionData | undefined,
@@ -257,6 +261,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		this._sessionId = initialData ? initialData.sessionId : generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._providerState = initialData ? initialData.providerState : undefined;
+		this._creationDate = initialData?.creationDate ?? Date.now();
 	}
 
 	private _deserialize(obj: ISerializableInteractiveSessionData): InteractiveRequestModel[] {
@@ -383,6 +388,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	toJSON(): ISerializableInteractiveSessionData {
 		return {
 			sessionId: this.sessionId,
+			creationDate: this._creationDate,
 			requesterUsername: this._session!.requesterUsername,
 			requesterAvatarIconUri: this._session!.requesterAvatarIconUri,
 			responderUsername: this._session!.responderUsername,

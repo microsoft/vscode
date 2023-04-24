@@ -12,6 +12,7 @@ import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
@@ -19,7 +20,7 @@ import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveS
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionDetail, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -178,7 +179,7 @@ export function getOpenInteractiveSessionEditorAction(id: string, label: string,
 
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({ resource: InteractiveSessionEditorInput.getNewEditorUri(), options: <IInteractiveSessionEditorOptions>{ providerId: id, pinned: true } });
+			await editorService.openEditor({ resource: InteractiveSessionEditorInput.getNewEditorUri(), options: <IInteractiveSessionEditorOptions>{ target: { providerId: id }, pinned: true } });
 		}
 	};
 }
@@ -209,6 +210,50 @@ export function getClearAction(viewId: string, providerId: string) {
 
 		async runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
 			await view.clear();
+		}
+	};
+}
+
+const getHistoryInteractiveSessionActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
+	viewId,
+	id: `workbench.action.interactiveSession.${providerId}.history`,
+	title: {
+		value: localize('interactiveSession.history.label', "Show History"),
+		original: 'Show History'
+	},
+	menu: {
+		id: MenuId.ViewTitle,
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.has('config.interactive.experimental.chatHistory')),
+		group: 'navigation',
+		order: 0
+	},
+	category: INTERACTIVE_SESSION_CATEGORY,
+	icon: Codicon.history,
+	f1: false
+});
+
+export function getHistoryAction(viewId: string, providerId: string) {
+	return class HistoryAction extends ViewAction<InteractiveSessionViewPane> {
+		constructor() {
+			super(getHistoryInteractiveSessionActionDescriptorForViewTitle(viewId, providerId));
+		}
+
+		async runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			const quickInputService = accessor.get(IQuickInputService);
+			const editorService = accessor.get(IEditorService);
+			const items = interactiveSessionService.getHistory();
+			const picks = items.map(i => (<IQuickPickItem & { interactiveSession: IInteractiveSessionDetail }>{
+				label: i.title,
+				interactiveSession: i
+			}));
+			const selection = await quickInputService.pick(picks, { placeHolder: localize('interactiveSession.history.pick', "Select a chat session to restore") });
+			if (selection) {
+				const sessionId = selection.interactiveSession.sessionId;
+				await editorService.openEditor({
+					resource: InteractiveSessionEditorInput.getNewEditorUri(), options: <IInteractiveSessionEditorOptions>{ target: { sessionId }, pinned: true }
+				});
+			}
 		}
 	};
 }

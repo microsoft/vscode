@@ -20,7 +20,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveSessionWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveProviderInfo, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveProviderInfo, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDetail, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -143,7 +143,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	private saveState(): void {
 		let allSessions: (InteractiveSessionModel | ISerializableInteractiveSessionData)[] = Array.from(this._sessionModels.values())
 			.filter(session => session.getRequests().length > 0);
-		allSessions = allSessions.concat(Object.values(this._persistedSessions));
+		allSessions = allSessions.concat(
+			Object.values(this._persistedSessions).filter(session => session.requests.length));
 		this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
 
 		const serialized = JSON.stringify(allSessions);
@@ -207,6 +208,18 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			this.error('deserializeInteractiveSessions', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
 			return {};
 		}
+	}
+
+	getHistory(): IInteractiveSessionDetail[] {
+		const sessions = Object.values(this._persistedSessions);
+		sessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
+
+		return sessions.map(item => {
+			return <IInteractiveSessionDetail>{
+				sessionId: item.sessionId,
+				title: item.requests[0]?.message || '',
+			};
+		});
 	}
 
 	startSession(providerId: string, token: CancellationToken): InteractiveSessionModel {
@@ -473,6 +486,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
+		this._persistedSessions[sessionId] = model.toJSON();
 		model.dispose();
 		this._sessionModels.delete(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();

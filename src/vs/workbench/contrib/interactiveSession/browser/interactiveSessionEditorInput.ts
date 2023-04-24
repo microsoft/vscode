@@ -22,7 +22,9 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	static count = 0;
 
 	private readonly inputCount: number;
+	public model: IInteractiveSessionModel | undefined;
 	public sessionId: string | undefined;
+	public providerId: string | undefined;
 
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
@@ -32,7 +34,6 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	constructor(
 		readonly resource: URI,
 		readonly options: IInteractiveSessionEditorOptions,
-		initialSessionId: string | undefined,
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService
 	) {
 		super();
@@ -42,7 +43,8 @@ export class InteractiveSessionEditorInput extends EditorInput {
 			throw new Error('Invalid interactive session URI');
 		}
 
-		this.sessionId = initialSessionId;
+		this.sessionId = 'sessionId' in options.target ? options.target.sessionId : undefined;
+		this.providerId = 'providerId' in options.target ? options.target.providerId : undefined;
 		this.inputCount = InteractiveSessionEditorInput.count++;
 	}
 
@@ -69,7 +71,7 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	override async resolve(): Promise<InteractiveSessionEditorModel | null> {
 		const model = typeof this.sessionId === 'string' ?
 			this.interactiveSessionService.retrieveSession(this.sessionId) :
-			this.interactiveSessionService.startSession(this.options.providerId, CancellationToken.None);
+			this.interactiveSessionService.startSession(this.providerId!, CancellationToken.None);
 
 		if (!model) {
 			return null;
@@ -78,6 +80,13 @@ export class InteractiveSessionEditorInput extends EditorInput {
 		await model.waitForInitialization();
 		this.sessionId = model.sessionId;
 		return new InteractiveSessionEditorModel(model);
+	}
+
+	override dispose(): void {
+		super.dispose();
+		if (this.sessionId) {
+			this.interactiveSessionService.clearSession(this.sessionId);
+		}
 	}
 }
 
@@ -142,7 +151,6 @@ export namespace InteractiveSessionUri {
 interface ISerializedInteractiveSessionEditorInput {
 	options: IInteractiveSessionEditorOptions;
 	resource: URI;
-	sessionId: string;
 }
 
 export class InteractiveSessionEditorInputSerializer implements IEditorSerializer {
@@ -161,8 +169,7 @@ export class InteractiveSessionEditorInputSerializer implements IEditorSerialize
 
 		const obj: ISerializedInteractiveSessionEditorInput = {
 			options: input.options,
-			resource: input.resource,
-			sessionId: input.sessionId
+			resource: input.resource
 		};
 		return JSON.stringify(obj);
 	}
@@ -171,7 +178,7 @@ export class InteractiveSessionEditorInputSerializer implements IEditorSerialize
 		try {
 			const parsed: ISerializedInteractiveSessionEditorInput = JSON.parse(serializedEditor);
 			const resource = URI.revive(parsed.resource);
-			return instantiationService.createInstance(InteractiveSessionEditorInput, resource, parsed.options as IInteractiveSessionEditorOptions, parsed.sessionId);
+			return instantiationService.createInstance(InteractiveSessionEditorInput, resource, parsed.options as IInteractiveSessionEditorOptions);
 		} catch (err) {
 			return undefined;
 		}
