@@ -20,7 +20,7 @@ use super::{
 use crate::{
 	async_pipe::socket_stream_split,
 	auth::Auth,
-	constants::APPLICATION_NAME,
+	constants::{APPLICATION_NAME, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
 	json_rpc::{new_json_rpc, start_json_rpc},
 	log,
 	singleton::connect_as_client,
@@ -37,6 +37,7 @@ use crate::{
 		Next, ServiceContainer, ServiceManager,
 	},
 	util::{
+		app_lock::AppMutex,
 		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
@@ -148,6 +149,7 @@ pub async fn service(
 			manager.show_logs().await?;
 		}
 		TunnelServiceSubCommands::InternalRun => {
+			let _lock = TUNNEL_SERVICE_LOCK_NAME.map(AppMutex::new);
 			manager
 				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
 				.await?;
@@ -188,7 +190,7 @@ pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Resul
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
 	dt.rename_tunnel(&rename_args.name).await?;
-	ctx.log.result(&format!(
+	ctx.log.result(format!(
 		"Successfully renamed this gateway to {}",
 		&rename_args.name
 	));
@@ -285,7 +287,7 @@ pub async fn prune(ctx: CommandContext) -> Result<i32, AnyError> {
 		.filter(|s| s.get_running_pid().is_none())
 		.try_for_each(|s| {
 			ctx.log
-				.result(&format!("Deleted {}", s.server_dir.display()));
+				.result(format!("Deleted {}", s.server_dir.display()));
 			s.delete()
 		})
 		.map_err(AnyError::from)?;
@@ -384,6 +386,7 @@ async fn serve_with_csa(
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	let _lock = TUNNEL_CLI_LOCK_NAME.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);

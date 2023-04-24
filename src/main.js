@@ -246,10 +246,8 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 	});
 
-	/* Following features are disabled from the runtime.
-	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
-	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
-	 */
+	// Following features are disabled from the runtime:
+	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 	// Support JS Flags
@@ -441,11 +439,6 @@ function getJSFlags(cliArgs) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'] ?? '')) {
-		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
-	}
-
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
@@ -460,7 +453,6 @@ function parseCLIArgs() {
 			'user-data-dir',
 			'locale',
 			'js-flags',
-			'max-memory',
 			'crash-reporter-directory'
 		]
 	});

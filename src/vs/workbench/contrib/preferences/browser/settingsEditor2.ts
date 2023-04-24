@@ -109,6 +109,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
 		'@tag:notebookLayout',
+		'@tag:notebookOutputLayout',
 		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
 		`@tag:${WORKSPACE_TRUST_SETTING_TAG}`,
 		'@tag:sync',
@@ -1554,6 +1555,8 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (!this.searchResultModel) {
 				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
+				// Must be called before this.renderTree()
+				// to make sure the search results count is set.
 				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.currentSearchModel = this.searchResultModel;
 				this.onSearchModeToggled();
@@ -1595,9 +1598,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.rootElement.classList.remove('no-results');
 			this.splitView.el.style.visibility = 'visible';
 			return;
-		}
-
-		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
+		} else {
 			const count = this.searchResultModel.getUniqueResultsCount();
 			let resultString: string;
 			switch (count) {

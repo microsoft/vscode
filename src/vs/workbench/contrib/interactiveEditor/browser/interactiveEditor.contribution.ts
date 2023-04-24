@@ -5,15 +5,15 @@
 
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
+import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
 import * as interactiveEditorActions from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorActions';
-import { IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorService, INTERACTIVE_EDITOR_ID } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { InteractiveEditorServiceImpl } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditorServiceImpl';
 
 registerSingleton(IInteractiveEditorService, InteractiveEditorServiceImpl, InstantiationType.Delayed);
 
-registerEditorContribution(InteractiveEditorController.ID, InteractiveEditorController, EditorContributionInstantiation.Lazy);
+registerEditorContribution(INTERACTIVE_EDITOR_ID, InteractiveEditorController, EditorContributionInstantiation.Lazy);
 
 registerAction2(interactiveEditorActions.StartSessionAction);
 registerAction2(interactiveEditorActions.MakeRequestAction);
@@ -31,5 +31,6 @@ registerAction2(interactiveEditorActions.UndoCommand);
 registerAction2(interactiveEditorActions.ToggleInlineDiff);
 registerAction2(interactiveEditorActions.FeebackHelpfulCommand);
 registerAction2(interactiveEditorActions.FeebackUnhelpfulCommand);
+registerAction2(interactiveEditorActions.ApplyPreviewEdits);
 
 registerAction2(interactiveEditorActions.CopyRecordings);

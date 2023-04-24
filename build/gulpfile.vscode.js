@@ -191,7 +191,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	platform = platform || process.platform;
 
 	return () => {
-		const electron = require('gulp-atom-electron');
+		const electron = require('@vscode/gulp-electron');
 		const json = require('gulp-json-editor');
 
 		const out = sourceFolderName;
@@ -335,7 +335,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
-			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: true }))
+			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: false }))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version'], { dot: true }));
 
 		if (platform === 'linux') {

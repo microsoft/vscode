@@ -54,7 +54,8 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IIssueMainService, IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
+import { IIssueMainService } from 'vs/platform/issue/common/issue';
+import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -1221,7 +1222,7 @@ export class CodeApplication extends Disposable {
 		const win32MutexName = this.productService.win32MutexName;
 		if (isWindows && win32MutexName) {
 			try {
-				const WindowsMutex = await import('windows-mutex');
+				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);
 				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
 			} catch (error) {

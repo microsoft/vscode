@@ -260,6 +260,11 @@ export interface IWorkbenchConstructionOptions {
 	//#region Profile options
 
 	/**
+	 * Profile to use for the workbench.
+	 */
+	readonly profile?: { readonly name: string; readonly contents?: string | UriComponents };
+
+	/**
 	 * URI of the profile to preview.
 	 */
 	readonly profileToPreview?: UriComponents;
@@ -709,7 +714,23 @@ export interface ISettingsSyncOptions {
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
-	enablementHandler?(enablement: boolean): void;
+	enablementHandler?(enablement: boolean, authenticationProvider: string): void;
+
+	/**
+	 * Authentication provider
+	 */
+	readonly authenticationProvider?: {
+		/**
+		 * Unique identifier of the authentication provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * Called when the user wants to signin to Settings Sync using the given authentication provider.
+		 * The returned promise should resolve to the authentication session id.
+		 */
+		signIn(): Promise<string>;
+	};
 }
 
 export interface IDevelopmentOptions {

@@ -196,7 +196,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 	) {
 		super();
 
-		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => {
+		this.extensionHostRestarter = this._register(new RunOnceScheduler(async () => {
 			if (!!environmentService.extensionTestsLocationURI) {
 				return; // no restart when in tests: see https://github.com/microsoft/vscode/issues/66936
 			}
@@ -204,7 +204,10 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			if (environmentService.remoteAuthority) {
 				hostService.reload(); // TODO@aeschli, workaround
 			} else if (isNative) {
-				extensionService.restartExtensionHost();
+				const stopped = await extensionService.stopExtensionHosts();
+				if (stopped) {
+					extensionService.startExtensionHosts();
+				}
 			}
 		}, 10));
 

@@ -20,9 +20,9 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	private readonly lastAcceptedPickerValues = new Map<IQuickAccessProviderDescriptor, string>();
 
 	private visibleQuickAccess: {
-		picker: IQuickPick<IQuickPickItem>;
-		descriptor: IQuickAccessProviderDescriptor | undefined;
-		value: string;
+		readonly picker: IQuickPick<IQuickPickItem>;
+		readonly descriptor: IQuickAccessProviderDescriptor | undefined;
+		readonly value: string;
 	} | undefined = undefined;
 
 	constructor(
@@ -106,9 +106,6 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		}
 		picker.contextKey = descriptor?.contextKey;
 		picker.filterValue = (value: string) => value.substring(descriptor ? descriptor.prefix.length : 0);
-		if (descriptor?.placeholder) {
-			picker.ariaLabel = descriptor?.placeholder;
-		}
 
 		// Pick mode: setup a promise that can be resolved
 		// with the selected items and prevent execution

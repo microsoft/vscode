@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IInteractiveEditorSession, IInteractiveEditorRequest, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorSession, IInteractiveEditorRequest, InteractiveEditorResponseFeedbackKind, InteractiveEditorResponseType } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveEditorShape, IInteractiveEditorResponseDto, IMainContext, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -122,7 +122,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 				return {
 					...stub,
 					id,
-					type: 'message',
+					type: InteractiveEditorResponseType.Message,
 					message: typeConvert.MarkdownString.from(res.contents),
 				};
 			}
@@ -132,7 +132,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 				return {
 					...stub,
 					id,
-					type: 'bulkEdit',
+					type: InteractiveEditorResponseType.BulkEdit,
 					edits: typeConvert.WorkspaceEdit.from(edits),
 				};
 
@@ -140,7 +140,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 				return {
 					...stub,
 					id,
-					type: 'editorEdit',
+					type: InteractiveEditorResponseType.EditorEdit,
 					edits: edits.map(typeConvert.TextEdit.from),
 				};
 			}

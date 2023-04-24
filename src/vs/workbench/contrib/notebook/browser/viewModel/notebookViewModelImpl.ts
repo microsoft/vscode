@@ -33,7 +33,7 @@ import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCells
 import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
@@ -44,13 +44,13 @@ class DecorationsTree {
 		this._decorationsTree = new IntervalTree();
 	}
 
-	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
-		const r1 = this._decorationsTree.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
+	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean = false): IntervalNode[] {
+		const r1 = this._decorationsTree.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
 		return r1;
 	}
 
-	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
-		return this._decorationsTree.search(filterOwnerId, filterOutValidation, cachedVersionId);
+	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+		return this._decorationsTree.search(filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
 
 	}
 
@@ -320,7 +320,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}));
 
-		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
+		this._register(notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type !== NotebookExecutionType.cell) {
+				return;
+			}
 			const cell = this.getCellByHandle(e.cellHandle);
 
 			if (cell instanceof CodeCellViewModel) {
@@ -919,7 +922,25 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		});
 
-		return matches;
+		// filter based on options and editing state
+
+		return matches.filter(match => {
+			if (match.cell.cellKind === CellKind.Code) {
+				// code cell, we only include its match if include input is enabled
+				return options.includeCodeInput;
+			}
+
+			// markup cell, it depends on the editing state
+			if (match.cell.getEditState() === CellEditState.Editing) {
+				// editing, even if we includeMarkupPreview
+				return options.includeMarkupInput;
+			} else {
+				// cell in preview mode, we should only include it if includeMarkupPreview is false but includeMarkupInput is true
+				// if includeMarkupPreview is true, then we should include the webview match result other than this
+				return !options.includeMarkupPreview && options.includeMarkupInput;
+			}
+		}
+		);
 	}
 
 	replaceOne(cell: ICellViewModel, range: Range, text: string): Promise<void> {

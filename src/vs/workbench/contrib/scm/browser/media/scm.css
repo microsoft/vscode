@@ -276,18 +276,22 @@
 .scm-view .scm-editor-container.synthetic-focus,
 .monaco-workbench .part.panel .scm-view .scm-editor-container.synthetic-focus {
 	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .scm-view .scm-editor-container.validation-info {
 	outline: 1px solid var(--vscode-inputValidation-infoBorder) !important;
+	outline-offset: -1px;
 }
 
 .scm-view .scm-editor-container.validation-warning {
 	outline: 1px solid var(--vscode-inputValidation-warningBorder) !important;
+	outline-offset: -1px;
 }
 
 .scm-view .scm-editor-container.validation-error {
 	outline: 1px solid var(--vscode-inputValidation-errorBorder) !important;
+	outline-offset: -1px;
 }
 
 .scm-editor-validation-container {
@@ -296,6 +300,8 @@
 	border-width: 1px;
 	border-style: solid;
 	border-top: none;
+	border-bottom-left-radius: 2px;
+	border-bottom-right-radius: 2px;
 	padding: 2px;
 }
 

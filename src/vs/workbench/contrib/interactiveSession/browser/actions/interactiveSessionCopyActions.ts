@@ -33,8 +33,8 @@ export function registerInteractiveSessionCopyActions() {
 			const interactiveWidgetService = accessor.get(IInteractiveSessionWidgetService);
 			const widget = interactiveWidgetService.lastFocusedWidget;
 			if (widget) {
-				const model = widget.getModel();
-				const sessionAsText = model?.getItems()
+				const viewModel = widget.viewModel;
+				const sessionAsText = viewModel?.getItems()
 					.map(stringifyItem)
 					.join('\n\n');
 				if (sessionAsText) {

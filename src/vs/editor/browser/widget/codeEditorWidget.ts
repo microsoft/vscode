@@ -976,6 +976,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		this._modelData.viewModel.viewLayout.setScrollPosition(position, scrollType);
 	}
+	public hasPendingScrollAnimation(): boolean {
+		if (!this._modelData) {
+			return false;
+		}
+		return this._modelData.viewModel.viewLayout.hasPendingScrollAnimation();
+	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState | null {
 		if (!this._modelData) {
@@ -2236,7 +2242,7 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		this.set([]);
 	}
 
-	public set(newDecorations: IModelDeltaDecoration[]): void {
+	public set(newDecorations: readonly IModelDeltaDecoration[]): string[] {
 		try {
 			this._isChangingDecorations = true;
 			this._editor.changeDecorations((accessor) => {
@@ -2245,6 +2251,7 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		} finally {
 			this._isChangingDecorations = false;
 		}
+		return this._decorationIds;
 	}
 }
 
