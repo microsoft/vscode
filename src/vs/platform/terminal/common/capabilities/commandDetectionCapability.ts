@@ -407,7 +407,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		if (!this._currentCommand.commandStartMarker || !this._currentCommand.commandExecutedMarker || this._currentCommand.commandStartX === undefined) {
 			return;
 		}
-
+		// commit
 		// Calculate the command
 		this._currentCommand.command = this.__isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
 		let y = this._currentCommand.commandStartMarker.line + 1;
