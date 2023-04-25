@@ -5,28 +5,17 @@
 
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
-import { bufferToStream, newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
-import { Lazy } from 'vs/base/common/lazy';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { HydratedTestResult, LiveTestResult, makeEmptyCounts, resultItemParents, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { InMemoryResultStorage, ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
+import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
+import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { getInitializedMainTestCollection, testStubs, TestTestCollection } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-
-export const emptyOutputController = () => new LiveOutputController(
-	new Lazy(() => [newWriteableBufferStream(), Promise.resolve()]),
-	() => Promise.resolve(bufferToStream(VSBuffer.alloc(0))),
-	() => Promise.resolve(VSBuffer.alloc(0)),
-);
 
 suite('Workbench - Test Results Service', () => {
 	const getLabelsIn = (it: Iterable<TestResultItem>) => [...it].map(t => t.item.label).sort();
@@ -57,7 +46,6 @@ suite('Workbench - Test Results Service', () => {
 		changed = new Set();
 		r = new TestLiveTestResult(
 			'foo',
-			emptyOutputController(),
 			true,
 			defaultOpts(['id-a']),
 		);
@@ -92,7 +80,6 @@ suite('Workbench - Test Results Service', () => {
 		test('is empty if no tests are yet present', async () => {
 			assert.deepStrictEqual(getLabelsIn(new TestLiveTestResult(
 				'foo',
-				emptyOutputController(),
 				false,
 				defaultOpts(['id-a']),
 			).tests), []);
@@ -254,7 +241,6 @@ suite('Workbench - Test Results Service', () => {
 
 			const r2 = results.push(new LiveTestResult(
 				'',
-				emptyOutputController(),
 				false,
 				defaultOpts([]),
 			));
@@ -267,7 +253,6 @@ suite('Workbench - Test Results Service', () => {
 			results.push(r);
 			const r2 = results.push(new LiveTestResult(
 				'',
-				emptyOutputController(),
 				false,
 				defaultOpts([]),
 			));
@@ -291,7 +276,7 @@ suite('Workbench - Test Results Service', () => {
 				computedState: state,
 				ownComputedState: state,
 			}]
-		}, () => Promise.resolve(bufferToStream(VSBuffer.alloc(0))), () => Promise.resolve(VSBuffer.alloc(0)));
+		});
 
 		test('pushes hydrated results', async () => {
 			results.push(r);
@@ -330,64 +315,29 @@ suite('Workbench - Test Results Service', () => {
 	});
 
 	suite('output controller', () => {
-
-		const disposables = new DisposableStore();
-		const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
-		let storage: TestResultStorage;
-
-		setup(() => {
-			const logService = new NullLogService();
-			const fileService = disposables.add(new FileService(logService));
-			const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-			disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
-
-			storage = new TestResultStorage(
-				new TestStorageService(),
-				new NullLogService(),
-				{ getWorkspace: () => ({ id: 'test' }) } as any,
-				fileService,
-				{ workspaceStorageHome: ROOT } as any
-			);
-		});
-
-		teardown(() => disposables.clear());
-
 		test('reads live output ranges', async () => {
-			const ctrl = storage.getOutputController('a');
+			const ctrl = new TaskRawOutput();
 
 			ctrl.append(VSBuffer.fromString('12345'));
 			ctrl.append(VSBuffer.fromString('67890'));
 			ctrl.append(VSBuffer.fromString('12345'));
 			ctrl.append(VSBuffer.fromString('67890'));
 
-			assert.deepStrictEqual(await ctrl.getRange(0, 5), VSBuffer.fromString('12345'));
-			assert.deepStrictEqual(await ctrl.getRange(5, 5), VSBuffer.fromString('67890'));
-			assert.deepStrictEqual(await ctrl.getRange(7, 6), VSBuffer.fromString('890123'));
-			assert.deepStrictEqual(await ctrl.getRange(15, 5), VSBuffer.fromString('67890'));
-			assert.deepStrictEqual(await ctrl.getRange(15, 10), VSBuffer.fromString('67890'));
+			assert.deepStrictEqual(ctrl.getRange(0, 5), VSBuffer.fromString('12345'));
+			assert.deepStrictEqual(ctrl.getRange(5, 5), VSBuffer.fromString('67890'));
+			assert.deepStrictEqual(ctrl.getRange(7, 6), VSBuffer.fromString('890123'));
+			assert.deepStrictEqual(ctrl.getRange(15, 5), VSBuffer.fromString('67890'));
+			assert.deepStrictEqual(ctrl.getRange(15, 10), VSBuffer.fromString('67890'));
 		});
 
 		test('corrects offsets for marked ranges', async () => {
-			const ctrl = storage.getOutputController('a');
+			const ctrl = new TaskRawOutput();
 
 			const a1 = ctrl.append(VSBuffer.fromString('12345'), 1);
 			const a2 = ctrl.append(VSBuffer.fromString('67890'), 1234);
 
-			assert.deepStrictEqual(await ctrl.getRange(a1.offset, 5), VSBuffer.fromString('12345'));
-			assert.deepStrictEqual(await ctrl.getRange(a2.offset, 5), VSBuffer.fromString('67890'));
-		});
-
-		test('reads stored output ranges', async () => {
-			const ctrl = storage.getOutputController('a');
-
-			ctrl.append(VSBuffer.fromString('12345'));
-			ctrl.append(VSBuffer.fromString('67890'));
-			ctrl.append(VSBuffer.fromString('12345'));
-			ctrl.append(VSBuffer.fromString('67890'));
-			await ctrl.close();
-
-			// sanity:
-			assert.deepStrictEqual(await ctrl.getRange(0, 5), VSBuffer.fromString('12345'));
+			assert.deepStrictEqual(ctrl.getRange(a1, 5), VSBuffer.fromString('12345'));
+			assert.deepStrictEqual(ctrl.getRange(a2, 5), VSBuffer.fromString('67890'));
 		});
 	});
 });
