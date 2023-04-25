@@ -313,8 +313,11 @@ class FunctionData {
 		this.replacementName = fileIdents.next(node.getSourceFile());
 	}
 
-	get start() {
-		return this.node.name!.getStart();
+	get locations(): Iterable<{ fileName: string; offset: number }> {
+		return [{
+			fileName: this.fileName,
+			offset: this.node.name!.getStart()
+		}];
 	}
 
 	shouldMangle(newName: string): boolean {
@@ -350,8 +353,14 @@ class ConstData {
 		this.replacementName = fileIdents.next(statement.getSourceFile());
 	}
 
-	get start() {
-		return this.decl.name.getStart();
+	get locations(): Iterable<{ fileName: string; offset: number }> {
+		// If the const aliases any types, we need to rename those too
+		const definitionResult = this.service.getDefinitionAndBoundSpan(this.decl.getSourceFile().fileName, this.decl.name.getStart());
+		if (definitionResult?.definitions && definitionResult.definitions.length > 1) {
+			return definitionResult.definitions.map(x => ({ fileName: x.fileName, offset: x.textSpan.start }));
+		}
+
+		return [{ fileName: this.fileName, offset: this.decl.name.getStart() }];
 	}
 
 	shouldMangle(newName: string): boolean {
@@ -367,13 +376,6 @@ class ConstData {
 
 		// Don't mangle functions in some files
 		if (skippedFiles.some(file => this.decl.getSourceFile().fileName.endsWith(file))) {
-			return false;
-		}
-
-		// Don't mangle if the variable is also a type
-		// TODO: relax this, but we need to then rename the types too
-		const definitionResult = this.service.getDefinitionAndBoundSpan(this.decl.getSourceFile().fileName, this.decl.name.getStart());
-		if ((definitionResult?.definitions?.length ?? 0) > 1) {
 			return false;
 		}
 
@@ -633,9 +635,11 @@ export class Mangler {
 			}
 
 			const newText = data.replacementName;
-			const locations = this.service.findRenameLocations(data.fileName, data.start, false, false, true) ?? [];
-			for (const loc of locations) {
-				appendRename(newText, loc);
+			for (const { fileName, offset } of data.locations) {
+				const locations = this.service.findRenameLocations(fileName, offset, false, false, true) ?? [];
+				for (const loc of locations) {
+					appendRename(newText, loc);
+				}
 			}
 		}
 
