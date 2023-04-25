@@ -300,6 +300,9 @@ const skippedFiles = [
 
 	// Generated
 	'extensionsApiProposals.ts',
+
+	// Module passed around as type
+	'pfs.ts',
 ];
 
 class DeclarationData {
