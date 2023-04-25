@@ -20,7 +20,7 @@
         "path": "./themes/dark_plus.json"
       },
       {
-        "id": "Default Dark+ Experimental",
+        "id": "Default Dark Modern",
         "label": "%darkPlusExperimentalColorThemeLabel%",
         "uiTheme": "vs-dark",
         "path": "./themes/dark_plus_experimental.json"
@@ -32,7 +32,7 @@
         "path": "./themes/light_plus.json"
       },
       {
-        "id": "Default Light+ Experimental",
+        "id": "Default Light Modern",
         "label": "%lightPlusExperimentalColorThemeLabel%",
         "uiTheme": "vs",
         "path": "./themes/light_plus_experimental.json"
