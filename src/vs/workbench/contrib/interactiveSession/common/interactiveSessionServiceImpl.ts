@@ -103,6 +103,8 @@ type InteractiveSessionTerminalClassification = {
 	comment: 'Provides insight into the usage of InteractiveSession features.';
 };
 
+const maxPersistedSessions = 20;
+
 export class InteractiveSessionService extends Disposable implements IInteractiveSessionService {
 	declare _serviceBrand: undefined;
 
@@ -145,6 +147,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			.filter(session => session.getRequests().length > 0);
 		allSessions = allSessions.concat(
 			Object.values(this._persistedSessions).filter(session => session.requests.length));
+		allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
+		allSessions = allSessions.slice(0, maxPersistedSessions);
 		this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
 
 		const serialized = JSON.stringify(allSessions);
