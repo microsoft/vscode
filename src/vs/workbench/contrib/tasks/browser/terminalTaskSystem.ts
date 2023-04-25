@@ -300,7 +300,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 
 		try {
-			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), undefined) };
+			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), new Map(), undefined) };
 			executeResult.promise.then(summary => {
 				this._lastTask = this._currentTask;
 			});
@@ -523,7 +523,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._showOutput();
 	}
 
-	private _executeTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+	private _executeTask(task: Task, resolver: ITaskResolver, trigger: string, liveDependencies: Set<string>, encounteredTasks: Map<string, Promise<ITaskSummary>>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
 		this._showTaskLoadErrors(task);
 
 		const mapKey = task.getMapKey();
@@ -535,23 +535,28 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			alreadyResolved = alreadyResolved ?? new Map<string, string>();
 			const promises: Promise<ITaskSummary>[] = [];
 			if (task.configurationProperties.dependsOn) {
-				encounteredDependencies = new Set(encounteredDependencies).add(task.getCommonTaskId());
+				liveDependencies = new Set(liveDependencies).add(task.getCommonTaskId());
 				for (const dependency of task.configurationProperties.dependsOn) {
 					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 					if (dependencyTask) {
 						this._adoptConfigurationForDependencyTask(dependencyTask, task);
-						const key = dependencyTask.getMapKey();
 						let promise;
-						if (encounteredDependencies.has(dependencyTask.getCommonTaskId())) {
+						const commonKey = dependencyTask.getCommonTaskId();
+						if (liveDependencies.has(commonKey)) {
 							this._showDependencyCycleMessage(dependencyTask);
 							promise = Promise.resolve<ITaskSummary>({});
 						} else {
-							promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
+							promise = encounteredTasks.get(commonKey);
+							if (!promise) {
+								const key = dependencyTask.getMapKey();
+								promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
+							}
 						}
 						if (!promise) {
 							this._fireTaskEvent(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
-							promise = this._executeDependencyTask(dependencyTask, resolver, trigger, encounteredDependencies, alreadyResolved);
+							promise = this._executeDependencyTask(dependencyTask, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
 						}
+						encounteredTasks.set(commonKey, promise);
 						promises.push(promise);
 						if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
 							const promiseResult = await promise;
@@ -643,15 +648,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return this._createInactiveDependencyPromise(task.task);
 	}
 
-	private async _executeDependencyTask(task: Task, resolver: ITaskResolver, trigger: string, encounteredDependencies: Set<string>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+	private async _executeDependencyTask(task: Task, resolver: ITaskResolver, trigger: string, liveDependencies: Set<string>, encounteredTasks: Map<string, Promise<ITaskSummary>>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
 		// If the task is a background task with a watching problem matcher, we don't wait for the whole task to finish,
 		// just for the problem matcher to go inactive.
 		if (!task.configurationProperties.isBackground) {
-			return this._executeTask(task, resolver, trigger, encounteredDependencies, alreadyResolved);
+			return this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
 		}
 
 		const inactivePromise = this._createInactiveDependencyPromise(task);
-		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, encounteredDependencies, alreadyResolved)]);
+		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved)]);
 	}
 
 	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
