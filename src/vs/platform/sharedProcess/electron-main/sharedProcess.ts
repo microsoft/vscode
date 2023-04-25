@@ -13,7 +13,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { isESM } from 'vs/base/common/amd';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
