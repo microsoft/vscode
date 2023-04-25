@@ -245,7 +245,7 @@ class Session {
 		this.teldata.rounds += `${newLen}|`;
 	}
 
-	get lastExchange(): { prompt: string; response: IInteractiveEditorResponse; uri: URI } {
+	get lastExchange(): { prompt: string; response: IInteractiveEditorResponse; uri: URI } | undefined {
 		return this._exchange[this._exchange.length - 1];
 	}
 }
@@ -568,6 +568,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 
 			this._recorder.addExchange(session, request, reply);
+			this._currentSession.addExchange({ prompt: value, response: reply, uri: textModel.uri });
 			this._zone.widget.updateToolbar(true);
 
 			if (reply.type === 'message') {
@@ -576,18 +577,16 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._requestPrompt = request.prompt;
 				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
 				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
-				this._currentSession.addExchange({ prompt: value, response: reply, uri: textModel.uri });
 				continue;
 			}
 
-			this._currentSession.addExchange({ prompt: value, response: reply, uri: textModel.uri });
 			const editResponse = new EditResponse(textModel.uri, reply);
 
 			const canContinue = this._strategy.update(editResponse);
-
 			if (!canContinue) {
 				break;
 			}
+
 			this._ctxLastEditKind.set(editResponse.localEdits.length === 1 ? 'simple' : '');
 
 			// inline diff
@@ -788,25 +787,35 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	undoLast(): string | void {
-		const lastExchange = this._currentSession?.lastExchange;
-		if (lastExchange?.response.type === InteractiveEditorResponseType.EditorEdit || lastExchange?.response.type === InteractiveEditorResponseType.BulkEdit) {
-			this._currentSession?.modelN.undo();
+		if (!this._currentSession) {
+			return;
+		}
+		const lastExchange = this._currentSession.lastExchange;
+		if (lastExchange && (lastExchange.response.type === InteractiveEditorResponseType.EditorEdit || lastExchange.response.type === InteractiveEditorResponseType.BulkEdit)) {
+			this._currentSession.modelN.undo();
 			const editorResponse = new EditResponse(lastExchange.uri, lastExchange.response);
 			return editorResponse.localEdits[0].text;
 		}
 	}
 
 	feedbackLast(helpful: boolean) {
-		if (this._currentSession?.lastExchange) {
+		if (!this._currentSession) {
+			return;
+		}
+		const lastExchange = this._currentSession.lastExchange;
+		if (lastExchange) {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
-			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastExchange.response, kind);
+			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, lastExchange.response, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
 			this._zone.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
 	async applyChanges(): Promise<EditResponse | void> {
-		const lastExchange = this._currentSession?.lastExchange;
+		if (!this._currentSession) {
+			return;
+		}
+		const lastExchange = this._currentSession.lastExchange;
 		if (lastExchange && (lastExchange.response.type === InteractiveEditorResponseType.EditorEdit || lastExchange.response.type === InteractiveEditorResponseType.BulkEdit)) {
 			await this._strategy?.apply();
 			this._ctsSession.cancel();
@@ -856,8 +865,9 @@ class PreviewStrategy extends EditModeStrategy {
 	}
 
 	async apply() {
+
 		const lastExchange = this._session.lastExchange;
-		if (lastExchange.response.type === InteractiveEditorResponseType.Message) {
+		if (!lastExchange || lastExchange.response.type === InteractiveEditorResponseType.Message) {
 			return;
 		}
 		const editResponse = new EditResponse(lastExchange.uri, lastExchange.response);
