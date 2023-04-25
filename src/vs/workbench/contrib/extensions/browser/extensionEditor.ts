@@ -683,6 +683,7 @@ export class ExtensionEditor extends EditorPane {
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
+					disableServiceWorker: true,
 				},
 				contentOptions: {},
 				extension: undefined,

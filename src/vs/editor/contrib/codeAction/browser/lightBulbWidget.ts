@@ -14,6 +14,7 @@ import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import type { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
@@ -43,8 +44,9 @@ namespace LightBulbState {
 	export type State = typeof Hidden | Showing;
 }
 
+export class LightBulbWidget extends Disposable implements IEditorContribution, IContentWidget {
 
-export class LightBulbWidget extends Disposable implements IContentWidget {
+	public static readonly ID = 'editor.contrib.lightbulbWidget';
 
 	private static readonly _posPref = [ContentWidgetPositionPreference.EXACT];
 
@@ -60,7 +62,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super();

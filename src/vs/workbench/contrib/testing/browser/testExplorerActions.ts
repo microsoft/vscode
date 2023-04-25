@@ -34,11 +34,12 @@ import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testin
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestCollection, ITestService, expandAndGetTestById, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestRunProfile, InternalTestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IMainThreadTestCollection, IMainThreadTestController, ITestService, expandAndGetTestById, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { ExtTestRunProfileKind, ITestRunProfile, InternalTestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -64,6 +65,7 @@ const enum ActionOrder {
 	Sort,
 	GoToTest,
 	HideTest,
+	ContinuousRunTest = -1 >>> 1, // max int, always at the end to avoid shifting on hover
 }
 
 const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.providerCount.key, 0);
@@ -250,6 +252,91 @@ export class SelectDefaultTestProfiles extends Action2 {
 	}
 }
 
+export class ContinuousRunTestAction extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.ToggleContinousRunForTest,
+			title: localize('testing.toggleContinuousRunOn', 'Turn on Continuous Run'),
+			icon: icons.testingTurnContinuousRunOn,
+			precondition: ContextKeyExpr.or(
+				TestingContextKeys.isContinuousModeOn.isEqualTo(true),
+				TestingContextKeys.isParentRunningContinuously.isEqualTo(false)
+			),
+			toggled: {
+				condition: TestingContextKeys.isContinuousModeOn.isEqualTo(true),
+				icon: icons.testingContinuousIsOn,
+				title: localize('testing.toggleContinuousRunOff', 'Turn off Continuous Run'),
+			},
+			menu: testItemInlineAndInContext(ActionOrder.ContinuousRunTest, TestingContextKeys.supportsContinuousRun.isEqualTo(true)),
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
+		const crService = accessor.get(ITestingContinuousRunService);
+		const profileService = accessor.get(ITestProfileService);
+		for (const element of elements) {
+			if (!(element instanceof TestItemTreeElement)) {
+				continue;
+			}
+
+			const id = element.test.item.extId;
+			if (crService.isSpecificallyEnabledFor(id)) {
+				crService.stop(id);
+				continue;
+			}
+
+			const profiles = profileService.getGroupDefaultProfiles(TestRunProfileBitset.Run)
+				.filter(p => p.supportsContinuousRun && p.controllerId === element.test.controllerId);
+			if (!profiles.length) {
+				continue;
+			}
+
+			crService.start(profiles, id);
+		}
+	}
+}
+
+export class ContinuousRunUsingProfileTestAction extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.ContinousRunUsingForTest,
+			title: localize('testing.startContinuousRunUsing', 'Start Continous Run Using...'),
+			icon: icons.testingDebugIcon,
+			menu: [
+				{
+					id: MenuId.TestItem,
+					order: ActionOrder.RunContinuous,
+					group: 'builtin@2',
+					when: ContextKeyExpr.and(
+						TestingContextKeys.supportsContinuousRun.isEqualTo(true),
+						TestingContextKeys.isContinuousModeOn.isEqualTo(false),
+					)
+				}
+			],
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
+		const crService = accessor.get(ITestingContinuousRunService);
+		const profileService = accessor.get(ITestProfileService);
+		const notificationService = accessor.get(INotificationService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		for (const element of elements) {
+			if (!(element instanceof TestItemTreeElement)) {
+				continue;
+			}
+
+			const selected = await selectContinuousRunProfiles(crService, notificationService, quickInputService,
+				[{ profiles: profileService.getControllerProfiles(element.test.controllerId) }]);
+
+			if (selected.length) {
+				crService.start(selected, element.test.item.extId);
+			}
+		}
+	}
+}
+
 export class ConfigureTestProfilesAction extends Action2 {
 	constructor() {
 		super({
@@ -314,6 +401,79 @@ class StopContinuousRunAction extends Action2 {
 	}
 }
 
+function selectContinuousRunProfiles(
+	crs: ITestingContinuousRunService,
+	notificationService: INotificationService,
+	quickInputService: IQuickInputService,
+	profilesToPickFrom: Iterable<Readonly<{
+		controller?: IMainThreadTestController;
+		profiles: ITestRunProfile[];
+	}>>,
+): Promise<ITestRunProfile[]> {
+	type ItemType = IQuickPickItem & { profile: ITestRunProfile };
+
+	const items: ItemType[] = [];
+	for (const { controller, profiles } of profilesToPickFrom) {
+		for (const profile of profiles) {
+			if (profile.supportsContinuousRun) {
+				items.push({
+					label: profile.label || controller?.label.value || '',
+					description: controller?.label.value,
+					profile,
+				});
+			}
+		}
+	}
+
+	if (items.length === 0) {
+		notificationService.info(localize('testing.noProfiles', 'No test continuous run-enabled profiles were found'));
+		return Promise.resolve([]);
+	}
+
+	// special case: don't bother to quick a pickpick if there's only a single profile
+	if (items.length === 1) {
+		return Promise.resolve([items[0].profile]);
+	}
+
+	const qpItems: (ItemType | IQuickPickSeparator)[] = [];
+	const selectedItems: ItemType[] = [];
+	const lastRun = crs.lastRunProfileIds;
+
+	items.sort((a, b) => a.profile.group - b.profile.group
+		|| a.profile.controllerId.localeCompare(b.profile.controllerId)
+		|| a.label.localeCompare(b.label));
+
+	for (let i = 0; i < items.length; i++) {
+		const item = items[i];
+		if (i === 0 || items[i - 1].profile.group !== item.profile.group) {
+			qpItems.push({ type: 'separator', label: testConfigurationGroupNames[item.profile.group] });
+		}
+
+		qpItems.push(item);
+		if (lastRun.has(item.profile.profileId)) {
+			selectedItems.push(item);
+		}
+	}
+
+	const quickpick = quickInputService.createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>();
+	quickpick.title = localize('testing.selectContinuousProfiles', 'Select profiles to run when files change:');
+	quickpick.canSelectMany = true;
+	quickpick.items = qpItems;
+	quickpick.selectedItems = selectedItems;
+	quickpick.show();
+	return new Promise((resolve, reject) => {
+		quickpick.onDidAccept(() => {
+			resolve(quickpick.selectedItems.map(i => i.profile));
+			quickpick.dispose();
+		});
+
+		quickpick.onDidHide(() => {
+			resolve([]);
+			quickpick.dispose();
+		});
+	});
+}
+
 class StartContinuousRunAction extends Action2 {
 	constructor() {
 		super({
@@ -324,69 +484,12 @@ class StartContinuousRunAction extends Action2 {
 			menu: continuousMenus(false),
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const controllerProfiles = accessor.get(ITestProfileService).all();
-		const notificationService = accessor.get(INotificationService);
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const crs = accessor.get(ITestingContinuousRunService);
-
-		type ItemType = IQuickPickItem & { profile: ITestRunProfile };
-
-		const items: ItemType[] = [];
-		for (const { controller, profiles } of controllerProfiles) {
-			for (const profile of profiles) {
-				if (profile.supportsContinuousRun) {
-					items.push({
-						label: profile.label || controller.label.value,
-						description: controller.label.value,
-						profile,
-					});
-				}
-			}
+		const selected = await selectContinuousRunProfiles(crs, accessor.get(INotificationService), accessor.get(IQuickInputService), accessor.get(ITestProfileService).all());
+		if (selected.length) {
+			crs.start(selected);
 		}
-
-		if (items.length === 0) {
-			notificationService.info(localize('testing.noProfiles', 'No test continuous run-enabled profiles were found'));
-			return;
-		}
-
-		// special case: don't bother to quick a pickpick if there's only a single profile
-		if (items.length === 1) {
-			return crs.start([items[0].profile]);
-		}
-
-		const qpItems: (ItemType | IQuickPickSeparator)[] = [];
-		const selectedItems: ItemType[] = [];
-		const lastRun = crs.lastRunProfileIds;
-
-		items.sort((a, b) => a.profile.group - b.profile.group
-			|| a.profile.controllerId.localeCompare(b.profile.controllerId)
-			|| a.label.localeCompare(b.label));
-
-		for (let i = 0; i < items.length; i++) {
-			const item = items[i];
-			if (i === 0 || items[i - 1].profile.group !== item.profile.group) {
-				qpItems.push({ type: 'separator', label: testConfigurationGroupNames[item.profile.group] });
-			}
-
-			qpItems.push(item);
-			if (lastRun.has(item.profile.profileId)) {
-				selectedItems.push(item);
-			}
-		}
-
-		const quickpick = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>();
-		quickpick.title = localize('testing.selectContinuousProfiles', 'Select profiles to run when files change:');
-		quickpick.canSelectMany = true;
-		quickpick.items = qpItems;
-		quickpick.selectedItems = selectedItems;
-		quickpick.show();
-
-		quickpick.onDidAccept(() => {
-			if (quickpick.selectedItems.length) {
-				crs.start(quickpick.selectedItems.map(i => i.profile));
-				quickpick.dispose();
-			}
-		});
 	}
 }
 
@@ -417,8 +520,49 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<ITestResult | undefined> {
-		const { include, exclude } = view.getSelectedOrVisibleItems();
+		const { include, exclude } = view.getTreeIncludeExclude();
 		return accessor.get(ITestService).runTests({ tests: include, exclude, group: this.group });
+	}
+}
+
+export class GetSelectedProfiles extends Action2 {
+	constructor() {
+		super({ id: TestCommandId.GetSelectedProfiles, title: localize('getSelectedProfiles', 'Get Selected Profiles') });
+	}
+
+	/**
+	 * @override
+	 */
+	public override run(accessor: ServicesAccessor) {
+		const profiles = accessor.get(ITestProfileService);
+		return [
+			...profiles.getGroupDefaultProfiles(TestRunProfileBitset.Run),
+			...profiles.getGroupDefaultProfiles(TestRunProfileBitset.Debug),
+			...profiles.getGroupDefaultProfiles(TestRunProfileBitset.Coverage),
+		].map(p => ({
+			controllerId: p.controllerId,
+			label: p.label,
+			kind: p.group & TestRunProfileBitset.Coverage
+				? ExtTestRunProfileKind.Coverage
+				: p.group & TestRunProfileBitset.Debug
+					? ExtTestRunProfileKind.Debug
+					: ExtTestRunProfileKind.Run,
+		}));
+	}
+}
+
+export class GetExplorerSelection extends ViewAction<TestingExplorerView> {
+	constructor() {
+		super({ id: TestCommandId.GetExplorerSelection, title: localize('getExplorerSelection', 'Get Explorer Selection'), viewId: Testing.ExplorerViewId });
+	}
+
+	/**
+	 * @override
+	 */
+	public override runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		const { include, exclude } = view.getTreeIncludeExclude(undefined, 'selected');
+		const mapper = (i: InternalTestItem) => i.item.extId;
+		return { include: include.map(mapper), exclude: exclude.map(mapper) };
 	}
 }
 
@@ -695,9 +839,31 @@ export class ShowMostRecentOutputAction extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor) {
+	public async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const terminalOutputService = accessor.get(ITestingOutputTerminalService);
 		const result = accessor.get(ITestResultService).results[0];
-		accessor.get(ITestingOutputTerminalService).open(result);
+
+		if (!result.tasks.length) {
+			return;
+		}
+
+		let index = 0;
+		if (result.tasks.length > 1) {
+			const picked = await quickInputService.pick(
+				result.tasks.map((t, i) => ({ label: t.name || localize('testing.pickTaskUnnamed', "Run #{0}", i), index: i })),
+				{ placeHolder: localize('testing.pickTask', "Pick a run to show output for") }
+			);
+
+			if (!picked) {
+				return;
+			}
+
+			index = picked.index;
+		}
+
+
+		terminalOutputService.open(result, index);
 	}
 }
 
@@ -853,7 +1019,10 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				const irange = Range.lift(test.item.range);
 				if (irange.containsPosition(position)) {
 					if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
-						bestNodes.push(test);
+						// check that a parent isn't already included (#180760)
+						if (!bestNodes.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
+							bestNodes.push(test);
+						}
 					} else {
 						bestRange = irange;
 						bestNodes = [test];
@@ -862,7 +1031,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 					if (!bestRangeBefore || bestRangeBefore.getStartPosition().isBefore(irange.getStartPosition())) {
 						bestRangeBefore = irange;
 						bestNodesBefore = [test];
-					} else if (irange.equalsRange(bestRangeBefore)) {
+					} else if (irange.equalsRange(bestRangeBefore) && !bestNodesBefore.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
 						bestNodesBefore.push(test);
 					}
 				}
@@ -1326,6 +1495,8 @@ export const allTestActions = [
 	ClearTestResultsAction,
 	CollapseAllAction,
 	ConfigureTestProfilesAction,
+	ContinuousRunTestAction,
+	ContinuousRunUsingProfileTestAction,
 	DebugAction,
 	DebugAllAction,
 	DebugAtCursor,
@@ -1334,6 +1505,8 @@ export const allTestActions = [
 	DebugLastRun,
 	DebugSelectedAction,
 	GoToTest,
+	GetExplorerSelection,
+	GetSelectedProfiles,
 	HideTestAction,
 	OpenOutputPeek,
 	RefreshTestsAction,

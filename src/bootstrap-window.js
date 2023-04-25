@@ -125,6 +125,10 @@ const isESM = false;
 		if (!safeProcess.sandboxed && !isESM) {
 			// VSCODE_GLOBALS: package/product.json
 			globalThis._VSCODE_PRODUCT_JSON = (require.__$__nodeRequire ?? require)(configuration.appRoot + '/product.json');
+			if (process.env['VSCODE_DEV']) {
+				// Patch product overrides when running out of sources
+				try { globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, (require.__$__nodeRequire ?? require)(configuration.appRoot + '/product.overrides.json')); } catch (error) { /* ignore */ }
+			}
 			globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)(configuration.appRoot + '/package.json');
 		}
 

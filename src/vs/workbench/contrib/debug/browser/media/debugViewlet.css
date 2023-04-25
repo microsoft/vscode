@@ -56,7 +56,7 @@
 	padding-bottom: 0;
 
 	/* The debug view title is crowded, let this one get narrower than others */
-	min-width: 70px;
+	min-width: 90px;
 }
 
 
@@ -108,6 +108,7 @@
 .debug-pane .debug-call-stack .thread,
 .debug-pane .debug-call-stack .session {
 	display: flex;
+	align-items: center;
 }
 
 .debug-pane .debug-call-stack .thread > .name,

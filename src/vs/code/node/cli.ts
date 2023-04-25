@@ -11,7 +11,6 @@ import { Event } from 'vs/base/common/event';
 import { isAbsolute, resolve, join, dirname } from 'vs/base/common/path';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
-import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
@@ -388,14 +387,6 @@ export async function main(argv: string[]): Promise<any> {
 					console.error('Failed to profile startup. Make sure to quit Code first.');
 				}
 			});
-		}
-
-		const jsFlags = args['js-flags'];
-		if (isString(jsFlags)) {
-			const match = /max_old_space_size=(\d+)/g.exec(jsFlags);
-			if (match && !args['max-memory']) {
-				addArg(argv, `--max-memory=${match[1]}`);
-			}
 		}
 
 		const options: SpawnOptions = {

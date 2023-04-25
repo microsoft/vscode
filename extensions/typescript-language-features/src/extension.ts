@@ -17,7 +17,6 @@ import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electr
 import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
-import { JsWalkthroughState, registerJsNodeWalkthrough } from './ui/jsNodeWalkthrough.electron';
 import { ElectronServiceConfigurationProvider } from './configuration/configuration.electron';
 import { onCaseInsensitiveFileSystem } from './utils/fs.electron';
 import { Logger } from './logging/logger';
@@ -42,9 +41,6 @@ export function activate(
 
 	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
 	context.subscriptions.push(activeJsTsEditorTracker);
-
-	const jsWalkthroughState = new JsWalkthroughState();
-	context.subscriptions.push(jsWalkthroughState);
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -77,7 +73,6 @@ export function activate(
 	});
 
 	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
-	registerJsNodeWalkthrough(commandManager, jsWalkthroughState);
 
 	import('./task/taskProvider').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));

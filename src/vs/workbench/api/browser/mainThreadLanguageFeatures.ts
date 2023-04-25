@@ -32,7 +32,7 @@ import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy'
 import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape, IRangeFormattingProviderMetadataDto } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -401,14 +401,18 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}));
 	}
 
-	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, metadata: IRangeFormattingProviderMetadataDto): void {
+	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, supportsRanges: boolean): void {
 		this._registrations.set(handle, this._languageFeaturesService.documentRangeFormattingEditProvider.register(selector, <languages.DocumentRangeFormattingEditProvider>{
 			extensionId,
 			displayName,
-			canFormatMultipleRanges: metadata.canFormatMultipleRanges,
 			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
-			}
+			},
+			provideDocumentRangesFormattingEdits: !supportsRanges
+				? undefined
+				: (model, ranges, options, token) => {
+					return this._proxy.$provideDocumentRangesFormattingEdits(handle, model.uri, ranges, options, token);
+				},
 		}));
 	}
 
@@ -557,9 +561,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
 			},
-			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion): Promise<void> => {
+			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string): Promise<void> => {
 				if (supportsHandleEvents) {
-					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx);
+					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx, updatedInsertText);
 				}
 			},
 			handlePartialAccept: async (completions, item, acceptedCharacters): Promise<void> => {
@@ -903,8 +907,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _documentOnDropEditProviders = new Map<number, MainThreadDocumentOnDropEditProvider>();
 
-	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider = new MainThreadDocumentOnDropEditProvider(handle, this._proxy, this._uriIdentService);
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, metadata: { id: string; dropMimeTypes: string[] }): void {
+		const provider = new MainThreadDocumentOnDropEditProvider(handle, extensionId, metadata, this._proxy, this._uriIdentService);
 		this._documentOnDropEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
@@ -970,7 +974,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 
 			return {
 				insertText: result.insertText,
-				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService) : undefined,
+				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
 			};
 		} finally {
 			request.dispose();
@@ -978,7 +982,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 	}
 
 	resolveFileData(requestId: number, dataId: string): Promise<VSBuffer> {
-		return this.dataTransfers.resolveDropFileData(requestId, dataId);
+		return this.dataTransfers.resolveFileData(requestId, dataId);
 	}
 }
 
@@ -986,11 +990,19 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 
 	private readonly dataTransfers = new DataTransferCache();
 
+	readonly id: string;
+	readonly dropMimeTypes?: readonly string[];
+
 	constructor(
 		private readonly handle: number,
+		extensionId: ExtensionIdentifier,
+		metadata: { id: string; dropMimeTypes: readonly string[] } | undefined,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
-	) { }
+	) {
+		this.id = extensionId.value + (metadata ? '.' + metadata.id : '');
+		this.dropMimeTypes = metadata?.dropMimeTypes ?? ['*/*'];
+	}
 
 	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<languages.DocumentOnDropEdit | null | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
@@ -1001,8 +1013,9 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 				return undefined;
 			}
 			return {
+				label: edit.label,
 				insertText: edit.insertText,
-				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService),
+				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
 			};
 		} finally {
 			request.dispose();
@@ -1010,7 +1023,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 	}
 
 	public resolveDocumentOnDropFileData(requestId: number, dataId: string): Promise<VSBuffer> {
-		return this.dataTransfers.resolveDropFileData(requestId, dataId);
+		return this.dataTransfers.resolveFileData(requestId, dataId);
 	}
 }
 

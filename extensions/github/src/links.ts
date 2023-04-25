@@ -119,6 +119,16 @@ export function notebookCellRangeString(index: number | undefined, range: vscode
 	return hash;
 }
 
+function encodeURIComponentExceptSlashes(path: string) {
+	// There may be special characters like # and whitespace in the path.
+	// These characters are not escaped by encodeURI(), so it is not sufficient to
+	// feed the full URI to encodeURI().
+	// Additonally, if we feed the full path into encodeURIComponent(),
+	// this will also encode the path separators, leading to an invalid path.
+	// Therefore, split on the path separator and encode each segment individually.
+	return path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+}
+
 export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink', context?: LinkContext, useRange?: boolean): string | undefined {
 	hostPrefix = hostPrefix ?? 'https://github.com';
 	const fileAndPosition = getFileAndPosition(context);
@@ -149,10 +159,11 @@ export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: stri
 		return;
 	}
 
-	const blobSegment = (gitRepo.state.HEAD?.ahead === 0) ? `/blob/${linkType === 'headlink' ? gitRepo.state.HEAD.name : gitRepo.state.HEAD?.commit}` : '';
+	const blobSegment = gitRepo.state.HEAD ? (`/blob/${linkType === 'headlink' && gitRepo.state.HEAD.name ? encodeURIComponentExceptSlashes(gitRepo.state.HEAD.name) : gitRepo.state.HEAD?.commit}`) : '';
+	const encodedFilePath = encodeURIComponentExceptSlashes(uri.path.substring(gitRepo.rootUri.path.length));
 	const fileSegments = fileAndPosition.type === LinkType.File
-		? (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? rangeString(fileAndPosition.range) : ''}` : '')
-		: (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : '');
+		? (useSelection ? `${encodedFilePath}${useRange ? rangeString(fileAndPosition.range) : ''}` : '')
+		: (useSelection ? `${encodedFilePath}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : '');
 
 	return `${hostPrefix}/${repo.owner}/${repo.repo}${blobSegment
 		}${fileSegments}`;

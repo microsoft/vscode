@@ -20,6 +20,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { IInteractiveSessionWidgetService, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
 
 const decorationDescription = 'interactive session';
 const slashCommandPlaceholderDecorationType = 'interactive-session-detail';
@@ -60,8 +61,8 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private async updateInputEditorDecorations() {
-		const value = this.widget.inputEditor.getModel()?.getValue();
-		const slashCommands = await this.widget.getSlashCommands();
+		const value = this.widget.inputEditor.getValue();
+		const slashCommands = await this.widget.getSlashCommands(); // TODO this async call can lead to a flicker of the placeholder text when switching editor tabs
 
 		if (!value) {
 			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
@@ -139,7 +140,7 @@ class SlashCommandCompletions extends Disposable {
 	) {
 		super();
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: InteractiveSessionWidget.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: InteractiveSessionInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, _position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.interactiveSessionWidgetService.getWidgetByInputUri(model.uri);

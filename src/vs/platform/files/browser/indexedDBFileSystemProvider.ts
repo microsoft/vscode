@@ -34,6 +34,7 @@ const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists
 const ERR_FILE_IS_DIR = createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
 const ERR_FILE_NOT_DIR = createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
 const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
+const ERR_FILE_EXCEEDS_STORAGE_QUOTA = createFileSystemProviderError(localize('fileExceedsStorageQuota', "File exceeds available storage quota"), FileSystemProviderErrorCode.FileExceedsStorageQuota);
 
 // Arbitrary Internal Errors
 const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
@@ -427,7 +428,17 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	private async writeMany() {
 		if (this.fileWriteBatch.length) {
 			const fileBatch = this.fileWriteBatch.splice(0, this.fileWriteBatch.length);
-			await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => objectStore.put(entry.content, entry.resource.path)));
+			try {
+				await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => {
+					return objectStore.put(entry.content, entry.resource.path);
+				}));
+			} catch (ex) {
+				if (ex instanceof DOMException && ex.name === 'QuotaExceededError') {
+					throw ERR_FILE_EXCEEDS_STORAGE_QUOTA;
+				}
+
+				throw ex;
+			}
 		}
 	}
 

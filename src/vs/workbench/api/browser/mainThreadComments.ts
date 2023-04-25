@@ -486,6 +486,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
+		this._commentService.unregisterCommentController();
 
 		this._register(this._commentService.onDidChangeActiveCommentThread(async thread => {
 			const handle = (thread as MainThreadCommentThread<IRange | ICellRange>).controllerHandle;

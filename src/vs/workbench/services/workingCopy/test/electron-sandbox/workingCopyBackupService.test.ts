@@ -65,7 +65,6 @@ const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	tmpDir: tmpDir.fsPath,
 	userDataDir: joinPath(homeDir, product.nameShort).fsPath,
 	profiles: { profile: NULL_PROFILE, all: [NULL_PROFILE], home: homeDir },
-	preferUtilityProcess: false,
 	_: []
 };
 

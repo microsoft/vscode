@@ -53,7 +53,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellUri, ICellDto2, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -419,7 +419,7 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
 
-	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
+	onDidChangeExecution = new Emitter<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>().event;
 	onDidChangeLastRunFailState = new Emitter<INotebookFailStateChangedEvent>().event;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {
@@ -446,5 +446,11 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
 		return;
+	}
+	getExecution(notebook: URI): INotebookExecution | undefined {
+		return;
+	}
+	createExecution(notebook: URI): INotebookExecution {
+		throw new Error('Method not implemented.');
 	}
 }

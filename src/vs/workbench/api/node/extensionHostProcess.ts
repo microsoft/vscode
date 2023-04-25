@@ -7,7 +7,7 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
 import * as performance from 'vs/base/common/performance';
-import type { UtilityNodeJSProcess, MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
+import type { MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
 import { isCancellationError, isSigPipeError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -132,7 +132,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				});
 			};
 
-			(process as UtilityNodeJSProcess).parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
+			process.parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
 		});
 
 	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {

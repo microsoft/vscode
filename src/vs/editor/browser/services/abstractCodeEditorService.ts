@@ -585,7 +585,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 	cursor: 'cursor:{0};',
 	letterSpacing: 'letter-spacing:{0};',
 
-	gutterIconPath: 'background:{0} center center no-repeat;',
+	gutterIconPath: 'background:{0} no-repeat;',
 	gutterIconSize: 'background-size:{0};',
 
 	contentText: 'content:\'{0}\';',

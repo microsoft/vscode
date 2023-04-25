@@ -7,7 +7,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -52,7 +51,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 	registerInteractiveSessionProvider(extension: Readonly<IRelaxedExtensionDescription>, id: string, provider: vscode.InteractiveSessionProvider): vscode.Disposable {
 		const wrapper = new InteractiveSessionProviderWrapper(extension, provider);
 		this._interactiveSessionProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveSessionProvider(wrapper.handle, id, !!provider.provideResponseWithProgress);
+		this._proxy.$registerInteractiveSessionProvider(wrapper.handle, id);
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveSessionProvider(wrapper.handle);
 			this._interactiveSessionProvider.delete(wrapper.handle);
@@ -113,19 +112,6 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		}
 
 		return undefined;
-	}
-
-	async $provideInitialSuggestions(handle: number, token: CancellationToken): Promise<string[] | undefined> {
-		const entry = this._interactiveSessionProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		if (!entry.provider.provideInitialSuggestions) {
-			return undefined;
-		}
-
-		return withNullAsUndefined(await entry.provider.provideInitialSuggestions(token));
 	}
 
 	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IInteractiveSessionReplyFollowup[])[] | undefined> {

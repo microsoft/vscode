@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { CONTEXT_INTERACTIVE_INPUT_HAS_TEXT, CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveSessionExecuteActionContext {
@@ -32,6 +32,7 @@ export function registerInteractiveSessionExecuteActions() {
 				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.send,
+				precondition: CONTEXT_INTERACTIVE_INPUT_HAS_TEXT,
 				menu: {
 					id: MenuId.InteractiveSessionExecute,
 					when: CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.negate(),

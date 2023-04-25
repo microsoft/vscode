@@ -22,6 +22,12 @@ pub enum SocketSignal {
 	CloseWith(CloseReason),
 }
 
+impl From<Vec<u8>> for SocketSignal {
+	fn from(v: Vec<u8>) -> Self {
+		SocketSignal::Send(v)
+	}
+}
+
 impl SocketSignal {
 	pub fn from_message<T>(msg: &T) -> Self
 	where

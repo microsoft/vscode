@@ -89,6 +89,8 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
 
 const enum Constants {
 	/**
@@ -942,7 +944,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
 			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
 			// terminals generally
-			const isValidChord = resolveResult?.enterMultiChord && this._configHelper.config.allowChords && event.key !== 'Escape';
+			const isValidChord = resolveResult?.kind === ResultKind.MoreChordsNeeded && this._configHelper.config.allowChords && event.key !== 'Escape';
 			if (this._keybindingService.inChordMode || isValidChord) {
 				event.preventDefault();
 				return false;
@@ -962,7 +964,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
-			if (resolveResult && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
+			if (resolveResult && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
 				// don't alert when terminal is opened or closed
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
 					this._hasHadInput &&
@@ -1414,6 +1416,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._initialCwd = value;
 					this._cwd = this._initialCwd;
 					this._setTitle(this.title, TitleEventSource.Config);
+					this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
+					this._onIconChanged.fire({ instance: this, userInitiated: false });
 					break;
 				case ProcessPropertyType.Title:
 					this._setTitle(value ?? '', TitleEventSource.Process);
@@ -2160,9 +2164,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.relaunch();
 			return;
 		}
-
 		// Re-create statuses
-		this.statusList.add(info.getStatus());
+		const workspaceFolder = getWorkspaceForTerminal(this.shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
+		this.statusList.add(info.getStatus({ workspaceFolder }));
 	}
 
 	async toggleEscapeSequenceLogging(): Promise<boolean> {

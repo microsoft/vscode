@@ -49,8 +49,22 @@ export function autorunWithStore(
 	});
 }
 
+const enum AutorunState {
+	/**
+	 * A dependency could have changed.
+	 * We need to explicitly ask them if at least one dependency changed.
+	 */
+	dependenciesMightHaveChanged = 1,
+
+	/**
+	 * A dependency changed and we need to recompute.
+	 */
+	stale = 2,
+	upToDate = 3,
+}
+
 export class AutorunObserver implements IObserver, IReader, IDisposable {
-	public needsToRun = true;
+	private state = AutorunState.stale;
 	private updateCount = 0;
 	private disposed = false;
 
@@ -76,51 +90,76 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 		this.runIfNeeded();
 	}
 
-	public subscribeTo<T>(observable: IObservable<T>) {
+	public readObservable<T>(observable: IObservable<T>): T {
 		// In case the run action disposes the autorun
 		if (this.disposed) {
-			return;
+			return observable.get();
 		}
+
+		observable.addObserver(this);
+		const value = observable.get();
 		this._dependencies.add(observable);
-		if (!this.staleDependencies.delete(observable)) {
-			observable.addObserver(this);
-		}
-	}
-
-	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
-		const shouldReact = this._handleChange ? this._handleChange({
-			changedObservable: observable,
-			change,
-			didChange: o => o === observable as any,
-		}) : true;
-		this.needsToRun = this.needsToRun || shouldReact;
-
-		if (this.updateCount === 0) {
-			this.runIfNeeded();
-		}
+		this.staleDependencies.delete(observable);
+		return value;
 	}
 
 	public beginUpdate(): void {
+		if (this.state === AutorunState.upToDate) {
+			this.state = AutorunState.dependenciesMightHaveChanged;
+		}
 		this.updateCount++;
 	}
 
 	public endUpdate(): void {
+		if (this.updateCount === 1) {
+			do {
+				if (this.state === AutorunState.dependenciesMightHaveChanged) {
+					this.state = AutorunState.upToDate;
+					for (const d of this._dependencies) {
+						d.reportChanges();
+						if (this.state as AutorunState === AutorunState.stale) {
+							// The other dependencies will refresh on demand
+							break;
+						}
+					}
+				}
+
+				this.runIfNeeded();
+			} while (this.state !== AutorunState.upToDate);
+		}
 		this.updateCount--;
-		if (this.updateCount === 0) {
-			this.runIfNeeded();
+	}
+
+	public handlePossibleChange(observable: IObservable<any>): void {
+		if (this.state === AutorunState.upToDate && this.dependencies.has(observable)) {
+			this.state = AutorunState.dependenciesMightHaveChanged;
 		}
 	}
 
-	private runIfNeeded(): void {
-		if (!this.needsToRun) {
+	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+		if (this.dependencies.has(observable)) {
+			const shouldReact = this._handleChange ? this._handleChange({
+				changedObservable: observable,
+				change,
+				didChange: o => o === observable as any,
+			}) : true;
+			if (shouldReact) {
+				this.state = AutorunState.stale;
+			}
+		}
+	}
+
+	private runIfNeeded() {
+		if (this.state === AutorunState.upToDate) {
 			return;
 		}
+
 		// Assert: this.staleDependencies is an empty set.
 		const emptySet = this.staleDependencies;
 		this.staleDependencies = this._dependencies;
 		this._dependencies = emptySet;
 
-		this.needsToRun = false;
+		this.state = AutorunState.upToDate;
 
 		getLogger()?.handleAutorunTriggered(this);
 

@@ -309,7 +309,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyP),
 	id: 'workbench.action.files.copyPathOfActiveFile',
-	handler: async (accessor) => {
+	handler: async accessor => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
@@ -491,7 +491,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS },
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS) },
 	id: SAVE_ALL_COMMAND_ID,
-	handler: (accessor) => {
+	handler: accessor => {
 		return saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
 	}
 });
@@ -516,10 +516,11 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SAVE_FILES_COMMAND_ID,
-	handler: accessor => {
+	handler: async accessor => {
 		const editorService = accessor.get(IEditorService);
 
-		return editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+		const res = await editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+		return res.success;
 	}
 });
 
@@ -580,7 +581,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
 	primary: KeyCode.LeftArrow,
 	id: PREVIOUS_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -599,7 +600,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
 	primary: KeyCode.RightArrow,
 	id: NEXT_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -618,7 +619,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
 	primary: KeyCode.Home,
 	id: FIRST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -637,7 +638,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
 	primary: KeyCode.End,
 	id: LAST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 

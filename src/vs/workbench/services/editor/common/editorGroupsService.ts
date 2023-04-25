@@ -342,7 +342,7 @@ export interface IEditorGroupsService {
 	setGroupOrientation(orientation: GroupOrientation): void;
 
 	/**
-	 * Find a groupd in a specific scope:
+	 * Find a group in a specific scope:
 	 * * `GroupLocation.FIRST`: the first group
 	 * * `GroupLocation.LAST`: the last group
 	 * * `GroupLocation.NEXT`: the next group from either the active one or `source`

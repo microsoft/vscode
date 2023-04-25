@@ -103,6 +103,10 @@ export class KeybindingsSearchWidget extends SearchWidget {
 			return;
 		}
 		if (keyboardEvent.equals(KeyCode.Escape)) {
+			if (this._chords !== null) {
+				this.clear();
+			}
+
 			this._onEscape.fire();
 			return;
 		}
@@ -181,8 +185,8 @@ export class DefineKeybindingWidget extends Widget {
 		this._keybindingInputWidget.startRecordingKeys();
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
-		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
-		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
+		this._register(this._keybindingInputWidget.onEscape(() => this.onEscape()));
+		this._register(this._keybindingInputWidget.onBlur(() => this.onBlur()));
 
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
 		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
@@ -276,8 +280,18 @@ export class DefineKeybindingWidget extends Widget {
 		return label;
 	}
 
-	private onCancel(): void {
+	private onBlur(): void {
 		this._chords = null;
+		this.hide();
+	}
+
+	private onEscape(): void {
+		if (this._chords !== null) {
+			this._chords = null;
+			dom.clearNode(this._outputNode);
+			dom.clearNode(this._showExistingKeybindingsNode);
+			return;
+		}
 		this.hide();
 	}
 

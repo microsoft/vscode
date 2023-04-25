@@ -11,7 +11,7 @@ import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService, NotebookMatch } from 'vs/workbench/contrib/search/browser/searchModel';
+import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService, MatchInNotebook } from 'vs/workbench/contrib/search/browser/searchModel';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -198,10 +198,10 @@ export class ReplaceService implements IReplaceService {
 		const edits: ResourceTextEdit[] = [];
 
 		if (arg instanceof Match) {
-			if (arg instanceof NotebookMatch) {
+			if (arg instanceof MatchInNotebook) {
 				if (!arg.isWebviewMatch()) {
 					// only apply edits if it's not a webview match, since webview matches are read-only
-					const match = <NotebookMatch>arg;
+					const match = <MatchInNotebook>arg;
 					edits.push(this.createEdit(match, match.replaceString, match.cell.uri));
 				}
 			} else {

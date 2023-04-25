@@ -16,9 +16,11 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { Codicon } from 'vs/base/common/codicons';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
@@ -107,13 +109,14 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly _cell: ICellViewModel,
-		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
 		this._update();
-		this._register(this._executionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this._cell.uri)) {
+		this._register(this._executionStateService.onDidChangeExecution(e => {
+			if (e.type === NotebookExecutionType.cell && e.affectsCell(this._cell.uri)) {
 				this._update();
 			}
 		}));
@@ -153,49 +156,63 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 			}
 		}
 
-		const item = this._getItemForState(runState, this._cell.internalMetadata);
-		return item ? [item] : [];
+		const items = this._getItemForState(runState, this._cell.internalMetadata);
+		return items;
 	}
 
-	private _getItemForState(runState: INotebookCellExecution | undefined, internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem | undefined {
+	private _getItemForState(runState: INotebookCellExecution | undefined, internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem[] {
+		const experimentErrorFix = this._configurationService.getValue<boolean>('notebook.experimental.interactiveFix');
 		const state = runState?.state;
 		const { lastRunSuccess } = internalMetadata;
 		if (!state && lastRunSuccess) {
-			return <INotebookCellStatusBarItem>{
+			return [<INotebookCellStatusBarItem>{
 				text: `$(${successStateIcon.id})`,
 				color: themeColorFromId(cellStatusIconSuccess),
 				tooltip: localize('notebook.cell.status.success', "Success"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			};
+			}];
 		} else if (!state && lastRunSuccess === false) {
-			return <INotebookCellStatusBarItem>{
+			const items: INotebookCellStatusBarItem[] = [{
 				text: `$(${errorStateIcon.id})`,
 				color: themeColorFromId(cellStatusIconError),
 				tooltip: localize('notebook.cell.status.failed', "Failed"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			};
+			}];
+
+			if (experimentErrorFix) {
+				items.push({
+					text: `$(${Codicon.sparkle.id})`,
+					color: themeColorFromId(cellStatusIconSuccess),
+					tooltip: localize('notebook.cell.status.fixError', "Fix Error"),
+					alignment: CellStatusbarAlignment.Left,
+					command: 'notebook.cell.fixError',
+					priority: Number.MAX_SAFE_INTEGER
+				});
+			}
+
+			return items;
 		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
-			return <INotebookCellStatusBarItem>{
+			return [<INotebookCellStatusBarItem>{
 				text: `$(${pendingStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.pending', "Pending"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			};
+			}];
 		} else if (state === NotebookCellExecutionState.Executing) {
 			const icon = runState?.didPause ?
 				executingStateIcon :
 				ThemeIcon.modify(executingStateIcon, 'spin');
-			return <INotebookCellStatusBarItem>{
+			return [<INotebookCellStatusBarItem>{
 				text: `$(${icon.id})`,
 				tooltip: localize('notebook.cell.status.executing', "Executing"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			};
+			}];
 		}
 
-		return;
+		return [];
 	}
 
 	override dispose() {

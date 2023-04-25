@@ -242,6 +242,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 		}));
 
+		this._register(this.gettingStartedService.onDidAddBuiltInWalkthrough(rerender));
 		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
 		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
 

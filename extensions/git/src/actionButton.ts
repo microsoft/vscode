@@ -51,6 +51,7 @@ export class ActionButtonCommand {
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 
+		this.disposables.push(repository.onDidChangeBranchProtection(() => this._onDidChange.fire()));
 		this.disposables.push(postCommitCommandCenter.onDidChange(() => this._onDidChange.fire()));
 
 		const root = Uri.file(repository.root);
@@ -61,8 +62,7 @@ export class ActionButtonCommand {
 				this.onDidChangeSmartCommitSettings();
 			}
 
-			if (e.affectsConfiguration('git.branchProtection', root) ||
-				e.affectsConfiguration('git.branchProtectionPrompt', root) ||
+			if (e.affectsConfiguration('git.branchProtectionPrompt', root) ||
 				e.affectsConfiguration('git.postCommitCommand', root) ||
 				e.affectsConfiguration('git.rememberPostCommitCommand', root) ||
 				e.affectsConfiguration('git.showActionButton', root)) {

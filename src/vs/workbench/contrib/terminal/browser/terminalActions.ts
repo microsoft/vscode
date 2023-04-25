@@ -502,7 +502,7 @@ export function registerTerminalActions() {
 		title: { value: localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal"), original: 'Run Selected Text In Active Terminal' },
 		run: async (c, accessor) => {
 			const codeEditorService = accessor.get(ICodeEditorService);
-			const instance = await c.service.getActiveOrCreateInstance();
+			let instance = await c.service.getActiveOrCreateInstance();
 			const editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
@@ -514,6 +514,12 @@ export function registerTerminalActions() {
 			} else {
 				const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+			}
+			// Don't use task terminals or other terminals that don't accept input
+			if (instance?.xterm?.isStdinDisabled || instance?.shellLaunchConfig.type === 'Task') {
+				instance = await c.service.createTerminal();
+				c.service.setActiveInstance(instance);
+				await revealActiveTerminal(instance, c);
 			}
 			instance.sendText(text, true, true);
 			await revealActiveTerminal(instance, c);

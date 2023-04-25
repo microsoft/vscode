@@ -31,6 +31,32 @@
       {
         "label": "Microsoft",
         "id": "microsoft"
+      },
+      {
+        "label": "Microsoft Sovereign Cloud",
+        "id": "microsoft-sovereign-cloud"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Microsoft Sovereign Cloud",
+        "properties": {
+          "microsoft-sovereign-cloud.endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "Azure China",
+                  "Azure US Government"
+                ]
+              }
+            ],
+            "description": "%microsoft-sovereign-cloud.endpoint.description%"
+          }
+        }
       }
     ]
   },

@@ -9,13 +9,22 @@ parameters:
     default: false
 
 steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "16.x"
+
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - template: ../distro/download-distro.yml
+    - script: node build/azure-pipelines/distro/apply-cli-patches
+      displayName: Apply distro patches
+
   - task: Npm@1
     displayName: Download openssl prebuilt
     inputs:
       command: custom
       customCommand: pack @vscode-internal/openssl-prebuilt@0.0.5
       customRegistry: useFeed
-      customFeed: 'Monaco/openssl-prebuilt'
+      customFeed: "Monaco/openssl-prebuilt"
       workingDir: $(Build.ArtifactStagingDirectory)
 
   - script: |
@@ -24,19 +33,11 @@ steps:
       tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.5.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
-  - task: NodeTool@0
-    inputs:
-      versionSpec: "16.x"
-
-  - template: ../mixin-distro-posix.yml
-    parameters:
-      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
-  - script: |
-      set -e
-      node build/azure-pipelines/cli/prepare.js
+  - script: node build/azure-pipelines/cli/prepare.js
     displayName: Prepare CLI build
     env:
+      VSCODE_CLI_PREPARE_ROOT: $(Build.SourcesDirectory)/.build/distro
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
 
   - template: ../cli/install-rust-posix.yml

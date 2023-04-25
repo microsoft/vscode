@@ -82,11 +82,6 @@ export interface ITokenizationTextModelPart {
 	*/
 	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
 
-	/**
-	 * @internal
-	 */
-	refreshTokens(startLineNumber: number, endLineNumber: number): void;
-
 	getLanguageId(): string;
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;
 

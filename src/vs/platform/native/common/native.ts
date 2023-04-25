@@ -162,7 +162,6 @@ export interface ICommonNativeHostService {
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
 	toggleDevTools(): Promise<void>;
-	toggleSharedProcessWindow(): Promise<void>;
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
 	enableSandbox(enabled: boolean): Promise<void>; // TODO@bpasero remove me
 

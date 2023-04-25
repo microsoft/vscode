@@ -97,6 +97,7 @@ export interface IWalkthroughsService {
 	readonly onDidRemoveWalkthrough: Event<string>;
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>;
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>;
+	readonly onDidAddBuiltInWalkthrough: Event<void>;
 
 	readonly installedExtensionsRegistered: Promise<void>;
 
@@ -133,6 +134,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough> = this._onDidChangeWalkthrough.event;
 	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
+
+	private readonly _onDidAddBuiltInWalkthrough = new Emitter<void>();
+	readonly onDidAddBuiltInWalkthrough: Event<void> = this._onDidAddBuiltInWalkthrough.event;
 
 	private memento: Memento;
 	private stepProgress: Record<string, StepProgress | undefined>;
@@ -255,6 +259,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 					})
 			});
 		});
+
+		this._onDidAddBuiltInWalkthrough.fire();
 	}
 
 	private updateWalkthroughContent(walkthrough: BuiltinGettingStartedCategory, experimentTreatment: WalkthroughTreatment): BuiltinGettingStartedCategory {

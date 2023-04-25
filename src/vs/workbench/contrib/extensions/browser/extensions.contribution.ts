@@ -77,6 +77,7 @@ import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
+import { DeprecatedExtensionsChecker } from 'vs/workbench/contrib/extensions/browser/deprecatedExtensionsChecker';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -1617,6 +1618,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, Life
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(DeprecatedExtensionsChecker, LifecyclePhase.Eventually);
 if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }

@@ -84,6 +84,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
 
+	private static SYMBOL_PICKS_MERGE_DELAY = 200; // allow some time to merge fast and slow picks to reduce flickering
+
 	private readonly pickState = new class {
 
 		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
@@ -394,7 +396,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					{ type: 'separator', label: this.configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
 					...additionalPicks
 				] : [];
-			})()
+			})(),
+
+			// allow some time to merge files and symbols to reduce flickering
+			mergeDelay: AnythingQuickAccessProvider.SYMBOL_PICKS_MERGE_DELAY
 		};
 	}
 

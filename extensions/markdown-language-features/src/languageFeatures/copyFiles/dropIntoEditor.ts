@@ -24,6 +24,11 @@ export const imageFileExtensions = new Set<string>([
 	'webp',
 ]);
 
+const videoFileExtensions = new Set<string>([
+	'ogg',
+	'mp4'
+]);
+
 export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentDropEditProvider(selector, new class implements vscode.DocumentDropEditProvider {
 		async provideDocumentDropEdits(document: vscode.TextDocument, _position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
@@ -33,12 +38,23 @@ export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector)
 			}
 
 			const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-			return snippet ? new vscode.DocumentDropEdit(snippet) : undefined;
+			if (!snippet) {
+				return undefined;
+			}
+
+			const edit = new vscode.DocumentDropEdit(snippet.snippet);
+			edit.label = snippet.label;
+			return edit;
 		}
+	}, {
+		id: 'insertLink',
+		dropMimeTypes: [
+			'text/uri-list'
+		]
 	});
 }
 
-export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetString | undefined> {
+export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
 	const urlList = await dataTransfer.get('text/uri-list')?.asString();
 	if (!urlList || token.isCancellationRequested) {
 		return undefined;
@@ -71,7 +87,8 @@ interface UriListSnippetOptions {
 	readonly separator?: string;
 }
 
-export function createUriListSnippet(document: vscode.TextDocument, uris: readonly vscode.Uri[], options?: UriListSnippetOptions): vscode.SnippetString | undefined {
+
+export function createUriListSnippet(document: vscode.TextDocument, uris: readonly vscode.Uri[], options?: UriListSnippetOptions): { snippet: vscode.SnippetString; label: string } | undefined {
 	if (!uris.length) {
 		return undefined;
 	}
@@ -79,25 +96,57 @@ export function createUriListSnippet(document: vscode.TextDocument, uris: readon
 	const dir = getDocumentDir(document);
 
 	const snippet = new vscode.SnippetString();
+
+	let insertedLinkCount = 0;
+	let insertedImageCount = 0;
+
 	uris.forEach((uri, i) => {
 		const mdPath = getMdPath(dir, uri);
 
 		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
 		const insertAsImage = typeof options?.insertAsImage === 'undefined' ? imageFileExtensions.has(ext) : !!options.insertAsImage;
+		const insertAsVideo = videoFileExtensions.has(ext);
 
-		snippet.appendText(insertAsImage ? '![' : '[');
+		if (insertAsVideo) {
+			insertedImageCount++;
+			snippet.appendText(`<video src="${mdPath}" controls title="`);
+			snippet.appendPlaceholder('Title');
+			snippet.appendText('"></video>');
+		} else {
+			if (insertAsImage) {
+				insertedImageCount++;
+			} else {
+				insertedLinkCount++;
+			}
 
-		const placeholderText = options?.placeholderText ?? (insertAsImage ? 'Alt text' : 'label');
-		const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
-		snippet.appendPlaceholder(placeholderText, placeholderIndex);
+			snippet.appendText(insertAsImage ? '![' : '[');
 
-		snippet.appendText(`](${mdPath})`);
+			const placeholderText = options?.placeholderText ?? (insertAsImage ? 'Alt text' : 'label');
+			const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
+			snippet.appendPlaceholder(placeholderText, placeholderIndex);
+
+			snippet.appendText(`](${mdPath})`);
+		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
 			snippet.appendText(options?.separator ?? ' ');
 		}
 	});
-	return snippet;
+
+	let label: string;
+	if (insertedImageCount > 0 && insertedLinkCount > 0) {
+		label = vscode.l10n.t('Insert Markdown Images and Links');
+	} else if (insertedImageCount > 0) {
+		label = insertedImageCount > 1
+			? vscode.l10n.t('Insert Markdown Images')
+			: vscode.l10n.t('Insert Markdown Image');
+	} else {
+		label = insertedLinkCount > 1
+			? vscode.l10n.t('Insert Markdown Links')
+			: vscode.l10n.t('Insert Markdown Link');
+	}
+
+	return { snippet, label };
 }
 
 function getMdPath(dir: vscode.Uri | undefined, file: vscode.Uri) {
