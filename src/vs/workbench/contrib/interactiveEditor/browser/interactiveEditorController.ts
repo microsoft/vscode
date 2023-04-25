@@ -31,6 +31,7 @@ import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -40,7 +41,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, IInteractiveEditorMessageResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -216,7 +217,7 @@ export class EditResponse {
 
 class Session {
 
-	private readonly _responses: EditResponse[] = [];
+	private readonly _responses: (EditResponse | IInteractiveEditorMessageResponse)[] = [];
 
 	readonly teldata: TelemetryData;
 
@@ -239,12 +240,12 @@ class Session {
 		};
 	}
 
-	addResponse(response: EditResponse): void {
+	addResponse(response: EditResponse | IInteractiveEditorMessageResponse): void {
 		const newLen = this._responses.push(response);
 		this.teldata.rounds += `${newLen}|`;
 	}
 
-	get lastResponse(): EditResponse | undefined {
+	get lastResponse(): EditResponse | IInteractiveEditorMessageResponse | undefined {
 		return this._responses[this._responses.length - 1];
 	}
 }
@@ -296,6 +297,9 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
 
+	private _requestPrompt: string | undefined;
+	private _messageReply: string | undefined;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -332,7 +336,16 @@ export class InteractiveEditorController implements IEditorContribution {
 		return this._configurationService.getValue('interactiveEditor.editMode');
 	}
 
+	viewInChat() {
+		if (this._messageReply && this._requestPrompt) {
+			this._instaService.invokeFunction(showMessageResponse, this._requestPrompt, this._messageReply);
+		}
+	}
+
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
+
+		// hide/cancel inline completions when invoking IE
+		InlineCompletionsController.get(this._editor)?.hide();
 
 		const editMode = this._getMode();
 
@@ -399,7 +412,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
 		}
 
-		this._zone.widget.updateMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
+		this._zone.widget.updateStatus(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
 
 		// CANCEL when input changes
 		this._editor.onDidChangeModel(this.cancelSession, this, store);
@@ -434,14 +447,14 @@ export class InteractiveEditorController implements IEditorContribution {
 					this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
 					return;
 				}
-				for (const change of e.changes) {
-					if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
-						this._ctsSession.cancel();
-						this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
-						this._currentSession!.teldata.terminalEdits = true;
-						break;
-					}
-				}
+				// for (const change of e.changes) {
+				// 	if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
+				// 		this._ctsSession.cancel();
+				// 		this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
+				// 		this._currentSession!.teldata.terminalEdits = true;
+				// 		break;
+				// 	}
+				// }
 			}
 
 		}, undefined, store);
@@ -531,7 +544,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
-					this._zone.widget.updateMessage(toErrorMessage(e), { classes: ['error'] });
+					this._zone.widget.updateStatus(toErrorMessage(e), { classes: ['error'] });
 					// statusWidget
 					continue;
 				}
@@ -549,7 +562,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), { classes: ['warn'] });
+				this._zone.widget.updateStatus(localize('empty', "No results, please refine your input and try again."), { classes: ['warn'] });
 				continue;
 			}
 
@@ -559,9 +572,11 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				const messageReply = reply.message;
-				const renderedMarkdown = renderMarkdown(messageReply, { inline: true });
-				this._zone.widget.updateMessage(renderedMarkdown.element, { linkListener: () => this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply.value), isMessageReply: true });
+				this._messageReply = reply.message.value;
+				this._requestPrompt = request.prompt;
+				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
+				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
+				this._currentSession.addResponse(reply);
 				continue;
 			}
 
@@ -651,7 +666,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				} else {
 					message = localize('lines.N', "Generated reply and changed {0} lines.", linesChanged);
 				}
-				this._zone.widget.updateMessage(message);
+				this._zone.widget.updateStatus(message);
 			}
 
 
@@ -773,7 +788,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	undoLast(): string | void {
-		if (this._currentSession?.lastResponse) {
+		if (this._currentSession?.lastResponse instanceof EditResponse) {
 			this._currentSession.modelN.undo();
 			return this._currentSession.lastResponse.localEdits[0].text;
 		}
@@ -782,14 +797,14 @@ export class InteractiveEditorController implements IEditorContribution {
 	feedbackLast(helpful: boolean) {
 		if (this._currentSession?.lastResponse) {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
-			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastResponse.raw, kind);
+			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastResponse instanceof EditResponse ? this._currentSession.lastResponse.raw : this._currentSession.lastResponse, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
-			this._zone.widget.updateMessage('Thank you for your feedback!', { resetAfter: 1250 });
+			this._zone.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
 	async applyChanges(): Promise<EditResponse | void> {
-		if (this._currentSession?.lastResponse) {
+		if (this._currentSession?.lastResponse instanceof EditResponse) {
 			const { lastResponse } = this._currentSession;
 			await this._strategy?.apply();
 			this._ctsSession.cancel();
@@ -841,7 +856,7 @@ class PreviewStrategy extends EditModeStrategy {
 	async apply() {
 
 		const response = this._session.lastResponse;
-		if (!response) {
+		if (!(response instanceof EditResponse)) {
 			return;
 		}
 
@@ -1003,7 +1018,8 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 	const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
 	const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
 	if (widget && widget.viewModel) {
-		interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
+		await interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
+		widget.focusLastMessage();
 	}
 }
 

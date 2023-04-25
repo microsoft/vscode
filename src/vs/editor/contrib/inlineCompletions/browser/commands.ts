@@ -71,7 +71,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		controller?.model.get()?.trigger(undefined);
+		controller?.model.get()?.triggerExplicitly();
 	}
 }
 

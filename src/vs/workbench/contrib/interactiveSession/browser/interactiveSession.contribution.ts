@@ -99,7 +99,7 @@ class InteractiveSessionResolverContribution extends Disposable {
 			},
 			{
 				createEditorInput: ({ resource, options }) => {
-					return { editor: instantiationService.createInstance(InteractiveSessionEditorInput, resource, options as IInteractiveSessionEditorOptions, undefined), options };
+					return { editor: instantiationService.createInstance(InteractiveSessionEditorInput, resource, options as IInteractiveSessionEditorOptions), options };
 				}
 			}
 		));

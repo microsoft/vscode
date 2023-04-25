@@ -158,6 +158,7 @@ export interface IInteractiveSessionModel {
 	readonly onDidChange: Event<IInteractiveSessionChangeEvent>;
 	readonly sessionId: string;
 	readonly providerId: string;
+	// readonly title: string;
 	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
@@ -166,7 +167,7 @@ export interface IInteractiveSessionModel {
 }
 
 export interface ISerializableInteractiveSessionsData {
-	[providerId: string]: ISerializableInteractiveSessionData[];
+	[sessionId: string]: ISerializableInteractiveSessionData;
 }
 
 export interface ISerializableInteractiveSessionRequestData {
@@ -181,7 +182,8 @@ export interface ISerializableInteractiveSessionRequestData {
 
 export interface ISerializableInteractiveSessionData {
 	sessionId: string;
-	// welcomeMessage: string | undefined;
+	creationDate: number;
+	welcomeMessage: (string | IInteractiveSessionReplyFollowup[])[] | undefined;
 	requests: ISerializableInteractiveSessionRequestData[];
 	requesterUsername: string;
 	responderUsername: string;
@@ -248,6 +250,11 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
 	}
 
+	private _creationDate: number;
+	get creationDate(): number {
+		return this._creationDate;
+	}
+
 	constructor(
 		public readonly providerId: string,
 		initialData: ISerializableInteractiveSessionData | undefined,
@@ -257,6 +264,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		this._sessionId = initialData ? initialData.sessionId : generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._providerState = initialData ? initialData.providerState : undefined;
+		this._creationDate = initialData?.creationDate ?? Date.now();
 	}
 
 	private _deserialize(obj: ISerializableInteractiveSessionData): InteractiveRequestModel[] {
@@ -264,6 +272,11 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		if (!Array.isArray(requests)) {
 			this.logService.error(`Ignoring malformed session data: ${obj}`);
 			return [];
+		}
+
+		if (obj.welcomeMessage) {
+			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
+			this._welcomeMessage = new InteractiveSessionWelcomeMessageModel(content, obj.responderUsername, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri));
 		}
 
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
@@ -281,7 +294,11 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 
 		this._session = session;
-		this._welcomeMessage = welcomeMessage;
+		if (!this._welcomeMessage) {
+			// Could also have loaded the welcome message from persisted data
+			this._welcomeMessage = welcomeMessage;
+		}
+
 		this._isInitializedDeferred.complete();
 
 		if (session.onDidChangeState) {
@@ -374,11 +391,18 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	toJSON(): ISerializableInteractiveSessionData {
 		return {
 			sessionId: this.sessionId,
+			creationDate: this._creationDate,
 			requesterUsername: this._session!.requesterUsername,
 			requesterAvatarIconUri: this._session!.requesterAvatarIconUri,
 			responderUsername: this._session!.responderUsername,
 			responderAvatarIconUri: this._session!.responderAvatarIconUri,
-			// welcomeMessage: this._welcomeMessage,
+			welcomeMessage: this._welcomeMessage?.content.map(c => {
+				if (Array.isArray(c)) {
+					return c;
+				} else {
+					return c.value;
+				}
+			}),
 			requests: this._requests.map((r): ISerializableInteractiveSessionRequestData => {
 				return {
 					providerResponseId: r.response?.providerResponseId,
