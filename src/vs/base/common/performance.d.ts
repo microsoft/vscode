@@ -8,9 +8,11 @@ export interface PerformanceMark {
 	readonly startTime: number;
 }
 
+/** @skipMangle */
 export function mark(name: string): void;
 
 /**
  * Returns all marks, sorted by `startTime`.
+ * @skipMangle
  */
 export function getMarks(): PerformanceMark[];
