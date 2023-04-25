@@ -182,8 +182,16 @@ export class NotebookOptions extends Disposable {
 			outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
 		}
 
+		let outputScrolling: boolean;
+		const deprecatedOutputScrollingSetting = this.configurationService.getValue<boolean>(NotebookSetting.outputScrollingDeprecated);
+		if (deprecatedOutputScrollingSetting !== undefined) {
+			this._migrateDeprecatedSetting(NotebookSetting.outputScrollingDeprecated, NotebookSetting.outputScrolling);
+			outputScrolling = deprecatedOutputScrollingSetting;
+		} else {
+			outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
+		}
+
 		const outputLineHeight = this._computeOutputLineHeight(outputLineHeightSettingValue, outputFontSize);
-		const outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
 		const outputWordWrap = this.configurationService.getValue<boolean>(NotebookSetting.outputWordWrap);
 		const outputLineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
 

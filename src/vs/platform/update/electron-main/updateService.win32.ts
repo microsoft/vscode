@@ -224,7 +224,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		});
 
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
-		const mutex = await import('windows-mutex');
+		const mutex = await import('@vscode/windows-mutex');
 
 		// poll for mutex-ready
 		pollUntil(() => mutex.isActive(readyMutexName))

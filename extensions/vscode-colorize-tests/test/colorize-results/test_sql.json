@@ -448,7 +448,35 @@
 		}
 	},
 	{
-		"c": " STATS;",
+		"c": " ",
+		"t": "source.sql",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_plus_experimental": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_plus_experimental": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "STATS",
+		"t": "source.sql keyword.other.sql",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6",
+			"dark_plus_experimental": "keyword: #569CD6",
+			"hc_light": "keyword: #0F4A85",
+			"light_plus_experimental": "keyword: #0000FF"
+		}
+	},
+	{
+		"c": ";",
 		"t": "source.sql",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

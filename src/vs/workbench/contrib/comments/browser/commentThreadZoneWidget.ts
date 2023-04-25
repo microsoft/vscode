@@ -187,15 +187,18 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			const height = this.editor.getLayoutInfo().height;
 			const coords = this._commentThreadWidget.getCommentCoords(commentUniqueId);
 			if (coords) {
-				const commentThreadCoords = coords.thread;
-				const commentCoords = coords.comment;
-
-				this.editor.setScrollTop(this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top);
+				let scrollTop: number = 1;
+				if (this._commentThread.range) {
+					const commentThreadCoords = coords.thread;
+					const commentCoords = coords.comment;
+					scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
+				}
+				this.editor.setScrollTop(scrollTop);
 				return;
 			}
 		}
 
-		this.editor.revealRangeInCenter(this._commentThread.range);
+		this.editor.revealRangeInCenter(this._commentThread.range ?? new Range(1, 1, 1, 1));
 		if (focus) {
 			this._commentThreadWidget.focus();
 		}
@@ -228,12 +231,16 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 						const newPosition = this.getPosition();
 
 						if (newPosition) {
-							let range: Range;
 							const originalRange = this._commentThread.range;
+							if (!originalRange) {
+								return;
+							}
+							let range: Range;
+
 							if (newPosition.lineNumber !== originalRange.endLineNumber) {
 								// The widget could have moved as a result of editor changes.
 								// We need to try to calculate the new, more correct, range for the comment.
-								const distance = newPosition.lineNumber - this._commentThread.range.endLineNumber;
+								const distance = newPosition.lineNumber - originalRange.endLineNumber;
 								range = new Range(originalRange.startLineNumber + distance, originalRange.startColumn, originalRange.endLineNumber + distance, originalRange.endColumn);
 							} else {
 								range = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.endColumn);
@@ -251,7 +258,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.add(this._commentThreadWidget);
 	}
 
-	private arrowPosition(range: IRange): IPosition {
+	private arrowPosition(range: IRange | undefined): IPosition | undefined {
+		if (!range) {
+			return undefined;
+		}
 		// Arrow on top edge of zone widget will be at the start of the line if range is multi-line, else at midpoint of range (rounding rightwards)
 		return { lineNumber: range.endLineNumber, column: range.endLineNumber === range.startLineNumber ? (range.startColumn + range.endColumn + 1) / 2 : 1 };
 	}
@@ -295,7 +305,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.updateCommentThread(commentThread);
 
 		// Move comment glyph widget and show position if the line has changed.
-		const lineNumber = this._commentThread.range.endLineNumber;
+		const lineNumber = this._commentThread.range?.endLineNumber ?? 1;
 		let shouldMoveWidget = false;
 		if (this._commentGlyph) {
 			this._commentGlyph.setThreadState(commentThread.state);
@@ -324,15 +334,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.layout(widthInPixel);
 	}
 
-	display(range: IRange) {
-		this._commentGlyph = new CommentGlyphWidget(this.editor, range.endLineNumber);
-		this._commentGlyph.setThreadState(this._commentThread.state);
+	display(range: IRange | undefined) {
+		if (range) {
+			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
+			this._commentGlyph.setThreadState(this._commentThread.state);
+		}
 
 		this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
 			this._refresh(dimension);
 		}));
-		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
+		if ((this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) || (range === undefined)) {
 			this.show(this.arrowPosition(range), 2);
 		}
 
@@ -351,7 +363,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeRange(range => {
 			// Move comment glyph widget and show position if the line has changed.
-			const lineNumber = this._commentThread.range.startLineNumber;
+			const lineNumber = this._commentThread.range?.startLineNumber ?? 1;
 			let shouldMoveWidget = false;
 			if (this._commentGlyph) {
 				if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
@@ -379,8 +391,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		if (this._initialCollapsibleState === undefined) {
 			const onDidChangeInitialCollapsibleState = this._commentThread.onDidChangeInitialCollapsibleState(state => {
-				this._initialCollapsibleState = state;
-				this._commentThread.collapsibleState = state;
+				// File comments always start expanded
+				this._initialCollapsibleState = this._commentThread.range ? state : languages.CommentThreadCollapsibleState.Expanded;
+				this._commentThread.collapsibleState = this._initialCollapsibleState;
 				onDidChangeInitialCollapsibleState.dispose();
 			});
 			this._commentThreadDisposables.push(onDidChangeInitialCollapsibleState);
@@ -420,7 +433,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 			const currentPosition = this.getPosition();
 
-			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber) {
+			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber && this._viewZone.afterLineNumber !== 0) {
 				this._viewZone.afterLineNumber = currentPosition.lineNumber;
 			}
 
@@ -444,9 +457,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.applyTheme(theme, fontInfo);
 	}
 
-	override show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
+	override show(rangeOrPos: IRange | IPosition | undefined, heightInLines: number): void {
 		this._isExpanded = true;
-		super.show(rangeOrPos, heightInLines);
+		super.show(rangeOrPos ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
 	}

@@ -17,6 +17,7 @@ import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/brows
 import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
+import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,7 +25,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
-import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
 
 export interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -33,7 +33,7 @@ export interface IActionShowOptions {
 
 export class CodeActionUi extends Disposable {
 
-	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
+	private readonly _lightBulbWidget: Lazy<LightBulbWidget | null>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
 	private readonly _resolver: CodeActionKeybindingResolver;
@@ -55,8 +55,10 @@ export class CodeActionUi extends Disposable {
 		super();
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor));
-			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
+			const widget = this._editor.getContribution<LightBulbWidget>(LightBulbWidget.ID);
+			if (widget) {
+				this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
+			}
 			return widget;
 		});
 
@@ -88,7 +90,7 @@ export class CodeActionUi extends Disposable {
 			return;
 		}
 
-		this._lightBulbWidget.value.update(actions, newState.trigger, newState.position);
+		this._lightBulbWidget.value?.update(actions, newState.trigger, newState.position);
 
 		if (newState.trigger.type === CodeActionTriggerType.Invoke) {
 			if (newState.trigger.filter?.include) { // Triggered for specific scope
@@ -97,7 +99,7 @@ export class CodeActionUi extends Disposable {
 				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
 				if (validActionToApply) {
 					try {
-						this._lightBulbWidget.value.hide();
+						this._lightBulbWidget.value?.hide();
 						await this.delegate.applyCodeAction(validActionToApply, false, false);
 					} finally {
 						actions.dispose();

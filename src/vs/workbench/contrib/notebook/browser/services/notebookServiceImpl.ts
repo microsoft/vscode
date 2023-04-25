@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { toAction } from 'vs/base/common/actions';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { PixelRatio } from 'vs/base/browser/browser';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
@@ -22,7 +25,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
+import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookPreloadExtensionPoint, notebookRendererExtensionPoint, notebooksExtensionPoint } from 'vs/workbench/contrib/notebook/browser/notebookExtensionPoint';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
@@ -38,6 +41,7 @@ import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } fro
 import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -413,6 +417,9 @@ class ModelData implements IDisposable {
 export class NotebookService extends Disposable implements INotebookService {
 
 	declare readonly _serviceBrand: undefined;
+	private static _storageNotebookViewTypeProvider = 'notebook.viewTypeProvider';
+	private readonly _memento: Memento;
+	private readonly _viewTypeCache: MementoObject;
 
 	private readonly _notebookProviders = new Map<string, SimpleNotebookProviderInfo>();
 	private _notebookProviderInfoStore: NotebookProviderInfoStore | undefined = undefined;
@@ -462,6 +469,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -583,6 +591,9 @@ export class NotebookService extends Disposable implements INotebookService {
 		};
 		this._register(this._codeEditorService.onDecorationTypeRegistered(onDidAddDecorationType));
 		this._codeEditorService.listDecorationTypes().forEach(onDidAddDecorationType);
+
+		this._memento = new Memento(NotebookService._storageNotebookViewTypeProvider, this._storageService);
+		this._viewTypeCache = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 
@@ -652,13 +663,25 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable {
 		this.notebookProviderInfoStore.get(viewType)?.update({ options: serializer.options });
+		this._viewTypeCache[viewType] = extensionData.id.value;
+		this._persistMementos();
 		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
 	}
 
 	async withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo> {
 		const selected = this.notebookProviderInfoStore.get(viewType);
 		if (!selected) {
-			throw new Error(`UNKNOWN notebook type '${viewType}'`);
+			const knownProvider = this.getViewTypeProvider(viewType);
+
+			const actions = knownProvider ? [
+				toAction({
+					id: 'workbench.notebook.action.installMissingViewType', label: localize('notebookOpenInstallMissingViewType', "Install extension for '{0}'", viewType), run: async () => {
+						await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
+					}
+				})
+			] : [];
+
+			throw createErrorWithActions(`UNKNOWN notebook type '${viewType}'`, actions);
 		}
 		await this.canResolve(selected.id);
 		const result = this._notebookProviders.get(selected.id);
@@ -666,6 +689,15 @@ export class NotebookService extends Disposable implements INotebookService {
 			throw new Error(`NO provider registered for view type: '${selected.id}'`);
 		}
 		return result;
+	}
+
+
+	private _persistMementos(): void {
+		this._memento.saveMemento();
+	}
+
+	getViewTypeProvider(viewType: string): string | undefined {
+		return this._viewTypeCache[viewType];
 	}
 
 	getRendererInfo(rendererId: string): INotebookRendererInfo | undefined {

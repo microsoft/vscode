@@ -24,7 +24,7 @@ export async function activate(ctx: RendererContext<void>) {
 			const src = token.attrGet('src');
 			const attachments: Record<string, Record<string, string>> | undefined = env.outputItem.metadata?.attachments;
 			if (attachments && src) {
-				const imageAttachment = attachments[src.replace('attachment:', '')];
+				const imageAttachment = attachments[tryDecodeURIComponent(src.replace('attachment:', ''))];
 				if (imageAttachment) {
 					// objEntries will always be length 1, with objEntries[0] holding [0]=mime,[1]=b64
 					// if length = 0, something is wrong with the attachment, mime/b64 weren't copied over
@@ -44,4 +44,12 @@ export async function activate(ctx: RendererContext<void>) {
 			}
 		};
 	});
+}
+
+function tryDecodeURIComponent(uri: string) {
+	try {
+		return decodeURIComponent(uri);
+	} catch {
+		return uri;
+	}
 }

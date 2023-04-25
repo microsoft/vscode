@@ -711,10 +711,8 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 			next = next === this.value ? this.getNextValue() : next;
 		}
 
-		if (next) {
-			this.value = next;
-			aria.status(this.value);
-		}
+		this.value = next ?? '';
+		aria.status(this.value ? this.value : nls.localize('clearedInput', "Cleared Input"));
 	}
 
 	public showPreviousValue(): void {
@@ -761,6 +759,6 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	}
 
 	private getNextValue(): string | null {
-		return this.history.next() || this.history.last();
+		return this.history.next();
 	}
 }

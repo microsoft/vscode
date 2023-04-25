@@ -12,7 +12,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, MainContext, MainThreadDebugServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IThreadFocusDto, IStackFrameFocusDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, MainContext, MainThreadDebugServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -41,6 +41,8 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
 	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
 	breakpoints: vscode.Breakpoint[];
+	onDidChangeStackFrameFocus: Event<vscode.ThreadFocus | vscode.StackFrameFocus | undefined>;
+	stackFrameFocus: vscode.ThreadFocus | vscode.StackFrameFocus | undefined;
 
 	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
 	removeBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
@@ -91,6 +93,9 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
+	private _stackFrameFocus: vscode.ThreadFocus | vscode.StackFrameFocus | undefined;
+	private readonly _onDidChangeStackFrameFocus: Emitter<vscode.ThreadFocus | vscode.StackFrameFocus | undefined>;
+
 	private _debugAdapters: Map<number, IDebugAdapter>;
 	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
 
@@ -128,6 +133,8 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 				this.startBreakpoints();
 			}
 		});
+
+		this._onDidChangeStackFrameFocus = new Emitter<vscode.ThreadFocus | vscode.StackFrameFocus | undefined>();
 
 		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
 
@@ -189,6 +196,15 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	}
 
 	// extension debug API
+
+
+	get stackFrameFocus(): vscode.ThreadFocus | vscode.StackFrameFocus | undefined {
+		return this._stackFrameFocus;
+	}
+
+	get onDidChangeStackFrameFocus(): Event<vscode.ThreadFocus | vscode.StackFrameFocus | undefined> {
+		return this._onDidChangeStackFrameFocus.event;
+	}
 
 	get onDidChangeBreakpoints(): Event<vscode.BreakpointsChangeEvent> {
 		return this._onDidChangeBreakpoints.event;
@@ -582,6 +598,32 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		}
 
 		this.fireBreakpointChanges(a, r, c);
+	}
+
+	public async $acceptStackFrameFocus(focusDto: IThreadFocusDto | IStackFrameFocusDto): Promise<void> {
+		let focus: vscode.ThreadFocus | vscode.StackFrameFocus;
+		const session = focusDto.sessionId ? await this.getSession(focusDto.sessionId) : undefined;
+		if (!session) {
+			throw new Error('no DebugSession found for debug focus context');
+		}
+
+		if (focusDto.kind === 'thread') {
+			focus = {
+				kind: focusDto.kind,
+				threadId: focusDto.threadId,
+				session,
+			};
+		} else {
+			focus = {
+				kind: focusDto.kind,
+				threadId: focusDto.threadId,
+				frameId: focusDto.frameId,
+				session,
+			};
+		}
+
+		this._stackFrameFocus = focus;
+		this._onDidChangeStackFrameFocus.fire(focus);
 	}
 
 	public $provideDebugConfigurations(configProviderHandle: number, folderUri: UriComponents | undefined, token: CancellationToken): Promise<vscode.DebugConfiguration[]> {

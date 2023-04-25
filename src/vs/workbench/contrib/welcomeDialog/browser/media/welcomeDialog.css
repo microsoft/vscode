@@ -6,39 +6,12 @@
 	border-radius: 6px;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container {
-	padding-left: 0px;
-}
-
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-text {
 	font-size: 25px;
-	width: max-content;
+	min-width: max-content;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .dialog-message {
-	display: flex;
-	padding: 20px;
-	min-height: auto;
-	color: var(--vscode-descriptionForeground);
-	border-radius: 6px;
-	overflow: hidden;
-	margin-bottom: 12px;
-	background: var(--vscode-welcomePage-tileHoverBackground);
-	align-items: center;
-}
-
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body>.dialog-message {
-	grid-area: title;
-	align-self: flex-end;
-}
-
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .dialog-message hr {
-	border-color: var(--vscode-descriptionForeground);
-	margin-bottom: 12px;
-	border-width: thin;
-}
-
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .dialog-message .icon-widget {
+#monaco-dialog-message-body > div > p > .codicon[class*='codicon-']::before{
 	padding-right: 8px;
 	max-width: 30px;
 	max-height: 30px;
@@ -49,6 +22,17 @@
 	font-size: 25px;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .dialog-message .description-container {
+#monaco-dialog-message-body > .message-body > p {
+	display: flex;
+	font-size: 16px;
+	background: var(--vscode-welcomePage-tileHoverBackground);
+	border-radius: 6px;
+	padding: 20px;
+	min-height: auto;
+	word-wrap: break-word;
+	overflow-wrap:break-word;
+}
+
+#monaco-dialog-message-body > .link > p {
 	font-size: 16px;
 }

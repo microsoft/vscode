@@ -5,7 +5,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/diff/diff';
-import { ILinesDiffComputer, ILinesDiff, ILinesDiffComputerOptions, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions, RangeMapping, LineRangeMapping, LinesDiff } from 'vs/editor/common/diff/linesDiffComputer';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
@@ -14,7 +14,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 
 export class SmartLinesDiffComputer implements ILinesDiffComputer {
-	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): ILinesDiff {
+	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
 		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			maxComputationTime: options.maxComputationTimeMs,
 			shouldIgnoreTrimWhitespace: options.ignoreTrimWhitespace,
@@ -75,17 +75,23 @@ export class SmartLinesDiffComputer implements ILinesDiffComputer {
 			);
 		});
 
-		return {
-			quitEarly: result.quitEarly,
-			changes,
-		};
+		return new LinesDiff(changes, result.quitEarly);
 	}
 }
 
 export interface IDiffComputationResult {
 	quitEarly: boolean;
 	identical: boolean;
+
+	/**
+	 * The changes as (legacy) line change array.
+	 */
 	changes: ILineChange[];
+
+	/**
+	 * The changes as (modern) line range mapping array.
+	 */
+	changes2: LineRangeMapping[];
 }
 
 /**

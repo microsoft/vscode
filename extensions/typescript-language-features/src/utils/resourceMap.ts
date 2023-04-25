@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as fileSchemes from '../utils/fileSchemes';
+import * as fileSchemes from '../configuration/fileSchemes';
 
 /**
  * Maps of file resources

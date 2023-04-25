@@ -45,6 +45,7 @@ import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { DomEmitter } from 'vs/base/browser/event';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { FileAccess } from 'vs/base/common/network';
 
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
@@ -116,7 +117,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
 		if (comment.userIconPath) {
 			const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
-			img.src = comment.userIconPath.toString();
+			img.src = FileAccess.uriToBrowserUri(URI.revive(comment.userIconPath)).toString(true);
 			img.onerror = _ => img.remove();
 		}
 		this._commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
@@ -154,12 +155,15 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
-			vertical: ScrollbarVisibility.Hidden
+			vertical: ScrollbarVisibility.Visible
 		}, this._scrollable));
 
 		this._register(this._scrollableElement.onScroll(e => {
 			if (e.scrollLeftChanged) {
 				body.scrollLeft = e.scrollLeft;
+			}
+			if (e.scrollTopChanged) {
+				body.scrollTop = e.scrollTop;
 			}
 		}));
 
@@ -167,9 +171,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(onDidScrollViewContainer(_ => {
 			const position = this._scrollableElement.getScrollPosition();
 			const scrollLeft = Math.abs(body.scrollLeft - position.scrollLeft) <= 1 ? undefined : body.scrollLeft;
+			const scrollTop = Math.abs(body.scrollTop - position.scrollTop) <= 1 ? undefined : body.scrollTop;
 
-			if (scrollLeft !== undefined) {
-				this._scrollableElement.setScrollPosition({ scrollLeft });
+			if (scrollLeft !== undefined || scrollTop !== undefined) {
+				this._scrollableElement.setScrollPosition({ scrollLeft, scrollTop });
 			}
 		}));
 
@@ -517,7 +522,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditor?.layout();
 		const scrollWidth = this._body.scrollWidth;
 		const width = dom.getContentWidth(this._body);
-		this._scrollableElement.setScrollDimensions({ width, scrollWidth });
+		const scrollHeight = this._body.scrollHeight;
+		const height = dom.getContentHeight(this._body) + 4;
+		this._scrollableElement.setScrollDimensions({ width, scrollWidth, height, scrollHeight });
 	}
 
 	public switchToEditMode() {

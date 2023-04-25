@@ -187,14 +187,12 @@ export abstract class SimpleFindWidget extends Widget {
 			this._matchesCount = document.createElement('div');
 			this._matchesCount.className = 'matchesCount';
 			this._findInput.domNode.insertAdjacentElement('afterend', this._matchesCount);
-			this._register(this._findInput.onDidChange(() => {
-				this.updateResultCount();
-				this.updateButtons(this._foundMatch);
+			this._register(this._findInput.onDidChange(async () => {
+				await this.updateResultCount();
 			}));
 			this._register(this._findInput.onDidOptionChange(async () => {
 				this._foundMatch = this._onInputChanged();
 				await this.updateResultCount();
-				this.updateButtons(this._foundMatch);
 				this.focusFindBox();
 				this._delayedUpdateHistory();
 			}));
@@ -350,6 +348,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 	async updateResultCount(): Promise<void> {
 		if (!this._matchesCount) {
+			this.updateButtons(this._foundMatch);
 			return;
 		}
 
@@ -368,6 +367,7 @@ export abstract class SimpleFindWidget extends Widget {
 		alertFn(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._foundMatch = !!count && count.resultCount > 0;
+		this.updateButtons(this._foundMatch);
 	}
 
 	changeState(state: INewFindReplaceState) {

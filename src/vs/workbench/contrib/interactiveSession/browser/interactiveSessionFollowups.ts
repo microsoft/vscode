@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInteractiveSessionFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
@@ -35,7 +36,7 @@ export class InteractiveSessionFollowups<T extends IInteractiveSessionFollowup> 
 		const label = followup.kind === 'reply' ?
 			'$(sparkle) ' + (followup.title || followup.message) :
 			followup.title;
-		button.label = label;
+		button.label = new MarkdownString(label, { supportThemeIcons: true });
 
 		this._register(button.onDidClick(() => this.clickHandler(followup)));
 	}

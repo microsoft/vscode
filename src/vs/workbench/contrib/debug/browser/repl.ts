@@ -384,14 +384,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	private navigateHistory(previous: boolean): void {
-		const historyInput = previous ? this.history.previous() : this.history.next();
-		if (historyInput) {
-			this.replInput.setValue(historyInput);
-			aria.status(historyInput);
-			// always leave cursor at the end.
-			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
-			this.setHistoryNavigationEnablement(true);
-		}
+		const historyInput = (previous ?
+			(this.history.previous() ?? this.history.first()) : this.history.next())
+			?? '';
+		this.replInput.setValue(historyInput);
+		aria.status(historyInput);
+		// always leave cursor at the end.
+		this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
+		this.setHistoryNavigationEnablement(true);
 	}
 
 	async selectSession(session?: IDebugSession): Promise<void> {
@@ -595,6 +595,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider,
 				mouseSupport: false,
+				findWidgetEnabled: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e.toString(true) },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,

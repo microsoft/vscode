@@ -112,7 +112,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			this._replaceAllBtn.setEnabled(matches.length > 0 && matches.find(match => match.webviewMatches.length > 0) === undefined);
 
 			if (e.filters) {
-				this._findInput.updateFilterState((this._state.filters?.markupPreview ?? false) || (this._state.filters?.codeOutput !== true));
+				this._findInput.updateFilterState(this._state.filters?.isModified() ?? false);
 			}
 		}));
 
@@ -321,7 +321,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 				const cell = this._notebookEditor.cellAt(i);
 
 				if (cell.getEditState() === CellEditState.Editing && cell.editStateSource === 'find') {
-					cell.updateEditState(CellEditState.Preview, 'find');
+					cell.updateEditState(CellEditState.Preview, 'closeFind');
 				}
 			}
 		}

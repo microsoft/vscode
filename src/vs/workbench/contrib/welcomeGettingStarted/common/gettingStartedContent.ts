@@ -65,16 +65,6 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'command:welcome.showNewFileEntries',
 		}
 	},
-	// {
-	// 	id: 'welcome.showNewFolderEntries',
-	// 	title: localize('gettingStarted.newFolder.title', "New Folder..."),
-	// 	description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),
-	// 	icon: Codicon.newFolder,
-	// 	content: {
-	// 		type: 'startEntry',
-	// 		command: 'welcome.showNewFolderEntries',
-	// 	}
-	// },
 	{
 		id: 'topLevelOpenMac',
 		title: localize('gettingStarted.openMac.title', "Open..."),
@@ -150,28 +140,6 @@ export const startEntries: GettingStartedStartEntryContent = [
 		content: {
 			type: 'startEntry',
 			command: 'command:welcome.showAllWalkthroughs',
-		}
-	},
-	{
-		id: 'topLevelVideoTutorials',
-		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
-		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
-		icon: Codicon.playCircle,
-		when: 'config.workbench.welcomePage.experimental.videoTutorials == on',
-		content: {
-			type: 'startEntry',
-			command: 'https://aka.ms/vscode-getting-started-video',
-		}
-	},
-	{
-		id: 'topLevelVideoTutorialsExperimental',
-		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
-		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
-		when: 'config.workbench.welcomePage.experimental.videoTutorials == experimental',
-		icon: Codicon.playCircle,
-		content: {
-			type: 'startEntry',
-			command: 'https://aka.ms/vscode-videos',
 		}
 	},
 	{

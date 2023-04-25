@@ -67,7 +67,7 @@ function ensureIsArray(a) {
 
 const testModules = (async function () {
 
-	const excludeGlob = '**/{node,electron-sandbox,electron-browser,electron-main}/**/*.test.js';
+	const excludeGlob = '**/{node,electron-sandbox,electron-main}/**/*.test.js';
 	let isDefaultModules = true;
 	let promise;
 

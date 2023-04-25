@@ -355,6 +355,7 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
 	const viewsService = accessor.get(IViewsService);
+	const commandService = accessor.get(ICommandService);
 	const args: IFindInFilesArgs = {};
 	if (Object.keys(_args).length !== 0) {
 		// resolve variables in the same way as in
@@ -402,7 +403,7 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 			onlyOpenEditors: args.onlyOpenEditors,
 			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
 		});
-		accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
+		commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
 	}
 }
 //#endregion

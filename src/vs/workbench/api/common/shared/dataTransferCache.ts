@@ -22,7 +22,7 @@ export class DataTransferCache {
 		};
 	}
 
-	async resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
+	async resolveFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
 		const entry = this.dataTransfers.get(requestId);
 		if (!entry) {
 			throw new Error('No data transfer found');

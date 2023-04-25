@@ -24,6 +24,6 @@ export interface IInteractiveSessionContributionService {
 export interface IRawInteractiveSessionProviderContribution {
 	id: string;
 	label: string;
-	icon: string;
+	icon?: string;
 	when?: string;
 }

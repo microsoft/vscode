@@ -21,6 +21,8 @@ import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, IT
  * NOTE: This is used as an API type as well, and should not be changed.
  */
 export class TelemetryTrustedValue<T> {
+	// This is merely used as an identifier as the instance will be lost during serialization over the exthost
+	public readonly isTrustedTelemetryValue = true;
 	constructor(public readonly value: T) { }
 }
 
@@ -350,18 +352,16 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 		return property;
 	}
 
-	const value = property.toLowerCase();
-
 	const userDataRegexes = [
 		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
 		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
-		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
+		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
 		{ label: 'Email', regex: /@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+/ } // Regex which matches @*.site
 	];
 
 	// Check for common user data in the telemetry events
 	for (const secretRegex of userDataRegexes) {
-		if (secretRegex.regex.test(value)) {
+		if (secretRegex.regex.test(property)) {
 			return `<REDACTED: ${secretRegex.label}>`;
 		}
 	}
@@ -380,7 +380,7 @@ export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]):
 	return cloneAndChange(data, value => {
 
 		// If it's a trusted value it means it's okay to skip cleaning so we don't clean it
-		if (value instanceof TelemetryTrustedValue) {
+		if (value instanceof TelemetryTrustedValue || Object.hasOwnProperty.call(value, 'isTrustedTelemetryValue')) {
 			return value.value;
 		}
 

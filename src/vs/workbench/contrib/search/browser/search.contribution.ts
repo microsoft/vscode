@@ -41,6 +41,7 @@ import 'vs/workbench/contrib/search/browser/searchActionsNav';
 import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
+import product from 'vs/platform/product/common/product';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -352,8 +353,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.experimental.notebookSearch': {
 			type: 'boolean',
-			description: nls.localize('search.experimental.notebookSearch', "Controls whether to use the experimental notebook search in the global search. Please refresh your search for changes to this setting to take effect."),
-			default: false
+			description: nls.localize('search.experimental.notebookSearch', "Controls whether to use the experimental notebook search in the global search. Please reload your VS Code instance for changes to this setting to take effect."),
+			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
 		},
 	}
 });

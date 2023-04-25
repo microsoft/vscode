@@ -212,8 +212,8 @@ export class ContentHoverController extends Disposable {
 		return this._widget.isVisible;
 	}
 
-	public containsNode(node: Node): boolean {
-		return this._widget.getDomNode().contains(node);
+	public containsNode(node: Node | null | undefined): boolean {
+		return (node ? this._widget.getDomNode().contains(node) : false);
 	}
 
 	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
@@ -357,12 +357,32 @@ export class ContentHoverController extends Disposable {
 		this._widget.scrollDown();
 	}
 
+	public scrollLeft(): void {
+		this._widget.scrollLeft();
+	}
+
+	public scrollRight(): void {
+		this._widget.scrollRight();
+	}
+
 	public pageUp(): void {
 		this._widget.pageUp();
 	}
 
 	public pageDown(): void {
 		this._widget.pageDown();
+	}
+
+	public goToTop(): void {
+		this._widget.goToTop();
+	}
+
+	public goToBottom(): void {
+		this._widget.goToBottom();
+	}
+
+	public escape(): void {
+		this._widget.escape();
 	}
 }
 
@@ -427,7 +447,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
-
+	private readonly _horizontalScrollingBy: number = 30;
 	private _visibleData: ContentHoverVisibleData | null = null;
 
 	/**
@@ -634,6 +654,16 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + fontInfo.lineHeight });
 	}
 
+	public scrollLeft(): void {
+		const scrollLeft = this._hover.scrollbar.getScrollPosition().scrollLeft;
+		this._hover.scrollbar.setScrollPosition({ scrollLeft: scrollLeft - this._horizontalScrollingBy });
+	}
+
+	public scrollRight(): void {
+		const scrollLeft = this._hover.scrollbar.getScrollPosition().scrollLeft;
+		this._hover.scrollbar.setScrollPosition({ scrollLeft: scrollLeft + this._horizontalScrollingBy });
+	}
+
 	public pageUp(): void {
 		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
 		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
@@ -645,9 +675,21 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
 		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + scrollHeight });
 	}
+
+	public goToTop(): void {
+		this._hover.scrollbar.setScrollPosition({ scrollTop: 0 });
+	}
+
+	public goToBottom(): void {
+		this._hover.scrollbar.setScrollPosition({ scrollTop: this._hover.scrollbar.getScrollDimensions().scrollHeight });
+	}
+
+	public escape(): void {
+		this._editor.focus();
+	}
 }
 
-class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
+export class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
 	public readonly hoverElement: HTMLElement;
 	private readonly actionsElement: HTMLElement;

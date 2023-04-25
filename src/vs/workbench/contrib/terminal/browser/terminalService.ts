@@ -208,6 +208,8 @@ export class TerminalService implements ITerminalService {
 		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
+		this.initializePrimaryBackend();
+
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 	}
@@ -251,44 +253,42 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	handleNewRegisteredBackend(backend: ITerminalBackend) {
-		if (backend.remoteAuthority === this._environmentService.remoteAuthority) {
-			this._primaryBackend = backend;
-			const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+	async initializePrimaryBackend() {
+		this._primaryBackend = await this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
+		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
-			// Connect to the extension host if it's there, set the connection state to connected when
-			// it's done. This should happen even when there is no extension host.
-			this._connectionState = TerminalConnectionState.Connecting;
+		// Connect to the extension host if it's there, set the connection state to connected when
+		// it's done. This should happen even when there is no extension host.
+		this._connectionState = TerminalConnectionState.Connecting;
 
-			const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
+		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
-			if (isPersistentRemote) {
-				this._reconnectToRemoteTerminals().then(() => this._setConnected());
-			} else if (enableTerminalReconnection) {
-				this._reconnectToLocalTerminals().then(() => this._setConnected());
-			} else {
-				Promise.resolve().then(() => this._setConnected());
-			}
-
-			backend.onDidRequestDetach(async (e) => {
-				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
-				if (instanceToDetach) {
-					const persistentProcessId = instanceToDetach?.persistentProcessId;
-					if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
-						if (instanceToDetach.target === TerminalLocation.Editor) {
-							this._terminalEditorService.detachInstance(instanceToDetach);
-						} else {
-							this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
-						}
-						await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
-						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
-					} else {
-						// will get rejected without a persistentProcessId to attach to
-						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
-					}
-				}
-			});
+		if (isPersistentRemote) {
+			this._reconnectToRemoteTerminals().then(() => this._setConnected());
+		} else if (enableTerminalReconnection) {
+			this._reconnectToLocalTerminals().then(() => this._setConnected());
+		} else {
+			Promise.resolve().then(() => this._setConnected());
 		}
+
+		this._primaryBackend?.onDidRequestDetach(async (e) => {
+			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
+			if (instanceToDetach) {
+				const persistentProcessId = instanceToDetach?.persistentProcessId;
+				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
+					if (instanceToDetach.target === TerminalLocation.Editor) {
+						this._terminalEditorService.detachInstance(instanceToDetach);
+					} else {
+						this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
+					}
+					await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
+					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
+				} else {
+					// will get rejected without a persistentProcessId to attach to
+					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
+				}
+			}
+		});
 	}
 
 	getPrimaryBackend(): ITerminalBackend | undefined {
@@ -679,13 +679,6 @@ export class TerminalService implements ITerminalService {
 
 	refreshActiveGroup(): void {
 		this._onDidChangeActiveGroup.fire(this._terminalGroupService.activeGroup);
-	}
-
-	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
-		const instance = this.activeInstance;
-		if (instance) {
-			return callback(instance);
-		}
 	}
 
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined {

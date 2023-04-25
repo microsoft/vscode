@@ -6,7 +6,7 @@
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable, IReference } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -19,7 +19,7 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
@@ -57,7 +57,6 @@ import * as platform from 'vs/base/common/platform';
 import { compare, format } from 'vs/base/common/strings';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
@@ -89,7 +88,10 @@ import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/brows
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
+import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { Schemas } from 'vs/base/common/network';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -205,7 +207,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
 		const input = node.element;
-		templateData.inputWidget.input = input;
+		templateData.inputWidget.setInput(input);
 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
@@ -354,6 +356,7 @@ interface ResourceTemplate {
 	fileLabel: IResourceLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
+	actionBarMenu: IMenu | undefined;
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
 }
@@ -417,7 +420,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const decorationIcon = append(element, $('.decoration-icon'));
 		const disposables = combinedDisposable(actionBar, fileLabel);
 
-		return { element, name, fileLabel, decorationIcon, actionBar, elementDisposables: new DisposableStore(), disposables };
+		return { element, name, fileLabel, decorationIcon, actionBar, actionBarMenu: undefined, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
@@ -428,9 +431,6 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const viewModel = this.viewModelProvider();
 		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
 
-		template.actionBar.clear();
-		template.actionBar.context = resourceOrFolder;
-
 		let matches: IMatch[] | undefined;
 		let descriptionMatches: IMatch[] | undefined;
 		let strikethrough: boolean | undefined;
@@ -438,19 +438,22 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		if (ResourceTree.isResourceNode(resourceOrFolder)) {
 			if (resourceOrFolder.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
-				template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
+				this._renderActionBar(template, resourceOrFolder, menus.getResourceMenu(resourceOrFolder.element));
+
 				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
 				strikethrough = resourceOrFolder.element.decorations.strikeThrough;
 			} else {
-				matches = createMatches(node.filterData as FuzzyScore | undefined);
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
-				template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
+				this._renderActionBar(template, resourceOrFolder, menus.getResourceFolderMenu(resourceOrFolder.context));
+
+				matches = createMatches(node.filterData as FuzzyScore | undefined);
 				template.element.classList.remove('faded');
 			}
 		} else {
-			[matches, descriptionMatches] = this._processFilterData(uri, node.filterData);
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
-			template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
+			this._renderActionBar(template, resourceOrFolder, menus.getResourceMenu(resourceOrFolder));
+
+			[matches, descriptionMatches] = this._processFilterData(uri, node.filterData);
 			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
 			strikethrough = resourceOrFolder.decorations.strikeThrough;
 		}
@@ -495,11 +498,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			separator: this.labelService.getSeparator(folder.uri.scheme)
 		});
 
-		template.actionBar.clear();
-		template.actionBar.context = folder;
-
 		const menus = this.scmViewService.menus.getRepositoryMenus(folder.context.provider);
-		template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(folder.context), template.actionBar));
+		this._renderActionBar(template, folder, menus.getResourceFolderMenu(folder.context));
 
 		template.name.classList.remove('strike-through');
 		template.element.classList.remove('faded');
@@ -516,6 +516,16 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	disposeTemplate(template: ResourceTemplate): void {
 		template.elementDisposables.dispose();
 		template.disposables.dispose();
+	}
+
+	private _renderActionBar(template: ResourceTemplate, resourceOrFolder: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, menu: IMenu): void {
+		if (!template.actionBarMenu || template.actionBarMenu !== menu) {
+			template.actionBar.clear();
+			template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
+			template.actionBarMenu = menu;
+		}
+
+		template.actionBar.context = resourceOrFolder;
 	}
 
 	private _processFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
@@ -1722,7 +1732,7 @@ class SCMInputWidget {
 	private inputEditor: CodeEditorWidget;
 	private disposables = new DisposableStore();
 
-	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
+	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
 	private repositoryIdContextKey: IContextKey<string | undefined>;
 	private repositoryDisposables = new DisposableStore();
 
@@ -1738,11 +1748,11 @@ class SCMInputWidget {
 
 	readonly onDidChangeContentHeight: Event<void>;
 
-	get input(): ISCMInput | undefined {
+	private get input(): ISCMInput | undefined {
 		return this.model?.input;
 	}
 
-	set input(input: ISCMInput | undefined) {
+	public async setInput(input: ISCMInput | undefined) {
 		if (input === this.input) {
 			return;
 		}
@@ -1755,29 +1765,32 @@ class SCMInputWidget {
 		this.repositoryIdContextKey.set(input?.repository.id);
 
 		if (!input) {
-			this.model?.textModel.dispose();
+			this.model?.textModelRef?.dispose();
 			this.inputEditor.setModel(undefined);
 			this.model = undefined;
 			return;
 		}
 
-		let query: string | undefined;
-
-		if (input.repository.provider.rootUri) {
-			query = `rootUri=${encodeURIComponent(input.repository.provider.rootUri.toString())}`;
-		}
-
-		const uri = URI.from({
-			scheme: Schemas.vscodeSourceControl,
-			path: `${input.repository.provider.contextValue}/${input.repository.provider.id}/input`,
-			query
-		});
-
+		const uri = input.repository.provider.inputBoxDocumentUri;
 		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: uri }) !== false) {
 			this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
 		}
 
-		const textModel = this.modelService.getModel(uri) ?? this.modelService.createModel('', this.languageService.createById('scminput'), uri);
+		const modelValue: typeof this.model = { input, textModelRef: undefined };
+
+		// Save model
+		this.model = modelValue;
+
+		const modelRef = await this.textModelService.createModelReference(uri);
+		// Model has been changed in the meantime
+		if (this.model !== modelValue) {
+			modelRef.dispose();
+			return;
+		}
+
+		modelValue.textModelRef = modelRef;
+
+		const textModel = modelRef.object.textEditorModel;
 		this.inputEditor.setModel(textModel);
 
 		// Validation
@@ -1866,9 +1879,6 @@ class SCMInputWidget {
 		};
 		this.repositoryDisposables.add(input.onDidChangeEnablement(enabled => updateEnablement(enabled)));
 		updateEnablement(input.enabled);
-
-		// Save model
-		this.model = { input, textModel };
 	}
 
 	get selections(): Selection[] | null {
@@ -1904,7 +1914,7 @@ class SCMInputWidget {
 		overflowWidgetsDomNode: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService private modelService: IModelService,
-		@ILanguageService private languageService: ILanguageService,
+		@ITextModelService private textModelService: ITextModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1962,7 +1972,8 @@ class SCMInputWidget {
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
 				SuggestController.ID,
-				GhostTextController.ID,
+				InlineCompletionsController.ID,
+				CodeActionController.ID,
 			])
 		};
 
@@ -2097,11 +2108,14 @@ class SCMInputWidget {
 		this.validationDisposable = this.contextViewService.showContextView({
 			getAnchor: () => this.editorContainer,
 			render: container => {
+				this.editorContainer.style.borderBottomLeftRadius = '0';
+				this.editorContainer.style.borderBottomRightRadius = '0';
+
 				const validationContainer = append(container, $('.scm-editor-validation-container'));
 				validationContainer.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
 				validationContainer.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
 				validationContainer.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
-				validationContainer.style.width = `${this.editorContainer.clientWidth}px`;
+				validationContainer.style.width = `${this.editorContainer.clientWidth + 2}px`;
 				const element = append(validationContainer, $('.scm-editor-validation'));
 
 				const message = this.validation!.message;
@@ -2113,6 +2127,8 @@ class SCMInputWidget {
 					disposables.add(tracker.onDidFocus(() => (this.validationHasFocus = true)));
 					disposables.add(tracker.onDidBlur(() => {
 						this.validationHasFocus = false;
+						this.editorContainer.style.borderBottomLeftRadius = '2px';
+						this.editorContainer.style.borderBottomRightRadius = '2px';
 						this.contextViewService.hideContextView();
 					}));
 
@@ -2121,6 +2137,8 @@ class SCMInputWidget {
 						actionHandler: {
 							callback: (link) => {
 								openLinkFromMarkdown(this.openerService, link, message.isTrusted);
+								this.editorContainer.style.borderBottomLeftRadius = '2px';
+								this.editorContainer.style.borderBottomRightRadius = '2px';
 								this.contextViewService.hideContextView();
 							},
 							disposables: disposables
@@ -2133,6 +2151,8 @@ class SCMInputWidget {
 				const actionbar = new ActionBar(actionsContainer);
 				const action = new Action('scmInputWidget.validationMessage.close', localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => {
 					this.contextViewService.hideContextView();
+					this.editorContainer.style.borderBottomLeftRadius = '2px';
+					this.editorContainer.style.borderBottomRightRadius = '2px';
 				});
 				disposables.add(actionbar);
 				actionbar.push(action, { icon: true, label: false });
@@ -2141,6 +2161,8 @@ class SCMInputWidget {
 			},
 			onHide: () => {
 				this.validationHasFocus = false;
+				this.editorContainer.style.borderBottomLeftRadius = '2px';
+				this.editorContainer.style.borderBottomRightRadius = '2px';
 				disposables.dispose();
 			},
 			anchorAlignment: AnchorAlignment.LEFT
@@ -2181,7 +2203,7 @@ class SCMInputWidget {
 	}
 
 	dispose(): void {
-		this.input = undefined;
+		this.setInput(undefined);
 		this.repositoryDisposables.dispose();
 		this.clearValidation();
 		this.disposables.dispose();
@@ -2227,6 +2249,8 @@ export class SCMViewPane extends ViewPane {
 			width: undefined,
 			onDidChange: this._onDidLayout.event
 		};
+
+		this._register(this.instantiationService.createInstance(ScmInputContentProvider));
 
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
 	}
@@ -2399,11 +2423,8 @@ export class SCMViewPane extends ViewPane {
 			this.scmViewService.focus(e.element.repository);
 
 			// Focus the action button
-			const target = e.browserEvent?.target as HTMLElement;
-			if (target.classList.contains('monaco-tl-row') || target.classList.contains('button-container')) {
-				this.actionButtonRenderer.focusActionButton(e.element);
-				this.tree.setFocus([], e.browserEvent);
-			}
+			this.actionButtonRenderer.focusActionButton(e.element);
+			this.tree.setFocus([], e.browserEvent);
 
 			return;
 		}
@@ -2584,5 +2605,25 @@ export class SCMActionButton implements IDisposable {
 		} catch (ex) {
 			this.notificationService.error(ex);
 		}
+	}
+}
+
+class ScmInputContentProvider extends Disposable implements ITextModelContentProvider {
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+	) {
+		super();
+		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeSourceControl, this));
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+		return this._modelService.createModel('', this._languageService.createById('scminput'), resource);
 	}
 }

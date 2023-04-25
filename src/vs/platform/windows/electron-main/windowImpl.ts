@@ -234,7 +234,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			} else if (this.productService.quality === 'stable' && CodeWindow.sandboxState) {
 				useSandbox = true;
 			} else {
-				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
+				useSandbox = this.productService.quality !== 'stable';
 			}
 
 			this._isSandboxed = useSandbox;
@@ -250,7 +250,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				title: this.productService.nameLong,
 				webPreferences: {
-					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
+					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 					enableWebSQL: false,

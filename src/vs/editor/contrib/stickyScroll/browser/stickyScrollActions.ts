@@ -46,7 +46,7 @@ export class ToggleStickyScroll extends Action2 {
 	}
 }
 
-const weight = KeybindingWeight.EditorContrib + 10000;
+const weight = KeybindingWeight.EditorContrib;
 
 export class FocusStickyScroll extends EditorAction2 {
 
@@ -66,10 +66,7 @@ export class FocusStickyScroll extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.focus();
-		}
+		StickyScrollController.get(editor)?.focus();
 	}
 }
 
@@ -90,10 +87,7 @@ export class SelectNextStickyScrollLine extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.focusNext();
-		}
+		StickyScrollController.get(editor)?.focusNext();
 	}
 }
 
@@ -114,10 +108,7 @@ export class SelectPreviousStickyScrollLine extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.focusPrevious();
-		}
+		StickyScrollController.get(editor)?.focusPrevious();
 	}
 }
 
@@ -138,9 +129,28 @@ export class GoToStickyScrollLine extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.goToFocused();
-		}
+		StickyScrollController.get(editor)?.goToFocused();
+	}
+}
+
+export class SelectEditor extends EditorAction2 {
+
+	constructor() {
+		super({
+			id: 'editor.action.selectEditor',
+			title: {
+				value: localize('selectEditor.title', "Select Editor"),
+				original: 'Select Editor'
+			},
+			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
+			keybinding: {
+				weight,
+				primary: KeyCode.Escape
+			}
+		});
+	}
+
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		StickyScrollController.get(editor)?.selectEditor();
 	}
 }

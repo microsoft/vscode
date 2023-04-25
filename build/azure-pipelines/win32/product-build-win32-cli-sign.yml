@@ -12,10 +12,33 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
-      cd build
-      exec { yarn }
+  - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY build
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - powershell: |
+      . azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
+      exec { npm config set always-auth=true --location=project }
+      exec { yarn config set registry "$env:NPM_REGISTRY" }
+    workingDirectory: build
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: build/.npmrc
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - powershell: |
+      . azure-pipelines/win32/exec.ps1
+      . azure-pipelines/win32/retry.ps1
+      $ErrorActionPreference = "Stop"
+      $env:CHILD_CONCURRENCY="1"
+      retry { exec { yarn --frozen-lockfile --check-files } }
+    workingDirectory: build
     displayName: Install build dependencies
 
   - template: ../cli/cli-win32-sign.yml

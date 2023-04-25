@@ -502,10 +502,6 @@ pub struct EditorTroubleshooting {
 	#[clap(long)]
 	pub disable_gpu: bool,
 
-	/// Max memory size for a window (in Mbytes).
-	#[clap(long, value_name = "memory")]
-	pub max_memory: Option<usize>,
-
 	/// Shows all telemetry events which the editor collects.
 	#[clap(long)]
 	pub telemetry: bool,
@@ -533,9 +529,6 @@ impl EditorTroubleshooting {
 		}
 		if self.disable_gpu {
 			target.push("--disable-gpu".to_string());
-		}
-		if let Some(memory) = &self.max_memory {
-			target.push(format!("--max-memory={}", memory));
 		}
 		if self.telemetry {
 			target.push("--telemetry".to_string());
@@ -630,6 +623,9 @@ pub enum TunnelSubcommand {
 	/// Restarts any running tunnel on the system.
 	Restart,
 
+	/// Gets whether there is a tunnel running on the current machineiou.
+	Status,
+
 	/// Rename the name of this machine associated with port forwarding service.
 	Rename(TunnelRenameArgs),
 
@@ -647,7 +643,7 @@ pub enum TunnelSubcommand {
 #[derive(Subcommand, Debug, Clone)]
 pub enum TunnelServiceSubCommands {
 	/// Installs or re-installs the tunnel service on the machine.
-	Install,
+	Install(TunnelServiceInstallArgs),
 
 	/// Uninstalls and stops the tunnel service.
 	Uninstall,
@@ -658,6 +654,13 @@ pub enum TunnelServiceSubCommands {
 	/// Internal command for running the service
 	#[clap(hide = true)]
 	InternalRun,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TunnelServiceInstallArgs {
+	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
+	#[clap(long)]
+	pub accept_server_license_terms: bool,
 }
 
 #[derive(Args, Debug, Clone)]

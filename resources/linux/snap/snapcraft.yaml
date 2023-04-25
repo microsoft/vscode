@@ -35,6 +35,7 @@ parts:
       - libgl1
       - libglib2.0-0
       - libgtk-3-0
+      - libibus-1.0-5
       - libnss3
       - libpango-1.0-0
       - libsecret-1-0
@@ -75,10 +76,6 @@ apps:
   @@NAME@@:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --no-sandbox
     common-id: @@NAME@@.desktop
-    environment:
-      GTK_USE_PORTAL: 1
 
   url-handler:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url --no-sandbox
-    environment:
-      GTK_USE_PORTAL: 1

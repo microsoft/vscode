@@ -4,16 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/welcomeDialog';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { $ } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
+import { ILinkDescriptor } from 'vs/platform/opener/browser/link';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 interface IWelcomeDialogItem {
 	readonly title: string;
@@ -34,69 +31,45 @@ export interface IWelcomeDialogService {
 export class WelcomeDialogService implements IWelcomeDialogService {
 	declare readonly _serviceBrand: undefined;
 
-	private dialog: Dialog | undefined;
-	private disposableStore: DisposableStore = new DisposableStore();
-
 	constructor(
-		@ILayoutService private readonly layoutService: ILayoutService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService) {
-	}
-
-	private static iconWidgetFor(icon: string) {
-		const themeIcon = ThemeIcon.fromId(icon);
-		if (themeIcon) {
-			const widget = $(ThemeIcon.asCSSSelector(themeIcon));
-			widget.classList.add('icon-widget');
-			return widget;
-		}
-		return '';
+		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService) {
 	}
 
 	async show(welcomeDialogItem: IWelcomeDialogItem): Promise<void> {
 
-		this.disposableStore.clear();
-
-		const renderBody = (parent: HTMLElement) => {
-
-			parent.classList.add(...('dialog-items'));
-			parent.appendChild(document.createElement('hr'));
-
-			for (const message of welcomeDialogItem.messages) {
-				const descriptorComponent =
-					$('.dialog-message',
-						{},
-						WelcomeDialogService.iconWidgetFor(message.icon),
-						$('.description-container', {},
-							$('.description.description.max-lines-3', { 'x-description-for': 'description' }, ...renderLabelWithIcons(message.message))));
-				parent.appendChild(descriptorComponent);
-			}
-
-			const actionsContainer = $('div.dialog-action-container');
-			parent.appendChild(actionsContainer);
-			if (welcomeDialogItem.action) {
-				this.disposableStore.add(this.instantiationService.createInstance(Link, actionsContainer, welcomeDialogItem.action, {}));
-			}
+		const renderBody = (icon: string, message: string): MarkdownString => {
+			const mds = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: true });
+			mds.appendMarkdown(`<a>$(${icon})</a>`);
+			mds.appendMarkdown(message);
+			return mds;
 		};
 
-		this.dialog = new Dialog(
-			this.layoutService.container,
-			welcomeDialogItem.title,
-			[welcomeDialogItem.buttonText],
-			{
-				detail: '',
-				type: 'none',
-				renderBody: renderBody,
-				disableCloseAction: true,
-				buttonStyles: defaultButtonStyles,
-				checkboxStyles: defaultCheckboxStyles,
-				inputBoxStyles: defaultInputBoxStyles,
-				dialogStyles: defaultDialogStyles
-			});
+		const hr = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: true });
+		hr.appendMarkdown('<hr>');
 
-		this.disposableStore.add(this.dialog);
-		await this.dialog.show();
+		await this.dialogService.prompt({
+			type: 'none',
+			message: welcomeDialogItem.title,
+			cancelButton: welcomeDialogItem.buttonText,
+			buttons: welcomeDialogItem.action ? [{
+				label: welcomeDialogItem.action.label as string,
+				run: () => {
+					openLinkFromMarkdown(this.openerService, welcomeDialogItem.action?.href!, true);
+					welcomeDialogItem.onClose?.();
+				}
+
+			}] : undefined,
+			custom: {
+				disableCloseAction: true,
+				markdownDetails: [
+					{ markdown: hr, classes: ['hr'] },
+					...welcomeDialogItem.messages.map(value => { return { markdown: renderBody(value.icon, value.message), classes: ['message-body'] }; })
+				]
+			}
+		});
+
 		welcomeDialogItem.onClose?.();
-		this.disposableStore.dispose();
 	}
 }
 

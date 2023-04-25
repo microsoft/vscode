@@ -7,9 +7,14 @@ import * as nls from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
-type RunnableCommand = string | { id: string; args: any[] };
+type RunnableCommand = string | { command: string; args: any[] };
+
+type CommandArgs = {
+	commands: RunnableCommand[];
+};
 
 /** Runs several commands passed to it as an argument */
 class RunCommands extends Action2 {
@@ -32,19 +37,34 @@ class RunCommands extends Action2 {
 									type: 'array',
 									description: nls.localize('runCommands.commands', "Commands to run"),
 									items: {
-										type: ['string', 'object'],
-										required: ['command'],
-										properties: {
-											command: {
-												type: 'string'
+										anyOf: [
+											{
+												$ref: 'vscode://schemas/keybindings#/definitions/commandNames'
 											},
-											args: { // type: any
+											{
+												type: 'string',
+											},
+											{
+												type: 'object',
+												required: ['command'],
+												properties: {
+													command: {
+														'anyOf': [
+															{
+																$ref: 'vscode://schemas/keybindings#/definitions/commandNames'
+															},
+															{
+																type: 'string'
+															},
+														]
+													}
+												},
+												$ref: 'vscode://schemas/keybindings#/definitions/commandsSchemas'
 											}
-										}
+										]
 									}
 								}
 							}
-
 						}
 					}
 				]
@@ -56,32 +76,54 @@ class RunCommands extends Action2 {
 	// - this command takes a single argument-object because
 	//	- keybinding definitions don't allow running commands with several arguments
 	//  - and we want to be able to take on different other arguments in future, e.g., `runMode : 'serial' | 'concurrent'`
-	async run(accessor: ServicesAccessor, args: any) {
-		if (!this._validateInput(args)) {
-			throw new Error('runCommands: invalid arguments');
+	async run(accessor: ServicesAccessor, args: unknown) {
+
+		const notificationService = accessor.get(INotificationService);
+
+		if (!this._isCommandArgs(args)) {
+			notificationService.error(nls.localize('runCommands.invalidArgs', "'runCommands' has received an argument with incorrect type. Please, review the argument passed to the command."));
+			return;
 		}
+
+		if (args.commands.length === 0) {
+			notificationService.warn(nls.localize('runCommands.noCommandsToRun', "'runCommands' has not received commands to run. Did you forget to pass commands in the 'runCommands' argument?"));
+			return;
+		}
+
 		const commandService = accessor.get(ICommandService);
+		const logService = accessor.get(ILogService);
+
+		let i = 0;
 		try {
-			for (const cmd of args.commands) {
-				await this._runCommand(commandService, cmd);
+			for (; i < args.commands.length; ++i) {
+
+				const cmd = args.commands[i];
+
+				logService.debug(`runCommands: executing ${i}-th command: ${JSON.stringify(cmd)}`);
+
+				const r = await this._runCommand(commandService, cmd);
+
+				logService.debug(`runCommands: executed ${i}-th command with return value: ${JSON.stringify(r)}`);
 			}
 		} catch (err) {
-			accessor.get(INotificationService).warn(err);
+			logService.debug(`runCommands: executing ${i}-th command resulted in an error: ${err instanceof Error ? err.message : JSON.stringify(err)}`);
+
+			notificationService.error(err);
 		}
 	}
 
-	private _validateInput(args: any): args is { commands: RunnableCommand[] } {
+	private _isCommandArgs(args: unknown): args is CommandArgs {
 		if (!args || typeof args !== 'object') {
 			return false;
 		}
-		if (!Array.isArray(args.commands)) {
+		if (!('commands' in args) || !Array.isArray(args.commands)) {
 			return false;
 		}
 		for (const cmd of args.commands) {
 			if (typeof cmd === 'string') {
 				continue;
 			}
-			if (typeof cmd === 'object' && typeof cmd.id === 'string') {
+			if (typeof cmd === 'object' && typeof cmd.command === 'string') {
 				continue;
 			}
 			return false;
@@ -95,14 +137,18 @@ class RunCommands extends Action2 {
 		if (typeof cmd === 'string') {
 			commandID = cmd;
 		} else {
-			commandID = cmd.id;
+			commandID = cmd.command;
 			commandArgs = cmd.args;
 		}
 
 		if (commandArgs === undefined) {
 			return commandService.executeCommand(commandID);
 		} else {
-			return commandService.executeCommand(commandID, ...commandArgs);
+			if (Array.isArray(commandArgs)) {
+				return commandService.executeCommand(commandID, ...commandArgs);
+			} else {
+				return commandService.executeCommand(commandID, commandArgs);
+			}
 		}
 	}
 }

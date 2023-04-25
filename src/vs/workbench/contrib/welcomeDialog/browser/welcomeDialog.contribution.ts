@@ -9,6 +9,9 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWelcomeDialogService as IWelcomeDialogService } from 'vs/workbench/contrib/welcomeDialog/browser/welcomeDialogService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+const configurationKey = 'welcome.experimental.dialog';
 
 class WelcomeDialogContribution {
 
@@ -17,8 +20,14 @@ class WelcomeDialogContribution {
 	constructor(
 		@IWelcomeDialogService welcomeDialogService: IWelcomeDialogService,
 		@IStorageService storageService: IStorageService,
-		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
+		const setting = configurationService.inspect<boolean>(configurationKey);
+		if (!setting.value) {
+			return;
+		}
+
 		const welcomeDialog = environmentService.options?.welcomeDialog;
 		if (!welcomeDialog) {
 			return;

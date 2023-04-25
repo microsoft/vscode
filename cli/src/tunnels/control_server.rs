@@ -3,47 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::async_pipe::get_socket_rw_stream;
-use crate::constants::{CONTROL_PORT, EDITOR_WEB_URL, QUALITYLESS_SERVER_NAME};
+use crate::constants::{CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
+use crate::msgpack_rpc::U32PrefixedCodec;
 use crate::rpc::{MaybeSync, RpcBuilder, RpcDispatcher, Serialization};
 use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
 use crate::tunnels::protocol::HttpRequestParams;
 use crate::tunnels::socket_signal::CloseReason;
-use crate::update_service::{Platform, UpdateService};
+use crate::update_service::{Platform, Release, TargetKind, UpdateService};
 use crate::util::errors::{
-	wrap, AnyError, InvalidRpcDataError, MismatchedLaunchModeError, NoAttachedServerError,
+	wrap, AnyError, CodeError, InvalidRpcDataError, MismatchedLaunchModeError,
+	NoAttachedServerError,
 };
 use crate::util::http::{
 	DelegatedHttpRequest, DelegatedSimpleHttp, FallbackSimpleHttp, ReqwestSimpleHttp,
 };
 use crate::util::io::SilentCopyProgress;
 use crate::util::is_integrated_cli;
+use crate::util::os::os_release;
 use crate::util::sync::{new_barrier, Barrier};
 
+use futures::stream::FuturesUnordered;
+use futures::FutureExt;
 use opentelemetry::trace::SpanKind;
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
+use std::process::Stdio;
+use tokio::pin;
+use tokio_util::codec::Decoder;
 
-use std::env;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
 use super::code_server::{
-	AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw, SocketCodeServer,
+	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
+	SocketCodeServer,
 };
 use super::dev_tunnels::ActiveTunnel;
 use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
-	CallServerHttpParams, CallServerHttpResult, ClientRequestMethod, EmptyObject, ForwardParams,
-	ForwardResult, GetHostnameResponse, HttpBodyParams, HttpHeadersParams, ServeParams, ServerLog,
-	ServerMessageParams, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult,
-	VersionParams,
+	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ClientRequestMethod, EmptyObject,
+	ForwardParams, ForwardResult, FsStatRequest, FsStatResponse, GetEnvResponse,
+	GetHostnameResponse, HttpBodyParams, HttpHeadersParams, ServeParams, ServerLog,
+	ServerMessageParams, SpawnParams, SpawnResult, ToClientRequest, UnforwardParams, UpdateParams,
+	UpdateResult, VersionParams,
 };
 use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
@@ -75,7 +83,7 @@ struct HandlerContext {
 	/// install platform for the VS Code server
 	platform: Platform,
 	/// http client to make download/update requests
-	http: FallbackSimpleHttp,
+	http: Arc<FallbackSimpleHttp>,
 	/// requests being served by the client
 	http_requests: HttpRequestsMap,
 }
@@ -117,43 +125,6 @@ pub struct ServerTermination {
 	pub tunnel: ActiveTunnel,
 }
 
-fn print_listening(log: &log::Logger, tunnel_name: &str) {
-	debug!(
-		log,
-		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
-	);
-
-	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
-	let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
-
-	let dir = if home_dir == current_dir {
-		PathBuf::from("")
-	} else {
-		current_dir
-	};
-
-	let base_web_url = match EDITOR_WEB_URL {
-		Some(u) => u,
-		None => return,
-	};
-
-	let mut addr = url::Url::parse(base_web_url).unwrap();
-	{
-		let mut ps = addr.path_segments_mut().unwrap();
-		ps.push("tunnel");
-		ps.push(tunnel_name);
-		for segment in &dir {
-			let as_str = segment.to_string_lossy();
-			if !(as_str.len() == 1 && as_str.starts_with(std::path::MAIN_SEPARATOR)) {
-				ps.push(as_str.as_ref());
-			}
-		}
-	}
-
-	let message = &format!("\nOpen this link in your browser {}\n", addr);
-	log.result(message);
-}
-
 // Runs the launcher server. Exits on a ctrl+c or when requested by a user.
 // Note that client connections may not be closed when this returns; use
 // `close_all_clients()` on the ServerTermination to make this happen.
@@ -166,8 +137,6 @@ pub async fn serve(
 	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
-	print_listening(log, &tunnel.name);
-
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
@@ -237,7 +206,7 @@ pub async fn serve(
 						],
 					);
 					cx.span().end();
-				 });
+				   });
 			}
 		}
 	}
@@ -288,12 +257,17 @@ async fn process_socket(
 		server_bridges: server_bridges.clone(),
 		port_forwarding,
 		platform,
-		http: FallbackSimpleHttp::new(ReqwestSimpleHttp::new(), http_delegated),
+		http: Arc::new(FallbackSimpleHttp::new(
+			ReqwestSimpleHttp::new(),
+			http_delegated,
+		)),
 		http_requests: http_requests.clone(),
 	});
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
 	rpc.register_sync("gethostname", |_: EmptyObject, _| handle_get_hostname());
+	rpc.register_sync("fs_stat", |p: FsStatRequest, _| handle_stat(p.path));
+	rpc.register_sync("get_env", |_: EmptyObject, _| handle_get_env());
 	rpc.register_async("serve", move |params: ServeParams, c| async move {
 		handle_serve(c, params).await
 	});
@@ -316,6 +290,19 @@ async fn process_socket(
 	});
 	rpc.register_async("unforward", |p: UnforwardParams, c| async move {
 		handle_unforward(&c.log, &c.port_forwarding, p).await
+	});
+	rpc.register_async("acquire_cli", |p: AcquireCliParams, c| async move {
+		handle_acquire_cli(&c.launcher_paths, &c.http, &c.log, p).await
+	});
+	rpc.register_duplex("spawn", 3, |mut streams, p: SpawnParams, c| async move {
+		handle_spawn(
+			&c.log,
+			p,
+			Some(streams.remove(0)),
+			Some(streams.remove(0)),
+			Some(streams.remove(0)),
+		)
+		.await
 	});
 	rpc.register_sync("httpheaders", |p: HttpHeadersParams, c| {
 		if let Some(req) = c.http_requests.lock().unwrap().get(&p.req_id) {
@@ -434,20 +421,20 @@ async fn handle_socket_read(
 	rx_counter: Arc<AtomicUsize>,
 	rpc: &RpcDispatcher<MsgPackSerializer, HandlerContext>,
 ) -> Result<(), std::io::Error> {
-	let mut socket_reader = BufReader::new(readhalf);
-	let mut decode_buf = vec![];
+	let mut readhalf = BufReader::new(readhalf);
+	let mut decoder = U32PrefixedCodec {};
+	let mut decoder_buf = bytes::BytesMut::new();
 
 	loop {
-		let read = read_next(
-			&mut socket_reader,
-			&rx_counter,
-			&mut closer,
-			&mut decode_buf,
-		)
-		.await;
+		let read_len = tokio::select! {
+			r = readhalf.read_buf(&mut decoder_buf) => r,
+			_ = closer.wait() => Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof")),
+		}?;
 
-		match read {
-			Ok(len) => match rpc.dispatch(&decode_buf[..len]) {
+		rx_counter.fetch_add(read_len, Ordering::Relaxed);
+
+		while let Some(frame) = decoder.decode(&mut decoder_buf)? {
+			match rpc.dispatch(&frame) {
 				MaybeSync::Sync(Some(v)) => {
 					if socket_tx.send(SocketSignal::Send(v)).await.is_err() {
 						return Ok(());
@@ -462,31 +449,19 @@ async fn handle_socket_read(
 						}
 					});
 				}
-			},
-			Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
-			Err(e) => return Err(e),
+				MaybeSync::Stream((stream, fut)) => {
+					if let Some(stream) = stream {
+						rpc.register_stream(socket_tx.clone(), stream).await;
+					}
+					let socket_tx = socket_tx.clone();
+					tokio::spawn(async move {
+						if let Some(v) = fut.await {
+							socket_tx.send(SocketSignal::Send(v)).await.ok();
+						}
+					});
+				}
+			}
 		}
-	}
-}
-
-/// Reads and handles the next data packet. Returns the next packet to dispatch,
-/// or an error (including EOF).
-async fn read_next(
-	socket_reader: &mut BufReader<impl AsyncRead + Unpin>,
-	rx_counter: &Arc<AtomicUsize>,
-	closer: &mut Barrier<()>,
-	decode_buf: &mut Vec<u8>,
-) -> Result<usize, std::io::Error> {
-	let msg_length = tokio::select! {
-		u = socket_reader.read_u32() => u? as usize,
-		_ = closer.wait() => return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof")),
-	};
-	decode_buf.resize(msg_length, 0);
-	rx_counter.fetch_add(msg_length + 4 /* u32 */, Ordering::Relaxed);
-
-	tokio::select! {
-		r = socket_reader.read_exact(decode_buf) => r,
-		_ = closer.wait() => Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof")),
 	}
 }
 
@@ -528,7 +503,9 @@ async fn handle_serve(
 	};
 
 	let resolved = if params.use_local_download {
-		params_raw.resolve(&c.log, c.http.delegated()).await
+		params_raw
+			.resolve(&c.log, Arc::new(c.http.delegated()))
+			.await
 	} else {
 		params_raw.resolve(&c.log, c.http.clone()).await
 	}?;
@@ -547,7 +524,7 @@ async fn handle_serve(
 						Some(AnyCodeServer::Socket(s)) => s,
 						Some(_) => return Err(AnyError::from(MismatchedLaunchModeError())),
 						None => {
-							$sb.setup(None).await?;
+							$sb.setup().await?;
 							$sb.listen_on_default_socket().await?
 						}
 					}
@@ -559,7 +536,7 @@ async fn handle_serve(
 					&install_log,
 					&resolved,
 					&c.launcher_paths,
-					c.http.delegated(),
+					Arc::new(c.http.delegated()),
 				);
 				do_setup!(sb)
 			} else {
@@ -647,7 +624,7 @@ fn handle_prune(paths: &LauncherPaths) -> Result<Vec<String>, AnyError> {
 }
 
 async fn handle_update(
-	http: &FallbackSimpleHttp,
+	http: &Arc<FallbackSimpleHttp>,
 	log: &log::Logger,
 	did_update: &AtomicBool,
 	params: &UpdateParams,
@@ -696,6 +673,34 @@ async fn handle_update(
 fn handle_get_hostname() -> Result<GetHostnameResponse, AnyError> {
 	Ok(GetHostnameResponse {
 		value: gethostname::gethostname().to_string_lossy().into_owned(),
+	})
+}
+
+fn handle_stat(path: String) -> Result<FsStatResponse, AnyError> {
+	Ok(std::fs::metadata(path)
+		.map(|m| FsStatResponse {
+			exists: true,
+			size: Some(m.len()),
+			kind: Some(match m.file_type() {
+				t if t.is_dir() => "dir",
+				t if t.is_file() => "file",
+				t if t.is_symlink() => "link",
+				_ => "unknown",
+			}),
+		})
+		.unwrap_or_default())
+}
+
+fn handle_get_env() -> Result<GetEnvResponse, AnyError> {
+	Ok(GetEnvResponse {
+		env: std::env::vars().collect(),
+		os_release: os_release().unwrap_or_else(|_| "unknown".to_string()),
+		#[cfg(windows)]
+		os_platform: "win32",
+		#[cfg(target_os = "linux")]
+		os_platform: "linux",
+		#[cfg(target_os = "macos")]
+		os_platform: "darwin",
 	})
 }
 
@@ -772,4 +777,111 @@ async fn handle_call_server_http(
 			.map_err(|e| wrap(e, "error reading response body"))?
 			.to_vec(),
 	})
+}
+
+async fn handle_acquire_cli(
+	paths: &LauncherPaths,
+	http: &Arc<FallbackSimpleHttp>,
+	log: &log::Logger,
+	params: AcquireCliParams,
+) -> Result<SpawnResult, AnyError> {
+	let update_service = UpdateService::new(log.clone(), http.clone());
+
+	let release = match params.commit_id {
+		Some(commit) => Release {
+			name: format!("{} CLI", PRODUCT_NAME_LONG),
+			commit,
+			platform: params.platform,
+			quality: params.quality,
+			target: TargetKind::Cli,
+		},
+		None => {
+			update_service
+				.get_latest_commit(params.platform, TargetKind::Cli, params.quality)
+				.await?
+		}
+	};
+
+	let cli = download_cli_into_cache(&paths.cli_cache, &release, &update_service).await?;
+	let file = tokio::fs::File::open(cli)
+		.await
+		.map_err(|e| wrap(e, "error opening cli file"))?;
+
+	handle_spawn::<_, DuplexStream>(log, params.spawn, Some(file), None, None).await
+}
+
+async fn handle_spawn<Stdin, StdoutAndErr>(
+	log: &log::Logger,
+	params: SpawnParams,
+	stdin: Option<Stdin>,
+	stdout: Option<StdoutAndErr>,
+	stderr: Option<StdoutAndErr>,
+) -> Result<SpawnResult, AnyError>
+where
+	Stdin: AsyncRead + Unpin + Send,
+	StdoutAndErr: AsyncWrite + Unpin + Send,
+{
+	debug!(
+		log,
+		"requested to spawn {} with args {:?}", params.command, params.args
+	);
+
+	macro_rules! pipe_if_some {
+		($e: expr) => {
+			if $e.is_some() {
+				Stdio::piped()
+			} else {
+				Stdio::null()
+			}
+		};
+	}
+
+	let mut p = tokio::process::Command::new(&params.command);
+	p.args(&params.args);
+	p.envs(&params.env);
+	p.stdin(pipe_if_some!(stdin));
+	p.stdout(pipe_if_some!(stdout));
+	p.stderr(pipe_if_some!(stderr));
+	if let Some(cwd) = &params.cwd {
+		p.current_dir(cwd);
+	}
+
+	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
+
+	let futs = FuturesUnordered::new();
+	if let (Some(mut a), Some(mut b)) = (p.stdout.take(), stdout) {
+		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+	}
+	if let (Some(mut a), Some(mut b)) = (p.stderr.take(), stderr) {
+		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+	}
+	if let (Some(mut b), Some(mut a)) = (p.stdin.take(), stdin) {
+		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+	}
+
+	let closed = p.wait();
+	pin!(closed);
+
+	let r = tokio::select! {
+		_ = futures::future::join_all(futs) => closed.await,
+		r = &mut closed => r
+	};
+
+	let r = match r {
+		Ok(e) => SpawnResult {
+			message: e.to_string(),
+			exit_code: e.code().unwrap_or(-1),
+		},
+		Err(e) => SpawnResult {
+			message: e.to_string(),
+			exit_code: -1,
+		},
+	};
+
+	debug!(
+		log,
+		"spawned command {} exited with code {}", params.command, r.exit_code
+	);
+
+	Ok(r)
 }

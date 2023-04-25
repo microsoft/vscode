@@ -179,4 +179,4 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 	configurationRegistry.updateConfigurations({ add: [proxyConfiguration], remove: oldProxyConfiguration ? [oldProxyConfiguration] : [] });
 }
 
-registerProxyConfigurations(ConfigurationScope.MACHINE);
+registerProxyConfigurations(ConfigurationScope.APPLICATION);

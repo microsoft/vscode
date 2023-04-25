@@ -20,7 +20,7 @@ import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platf
 import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositeBadgeAction, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -272,17 +272,11 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
-			const promises = [];
-			for (const changed of e.event.changed) {
-				promises.push(this.addOrUpdateAccount(e.providerId, changed.account));
-			}
-			for (const added of e.event.added) {
-				promises.push(this.addOrUpdateAccount(e.providerId, added.account));
-			}
-			const result = await Promise.allSettled(promises);
-			for (const r of result) {
-				if (r.status === 'rejected') {
-					this.logService.error(r.reason);
+			for (const changed of [...e.event.changed, ...e.event.added]) {
+				try {
+					await this.addOrUpdateAccount(e.providerId, changed.account);
+				} catch (e) {
+					this.logService.error(e);
 				}
 			}
 			for (const removed of e.event.removed) {
@@ -395,13 +389,19 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	//#region groupedAccounts helpers
 
 	private async addOrUpdateAccount(providerId: string, account: AuthenticationSessionAccount): Promise<void> {
-		const accounts = this.groupedAccounts.get(providerId);
-		const existingAccount = accounts?.find(a => a.id === account.id);
-		if (existingAccount) {
-			if (existingAccount.label !== account.label) {
-				existingAccount.label = account.label;
+		let accounts = this.groupedAccounts.get(providerId);
+		if (accounts) {
+			const existingAccount = accounts.find(a => a.id === account.id);
+			if (existingAccount) {
+				// Update the label if it has changed
+				if (existingAccount.label !== account.label) {
+					existingAccount.label = account.label;
+				}
+				return;
 			}
-			return;
+		} else {
+			accounts = [];
+			this.groupedAccounts.set(providerId, accounts);
 		}
 
 		const sessionFromEmbedder = await this.sessionFromEmbedder;
@@ -415,11 +415,6 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 				// The default if we don't have a session from the embedder is to allow sign out
 				canSignOut = true;
 			}
-		}
-
-		if (!accounts) {
-			this.groupedAccounts.set(providerId, [{ ...account, canSignOut }]);
-			return;
 		}
 
 		accounts.push({ ...account, canSignOut });
@@ -447,10 +442,11 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			const sessions = await this.authenticationService.getSessions(providerId);
 			this.problematicProviders.delete(providerId);
 
-			const result = await Promise.allSettled(sessions.map(s => this.addOrUpdateAccount(providerId, s.account)));
-			for (const r of result) {
-				if (r.status === 'rejected') {
-					this.logService.error(r.reason);
+			for (const session of sessions) {
+				try {
+					await this.addOrUpdateAccount(providerId, session.account);
+				} catch (e) {
+					this.logService.error(e);
 				}
 			}
 		} catch (e) {
@@ -533,7 +529,7 @@ export class PlaceHolderViewContainerActivityAction extends ViewContainerActivit
 export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, cssClass: undefined }, compositeBar);
+		super({ id, name: id, classNames: undefined }, compositeBar);
 	}
 
 	setActivity(activity: IActivity): void {
@@ -544,7 +540,7 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 export class PlaceHolderToggleCompositeBadgeAction extends ToggleCompositeBadgeAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, cssClass: undefined }, compositeBar);
+		super({ id, name: id, classNames: undefined }, compositeBar);
 	}
 
 	setActivity(activity: IActivity): void {
@@ -627,16 +623,6 @@ registerAction2(
 	});
 
 registerThemingParticipant((theme, collector) => {
-	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-	if (activityBarForegroundColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
-				color: ${activityBarForegroundColor} !important;
-			}
-		`);
-	}
 
 	const activityBarActiveBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
 	if (activityBarActiveBorderColor) {

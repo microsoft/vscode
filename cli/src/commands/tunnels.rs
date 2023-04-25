@@ -20,8 +20,9 @@ use super::{
 use crate::{
 	async_pipe::socket_stream_split,
 	auth::Auth,
+	constants::{APPLICATION_NAME, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
 	json_rpc::{new_json_rpc, start_json_rpc},
-	log::{self, Logger},
+	log,
 	singleton::connect_as_client,
 	state::LauncherPaths,
 	tunnels::{
@@ -36,6 +37,7 @@ use crate::{
 		Next, ServiceContainer, ServiceManager,
 	},
 	util::{
+		app_lock::AppMutex,
 		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
@@ -113,14 +115,14 @@ pub async fn service(
 ) -> Result<i32, AnyError> {
 	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
 	match service_args {
-		TunnelServiceSubCommands::Install => {
+		TunnelServiceSubCommands::Install(args) => {
 			// ensure logged in, otherwise subsequent serving will fail
 			Auth::new(&ctx.paths, ctx.log.clone())
 				.get_credential()
 				.await?;
 
 			// likewise for license consent
-			legal::require_consent(&ctx.paths, false)?;
+			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 			let current_exe =
 				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
@@ -138,7 +140,7 @@ pub async fn service(
 					],
 				)
 				.await?;
-			ctx.log.result("Service successfully installed! You can use `code tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.");
+			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `{} tunnel service uninstall` to remove it.", APPLICATION_NAME, APPLICATION_NAME));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;
@@ -147,6 +149,7 @@ pub async fn service(
 			manager.show_logs().await?;
 		}
 		TunnelServiceSubCommands::InternalRun => {
+			let _lock = TUNNEL_SERVICE_LOCK_NAME.map(AppMutex::new);
 			manager
 				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
 				.await?;
@@ -187,7 +190,7 @@ pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Resul
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
 	dt.rename_tunnel(&rename_args.name).await?;
-	ctx.log.result(&format!(
+	ctx.log.result(format!(
 		"Successfully renamed this gateway to {}",
 		&rename_args.name
 	));
@@ -203,17 +206,19 @@ pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	Ok(0)
 }
 
-async fn do_single_rpc_call(
-	ctx: CommandContext,
+async fn do_single_rpc_call<
+	P: serde::Serialize,
+	R: serde::de::DeserializeOwned + Send + 'static,
+>(
+	ctx: &CommandContext,
 	method: &'static str,
-	params: impl serde::Serialize,
-) -> Result<i32, AnyError> {
+	params: P,
+) -> Result<R, AnyError> {
 	let client = match connect_as_client(&ctx.paths.tunnel_lockfile()).await {
 		Ok(p) => p,
 		Err(CodeError::SingletonLockfileOpenFailed(_))
 		| Err(CodeError::SingletonLockedProcessExited(_)) => {
-			error!(ctx.log, "No tunnel is running");
-			return Ok(1);
+			return Err(CodeError::NoRunningTunnel.into());
 		}
 		Err(e) => return Err(e.into()),
 	};
@@ -236,33 +241,42 @@ async fn do_single_rpc_call(
 		.unwrap();
 	});
 
-	let r = caller.call::<_, _, ()>(method, params).await.unwrap();
+	let r = caller.call(method, params).await.unwrap();
 	rpc.abort();
-
-	if let Err(r) = r {
-		error!(ctx.log, "RPC call failed: {:?}", r);
-		return Ok(1);
-	}
-
-	Ok(0)
+	r.map_err(|err| CodeError::TunnelRpcCallFailed(err).into())
 }
 
 pub async fn restart(ctx: CommandContext) -> Result<i32, AnyError> {
-	do_single_rpc_call(
-		ctx,
+	do_single_rpc_call::<_, ()>(
+		&ctx,
 		protocol::singleton::METHOD_RESTART,
 		protocol::EmptyObject {},
 	)
 	.await
+	.map(|_| 0)
 }
 
 pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
-	do_single_rpc_call(
-		ctx,
+	do_single_rpc_call::<_, ()>(
+		&ctx,
 		protocol::singleton::METHOD_SHUTDOWN,
 		protocol::EmptyObject {},
 	)
 	.await
+	.map(|_| 0)
+}
+
+pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
+	let status: protocol::singleton::Status = do_single_rpc_call(
+		&ctx,
+		protocol::singleton::METHOD_STATUS,
+		protocol::EmptyObject {},
+	)
+	.await?;
+
+	ctx.log.result(serde_json::to_string(&status).unwrap());
+
+	Ok(0)
 }
 
 /// Removes unused servers.
@@ -273,7 +287,7 @@ pub async fn prune(ctx: CommandContext) -> Result<i32, AnyError> {
 		.filter(|s| s.get_running_pid().is_none())
 		.try_for_each(|s| {
 			ctx.log
-				.result(&format!("Deleted {}", s.server_dir.display()));
+				.result(format!("Deleted {}", s.server_dir.display()));
 			s.delete()
 		})
 		.map_err(AnyError::from)?;
@@ -318,10 +332,14 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 
 async fn serve_with_csa(
 	paths: LauncherPaths,
-	mut log: Logger,
+	mut log: log::Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
 ) -> Result<i32, AnyError> {
+	let log_broadcast = BroadcastLogSink::new();
+	log = log.tee(log_broadcast.clone());
+	log::install_global_logger(log.clone()); // re-install so that library logs are captured
+
 	let shutdown = match gateway_args
 		.parent_process_id
 		.and_then(|p| Pid::from_str(&p).ok())
@@ -365,11 +383,10 @@ async fn serve_with_csa(
 
 	debug!(log, "starting as new singleton");
 
-	let log_broadcast = BroadcastLogSink::new();
-	log = log.tee(log_broadcast.clone());
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	let _lock = TUNNEL_CLI_LOCK_NAME.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
@@ -377,11 +394,8 @@ async fn serve_with_csa(
 		let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
 			dt.start_existing_tunnel(d).await
 		} else {
-			dt.start_new_launcher_tunnel(
-				gateway_args.name.as_deref(),
-				gateway_args.random_name,
-			)
-			.await
+			dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name)
+				.await
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));

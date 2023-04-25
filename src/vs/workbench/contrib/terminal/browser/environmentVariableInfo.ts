@@ -8,9 +8,11 @@ import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from '
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
+import { EnvironmentVariableScope, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import Severity from 'vs/base/common/severity';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	readonly requiresAction = true;
@@ -18,11 +20,13 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	constructor(
 		private readonly _diff: IMergedEnvironmentVariableCollectionDiff,
 		private readonly _terminalId: number,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		private readonly _collection: IMergedEnvironmentVariableCollection,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 	}
 
-	private _getInfo(): string {
+	private _getInfo(scope: EnvironmentVariableScope | undefined): string {
 		const extSet: Set<string> = new Set();
 		addExtensionIdentifiers(extSet, this._diff.added.values());
 		addExtensionIdentifiers(extSet, this._diff.removed.values());
@@ -30,8 +34,13 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 
 		let message = localize('extensionEnvironmentContributionInfoStale', "The following extensions want to relaunch the terminal to contribute to its environment:");
 		message += '\n';
+		const descriptionMap = this._collection.getDescriptionMap(scope);
 		for (const ext of extSet) {
-			message += `\n- \`${ext}\``;
+			message += `\n- \`${getExtensionName(ext, this._extensionService)}\``;
+			const description = descriptionMap.get(ext);
+			if (description) {
+				message += `: ${description}`;
+			}
 		}
 		return message;
 	}
@@ -44,12 +53,12 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		}];
 	}
 
-	getStatus(): ITerminalStatus {
+	getStatus(scope: EnvironmentVariableScope | undefined): ITerminalStatus {
 		return {
 			id: TerminalStatus.RelaunchNeeded,
 			severity: Severity.Warning,
 			icon: Codicon.warning,
-			tooltip: this._getInfo(),
+			tooltip: this._getInfo(scope),
 			hoverActions: this._getActions()
 		};
 	}
@@ -59,27 +68,43 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	readonly requiresAction = false;
 
 	constructor(
-		private readonly _collection: IMergedEnvironmentVariableCollection
+		private readonly _collection: IMergedEnvironmentVariableCollection,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 	}
 
-	private _getInfo(): string {
+	private _getInfo(scope: EnvironmentVariableScope | undefined): string {
 		const extSet: Set<string> = new Set();
-		addExtensionIdentifiers(extSet, this._collection.map.values());
+		addExtensionIdentifiers(extSet, this._collection.getVariableMap(scope).values());
 
 		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
 		message += '\n';
+		const descriptionMap = this._collection.getDescriptionMap(scope);
 		for (const ext of extSet) {
-			message += `\n- \`${ext}\``;
+			message += `\n- \`${getExtensionName(ext, this._extensionService)}\``;
+			const description = descriptionMap.get(ext);
+			if (description) {
+				message += `: ${description}`;
+			}
 		}
 		return message;
 	}
 
-	getStatus(): ITerminalStatus {
+	private _getActions(scope: EnvironmentVariableScope | undefined): ITerminalStatusHoverAction[] {
+		return [{
+			label: localize('showEnvironmentContributions', "Show environment contributions"),
+			run: () => this._commandService.executeCommand(TerminalCommandId.ShowEnvironmentContributions, scope),
+			commandId: TerminalCommandId.ShowEnvironmentContributions
+		}];
+	}
+
+	getStatus(scope: EnvironmentVariableScope | undefined): ITerminalStatus {
 		return {
 			id: TerminalStatus.EnvironmentVariableInfoChangesActive,
 			severity: Severity.Info,
-			tooltip: this._getInfo()
+			tooltip: this._getInfo(scope),
+			hoverActions: this._getActions(scope)
 		};
 	}
 }
@@ -90,4 +115,8 @@ function addExtensionIdentifiers(extSet: Set<string>, diff: IterableIterator<IEx
 			extSet.add(mutator.extensionIdentifier);
 		}
 	}
+}
+
+function getExtensionName(id: string, extensionService: IExtensionService): string {
+	return extensionService.extensions.find(e => e.id === id)?.displayName || id;
 }

@@ -109,6 +109,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
 		'@tag:notebookLayout',
+		'@tag:notebookOutputLayout',
 		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
 		`@tag:${WORKSPACE_TRUST_SETTING_TAG}`,
 		'@tag:sync',
@@ -937,11 +938,18 @@ export class SettingsEditor2 extends EditorPane {
 			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
+				this.treeFocusedElement ??= withUndefinedAsNull(this.settingsTree.firstVisibleElement);
+				if (this.treeFocusedElement) {
+					this.treeFocusedElement.tabbable = true;
+				}
 			}
 		}));
 
 		this._register(this.settingsTree.onDidBlur(() => {
 			this.settingRowFocused.set(false);
+			// Clear out the focused element, otherwise it could be
+			// out of date during the next onDidFocus event.
+			this.treeFocusedElement = null;
 		}));
 
 		// There is no different select state in the settings tree
@@ -1547,6 +1555,8 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (!this.searchResultModel) {
 				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
+				// Must be called before this.renderTree()
+				// to make sure the search results count is set.
 				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.currentSearchModel = this.searchResultModel;
 				this.onSearchModeToggled();
@@ -1588,10 +1598,8 @@ export class SettingsEditor2 extends EditorPane {
 			this.rootElement.classList.remove('no-results');
 			this.splitView.el.style.visibility = 'visible';
 			return;
-		}
-
-		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
-			const count = this.tocTreeModel.settingsTreeRoot.count;
+		} else {
+			const count = this.searchResultModel.getUniqueResultsCount();
 			let resultString: string;
 			switch (count) {
 				case 0: resultString = localize('noResults', "No Settings Found"); break;

@@ -38,7 +38,7 @@ const knwonVariablesFileName = 'vscode-known-variables.json';
 
 suite('Color Registry', function () {
 
-	test('all colors listed in ./lib/stylelint/vscode-variables.json', async function () {
+	test(`update colors in ${knwonVariablesFileName}`, async function () {
 		const varFilePath = FileAccess.asFileUri(`vs/../../build/lib/stylelint/${knwonVariablesFileName}`).fsPath;
 		const content = (await pfs.Promises.readFile(varFilePath)).toString();
 
@@ -50,6 +50,7 @@ suite('Color Registry', function () {
 
 		const colors = new Set(colorsArray);
 
+		const updatedColors = [];
 		const missing = [];
 		const themingRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 		for (const color of themingRegistry.getColors()) {
@@ -62,20 +63,25 @@ suite('Color Registry', function () {
 			} else {
 				colors.delete(id);
 			}
+			updatedColors.push(id);
 		}
 
 		const superfluousKeys = [...colors.keys()];
 
 		let errorText = '';
 		if (missing.length > 0) {
-			errorText += `\n\Add the following colors:\n\n${JSON.stringify(missing, undefined, '\t')}\n`;
+			errorText += `\n\Adding the following colors:\n\n${JSON.stringify(missing, undefined, '\t')}\n`;
 		}
 		if (superfluousKeys.length > 0) {
-			errorText += `\n\Remove the following colors:\n\n${superfluousKeys.join('\n')}\n`;
+			errorText += `\n\Removing the following colors:\n\n${superfluousKeys.join('\n')}\n`;
 		}
 
 		if (errorText.length > 0) {
-			assert.fail(`\n\nOpen ${path.normalize(varFilePath)}\n\n${errorText}\n`);
+			updatedColors.sort();
+			variablesInfo.colors = updatedColors;
+			await pfs.Promises.writeFile(varFilePath, JSON.stringify(variablesInfo, undefined, '\t'));
+
+			assert.fail(`\n\Updating ${path.normalize(varFilePath)}.\nPlease verify and commit.\n\n${errorText}\n`);
 		}
 	});
 

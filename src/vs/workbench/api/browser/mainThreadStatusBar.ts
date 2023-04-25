@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { MainThreadStatusBarShape, MainContext } from '../common/extHost.protocol';
 import { ThemeColor } from 'vs/base/common/themables';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -12,6 +12,7 @@ import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
+import { hash } from 'vs/base/common/hash';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
@@ -28,7 +29,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.entries.clear();
 	}
 
-	$setEntry(entryId: number, id: string, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
+	$setEntry(entryId: number, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
 		// if there are icons in the text use the tooltip for the aria label
 		let ariaLabel: string;
 		let role: string | undefined = undefined;
@@ -60,7 +61,19 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 		// Create new entry if not existing
 		if (!existingEntry) {
-			this.entries.set(entryId, { accessor: this.statusbarService.addEntry(entry, id, alignment, priority), alignment, priority });
+			let entryPriority: number | IStatusbarEntryPriority;
+			if (typeof extensionId === 'string') {
+				// We cannot enforce unique priorities across all extensions, so we
+				// use the extension identifier as a secondary sort key to reduce
+				// the likelyhood of collisions.
+				// See https://github.com/microsoft/vscode/issues/177835
+				// See https://github.com/microsoft/vscode/issues/123827
+				entryPriority = { primary: priority, secondary: hash(extensionId) };
+			} else {
+				entryPriority = priority;
+			}
+
+			this.entries.set(entryId, { accessor: this.statusbarService.addEntry(entry, id, alignment, entryPriority), alignment, priority });
 		}
 
 		// Otherwise update

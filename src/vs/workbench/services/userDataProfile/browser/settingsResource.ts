@@ -8,7 +8,7 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
@@ -19,6 +19,25 @@ import { localize } from 'vs/nls';
 
 interface ISettingsContent {
 	settings: string | null;
+}
+
+export class SettingsResourceInitializer implements IProfileResourceInitializer {
+
+	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+	) {
+	}
+
+	async initialize(content: string): Promise<void> {
+		const settingsContent: ISettingsContent = JSON.parse(content);
+		if (settingsContent.settings === null) {
+			this.logService.info(`Initializing Profile: No settings to apply...`);
+			return;
+		}
+		await this.fileService.writeFile(this.userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString(settingsContent.settings));
+	}
 }
 
 export class SettingsResource implements IProfileResource {

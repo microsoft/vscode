@@ -17,6 +17,11 @@ export interface LanguageFilter {
 	 */
 	readonly hasAccessToAllModels?: boolean;
 	readonly exclusive?: boolean;
+
+	/**
+	 * This provider comes from a builtin extension.
+	 */
+	readonly isBuiltin?: boolean;
 }
 
 export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;

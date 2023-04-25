@@ -329,7 +329,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (!this._updateCustomBuiltinExtensionsCachePromise) {
 			this._updateCustomBuiltinExtensionsCachePromise = (async () => {
 				this.logService.info('Updating additional builtin extensions cache');
-				const cached = await this.getCustomBuiltinExtensionsFromCache();
 				const webExtensions: IWebExtension[] = [];
 				const { extensions } = await this.readCustomBuiltinExtensionsInfoFromEnv();
 				if (extensions.length) {
@@ -340,8 +339,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					}
 					await Promise.all([...galleryExtensionsMap.values()].map(async gallery => {
 						try {
-							const webExtension = cached.find(e => areSameExtensions(e.identifier, gallery.identifier) && e.version === gallery.version)
-								?? await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true });
+							const webExtension = await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true });
 							webExtensions.push(webExtension);
 						} catch (error) {
 							this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
