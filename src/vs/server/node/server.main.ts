@@ -58,6 +58,8 @@ args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'ext
 
 /**
  * invoked by server-main.js
+ *
+ * @skipMangle
  */
 export function spawnCli() {
 	runCli(args, REMOTE_DATA_FOLDER, serverOptions);
@@ -65,6 +67,8 @@ export function spawnCli() {
 
 /**
  * invoked by server-main.js
+ *
+ * @skipMangle
  */
 export function createServer(address: string | net.AddressInfo | null): Promise<IServerAPI> {
 	return doCreateServer(address, args, REMOTE_DATA_FOLDER);

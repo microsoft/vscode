@@ -123,6 +123,9 @@ export function localize(info: ILocalizeInfo, message: string, ...args: (string 
  */
 export function localize(key: string, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
 
+/**
+ * @skipMangle
+ */
 export function localize(data: ILocalizeInfo | string, message: string, ...args: (string | number | boolean | undefined | null)[]): string {
 	return _format(message, args);
 }
@@ -133,12 +136,18 @@ export function localize(data: ILocalizeInfo | string, message: string, ...args:
  * in order to ensure the loader plugin has been initialized before this function is called.
  */
 export function getConfiguredDefaultLocale(stringFromLocalizeCall: string): string | undefined;
+/**
+ * @skipMangle
+ */
 export function getConfiguredDefaultLocale(_: string): string | undefined {
 	// This returns undefined because this implementation isn't used and is overwritten by the loader
 	// when loaded.
 	return undefined;
 }
 
+/**
+ * @skipMangle
+ */
 export function setPseudoTranslation(value: boolean) {
 	isPseudo = value;
 }
@@ -161,6 +170,7 @@ export function create(key: string, data: IBundledStrings & IConsumerAPI): ICons
 export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
 	const pluginConfig: INLSPluginConfig = config['vs/nls'] ?? {};
 	if (!name || name.length === 0) {
+		// TODO: We need to give back the mangled names here
 		return load({
 			localize: localize,
 			getConfiguredDefaultLocale: () => pluginConfig.availableLanguages?.['*']
