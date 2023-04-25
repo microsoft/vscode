@@ -251,6 +251,9 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	private _creationDate: number;
+	get creationDate(): number {
+		return this._creationDate;
+	}
 
 	constructor(
 		public readonly providerId: string,
