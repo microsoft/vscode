@@ -302,13 +302,13 @@ const skippedFiles = [
 	'extensionsApiProposals.ts',
 ];
 
-class FunctionData {
+class DeclarationData {
 
 	readonly replacementName: string;
 
 	constructor(
 		readonly fileName: string,
-		readonly node: ts.FunctionDeclaration
+		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration
 	) {
 		this.replacementName = fileIdents.next(node.getSourceFile());
 	}
@@ -455,7 +455,7 @@ export interface MangleOutput {
 export class Mangler {
 
 	private readonly allClassDataByKey = new Map<string, ClassData>();
-	private readonly allExportedDeclarationsByKey = new Map<string, FunctionData | ConstData>();
+	private readonly allExportedDeclarationsByKey = new Map<string, DeclarationData | ConstData>();
 
 	private readonly service: ts.LanguageService;
 
@@ -477,6 +477,17 @@ export class Mangler {
 				this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 			}
 
+			if (ts.isClassDeclaration(node) && hasModifier(node, ts.SyntaxKind.ExportKeyword)) {
+				if (node.name) {
+					const anchor = node.name;
+					const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
+					if (this.allExportedDeclarationsByKey.has(key)) {
+						throw new Error('DUPE?');
+					}
+					this.allExportedDeclarationsByKey.set(key, new DeclarationData(node.getSourceFile().fileName, node));
+				}
+			}
+
 			if (ts.isFunctionDeclaration(node)
 				&& ts.isSourceFile(node.parent)
 				&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
@@ -487,7 +498,7 @@ export class Mangler {
 					if (this.allExportedDeclarationsByKey.has(key)) {
 						throw new Error('DUPE?');
 					}
-					this.allExportedDeclarationsByKey.set(key, new FunctionData(node.getSourceFile().fileName, node));
+					this.allExportedDeclarationsByKey.set(key, new DeclarationData(node.getSourceFile().fileName, node));
 				}
 			}
 
