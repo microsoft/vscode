@@ -70,7 +70,7 @@ const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
-	markdownDescription: nls.localize('detectColorScheme', 'If set, automatically switch to the preferred color theme based on the OS appearance. If the OS appearance is dark, the theme specified at `#{0}#` is used, for light `#{1}#`.', ThemeSettings.PREFERRED_DARK_THEME, ThemeSettings.PREFERRED_LIGHT_THEME),
+	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['`#{0}#` and `#{1}#` will become a link to an other setting. Do not remove backtick or #'] }, 'If set, automatically switch to the preferred color theme based on the OS appearance. If the OS appearance is dark, the theme specified at `#{0}#` is used, for light `#{1}#`.', ThemeSettings.PREFERRED_DARK_THEME, ThemeSettings.PREFERRED_LIGHT_THEME),
 	default: false
 };
 
