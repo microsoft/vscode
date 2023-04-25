@@ -139,8 +139,8 @@ name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
 resources:
   containers:
-    - container: vscode-bionic-x64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
+    - container: vscode-focal-x64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:focal-x64
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-arm64
@@ -365,7 +365,7 @@ stages:
         - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
           - job: Linuxx64UnitTest
             displayName: Unit Tests
-            container: vscode-bionic-x64
+            container: vscode-focal-x64
             variables:
               VSCODE_ARCH: x64
               NPM_ARCH: x64
@@ -381,7 +381,7 @@ stages:
                   VSCODE_RUN_SMOKE_TESTS: false
           - job: Linuxx64IntegrationTest
             displayName: Integration Tests
-            container: vscode-bionic-x64
+            container: vscode-focal-x64
             variables:
               VSCODE_ARCH: x64
               NPM_ARCH: x64
@@ -397,7 +397,7 @@ stages:
                   VSCODE_RUN_SMOKE_TESTS: false
           - job: Linuxx64SmokeTest
             displayName: Smoke Tests
-            container: vscode-bionic-x64
+            container: vscode-focal-x64
             variables:
               VSCODE_ARCH: x64
               NPM_ARCH: x64
@@ -414,7 +414,7 @@ stages:
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
           - job: Linuxx64
-            container: vscode-bionic-x64
+            container: vscode-focal-x64
             variables:
               VSCODE_ARCH: x64
               NPM_ARCH: x64
