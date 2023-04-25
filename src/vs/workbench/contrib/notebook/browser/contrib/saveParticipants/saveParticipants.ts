@@ -104,7 +104,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			return undefined;
 		}
 
-		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('notebook.codeActionsOnSave');
+		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('notebook.experimental.codeActionsOnSave');
 		if (!setting) {
 			return undefined;
 		}
