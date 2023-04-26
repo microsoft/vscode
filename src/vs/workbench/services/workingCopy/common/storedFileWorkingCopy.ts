@@ -30,6 +30,7 @@ import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ReadonlyHelper } from 'vs/workbench/services/filesConfiguration/common/readonlyHelper';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 /**
  * Stored file specific working copy model factory.
@@ -311,7 +312,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
-	private readonly _readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, this.fileService, this.configurationService));
+	private readonly readonlyHelper;
 
 	//#endregion
 
@@ -322,10 +323,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		private readonly modelFactory: IStoredFileWorkingCopyModelFactory<M>,
 		private readonly externalResolver: IStoredFileWorkingCopyResolver,
 		@IFileService fileService: IFileService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -334,6 +336,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
 	) {
 		super(resource, fileService);
+		this.readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, fileService, contextService, configurationService));
 
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
@@ -1159,7 +1162,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		}
 
 		// readonlyHelper also needs to read lastResolvedFileStat
-		this._readonlyHelper.setLastResolvedFileStat(this.lastResolvedFileStat);
+		this.readonlyHelper.setLastResolvedFileStat(this.lastResolvedFileStat);
 		// Signal if the readonly state changed
 		this.isReadonly();
 	}
@@ -1239,7 +1242,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	//#region Utilities
 
 	isReadonly(): boolean {
-		return this._readonlyHelper.isReadonly();
+		return this.readonlyHelper.isReadonly();
 	}
 	private trace(msg: string): void {
 		this.logService.trace(`[stored file working copy] ${msg}`, this.resource.toString(), this.typeId);
