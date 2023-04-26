@@ -155,9 +155,6 @@ export class FindModel extends Disposable {
 			}
 		};
 
-		if (this._state.replaceString.length === 0) {
-			return;
-		}
 
 		if (e.isReplaceRevealed) {
 			updateEditingState();
