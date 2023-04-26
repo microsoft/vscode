@@ -7,7 +7,6 @@ import 'vs/css!./viewLines';
 import * as platform from 'vs/base/common/platform';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
@@ -143,7 +142,6 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName(`view-lines ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		applyFontInfo(this.domNode, fontInfo);
 
 		// --- width & height
 		this._maxLineWidth = 0;
@@ -204,8 +202,6 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		// sticky scroll
 		this._stickyScrollEnabled = options.get(EditorOption.stickyScroll).enabled;
 		this._maxNumberStickyLines = options.get(EditorOption.stickyScroll).maxLineCount;
-
-		applyFontInfo(this.domNode, fontInfo);
 
 		this._onOptionsMaybeChanged();
 
