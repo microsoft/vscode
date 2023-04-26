@@ -406,7 +406,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		let placeholder = session.placeholder ?? '';
 		let value = options?.message ?? '';
-
+		let autoSend = options?.autoSend ?? false;
 
 		if (session.slashCommands) {
 			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
@@ -502,7 +502,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctxLastFeedbackKind.reset();
 			// reveal the line after the whole range to ensure that the input box is visible
 			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
-			if (options?.autoSend && !this._currentSession.lastResponse) {
+			if (autoSend) {
+				autoSend = false;
 				this.accept();
 			}
 			const input = await inputPromise;
