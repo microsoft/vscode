@@ -286,7 +286,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			renderOverviewRuler: true,
 			diffWordWrap: 'inherit',
 			diffAlgorithm: 'advanced',
-			accessibilityVerbose: true
+			accessibilityVerbose: false
 		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
@@ -2796,6 +2796,7 @@ function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEdi
 		renderOverviewRuler: (a.renderOverviewRuler !== b.renderOverviewRuler),
 		diffWordWrap: (a.diffWordWrap !== b.diffWordWrap),
 		diffAlgorithm: (a.diffAlgorithm !== b.diffAlgorithm),
+		accessibilityVerbose: (a.accessibilityVerbose !== b.accessibilityVerbose),
 	};
 }
 
