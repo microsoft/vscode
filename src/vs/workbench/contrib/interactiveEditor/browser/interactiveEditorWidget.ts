@@ -84,6 +84,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	lineHeight: 20,
 };
 
+
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
 	renderMarginRevertIcon: false,
