@@ -116,7 +116,15 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 
 		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
 			const result = this._diffEditor.getDiffComputationResult();
+			const hasFocus = this._diffEditor.hasTextFocus();
 			this._doShowForChanges(range(), result?.changes2 ?? []);
+			// TODO@jrieken find a better fix for this. this is the challenge:
+			// the _doShowForChanges method invokes show of the zone widget which removes and adds the
+			// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
+			// focus
+			if (hasFocus) {
+				this._diffEditor.focus();
+			}
 		}));
 		this._doShowForChanges(range(), changes);
 	}
