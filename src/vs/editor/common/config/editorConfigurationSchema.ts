@@ -199,7 +199,8 @@ const editorConfiguration: IConfigurationNode = {
 			markdownEnumDescriptions: [
 				nls.localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
 				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
-			]
+			],
+			tags: ['experimental'],
 		},
 	}
 };
