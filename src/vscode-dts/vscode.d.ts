@@ -8086,11 +8086,6 @@ declare module 'vscode' {
 		 * registered where some `FileStat` are not readonly.
 		 */
 		Readonly = 1 << 0,
-
-		/**
-		 * Ignore readonly stat, try to unlock/sudo [for DiskFileProvider]
-		 */
-		IgnoreReadonly = 1 << 1,
 	}
 
 	/**

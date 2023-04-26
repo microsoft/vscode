@@ -429,7 +429,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// File cannot be readonly
-		this.throwIfFileIsReadonly(resource, stat);
+		this.throwIfFileIsReadonly(provider, resource, stat);
 
 		// Dirty write prevention: if the file on disk has been changed and does not match our expected
 		// mtime and etag, we bail out to prevent dirty writing.
@@ -967,7 +967,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		if (stat) {
-			this.throwIfFileIsReadonly(resource, stat);
+			this.throwIfFileIsReadonly(provider, resource, stat);
 		} else {
 			throw new FileOperationError(localize('deleteFailedNotFound', "Unable to delete nonexistent file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
 		}
@@ -1330,9 +1330,9 @@ export class FileService extends Disposable implements IFileService {
 		return provider;
 	}
 
-	private throwIfFileIsReadonly(resource: URI, stat: IStat): void {
+	private throwIfFileIsReadonly<T extends IFileSystemProvider>(provider: T, resource: URI, stat: IStat): void {
 		if ((stat.permissions ?? 0) & FilePermission.Readonly &&
-			!((stat.permissions ?? 0) & FilePermission.IgnoreReadonly)) {
+			!(provider.capabilities & FileSystemProviderCapabilities.FileWriteUnlock)) {
 			throw new FileOperationError(localize('err.readonly', "Unable to modify readonly file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_PERMISSION_DENIED);
 		}
 	}
