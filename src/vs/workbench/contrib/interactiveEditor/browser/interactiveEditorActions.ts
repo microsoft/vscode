@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InteractiveEditorController, InteractiveEditorRunOptions, Recording } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_UNDO, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_UNDO, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROPPED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { IAction2Options } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -517,5 +517,45 @@ export class ViewInChatAction extends AbstractInteractiveEditorAction {
 	}
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
 		ctrl.viewInChat();
+	}
+}
+
+export class ExpandMessageAction extends AbstractInteractiveEditorAction {
+	constructor() {
+		super({
+			id: 'interactiveEditor.expandMessageAction',
+			title: localize('expandMessage', 'Expand Message'),
+			icon: Codicon.arrowDown,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE,
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.isEqualTo('message'), CTX_INTERACTIVE_EDITOR_MESSAGE_CROPPED),
+				group: 'expandMessage',
+				order: 2
+			}
+		});
+	}
+	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.expandMessage();
+	}
+}
+
+export class ContractMessageAction extends AbstractInteractiveEditorAction {
+	constructor() {
+		super({
+			id: 'interactiveEditor.contractMessageAction',
+			title: localize('contractMessage', 'Contract Message'),
+			icon: Codicon.arrowUp,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE,
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.isEqualTo('message'), CTX_INTERACTIVE_EDITOR_MESSAGE_CROPPED),
+				group: 'contractMessage',
+				order: 3
+			}
+		});
+	}
+	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.contractMessage();
 	}
 }

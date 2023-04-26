@@ -342,6 +342,14 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
+	expandMessage() {
+		this._zone.widget.expandMessage();
+	}
+
+	contractMessage() {
+		this._zone.widget.contractMessage();
+	}
+
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
 
 		// hide/cancel inline completions when invoking IE
