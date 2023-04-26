@@ -613,7 +613,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			} else {
 				// make edits more minimal
 
-				const moreMinimalEdits = (await this._editorWorkerService.computeMoreMinimalEdits(textModel.uri, editResponse.localEdits));
+				const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, editResponse.localEdits));
 				const editOperations = (moreMinimalEdits ?? editResponse.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
 				this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, editResponse.localEdits, moreMinimalEdits);
 
