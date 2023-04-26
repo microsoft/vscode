@@ -41,7 +41,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, IInteractiveEditorMessageResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -159,15 +159,12 @@ class InlineDiffDecorations {
 	}
 }
 
-export class MarkdownExchange {
+export class SessionExchange {
+	constructor(readonly prompt: string, readonly response: MarkdownResponse | EditResponse) { }
+}
 
-	readonly editResponse: EditResponse | undefined;
-
-	constructor(readonly prompt: string, readonly response: IInteractiveEditorResponse, readonly uri: URI) {
-		if (response.type === InteractiveEditorResponseType.EditorEdit || response.type === InteractiveEditorResponseType.BulkEdit) {
-			this.editResponse = new EditResponse(this.uri, response);
-		}
-	}
+export class MarkdownResponse {
+	constructor(readonly localUri: URI, readonly raw: IInteractiveEditorMessageResponse) { }
 }
 
 export class EditResponse {
@@ -228,7 +225,7 @@ export class EditResponse {
 
 class Session {
 
-	private readonly _exchange: MarkdownExchange[] = [];
+	private readonly _exchange: SessionExchange[] = [];
 
 	readonly teldata: TelemetryData;
 
@@ -251,12 +248,12 @@ class Session {
 		};
 	}
 
-	addExchange(exchange: MarkdownExchange): void {
+	addExchange(exchange: SessionExchange): void {
 		const newLen = this._exchange.push(exchange);
 		this.teldata.rounds += `${newLen}|`;
 	}
 
-	get lastExchange(): MarkdownExchange | undefined {
+	get lastExchange(): SessionExchange | undefined {
 		return this._exchange[this._exchange.length - 1];
 	}
 }
@@ -579,8 +576,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 
 			this._recorder.addExchange(session, request, reply);
-			const markdownExchange = new MarkdownExchange(value, reply, textModel.uri);
-			this._currentSession.addExchange(markdownExchange);
 			this._zone.widget.updateToolbar(true);
 
 			if (reply.type === 'message') {
@@ -589,10 +584,13 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._requestPrompt = request.prompt;
 				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
 				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
+				const markdownResponse = new MarkdownResponse(textModel.uri, reply);
+				this._currentSession.addExchange(new SessionExchange(value, markdownResponse));
 				continue;
 			}
 
-			const editResponse = markdownExchange.editResponse!;
+			const editResponse = new EditResponse(textModel.uri, reply);
+			this._currentSession.addExchange(new SessionExchange(value, editResponse));
 
 			const canContinue = this._strategy.update(editResponse);
 			if (!canContinue) {
@@ -799,26 +797,26 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	undoLast(): string | void {
-		if (this._currentSession?.lastExchange?.editResponse) {
+		if (this._currentSession?.lastExchange?.response instanceof EditResponse) {
 			this._currentSession.modelN.undo();
-			return this._currentSession.lastExchange.editResponse.localEdits[0].text;
+			return this._currentSession.lastExchange.response.localEdits[0].text;
 		}
 	}
 
 	feedbackLast(helpful: boolean) {
 		if (this._currentSession?.lastExchange?.response) {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
-			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastExchange.response, kind);
+			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastExchange.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
 			this._zone.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
 	async applyChanges(): Promise<EditResponse | void> {
-		if (this._currentSession?.lastExchange?.editResponse) {
+		if (this._currentSession?.lastExchange?.response instanceof EditResponse) {
 			await this._strategy?.apply();
 			this._ctsSession.cancel();
-			return this._currentSession.lastExchange.editResponse;
+			return this._currentSession.lastExchange.response;
 		}
 	}
 
@@ -865,10 +863,10 @@ class PreviewStrategy extends EditModeStrategy {
 
 	async apply() {
 
-		const editResponse = this._session.lastExchange?.editResponse;
-		if (!editResponse) {
+		if (!(this._session.lastExchange?.response instanceof EditResponse)) {
 			return;
 		}
+		const editResponse = this._session.lastExchange?.response;
 		if (editResponse.workspaceEdits) {
 			await this._bulkEditService.apply(editResponse.workspaceEdits);
 
