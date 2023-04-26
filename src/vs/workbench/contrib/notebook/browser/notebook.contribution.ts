@@ -903,7 +903,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputScrolling]: {
-			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
+			markdownDescription: nls.localize('notebook.outputScrolling', "Initially render notebook outputs in a scrollable region when longer than the limit"),
 			type: 'boolean',
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
@@ -920,15 +920,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: false
 		},
-		[NotebookSetting.codeActionsOnSave]: {
-			markdownDescription: nls.localize('notebook.codeActionsOnSave', "Experimental. Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `notebook.format: true`"),
-			type: 'object',
-			additionalProperties: {
-				type: 'boolean'
-			},
-			tags: ['notebookLayout'],
-			default: {}
-		},
+		// [NotebookSetting.codeActionsOnSave]: {
+		// 	markdownDescription: nls.localize('notebook.codeActionsOnSave', "Experimental. Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `notebook.format: true`"),
+		// 	type: 'object',
+		// 	additionalProperties: {
+		// 		type: 'boolean'
+		// 	},
+		// 	tags: ['notebookLayout'],
+		// 	default: {}
+		// },
 		[NotebookSetting.confirmDeleteRunningCell]: {
 			markdownDescription: nls.localize('notebook.confirmDeleteRunningCell', "Control whether a confirmation prompt is required to delete a running cell."),
 			type: 'boolean',

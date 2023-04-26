@@ -286,6 +286,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			renderOverviewRuler: true,
 			diffWordWrap: 'inherit',
 			diffAlgorithm: 'advanced',
+			accessibilityVerbose: true
 		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
@@ -1274,7 +1275,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (options.originalAriaLabel) {
 			result.ariaLabel = options.originalAriaLabel;
 		}
-		result.ariaLabel += ariaNavigationTip;
+		this._updateAriaLabel(result);
 		result.readOnly = !this._options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
@@ -1287,12 +1288,22 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		};
 	}
 
+	private _updateAriaLabel(options: IEditorConstructionOptions): void {
+		let ariaLabel = options.ariaLabel;
+		if (this._options.accessibilityVerbose) {
+			ariaLabel += ariaNavigationTip;
+		} else if (ariaLabel) {
+			ariaLabel = ariaLabel.replaceAll(ariaNavigationTip, '');
+		}
+		options.ariaLabel = ariaLabel;
+	}
+
 	private _adjustOptionsForRightHandSide(options: Readonly<editorBrowser.IDiffEditorConstructionOptions>): IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(options);
 		if (options.modifiedAriaLabel) {
 			result.ariaLabel = options.modifiedAriaLabel;
 		}
-		result.ariaLabel += ariaNavigationTip;
+		this._updateAriaLabel(result);
 		result.wordWrapOverride1 = this._options.diffWordWrap;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
@@ -2767,6 +2778,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
 		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
+		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
 	};
 }
 
