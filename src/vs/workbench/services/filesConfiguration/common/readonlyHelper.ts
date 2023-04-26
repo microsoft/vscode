@@ -16,7 +16,7 @@ class Keys {
 	static include = 'files.readonlyInclude';
 	static exclude = 'files.readonlyExclude';
 	static path = 'files.readonlyPath';
-	static ignoreReadonlyStat = 'files.legacyReadonlyStat';
+	static ignoreReadonlyStat = 'files.ignoreReadonlyStat';
 }
 
 export class ReadonlyHelper extends Disposable {
