@@ -198,34 +198,34 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	}
 }
 
-export function observableSignal(
+export function observableSignal<TDelta = void>(
 	debugName: string
-): IObservableSignal {
-	return new ObservableSignal(debugName);
+): IObservableSignal<TDelta> {
+	return new ObservableSignal<TDelta>(debugName);
 }
 
-export interface IObservableSignal extends IObservable<void> {
-	trigger(tx: ITransaction | undefined): void;
+export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
+	trigger(tx: ITransaction | undefined, change: TChange): void;
 }
 
-class ObservableSignal extends BaseObservable<void> implements IObservableSignal {
+class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements IObservableSignal<TChange> {
 	constructor(
 		public readonly debugName: string
 	) {
 		super();
 	}
 
-	public trigger(tx: ITransaction | undefined): void {
+	public trigger(tx: ITransaction | undefined, change: TChange): void {
 		if (!tx) {
 			transaction(tx => {
-				this.trigger(tx);
+				this.trigger(tx, change);
 			}, () => `Trigger signal ${this.debugName}`);
 			return;
 		}
 
 		for (const o of this.observers) {
 			tx.updateObserver(o, this);
-			o.handleChange(this, undefined);
+			o.handleChange(this, change);
 		}
 	}
 
