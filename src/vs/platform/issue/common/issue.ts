@@ -124,11 +124,11 @@ export interface IIssueMainService {
 
 	// Used by the issue reporter
 
-	getSystemInfo(): Promise<SystemInfo>;
-	getPerformanceInfo(): Promise<PerformanceInfo>;
-	reloadWithExtensionsDisabled(): Promise<void>;
-	showConfirmCloseDialog(): Promise<void>;
-	showClipboardDialog(): Promise<boolean>;
-	getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI>;
-	closeReporter(): Promise<void>;
+	$getSystemInfo(): Promise<SystemInfo>;
+	$getPerformanceInfo(): Promise<PerformanceInfo>;
+	$reloadWithExtensionsDisabled(): Promise<void>;
+	$showConfirmCloseDialog(): Promise<void>;
+	$showClipboardDialog(): Promise<boolean>;
+	$getIssueReporterUri(extensionId: string): Promise<URI>;
+	$closeReporter(): Promise<void>;
 }
