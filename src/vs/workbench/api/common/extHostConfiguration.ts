@@ -236,6 +236,9 @@ export class ExtHostConfigProvider {
 								}
 							});
 						}
+						if (Array.isArray(target)) {
+							return target.map(value => deepClone(value));
+						}
 						return target;
 					};
 					result = cloneOnWriteProxy(result, key);
