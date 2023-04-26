@@ -30,6 +30,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { isWeb } from 'vs/base/common/platform';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -183,6 +184,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
@@ -524,7 +526,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 				this.labelService.getUriBasenameLabel(resource),
 				this.modelFactory,
 				async options => { await this.resolve(resource, { ...options, reload: { async: false } }); },
-				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService, this.configurationService,
+				this.fileService, this.configurationService, this.contextService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
 				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
 				this.editorService, this.elevatedFileService
 			);

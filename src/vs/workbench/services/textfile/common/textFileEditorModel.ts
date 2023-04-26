@@ -34,6 +34,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ReadonlyHelper } from 'vs/workbench/services/filesConfiguration/common/readonlyHelper';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -103,7 +104,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
-	private readonly _readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, this.fileService, this.configurationService));
+	// private _readonlyHelper needs access to private _onDidChangeReadonly Emitter
+	private readonly readonlyHelper;
 
 	private dirty = false;
 	private inConflictMode = false;
@@ -122,7 +124,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -130,6 +133,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService);
+		this.readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, fileService, contextService, configurationService));
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -989,7 +993,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// readonlyHelper also needs to read lastResolvedFileStat
-		this._readonlyHelper.setLastResolvedFileStat(this.lastResolvedFileStat);
+		this.readonlyHelper.setLastResolvedFileStat(this.lastResolvedFileStat);
 		// Signal if the readonly state changed
 		this.isReadonly();
 	}
@@ -1159,7 +1163,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override isReadonly(): boolean {
-		return this._readonlyHelper.isReadonly();
+		return this.readonlyHelper.isReadonly();
 	}
 
 	override dispose(): void {
