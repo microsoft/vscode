@@ -733,7 +733,7 @@ declare module 'vscode' {
 		 */
 		OpenOpen = 0,
 		/**
-		 * The decoration's range will not widen when edits occur at the start of end.
+		 * The decoration's range will not widen when edits occur at the start or end.
 		 */
 		ClosedClosed = 1,
 		/**
