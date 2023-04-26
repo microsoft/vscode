@@ -66,6 +66,8 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	guides: { indentation: false },
 	rulers: [],
 	cursorWidth: 1,
+	cursorStyle: 'line',
+	cursorBlinking: 'blink',
 	wrappingStrategy: 'advanced',
 	wrappingIndent: 'none',
 	renderWhitespace: 'none',
