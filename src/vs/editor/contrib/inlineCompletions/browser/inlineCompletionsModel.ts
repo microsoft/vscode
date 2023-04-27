@@ -271,7 +271,7 @@ export class InlineCompletionsModel extends Disposable {
 		await this.deltaIndex(-1);
 	}
 
-	public accept(editor: ICodeEditor): void {
+	public async accept(editor: ICodeEditor): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -304,19 +304,16 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		if (completion.command) {
-			this._commandService
+			await this._commandService
 				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
-				.finally(() => {
-					transaction(tx => {
-						this._source.clear(tx);
-					});
-				})
 				.then(undefined, onUnexpectedExternalError);
-		} else {
-			transaction(tx => {
-				this._source.clear(tx);
-			});
 		}
+		transaction(tx => {
+			this._source.clear(tx);
+			// Potentially, isActive will get set back to true by the typing or accept inline suggest event
+			// if automatic inline suggestions are enabled.
+			this._isActive.set(false, tx);
+		});
 	}
 
 	public acceptNextWord(editor: ICodeEditor): void {
