@@ -621,24 +621,25 @@ class ProcAutomaticPortForwarding extends Disposable {
 
 	private async handleCandidateUpdate(removed: Map<string, { host: string; port: number }>) {
 		const removedPorts: number[] = [];
-		let autoForwarded: Set<string>;
+		let autoForwarded: Map<string, string>;
 		if (this.unforwardOnly) {
-			autoForwarded = new Set();
+			autoForwarded = new Map();
 			for (const entry of this.remoteExplorerService.tunnelModel.forwarded.entries()) {
 				if (entry[1].source.source === TunnelSource.Auto) {
-					autoForwarded.add(entry[0]);
+					autoForwarded.set(entry[0], entry[0]);
 				}
 			}
 		} else {
-			autoForwarded = this.autoForwarded;
+			autoForwarded = new Map(this.autoForwarded.entries());
 		}
 
 		for (const removedPort of removed) {
 			const key = removedPort[0];
 			const value = removedPort[1];
-			if (autoForwarded.has(key)) {
+			const actualKey = mapHasAddressLocalhostOrAllInterfaces(autoForwarded, value.host, value.port);
+			if (actualKey) {
 				await this.remoteExplorerService.close(value);
-				autoForwarded.delete(key);
+				autoForwarded.delete(actualKey);
 				removedPorts.push(value.port);
 			} else if (this.notifiedOnly.has(key)) {
 				this.notifiedOnly.delete(key);
