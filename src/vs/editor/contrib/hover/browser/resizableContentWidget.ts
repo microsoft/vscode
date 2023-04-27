@@ -4,65 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IPosition } from 'vs/editor/common/core/position';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { clamp } from 'vs/base/common/numbers';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as dom from 'vs/base/browser/dom';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { clamp } from 'vs/base/common/numbers';
+import { ResourceMap } from 'vs/base/common/map';
+import { IPosition } from 'vs/editor/common/core/position';
 
-export interface IResizableWidget extends IDisposable {
+export abstract class ResizableContentWidget extends Disposable implements IContentWidget {
 
-	/**
-	 * This method returns a boolean indicating whether the widget is currently resizing.
-	 */
-	isResizing(): boolean;
+	allowEditorOverflow?: boolean | undefined;
+	suppressMouseDown?: boolean | undefined;
 
-	/**
-	 * Abstract method called when the resizable element is resizing. Should be used to define the new size of the children of the resizable element.
-	 * @param dimension The new dimension of the resizable element.
-	 */
-	resize(dimension: dom.Dimension): void;
+	protected readonly _contentNode: HTMLDivElement;
+	protected readonly _resizableNode = this._register(new ResizableHTMLElement());
 
-	/**
-	 * Method which returns the persisted size the resizable widget. It calls the findSize method of the persisting mechanism (whether single or multiple size persisting mechanism).
-	 */
-	findPersistedSize(): dom.Dimension | undefined;
-
-	/**
-	 * Method which is called first in the onDidWillResize call of the resizable element. By default it returns nothing.
-	 */
-	beforeOnDidWillResize(): void;
-
-	/**
-	 * Method which is called last in the onDidResize call of the resizable element. By default it returns nothing.
-	 */
-	afterOnDidResize(): void;
-
-	/**
-	 * Method which disposes the resizable widget.
-	 */
-	dispose(): void;
-}
-
-export abstract class ResizableWidget implements IResizableWidget {
-
-	public readonly element: ResizableHTMLElement;
+	private _contentPosition: IContentWidgetPosition | null = null;
 	protected readonly persistingMechanism: SingleSizePersistingMechanism | MultipleSizePersistingMechanism;
-	private readonly disposables = new DisposableStore();
 	private resizing: boolean = false;
 
 	constructor(
-		readonly editor: ICodeEditor,
+		initalSize: dom.IDimension = new dom.Dimension(100, 100),
 		private readonly persistingOptions: IPersistingOptions,
+		protected readonly editor: ICodeEditor
 	) {
-
-		this.element = this.disposables.add(new ResizableHTMLElement());
-		this.element.minSize = new dom.Dimension(10, 24);
-
+		super();
+		this._contentNode = document.createElement('div');
+		this._contentNode.style.width = `${initalSize.width}px`;
+		this._contentNode.style.height = `${initalSize.height}px`;
+		this._resizableNode.domNode.appendChild(this._contentNode);
+		this._resizableNode.minSize = new dom.Dimension(10, 10);
+		this._resizableNode.enableSashes(true, true, true, true);
+		this._resizableNode.layout(initalSize.height, initalSize.width);
+		this._register(this._resizableNode.onDidResize(e => {
+			this._contentNode.style.width = `${e.dimension.width}px`;
+			this._contentNode.style.height = `${e.dimension.height}px`;
+			if (e.done) {
+				this.resizing = false;
+			}
+		}));
+		this._register(this._resizableNode.onDidWillResize(() => {
+			this.resizing = true;
+		}));
 		if (this.persistingOptions instanceof SingleSizePersistingOptions) {
 			this.persistingMechanism = new SingleSizePersistingMechanism(this, this.editor, this.persistingOptions);
 		} else if (this.persistingOptions instanceof MultipleSizePersistingOptions) {
@@ -70,15 +55,30 @@ export abstract class ResizableWidget implements IResizableWidget {
 		} else {
 			throw new Error('Please specify a valid persisting mechanism');
 		}
+	}
 
-		this.disposables.add(this.element.onDidWillResize(() => {
-			this.resizing = true;
-		}));
-		this.disposables.add(this.element.onDidResize((e) => {
-			if (e.done) {
-				this.resizing = false;
-			}
-		}));
+	abstract getId(): string;
+
+	getDomNode(): HTMLElement {
+		console.log('Inside of getDomNode of ExampleResizableContentWidget : ', this._resizableNode.domNode);
+		return this._resizableNode.domNode;
+	}
+
+	getPosition(): IContentWidgetPosition | null {
+		console.log('Inside of getPosition, this._contentPosition : ', this._contentPosition);
+		return this._contentPosition;
+	}
+
+	setPosition(value: IContentWidgetPosition | null): void {
+		console.log('Inside of setPosition, value : ', value);
+		// TODO: compute boxed above/below if applicable
+		this._contentPosition = value;
+	}
+
+	// abstract beforeRender?(): IDimension | null;
+
+	afterRender(position: ContentWidgetPositionPreference | null): void {
+		// TODO: set max sizes that were computed above
 	}
 
 	abstract resize(dimension: dom.Dimension): void;
@@ -99,91 +99,8 @@ export abstract class ResizableWidget implements IResizableWidget {
 		return;
 	}
 
-	dispose(): void {
-		this.disposables.dispose();
-	}
-}
-
-export interface IResizableContentWidget extends IContentWidget {
-
-	/**
-	 * Abstract method which returns the ID of the content widget
-	 */
-	getId(): string;
-
-	/**
-	 * Method which returns the dom node of the resizable element of the resizable widget passed into the constructor
-	 */
-	getDomNode(): HTMLElement;
-
-	/**
-	 * Returns the position of the content widget.
-	 */
-	getPosition(): IContentWidgetPosition | null;
-
-	/**
-	 * Method which sets the position of the content widget.
-	 */
-	set position(position: IPosition | null);
-
-	/**
-	 * Method which sets the secondary position of the content widget.
-	 */
-	set secondaryPosition(position: IPosition | null);
-
-	/**
-	 * Method which sets the preferred position of the content widget.
-	 */
-	set preference(preference: ContentWidgetPositionPreference[]);
-
-	/**
-	 * Method which sets the position affinity of the content widget.
-	 */
-	set positionAffinity(affinity: PositionAffinity | undefined);
-}
-
-export abstract class ResizableContentWidget implements IResizableContentWidget {
-
-	private _position: IPosition | null = null;
-	private _secondaryPosition: IPosition | null = null;
-	private _preference: ContentWidgetPositionPreference[] = [];
-	private _positionAffinity: PositionAffinity | undefined = undefined;
-
-	constructor(
-		private readonly resizableWidget: ResizableWidget
-	) { }
-
-	// Method is to abstract because generally we return a static ID
-	abstract getId(): string;
-
-	getDomNode(): HTMLElement {
-		return this.resizableWidget.element.domNode;
-	}
-
-	getPosition(): IContentWidgetPosition | null {
-		const contentWidgetPosition = {
-			position: this._position,
-			secondaryPosition: this._secondaryPosition,
-			preference: (this._preference),
-			positionAffinity: this._positionAffinity
-		};
-		return contentWidgetPosition;
-	}
-
-	set position(position: IPosition | null) {
-		this._position = position;
-	}
-
-	set secondaryPosition(position: IPosition | null) {
-		this._secondaryPosition = position;
-	}
-
-	set preference(preference: ContentWidgetPositionPreference[]) {
-		this._preference = preference;
-	}
-
-	set positionAffinity(affinity: PositionAffinity | undefined) {
-		this._positionAffinity = affinity;
+	get resizableNode(): ResizableHTMLElement {
+		return this._resizableNode;
 	}
 }
 
@@ -228,7 +145,7 @@ export class SingleSizePersistingMechanism implements IPersistingMechanism {
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		private readonly resizableWidget: ResizableWidget,
+		private readonly resizableWidget: ResizableContentWidget,
 		private readonly editor: ICodeEditor,
 		private readonly persistingOptions: SingleSizePersistingOptions
 	) {
@@ -236,11 +153,11 @@ export class SingleSizePersistingMechanism implements IPersistingMechanism {
 		this.persistedWidgetSize = new PersistedWidgetSize(this.persistingOptions.key, this.persistingOptions.storageService);
 
 		let state: ResizeState | undefined;
-		this.disposables.add(this.resizableWidget.element.onDidWillResize(() => {
+		this.disposables.add(this.resizableWidget.resizableNode.onDidWillResize(() => {
 			this.resizableWidget.beforeOnDidWillResize();
-			state = new ResizeState(this.persistedWidgetSize!.restore(), this.resizableWidget.element.size);
+			state = new ResizeState(this.persistedWidgetSize!.restore(), this.resizableWidget.resizableNode.size);
 		}));
-		this.disposables.add(this.resizableWidget.element.onDidResize(e => {
+		this.disposables.add(this.resizableWidget.resizableNode.onDidResize(e => {
 			this.resizableWidget.resize(new dom.Dimension(e.dimension.width, e.dimension.height));
 			if (state) {
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
@@ -253,7 +170,7 @@ export class SingleSizePersistingMechanism implements IPersistingMechanism {
 				const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 				const itemHeight = clamp(this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight, 8, 1000);
 				const threshold = Math.round(itemHeight / 2);
-				let { width, height } = this.resizableWidget.element.size;
+				let { width, height } = this.resizableWidget.resizableNode.size;
 				if (!state.persistHeight || Math.abs(state.currentSize.height - height) <= threshold) {
 					height = state.persistedSize?.height ?? this.persistingOptions.defaultSize.height;
 				}
@@ -291,7 +208,7 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 	private _position: IPosition | null = null;
 
 	constructor(
-		private readonly resizableWidget: ResizableWidget,
+		private readonly resizableWidget: ResizableContentWidget,
 		public readonly editor: ICodeEditor
 	) {
 		this.disposables.add(this.editor.onDidChangeModelContent((e) => {
@@ -321,10 +238,10 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 			}
 			this.persistedWidgetSizes.set(uri, updatedPersistedSizesForUri);
 		}));
-		this.disposables.add(this.resizableWidget.element.onDidWillResize(() => {
+		this.disposables.add(this.resizableWidget.resizableNode.onDidWillResize(() => {
 			this.resizableWidget.beforeOnDidWillResize();
 		}));
-		this.disposables.add(this.resizableWidget.element.onDidResize(e => {
+		this.disposables.add(this.resizableWidget.resizableNode.onDidResize(e => {
 			const height = e.dimension.height;
 			const width = e.dimension.width;
 			this.resizableWidget.resize(new dom.Dimension(width, height));

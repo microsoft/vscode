@@ -15,7 +15,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { ContentHoverController, ResizableContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHover';
+import { ContentHoverController, ResizableHoverWidget } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -108,7 +108,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		const target = mouseEvent.target;
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableContentHoverWidget.ID) {
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableHoverWidget.ID) {
 			this._hoverClicked = true;
 			// mouse down on top of content hover widget
 			return;
@@ -146,7 +146,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableContentHoverWidget.ID) {
+		if (this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableHoverWidget.ID) {
 			// mouse moved on top of content hover widget
 			return;
 		}
@@ -157,7 +157,7 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (
-			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableContentHoverWidget.ID
+			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableHoverWidget.ID
 			&& this._contentWidget?.isColorPickerVisible()
 		) {
 			// though the hover is not sticky, the color picker needs to.
