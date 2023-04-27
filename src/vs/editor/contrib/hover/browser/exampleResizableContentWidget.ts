@@ -72,14 +72,17 @@ export abstract class ExampleResizableContentWidget extends Disposable implement
 	abstract getId(): string;
 
 	getDomNode(): HTMLElement {
+		console.log('Inside of getDomNode of ExampleResizableContentWidget : ', this._resizableNode.domNode);
 		return this._resizableNode.domNode;
 	}
 
 	getPosition(): IContentWidgetPosition | null {
+		console.log('Inside of getPosition, this._contentPosition : ', this._contentPosition);
 		return this._contentPosition;
 	}
 
 	setPosition(value: IContentWidgetPosition | null): void {
+		console.log('Inside of setPosition, value : ', value);
 		// TODO
 		// - compute boxed above/below if applicable
 		this._contentPosition = value;
@@ -182,6 +185,8 @@ export class ExampleResizableHoverWidget extends ExampleResizableContentWidget {
 		editor: ICodeEditor,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
+		console.log('Inside of the constructor of the ExampleResizableHoverWidget');
+
 		const initalSize = new dom.Dimension(10, 10);
 		const persistingOptions = new ExampleMultipleSizePersistingOptions();
 		super(initalSize, persistingOptions, editor);
@@ -226,6 +231,8 @@ export class ExampleResizableHoverWidget extends ExampleResizableContentWidget {
 	}
 
 	public resize(size: dom.Dimension) {
+
+		console.log('Inside of the resize function');
 
 		this.hoverWidget.contentsDomNode.style.maxHeight = 'none';
 		this.hoverWidget.contentsDomNode.style.maxWidth = 'none';
@@ -379,6 +386,8 @@ export class ExampleResizableHoverWidget extends ExampleResizableContentWidget {
 	}
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
+		console.log('Inside of the showAt function');
+
 		if (!this.editor || !this.editor.hasModel()) {
 			return;
 		}
@@ -388,9 +397,19 @@ export class ExampleResizableHoverWidget extends ExampleResizableContentWidget {
 		this._position = visibleData.showAtPosition;
 		this._secondaryPosition = visibleData.showAtSecondaryPosition;
 		this._positionAffinity = visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
+
+		// ---
+		// Fixing the position data
+		const widgetPosition: IContentWidgetPosition = { position: this._position, secondaryPosition: this._secondaryPosition, positionAffinity: this._positionAffinity, preference: [ContentWidgetPositionPreference.ABOVE] };
+		this.setPosition(widgetPosition);
+		// ---
+
 		this._setVisibleData(visibleData);
 
+		console.log('this.visible : ', this.visible);
+
 		if (!this.visible) {
+			console.log('right before adding the content widget');
 			this.editor.addContentWidget(this);
 		}
 
@@ -401,6 +420,8 @@ export class ExampleResizableHoverWidget extends ExampleResizableContentWidget {
 
 		let height;
 		const persistedSize = this.findPersistedSize();
+		console.log('persistedSize : ', persistedSize);
+
 		// If there is no persisted size, then normally render
 		if (!persistedSize) {
 			this.hoverWidget.contentsDomNode.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height / 4, 250)}px`;
@@ -460,6 +481,11 @@ export class ExampleResizableHoverWidget extends ExampleResizableContentWidget {
 
 		this._preference = [this.renderingAbove];
 
+		// -- Fixing the position
+		widgetPosition.preference = this._preference;
+		this.setPosition(widgetPosition);
+		// ---
+
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		if (!persistedSize) {
@@ -474,6 +500,8 @@ export class ExampleResizableHoverWidget extends ExampleResizableContentWidget {
 	}
 
 	public hide(): void {
+		console.log('Inside of the hide function');
+
 		this.visible = false;
 		this.resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
 		this.resizableNode.clearSashHoverState();
@@ -494,6 +522,9 @@ export class ExampleResizableHoverWidget extends ExampleResizableContentWidget {
 	}
 
 	public onContentsChanged(): void {
+
+		console.log('Inside of onContentsChanged');
+
 		const persistedSize = this.findPersistedSize();
 		const containerDomNode = this.hoverWidget.containerDomNode;
 		const contentsDomNode = this.hoverWidget.contentsDomNode;

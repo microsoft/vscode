@@ -168,7 +168,6 @@ export class ResizableHTMLElement {
 		this._size = size;
 	}
 
-
 	set maxSize(value: Dimension) {
 		this._maxSize = value;
 	}

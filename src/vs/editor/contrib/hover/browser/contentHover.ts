@@ -24,14 +24,15 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { MultipleSizePersistingMechanism, MultipleSizePersistingOptions, ResizableContentWidget, ResizableWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-// EXAMPLE
-import { DummyResizeWidget, ExampleMultipleSizePersistingOptions } from 'vs/editor/contrib/hover/browser/exampleResizableContentWidget';
+import { ExampleResizableHoverWidget } from 'vs/editor/contrib/hover/browser/exampleResizableContentWidget';
+// EXAMPLE : import { DummyResizeWidget, ExampleMultipleSizePersistingOptions } from 'vs/editor/contrib/hover/browser/exampleResizableContentWidget';
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	private readonly _widget = this._register(this._instantiationService.createInstance(ResizableHoverWidget, this._editor));
+	// private readonly _widget = this._register(this._instantiationService.createInstance(ResizableHoverWidget, this._editor));
+	private readonly _widget = this._register(this._instantiationService.createInstance(ExampleResizableHoverWidget, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -41,11 +42,11 @@ export class ContentHoverController extends Disposable {
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super();
-
-		// EXAMPLE
-		_editor.addContentWidget(new DummyResizeWidget(this._editor, new ExampleMultipleSizePersistingOptions()));
+		// EXAMPLE : _editor.addContentWidget(new DummyResizeWidget(this._editor, new ExampleMultipleSizePersistingOptions()));
+		// _editor.addContentWidget(new ExampleResizableHoverWidget(_editor, _contextKeyService));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -190,6 +191,9 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _setCurrentResult(hoverResult: HoverResult | null): void {
+		console.log('Inside of _setCurrentResult');
+		console.log('hoverResult: ', hoverResult);
+
 		if (this._currentResult === hoverResult) {
 			// avoid updating the DOM to avoid resetting the user selection
 			return;
@@ -260,6 +264,9 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
+
+		console.log('Inside of _renderMessages');
+
 		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
 
 		const disposables = new DisposableStore();
@@ -300,6 +307,7 @@ export class ContentHoverController extends Disposable {
 				}));
 			}
 
+			console.log('Right before the showAt function of the _renderMessages function');
 			this._widget.showAt(fragment, new ContentHoverVisibleData(
 				colorPicker,
 				showAtPosition,
@@ -790,6 +798,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 	}
 
 	public onContentsChanged(): void {
+		console.log('Inside of on content changed');
+
 		const persistedSize = this.findPersistedSize();
 		const containerDomNode = this.hoverWidget.containerDomNode;
 		const contentsDomNode = this.hoverWidget.contentsDomNode;
