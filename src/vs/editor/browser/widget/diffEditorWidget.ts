@@ -623,7 +623,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}));
 
 		// Revert change when an arrow is clicked.
-		this._register(editor.onMouseUp(event => {
+		this._register(editor.onMouseDown(event => {
 			if (!event.event.rightButton && event.target.position && event.target.element?.className.includes('arrow-revert-change')) {
 				const lineNumber = event.target.position.lineNumber;
 				const viewZone = event.target as editorBrowser.IMouseTargetViewZone | undefined;
