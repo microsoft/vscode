@@ -426,15 +426,9 @@ class InteractiveEditorWidget {
 		this.inputEditor.focus();
 	}
 
-	expandMessage() {
-		this._ctxMessageCropState.set('expanded');
-		this._elements.message.style.webkitLineClamp = '10';
-		this._onDidChangeHeight.fire();
-	}
-
-	contractMessage() {
-		this._ctxMessageCropState.set('cropped');
-		this._elements.message.style.webkitLineClamp = '3';
+	updateToggleState(expand: boolean) {
+		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
+		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
 		this._onDidChangeHeight.fire();
 	}
 
