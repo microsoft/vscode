@@ -305,7 +305,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	override clearInput(): void {
 		const editorVisibleTimeMs = this.inputShownStopWatch !== undefined ? this.inputShownStopWatch.elapsed() : undefined;
 		this.inputShownStopWatch = undefined;
-		const languageId = this.diffEditorControl?.getModel().modified.getLanguageId();
+		const languageId = this.diffEditorControl?.getModel().modified?.getLanguageId();
 
 		super.clearInput();
 
