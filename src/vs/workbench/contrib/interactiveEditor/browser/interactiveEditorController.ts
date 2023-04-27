@@ -569,6 +569,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._messageReply = reply.message.value;
 				this._requestPrompt = request.prompt;
 				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
+				this._zone.widget.updateStatus('');
 				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
 				this._currentSession.addResponse(reply);
 				continue;
