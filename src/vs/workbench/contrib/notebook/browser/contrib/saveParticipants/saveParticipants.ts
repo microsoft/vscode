@@ -97,6 +97,8 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 	) {
 	}
 
+	// testing edits here
+
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		const isTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		if (!isTrusted) {
