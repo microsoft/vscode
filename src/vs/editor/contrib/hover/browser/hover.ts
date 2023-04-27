@@ -691,7 +691,7 @@ class ClearPersistedHoverSizes extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = ModesHoverController.get(editor);
 		if (!controller) {
 			return;
