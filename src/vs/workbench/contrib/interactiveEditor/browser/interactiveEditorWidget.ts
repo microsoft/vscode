@@ -287,7 +287,7 @@ class InteractiveEditorWidget {
 		}
 	}
 
-	getInput(placeholder: string, value: string, token: CancellationToken): Promise<string | undefined> {
+	getInput(placeholder: string, value: string, token: CancellationToken, setSelection: boolean = true): Promise<string | undefined> {
 
 		console.log('Inside of getInput');
 		console.log('placeholder : ', placeholder);
@@ -298,7 +298,13 @@ class InteractiveEditorWidget {
 		this._elements.placeholder.style.lineHeight = `${this.inputEditor.getOption(EditorOption.lineHeight)}px`;
 
 		this._inputModel.setValue(value);
-		this.inputEditor.setSelection(this._inputModel.getFullModelRange());
+		if (setSelection) {
+			this.inputEditor.setSelection(this._inputModel.getFullModelRange());
+		} else {
+			// const lineCount = this.inputEditor.linenu
+			// this.inputEditor.setPosition();
+		}
+
 		this.inputEditor.updateOptions({ ariaLabel: localize('aria-label.N', "Interactive Editor Input: {0}", placeholder) });
 
 		const disposeOnDone = new DisposableStore();
@@ -576,12 +582,13 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken): Promise<string | undefined> {
+	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken, setSelection: boolean = true): Promise<string | undefined> {
+		console.log('Inside of async get inoput');
 		assertType(this.editor.hasModel());
 		super.show(where, this._computeHeightInLines());
 		this._ctxVisible.set(true);
 
-		const task = this.widget.getInput(placeholder, value, token);
+		const task = this.widget.getInput(placeholder, value, token, setSelection);
 		const result = await task;
 		return result;
 	}

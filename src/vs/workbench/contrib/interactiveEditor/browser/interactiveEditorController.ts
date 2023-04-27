@@ -301,6 +301,8 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _requestPrompt: string | undefined;
 	private _messageReply: string | undefined;
 
+	private _setSelection: boolean = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -316,12 +318,19 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 
 	) {
-		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxInlineDiff = CTX_INTERACTIVE_EDITOR_INLNE_DIFF.bindTo(contextKeyService);
 		this._ctxLastEditKind = CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND.bindTo(contextKeyService);
+		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
+		this._zone.widget.inputEditor.onDidChangeModelContent(() => {
+			if (this._ctxHasActiveRequest.get()) {
+				this.cancelCurrentRequest();
+				this._ctxHasActiveRequest.set(false);
+				this._setSelection = false;
+			}
+		});
 	}
 
 	dispose(): void {
@@ -466,6 +475,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		do {
 
+			console.log('at the beginning of the do loop');
+
 			const wholeRange = wholeRangeDecoration.getRange(0);
 			if (!wholeRange) {
 				// nuked whole file contents?
@@ -473,7 +484,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				break;
 			}
 
-
+			console.log('wholeRange : ', wholeRange);
 			// visuals: add block decoration
 			blockDecoration.set([{
 				range: wholeRange,
@@ -484,7 +495,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
+			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token, this._setSelection);
+			this._setSelection = true;
 
 			if (textModel0Changes && editMode === EditMode.LivePreview) {
 
@@ -501,6 +513,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				this.accept();
 			}
 			const input = await inputPromise;
+			console.log('input : ', input);
 
 			if (!input) {
 				continue;
@@ -511,6 +524,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 			const refer = session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
+			console.log('refer : ', refer);
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
 				this._editor.setSelection(wholeRange);
@@ -533,7 +547,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._zone.widget.updateProgress(true);
 				this._ctxHasActiveRequest.set(true);
 				reply = await raceCancellationError(Promise.resolve(task), this._ctsRequest.token);
-
+				console.log('reply : ', reply);
 			} catch (e) {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
@@ -740,6 +754,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	cancelCurrentRequest(): void {
+		console.log('Inside of cancelCurrentRequest');
 		this._ctsRequest?.cancel();
 	}
 
