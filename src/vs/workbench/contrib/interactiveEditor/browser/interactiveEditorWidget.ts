@@ -289,6 +289,10 @@ class InteractiveEditorWidget {
 
 	getInput(placeholder: string, value: string, token: CancellationToken): Promise<string | undefined> {
 
+		console.log('Inside of getInput');
+		console.log('placeholder : ', placeholder);
+		console.log('value : ', value);
+
 		this._elements.placeholder.innerText = placeholder;
 		this._elements.placeholder.style.fontSize = `${this.inputEditor.getOption(EditorOption.fontSize)}px`;
 		this._elements.placeholder.style.lineHeight = `${this.inputEditor.getOption(EditorOption.lineHeight)}px`;
@@ -309,6 +313,8 @@ class InteractiveEditorWidget {
 		return new Promise<string | undefined>(resolve => {
 
 			this._cancelInput = () => {
+				console.log('Inside of _cancelInput');
+
 				this.acceptInput = InteractiveEditorWidget._noop;
 				this._cancelInput = InteractiveEditorWidget._noop;
 				resolve(undefined);
@@ -316,7 +322,11 @@ class InteractiveEditorWidget {
 			};
 
 			this.acceptInput = () => {
+				console.log('Inside of acceptInput');
+
 				const newValue = this.inputEditor.getModel()!.getValue();
+				console.log('newValue : ', newValue);
+
 				if (newValue.trim().length === 0) {
 					// empty or whitespace only
 					this._cancelInput();
@@ -357,6 +367,8 @@ class InteractiveEditorWidget {
 			this.focus();
 
 		}).finally(() => {
+			console.log('Inside of finally');
+
 			disposeOnDone.dispose();
 
 			ctxInnerCursorFirst.reset();
