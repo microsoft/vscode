@@ -309,7 +309,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		// Log input lifecycle telemetry
 		const inputLifecycleElapsed = this.inputLifecycleStopWatch?.elapsed();
 		this.inputLifecycleStopWatch = undefined;
-		this.logInputLifecycleTelemetry(inputLifecycleElapsed, this.getControl()?.getModel()?.modified?.getLanguageId());
+		if (typeof inputLifecycleElapsed === 'number') {
+			this.logInputLifecycleTelemetry(inputLifecycleElapsed, this.getControl()?.getModel()?.modified?.getLanguageId());
+		}
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -318,21 +320,19 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		this.diffEditorControl?.setModel(null);
 	}
 
-	private logInputLifecycleTelemetry(duration: number | undefined, languageId: string | undefined): void {
-		if (typeof duration === 'number') {
-			this.telemetryService.publicLog2<{
-				editorVisibleTimeMs: number;
-				languageId: string;
-			}, {
-				owner: 'hediet';
-				editorVisibleTimeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates the time the diff editor was visible to the user' };
-				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates for which language the diff editor was shown' };
-				comment: 'This event gives insight about how long the diff editor was visible to the user.';
-			}>('diffEditor.editorVisibleTime', {
-				editorVisibleTimeMs: duration,
-				languageId: languageId ?? '',
-			});
-		}
+	private logInputLifecycleTelemetry(duration: number, languageId: string | undefined): void {
+		this.telemetryService.publicLog2<{
+			editorVisibleTimeMs: number;
+			languageId: string;
+		}, {
+			owner: 'hediet';
+			editorVisibleTimeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates the time the diff editor was visible to the user' };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates for which language the diff editor was shown' };
+			comment: 'This event gives insight about how long the diff editor was visible to the user.';
+		}>('diffEditor.editorVisibleTime', {
+			editorVisibleTimeMs: duration,
+			languageId: languageId ?? '',
+		});
 	}
 
 	getDiffNavigator(): DiffNavigator | undefined {
