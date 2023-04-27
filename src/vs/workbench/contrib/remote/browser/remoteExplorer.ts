@@ -634,16 +634,16 @@ class ProcAutomaticPortForwarding extends Disposable {
 		}
 
 		for (const removedPort of removed) {
-			let key = removedPort[0];
+			const key = removedPort[0];
 			let value = removedPort[1];
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(autoForwarded, value.host, value.port);
 			if (forwardedValue) {
-				if (typeof forwardedValue !== 'string') {
-					key = makeAddress(forwardedValue.remoteHost, forwardedValue.remotePort);
+				if (typeof forwardedValue === 'string') {
+					this.autoForwarded.delete(key);
+				} else {
 					value = { host: forwardedValue.remoteHost, port: forwardedValue.remotePort };
 				}
 				await this.remoteExplorerService.close(value);
-				autoForwarded.delete(key);
 				removedPorts.push(value.port);
 			} else if (this.notifiedOnly.has(key)) {
 				this.notifiedOnly.delete(key);
