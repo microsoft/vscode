@@ -26,7 +26,6 @@ export interface IAudioCueService {
 
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
-	sounds: Map<string, HTMLAudioElement> = new Map();
 	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
@@ -71,14 +70,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		const url = FileAccess.asBrowserUri(`vs/platform/audioCues/browser/media/${sound.fileName}`).toString(true);
 
 		try {
-			const sound = this.sounds.get(url);
-			if (sound) {
-				sound.volume = this.getVolumeInPercent() / 100;
-				await sound.play();
-			} else {
-				const playedSound = await playAudio(url, this.getVolumeInPercent() / 100);
-				this.sounds.set(url, playedSound);
-			}
+			await playAudio(url, this.getVolumeInPercent() / 100);
 		} catch (e) {
 			console.error('Error while playing sound', e);
 		} finally {
