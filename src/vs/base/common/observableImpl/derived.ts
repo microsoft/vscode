@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { IReader, IObservable, BaseObservable, IObserver, _setDerived } from 'vs/base/common/observableImpl/base';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
 
@@ -167,9 +168,14 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 	public endUpdate(): void {
 		this.updateCount--;
 		if (this.updateCount === 0) {
-			for (const r of this.observers) {
+			// End update could change the observer list.
+			const observers = [...this.observers];
+			for (const r of observers) {
 				r.endUpdate(this);
 			}
+		}
+		if (this.updateCount < 0) {
+			throw new BugIndicatingError();
 		}
 	}
 

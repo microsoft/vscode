@@ -31,6 +31,7 @@ import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -310,6 +311,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 
@@ -383,15 +385,16 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		const store = new DisposableStore();
 
+		// keep a snapshot of the "actual" model
+		const textModel0 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModel.createSnapshot()), { languageId: textModel.getLanguageId(), onDidChange: Event.None }, undefined, true);
+		store.add(textModel0);
+
+		// keep a reference to prevent disposal of the "actual" model
+		const refTextModelN = await this._textModelService.createModelReference(textModel.uri);
+		store.add(refTextModelN);
 
 		let textModel0Changes: LineRangeMapping[] | undefined;
-		const textModel0 = this._modelService.createModel(
-			createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
-			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-			undefined, true
-		);
 
-		store.add(textModel0);
 		this._currentSession = new Session(editMode, textModel0, textModel, provider, session);
 		this._strategy = this._instaService.createInstance(EditModeStrategy.ctor(editMode), this._currentSession);
 
@@ -414,7 +417,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		let placeholder = session.placeholder ?? '';
 		let value = options?.message ?? '';
-
+		let autoSend = options?.autoSend ?? false;
 
 		if (session.slashCommands) {
 			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
@@ -467,9 +470,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		}, undefined, store);
 
-		const roundStore = new DisposableStore();
-		store.add(roundStore);
-
 		const diffZone = this._instaService.createInstance(InteractiveEditorDiffWidget, this._editor, textModel0);
 
 		do {
@@ -510,11 +510,11 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctxLastFeedbackKind.reset();
 			// reveal the line after the whole range to ensure that the input box is visible
 			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
-			if (options?.autoSend && !this._currentSession.lastResponse) {
+			if (autoSend) {
+				autoSend = false;
 				this.accept();
 			}
 			const input = await inputPromise;
-			roundStore.clear();
 
 			if (!input) {
 				continue;
@@ -812,16 +812,20 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	async applyChanges(): Promise<EditResponse | void> {
-		if (this._currentSession?.lastResponse instanceof EditResponse) {
+		if (this._currentSession?.lastResponse instanceof EditResponse && this._strategy) {
 			const { lastResponse } = this._currentSession;
-			await this._strategy?.apply();
+			const strategy = this._strategy;
+			this._strategy = undefined;
+			await strategy?.apply();
 			this._ctsSession.cancel();
 			return lastResponse;
 		}
 	}
 
 	async cancelSession() {
-		await this._strategy?.cancel();
+		const strategy = this._strategy;
+		this._strategy = undefined;
+		await strategy?.cancel();
 		this._ctsSession.cancel();
 	}
 }

@@ -164,6 +164,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 			} else {
 				this._cursorPosition = { lineNumber: item.lineNumber, column: 1 };
 			}
+			quickPick.dispose();
 			this.editorWidget.focus();
 			return;
 		});

@@ -502,8 +502,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				dimension: {
 					height: this.cell.layoutInfo.metadataHeight,
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), true, true)
-				},
-				accessibilityVerbose: this.configurationService.getValue<boolean>('accessibility.verbosity.diff-editor') ?? false
+				}
 			}, {
 				originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
 				modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
@@ -615,7 +614,8 @@ abstract class AbstractElementRenderer extends Disposable {
 					dimension: {
 						height: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, this.cell.layoutInfo.rawOutputHeight || lineHeight * lineCount),
 						width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true)
-					}
+					},
+					accessibilityVerbose: this.configurationService.getValue<boolean>('accessibility.verbosity.diff-editor') ?? false
 				}, {
 					originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
 					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
