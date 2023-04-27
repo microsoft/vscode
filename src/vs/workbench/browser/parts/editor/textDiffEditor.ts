@@ -50,6 +50,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
 
+	private inputLifecycleStopWatch: StopWatch | undefined = undefined;
+
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		if (!this.diffEditorControl) {
 			return undefined;
@@ -95,12 +97,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return this.diffEditorControl?.getModifiedEditor();
 	}
 
-	private inputShownStopWatch: StopWatch | undefined;
-
 	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		this.inputShownStopWatch = undefined;
 
-		// Dispose previous diff navigator
+		// Cleanup previous things associated with the input
+		this.inputLifecycleStopWatch = undefined;
 		this.diffNavigatorDisposables.clear();
 
 		// Set input and resolve
@@ -154,7 +154,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
 			});
 
-			this.inputShownStopWatch = new StopWatch(false);
+			// Start to measure input lifecycle
+			this.inputLifecycleStopWatch = new StopWatch(false);
 		} catch (error) {
 			await this.handleSetInputError(error, input, options);
 		}
@@ -303,19 +304,22 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	override clearInput(): void {
-		const editorVisibleTimeMs = this.inputShownStopWatch !== undefined ? this.inputShownStopWatch.elapsed() : undefined;
-		this.inputShownStopWatch = undefined;
-		const languageId = this.diffEditorControl?.getModel().modified?.getLanguageId();
-
 		super.clearInput();
+
+		// Log input lifecycle telemetry
+		const inputLifecycleElapsed = this.inputLifecycleStopWatch?.elapsed();
+		this.inputLifecycleStopWatch = undefined;
+		this.logInputLifecycleTelemetry(inputLifecycleElapsed, this.getControl()?.getModel()?.modified?.getLanguageId());
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
 
 		// Clear Model
 		this.diffEditorControl?.setModel(null);
+	}
 
-		if (editorVisibleTimeMs !== undefined) {
+	private logInputLifecycleTelemetry(duration: number | undefined, languageId: string | undefined): void {
+		if (typeof duration === 'number') {
 			this.telemetryService.publicLog2<{
 				editorVisibleTimeMs: number;
 				languageId: string;
@@ -325,7 +329,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates for which language the diff editor was shown' };
 				comment: 'This event gives insight about how long the diff editor was visible to the user.';
 			}>('diffEditor.editorVisibleTime', {
-				editorVisibleTimeMs,
+				editorVisibleTimeMs: duration,
 				languageId: languageId ?? '',
 			});
 		}
