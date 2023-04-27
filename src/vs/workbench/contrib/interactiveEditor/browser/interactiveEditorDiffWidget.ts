@@ -41,7 +41,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		@IThemeService themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true });
+		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
 		super.create();
 
 		const diffContributions = EditorExtensionsRegistry
@@ -100,14 +100,6 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 
 	override show(): void {
 		throw new Error('not supported like this');
-	}
-
-	getEndPositionForChanges(range: Range, changes: LineRangeMapping[]): Position | undefined {
-		assertType(this.editor.hasModel());
-
-		const modified = this.editor.getModel();
-		const ranges = this._computeHiddenRanges(modified, range, changes);
-		return ranges?.anchor;
 	}
 
 	showDiff(range: () => Range, changes: LineRangeMapping[]): void {
@@ -197,7 +189,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		lineRanges = lineRanges.filter(range => !range.isEmpty);
 		if (lineRanges.length === 0) {
 			// todo?
-			this._logService.debug(`[IE] diff NOTHING to hide for ${String(editor.getModel()?.uri)}`);
+			this._logService.debug(`[IE] diff NOTHING to hide for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 		} else {
 			const ranges = lineRanges.map(r => new Range(r.startLineNumber, 1, r.endLineNumberExclusive - 1, 1));
 			editor.setHiddenAreas(ranges, InteractiveEditorDiffWidget._hideId);

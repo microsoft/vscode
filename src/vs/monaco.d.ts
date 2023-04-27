@@ -5046,6 +5046,15 @@ declare namespace monaco.editor {
 		*/
 		afterColumnAffinity?: PositionAffinity;
 		/**
+		 * Render the zone even when its line is hidden.
+		 */
+		showInHiddenAreas?: boolean;
+		/**
+		 * Tiebreaker that is used when multiple view zones want to be after the same line.
+		 * Defaults to `afterColumn` otherwise 10000;
+		 */
+		ordinal?: number;
+		/**
 		 * Suppress mouse down events.
 		 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
 		 * Defaults to false
