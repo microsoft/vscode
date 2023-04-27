@@ -203,6 +203,14 @@ export function transaction(fn: (tx: ITransaction) => void, getDebugName?: () =>
 	}
 }
 
+export function subtransaction(tx: ITransaction | undefined, fn: (tx: ITransaction) => void, getDebugName?: () => string): void {
+	if (!tx) {
+		transaction(fn, getDebugName);
+	} else {
+		fn(tx);
+	}
+}
+
 export class TransactionImpl implements ITransaction {
 	private updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
 
@@ -261,7 +269,7 @@ export class ObservableValue<T, TChange = void>
 	}
 
 	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
-		if (this._value === value) {
+		if (this._value === value && change === undefined) {
 			return;
 		}
 
@@ -312,4 +320,19 @@ export class DisposableObservableValue<T extends IDisposable | undefined, TChang
 	public dispose(): void {
 		this._value?.dispose();
 	}
+}
+
+export interface IChangeContext {
+	readonly changedObservable: IObservable<any, any>;
+	readonly change: unknown;
+
+	didChange<T, TChange>(observable: IObservable<T, TChange>): this is { change: TChange };
+}
+
+export interface IChangeTracker {
+	/**
+	 * Returns if this change should cause an invalidation.
+	 * Can record the changes to just process deltas.
+	*/
+	handleChange(context: IChangeContext): boolean;
 }

@@ -57,6 +57,8 @@ export class InlineCompletionsController extends Disposable {
 		{ min: 50, max: 50 }
 	);
 
+	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
+
 	constructor(
 		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -71,30 +73,27 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(new InlineCompletionContextKeys(this.contextKeyService, this.model));
 
-		const enabled = observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).enabled);
+		this._register(Event.runAndSubscribe(editor.onDidChangeModel, () => transaction(tx => {
+			this.model.set(undefined, tx);
+			this.updateObservables(tx, VersionIdChangeReason.Other);
 
-		this._register(Event.runAndSubscribe(editor.onDidChangeModel, () => {
-			transaction(tx => {
-				this.model.set(undefined, tx); // This disposes the model
-				this.updateObservables(tx, VersionIdChangeReason.Other);
-				const textModel = editor.getModel();
-				if (textModel) {
-					const model = instantiationService.createInstance(
-						InlineCompletionsModel,
-						textModel,
-						this.suggestWidgetAdaptor.selectedItem,
-						this.cursorPosition,
-						this.textModelVersionId,
-						this._debounceValue,
-						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).preview),
-						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).previewMode),
-						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).mode),
-						enabled
-					);
-					this.model.set(model, tx);
-				}
-			});
-		}));
+			const textModel = editor.getModel();
+			if (textModel) {
+				const model = instantiationService.createInstance(
+					InlineCompletionsModel,
+					textModel,
+					this.suggestWidgetAdaptor.selectedItem,
+					this.cursorPosition,
+					this.textModelVersionId,
+					this._debounceValue,
+					observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).preview),
+					observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).previewMode),
+					observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).mode),
+					this._enabled,
+				);
+				this.model.set(model, tx);
+			}
+		})));
 
 		this._register(editor.onDidChangeModelContent((e) => transaction(tx =>
 			this.updateObservables(tx,
@@ -114,7 +113,7 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(editor.onDidType(() => transaction(tx => {
 			this.updateObservables(tx, VersionIdChangeReason.Other);
-			if (enabled.get()) {
+			if (this._enabled.get()) {
 				this.model.get()?.trigger(tx);
 			}
 		})));
@@ -129,7 +128,7 @@ export class InlineCompletionsController extends Disposable {
 					inlineSuggestCommitId,
 					'acceptSelectedSuggestion',
 				]);
-				if (commands.has(e.commandId) && editor.hasTextFocus() && enabled.get()) {
+				if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
 					transaction(tx => {
 						this.model.get()?.trigger(tx);
 					});
@@ -204,7 +203,7 @@ export class InlineCompletionsController extends Disposable {
 		this.cursorPosition.set(this.editor.getPosition() ?? new Position(1, 1), tx);
 	}
 
-	shouldShowHoverAt(range: Range) {
+	public shouldShowHoverAt(range: Range) {
 		const ghostText = this.model.get()?.ghostText.get();
 		if (ghostText) {
 			return ghostText.parts.some(p => range.containsPosition(new Position(ghostText.lineNumber, p.column)));
@@ -216,9 +215,9 @@ export class InlineCompletionsController extends Disposable {
 		return this.ghostTextWidget.ownsViewZone(viewZoneId);
 	}
 
-	hide() {
+	public hide() {
 		transaction(tx => {
-			this?.model.get()?.stop(tx);
+			this.model.get()?.stop(tx);
 		});
 	}
 }
