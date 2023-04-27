@@ -36,6 +36,7 @@ import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -94,10 +95,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return this.diffEditorControl?.getModifiedEditor();
 	}
 
-	private inputShownTimestampMs: number | undefined;
+	private inputShownStopWatch: StopWatch | undefined;
 
 	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		this.inputShownTimestampMs = undefined;
+		this.inputShownStopWatch = undefined;
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -153,7 +154,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
 			});
 
-			this.inputShownTimestampMs = Date.now();
+			this.inputShownStopWatch = new StopWatch(false);
 		} catch (error) {
 			await this.handleSetInputError(error, input, options);
 		}
@@ -302,8 +303,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	override clearInput(): void {
-		const editorVisibleTimeMs = this.inputShownTimestampMs !== undefined ? Date.now() - this.inputShownTimestampMs : undefined;
-		this.inputShownTimestampMs = undefined;
+		const editorVisibleTimeMs = this.inputShownStopWatch !== undefined ? this.inputShownStopWatch.elapsed() : undefined;
+		this.inputShownStopWatch = undefined;
 		const languageId = this.diffEditorControl?.getModel().modified.getLanguageId();
 
 		super.clearInput();
