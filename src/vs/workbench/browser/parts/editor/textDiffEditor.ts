@@ -94,7 +94,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return this.diffEditorControl?.getModifiedEditor();
 	}
 
+	private inputShownTimestampMs: number | undefined;
+
 	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		this.inputShownTimestampMs = undefined;
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -149,6 +152,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				readOnly: resolvedDiffEditorModel.modifiedModel?.isReadonly(),
 				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
 			});
+
+			this.inputShownTimestampMs = Date.now();
 		} catch (error) {
 			await this.handleSetInputError(error, input, options);
 		}
@@ -297,6 +302,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	override clearInput(): void {
+		const editorVisibleTimeMs = this.inputShownTimestampMs !== undefined ? Date.now() - this.inputShownTimestampMs : undefined;
+		this.inputShownTimestampMs = undefined;
+		const languageId = this.diffEditorControl?.getModel().modified.getLanguageId();
+
 		super.clearInput();
 
 		// Dispose previous diff navigator
@@ -304,6 +313,21 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 		// Clear Model
 		this.diffEditorControl?.setModel(null);
+
+		if (editorVisibleTimeMs !== undefined) {
+			this.telemetryService.publicLog2<{
+				editorVisibleTimeMs: number;
+				languageId: string;
+			}, {
+				owner: 'hediet';
+				editorVisibleTimeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates the time the diff editor was visible to the user' };
+				languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates for which language the diff editor was shown' };
+				comment: 'This event gives insight about how long the diff editor was visible to the user.';
+			}>('diffEditor.editorVisibleTime', {
+				editorVisibleTimeMs,
+				languageId: languageId ?? '',
+			});
+		}
 	}
 
 	getDiffNavigator(): DiffNavigator | undefined {
