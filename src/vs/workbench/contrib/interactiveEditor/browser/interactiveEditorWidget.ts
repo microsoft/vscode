@@ -242,6 +242,7 @@ class InteractiveEditorWidget {
 		this._store.dispose();
 		this._historyStore.dispose();
 		this._ctxInputEmpty.reset();
+		this._ctxMessageCropState.reset();
 	}
 
 	get domNode(): HTMLElement {
