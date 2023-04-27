@@ -487,13 +487,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 
 			if (textModel0Changes && editMode === EditMode.LivePreview) {
-				const diffPosition = diffZone.getEndPositionForChanges(wholeRange, textModel0Changes);
-				if (diffPosition) {
-					const newInputPosition = diffPosition.delta(0, 1);
-					if (wholeRange.getEndPosition().isBefore(newInputPosition)) {
-						this._zone.updatePosition(newInputPosition);
-					}
-				}
+
 				diffZone.showDiff(
 					() => wholeRangeDecoration.getRange(0)!, // TODO@jrieken if it can be null it will be null
 					textModel0Changes
