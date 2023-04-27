@@ -344,12 +344,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	expandMessage() {
-		this._zone.widget.expandMessage();
-	}
-
-	contractMessage() {
-		this._zone.widget.contractMessage();
+	updateToggleState(expand: boolean) {
+		this._zone.widget.updateToggleState(expand);
 	}
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
