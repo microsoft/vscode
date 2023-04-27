@@ -344,7 +344,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	updateToggleState(expand: boolean) {
+	updateExpansionState(expand: boolean) {
 		this._zone.widget.updateToggleState(expand);
 	}
 

@@ -536,7 +536,7 @@ export class ExpandMessageAction extends AbstractInteractiveEditorAction {
 		});
 	}
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.updateToggleState(true);
+		ctrl.updateExpansionState(true);
 	}
 }
 
@@ -556,6 +556,6 @@ export class ContractMessageAction extends AbstractInteractiveEditorAction {
 		});
 	}
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.updateToggleState(false);
+		ctrl.updateExpansionState(false);
 	}
 }
