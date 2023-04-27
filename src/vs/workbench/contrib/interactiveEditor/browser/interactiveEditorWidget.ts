@@ -14,7 +14,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROPPED, CTX_iNTERACTIVE_EDITOR_MESSAGE_EXPANDED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -84,7 +84,6 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	lineHeight: 20,
 };
 
-
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
 	renderMarginRevertIcon: false,
@@ -136,8 +135,7 @@ class InteractiveEditorWidget {
 	readonly inputEditor: ICodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
-	private readonly _ctxMessageCropped: IContextKey<boolean>;
-	private readonly _ctxMessageExpanded: IContextKey<boolean>;
+	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
 
 	private readonly _progressBar: ProgressBar;
 
@@ -184,8 +182,7 @@ class InteractiveEditorWidget {
 
 		const currentContentHeight = 0;
 
-		this._ctxMessageCropped = CTX_INTERACTIVE_EDITOR_MESSAGE_CROPPED.bindTo(this._contextKeyService);
-		this._ctxMessageExpanded = CTX_iNTERACTIVE_EDITOR_MESSAGE_EXPANDED.bindTo(this._contextKeyService);
+		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
 		this._ctxInputEmpty = CTX_INTERACTIVE_EDITOR_EMPTY.bindTo(this._contextKeyService);
 		const togglePlaceholder = () => {
 			const hasText = this._inputModel.getValueLength() > 0;
@@ -385,14 +382,10 @@ class InteractiveEditorWidget {
 		reset(messageDom, message);
 		this._elements.statusLabel.innerText = '';
 		this._elements.markdownMessage.classList.toggle('hidden', false);
-		console.log('inside of update markdown message');
-		console.log('before the if check');
-		console.log('messageDom.scrollHeight : ', messageDom.scrollHeight);
-		console.log('messageDom.clientHeight : ', messageDom.clientHeight);
 		if (messageDom.scrollHeight > messageDom.clientHeight) {
-			console.log('cropped');
-			this._ctxMessageCropped.set(true);
-			this.updateToolbar(true);
+			this._ctxMessageCropState.set('cropped');
+		} else {
+			this._ctxMessageCropState.set('not_cropped');
 		}
 		this._onDidChangeHeight.fire();
 	}
@@ -433,14 +426,17 @@ class InteractiveEditorWidget {
 	}
 
 	expandMessage() {
-		this._ctxMessageExpanded.set(true);
+		this._ctxMessageCropState.set('expanded');
 		this._elements.message.style.webkitLineClamp = '10';
+		this._onDidChangeHeight.fire();
 	}
 
 	contractMessage() {
-		this._ctxMessageCropped.set(true);
+		this._ctxMessageCropState.set('cropped');
 		this._elements.message.style.webkitLineClamp = '3';
+		this._onDidChangeHeight.fire();
 	}
+
 	// --- preview
 
 	showEditsPreview(actualModel: ITextModel, edits: TextEdit[]) {
