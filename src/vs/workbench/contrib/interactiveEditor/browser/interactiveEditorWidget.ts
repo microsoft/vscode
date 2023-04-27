@@ -227,11 +227,7 @@ class InteractiveEditorWidget {
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
 		this._elements.message.tabIndex = 0;
-		this._elements.message.setAttribute('aria-label', 'Copilot Inline Message');
-		this._elements.message.setAttribute('role', 'alert');
 		this._elements.statusLabel.tabIndex = 0;
-		this._elements.statusLabel.setAttribute('aria-label', 'Copilot Status Update');
-		this._elements.statusLabel.setAttribute('role', 'alert');
 		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
 		this._historyStore.add(markdownMessageToolbar);
 	}
