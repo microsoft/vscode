@@ -1168,23 +1168,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'prompt',
 			markdownDescription: localize('continueOnCloudChanges', 'Controls whether to prompt the user to store working changes in the cloud when using Continue Working On.')
 		},
-		'workbench.experimental.editSessions.autoStore': {
-			markdownDeprecationMessage: localize('editSessionsAutoStoreDeprecated', 'This setting is deprecated in favor of {0}.', '`#workbench.experimental.cloudChanges.autoStore#`')
-		},
-		'workbench.editSessions.autoResume': {
-			markdownDeprecationMessage: localize('editSessionsAutoResumeDeprecated', 'This setting is deprecated in favor of {0}.', '`#workbench.cloudChanges.autoResume#`')
-		},
-		'workbench.editSessions.continueOn': {
-			markdownDeprecationMessage: localize('editSessionsContinueOnDeprecated', 'This setting is deprecated in favor of {0}.', '`#workbench.cloudChanges.continueOn#`')
-		},
 		'workbench.experimental.cloudChanges.partialMatches.enabled': {
 			'type': 'boolean',
 			'tags': ['experimental', 'usesOnlineServices'],
 			'default': false,
 			'markdownDescription': localize('cloudChangesPartialMatchesEnabled', "Controls whether to surface cloud changes which partially match the current session.")
-		},
-		'workbench.experimental.editSessions.partialMatches.enabled': {
-			markdownDeprecationMessage: localize('editSessionsPartialMatchesDeprecation', 'This setting is deprecated in favor of {0}.', '`#workbench.experimental.cloudChanges.partialMatches.enabled#`')
 		}
 	}
 });
