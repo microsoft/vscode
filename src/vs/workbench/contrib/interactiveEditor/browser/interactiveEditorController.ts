@@ -424,8 +424,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 
 		this._zone.widget.updateStatus(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
-		console.log('placeholder : ', placeholder);
-		this._zone.widget.doAriaAlert(placeholder);
 
 		// CANCEL when input changes
 		this._editor.onDidChangeModel(this.cancelSession, this, store);
@@ -775,7 +773,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	focus(): void {
-		console.log('inside of focus of controller');
 		this._zone.widget.focus();
 	}
 
