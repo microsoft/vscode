@@ -10,7 +10,18 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, CompleteEnterAction, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import {
+	EnterAction,
+	FoldingRules,
+	IndentAction,
+	IndentationRule,
+	LanguageConfiguration,
+	CompleteEnterAction,
+	AutoClosingPairs,
+	CharacterPair,
+	ExplicitLanguageConfiguration,
+	IAutoClosingPairConditional
+} from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -272,7 +283,7 @@ export class LanguageConfigurationRegistryImpl {
 		return characterPairSupport.getAutoCloseBeforeSet();
 	}
 
-	public getSurroundingPairs(languageId: string): IAutoClosingPair[] {
+	public getSurroundingPairs(languageId: string): IAutoClosingPairConditional[] {
 		let characterPairSupport = this._getCharacterPairSupport(languageId);
 		if (!characterPairSupport) {
 			return [];

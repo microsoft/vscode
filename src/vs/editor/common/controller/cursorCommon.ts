@@ -11,7 +11,10 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
 import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
+import {
+	AutoClosingPairs,
+	IAutoClosingPairConditional
+} from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 export { CursorColumns } from './cursorColumns';
@@ -198,7 +201,7 @@ export class CursorConfiguration {
 		}
 	}
 
-	private static _getSurroundingPairs(languageId: string): IAutoClosingPair[] | null {
+	private static _getSurroundingPairs(languageId: string): IAutoClosingPairConditional[] | null {
 		try {
 			return LanguageConfigurationRegistry.getSurroundingPairs(languageId);
 		} catch (e) {
