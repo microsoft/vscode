@@ -205,7 +205,7 @@ class InteractiveEditorWidget {
 
 		const inputEditor = this._store.add(trackFocus(this.inputEditor.getDomNode()!));
 		this._store.add(inputEditor.onDidFocus(() => {
-			this.doAriaAlert(typeof this._inputValue !== 'undefined' ? this._inputValue : '');
+			this.readAriaStatus(typeof this._inputValue !== 'undefined' ? this._inputValue : '');
 		}));
 		this._store.add(this.inputEditor.onDidChangeModelContent(() => {
 			this._inputValue = typeof this._inputValue === 'undefined' && typeof this._placeholder === 'string' ? this._placeholder : this.inputEditor.getValue();
@@ -420,8 +420,8 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	doAriaAlert(value: string) {
-		aria.alert('Interactive Editor Input : ' + value);
+	readAriaStatus(value: string) {
+		aria.status('Interactive Editor Input : ' + value);
 	}
 
 	reset() {
