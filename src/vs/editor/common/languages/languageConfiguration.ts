@@ -61,7 +61,7 @@ export interface LanguageConfiguration {
 	 * selected string is surrounded by the open and close characters. If not set, the autoclosing pairs
 	 * settings will be used.
 	 */
-	surroundingPairs?: IAutoClosingPair[];
+	surroundingPairs?: IAutoClosingPairConditional[];
 	/**
 	 * Defines a list of bracket pairs that are colorized depending on their nesting level.
 	 * If not set, the configured brackets will be used.

@@ -3,7 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
+import {
+	StandardAutoClosingPairConditional,
+	LanguageConfiguration,
+	IAutoClosingPairConditional
+} from 'vs/editor/common/languages/languageConfiguration';
 
 export class CharacterPairSupport {
 
@@ -11,7 +15,7 @@ export class CharacterPairSupport {
 	static readonly DEFAULT_AUTOCLOSE_BEFORE_WHITESPACE = ' \n\t';
 
 	private readonly _autoClosingPairs: StandardAutoClosingPairConditional[];
-	private readonly _surroundingPairs: IAutoClosingPair[];
+	private readonly _surroundingPairs: IAutoClosingPairConditional[];
 	private readonly _autoCloseBefore: string;
 
 	constructor(config: LanguageConfiguration) {
@@ -42,7 +46,7 @@ export class CharacterPairSupport {
 		return this._autoCloseBefore;
 	}
 
-	public getSurroundingPairs(): IAutoClosingPair[] {
+	public getSurroundingPairs(): IAutoClosingPairConditional[] {
 		return this._surroundingPairs;
 	}
 }

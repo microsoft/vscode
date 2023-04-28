@@ -8,7 +8,16 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import * as strings from 'vs/base/common/strings';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
+import {
+	EnterAction,
+	FoldingRules,
+	IndentationRule,
+	LanguageConfiguration,
+	AutoClosingPairs,
+	CharacterPair,
+	ExplicitLanguageConfiguration,
+	IAutoClosingPairConditional
+} from 'vs/editor/common/languages/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
 import { BracketElectricCharacterSupport } from 'vs/editor/common/languages/supports/electricCharacter';
@@ -446,7 +455,7 @@ export class ResolvedLanguageConfiguration {
 		return this.characterPair.getAutoCloseBeforeSet();
 	}
 
-	public getSurroundingPairs(): IAutoClosingPair[] {
+	public getSurroundingPairs(): IAutoClosingPairConditional[] {
 		return this.characterPair.getSurroundingPairs();
 	}
 
