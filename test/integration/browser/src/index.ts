@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as playwright from '@playwright/test';
 import * as url from 'url';
@@ -31,6 +32,9 @@ const width = 1200;
 const height = 800;
 
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
+
+const root = path.join(__dirname, '..', '..', '..', '..');
+const logsRoot = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
 async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
 	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
@@ -64,6 +68,13 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	});
 
 	await page.exposeFunction('codeAutomationExit', async (code: number) => {
+
+		try {
+			await saveClientLogs(page);
+		} catch (error) {
+			console.error(`Error when saving client logs: ${error}`);
+		}
+
 		try {
 			await browser.close();
 		} catch (error) {
@@ -95,6 +106,66 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	}
 }
 
+async function saveClientLogs(page: playwright.Page) {
+	const res: string = await page.evaluate(() => {
+		return new Promise((resolve, reject) => {
+			const request = window.indexedDB.open('vscode-web-db');
+			const textDecoder = new TextDecoder();
+
+			request.onsuccess = function () {
+				const db = this.result;
+				const transaction = db.transaction('vscode-logs-store', 'readonly');
+				const objectStore = transaction.objectStore('vscode-logs-store');
+
+				const items = new Map<string, string>();
+
+				const cursor = objectStore.openCursor();
+				if (!cursor) {
+					return resolve(JSON.stringify(Array.from(items.entries())));
+				}
+
+				cursor.onsuccess = () => {
+					if (cursor.result) {
+						items.set(cursor.result.key.toString(), textDecoder.decode(cursor.result.value));
+						cursor.result.continue();
+					} else {
+						resolve(JSON.stringify(Array.from(items.entries()))); // reached end of table
+					}
+				};
+			};
+
+			request.onerror = () => {
+				reject(request.error);
+			};
+		});
+	});
+
+	const clientLogs = new Map<string, string>(JSON.parse(res));
+	for (const [logsPath, logsValue] of clientLogs) {
+		const segments = logsPath.split('/');
+		let currentLogsPath = logsRoot;
+		for (const segment of segments) {
+			const newLogsRoot = path.join(currentLogsPath, segment);
+			currentLogsPath = newLogsRoot;
+
+			if (currentLogsPath === logsRoot) {
+				continue; // exists
+			}
+
+			if (currentLogsPath.endsWith('.log')) {
+				await fs.promises.writeFile(currentLogsPath, logsValue);
+				break;
+			} else {
+				try {
+					await fs.promises.mkdir(currentLogsPath);
+				} catch (error) {
+					// exists
+				}
+			}
+		}
+	}
+}
+
 function consoleLogFn(msg: playwright.ConsoleMessage) {
 	const type = msg.type();
 	const candidate = console[type];
@@ -123,9 +194,6 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		...process.env
 	};
 
-	const root = path.join(__dirname, '..', '..', '..', '..');
-	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
-
 	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
 
 	let serverLocation: string;
@@ -145,8 +213,8 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		}
 	}
 
-	console.log(`Storing log files into '${logsPath}'`);
-	serverArgs.push('--logsPath', logsPath);
+	console.log(`Storing log files into '${logsRoot}'`);
+	serverArgs.push('--logsPath', logsRoot);
 
 	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
 
