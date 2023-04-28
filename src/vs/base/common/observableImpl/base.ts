@@ -267,7 +267,7 @@ export class ObservableValue<T, TChange = void>
 	}
 
 	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
-		if (this._value === value && change === undefined) {
+		if (this._value === value) {
 			return;
 		}
 
