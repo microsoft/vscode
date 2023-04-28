@@ -306,9 +306,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
 
-	private _requestPrompt: string | undefined;
-	private _messageReply: string | undefined;
-
 	private _requestCancelledOnModelContentChanged: boolean = false;
 
 	constructor(
