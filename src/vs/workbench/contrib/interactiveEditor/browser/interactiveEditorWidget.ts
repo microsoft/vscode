@@ -368,12 +368,6 @@ class InteractiveEditorWidget {
 			disposeOnDone.add(this.inputEditor.onDidBlurEditorWidget(updateFocused));
 			updateFocused();
 
-			// console.log('this._inputValue : ', this._inputValue);
-			// if (typeof this._inputValue === 'undefined') {
-			// 	this._inputValue = placeholder;
-			// 	console.log('this._inputValue : ', this._inputValue);
-			// }
-
 			console.log('right before calling focus from getInput');
 			this.focus();
 
