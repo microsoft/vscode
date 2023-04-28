@@ -377,7 +377,6 @@ class InteractiveEditorWidget {
 	updateMarkdownMessage(message: Node) {
 		const messageDom = this._elements.message;
 		reset(messageDom, message);
-		this._elements.statusLabel.innerText = '';
 		this._elements.markdownMessage.classList.toggle('hidden', false);
 		if (messageDom.scrollHeight > messageDom.clientHeight) {
 			this._ctxMessageCropState.set('cropped');
