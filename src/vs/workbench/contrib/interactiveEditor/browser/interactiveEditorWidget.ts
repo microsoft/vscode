@@ -426,6 +426,8 @@ class InteractiveEditorWidget {
 
 	reset() {
 		this._ctxInputEmpty.reset();
+		this._inputValue = undefined;
+		this._placeholder = undefined;
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.statusToolbar.classList.add('hidden');
