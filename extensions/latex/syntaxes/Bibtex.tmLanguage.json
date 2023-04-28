@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/d80a1a5dcff9b85217e174242dd3d0e2210b94a0",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/4b19be579cb4a3c680f8b4bb613dcebfac826f8b",
 	"name": "BibTeX",
 	"scopeName": "text.bibtex",
 	"comment": "Grammar based on description from http://artis.imag.fr/~Xavier.Decoret/resources/xdkbibtex/bibtex_summary.html#comment\n\t\n\tTODO: Does not support @preamble\n\t",
@@ -27,7 +27,7 @@
 			]
 		},
 		{
-			"begin": "((@)(?i:string))\\s*(\\{)\\s*([a-zA-Z]*)",
+			"begin": "((@)(?i:string))\\s*(\\{)\\s*([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.string-constant.bibtex"
@@ -56,7 +56,7 @@
 			]
 		},
 		{
-			"begin": "((@)(?i:string))\\s*(\\()\\s*([a-zA-Z]*)",
+			"begin": "((@)(?i:string))\\s*(\\()\\s*([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.string-constant.bibtex"
@@ -131,13 +131,13 @@
 							"include": "#percentage_comment"
 						},
 						{
-							"include": "#string_var"
+							"include": "#integer"
 						},
 						{
 							"include": "#string_content"
 						},
 						{
-							"include": "#integer"
+							"include": "#string_var"
 						}
 					]
 				}
@@ -190,13 +190,13 @@
 							"include": "#percentage_comment"
 						},
 						{
-							"include": "#string_var"
+							"include": "#integer"
 						},
 						{
 							"include": "#string_content"
 						},
 						{
-							"include": "#integer"
+							"include": "#string_var"
 						}
 					]
 				}
@@ -210,8 +210,12 @@
 	],
 	"repository": {
 		"integer": {
-			"match": "\\d+",
-			"name": "constant.numeric.bibtex"
+			"match": "\\s*(\\d+)\\s*",
+			"captures": {
+				"1": {
+					"name": "constant.numeric.bibtex"
+				}
+			}
 		},
 		"nested_braces": {
 			"begin": "(?<!\\\\)\\{",
@@ -233,7 +237,7 @@
 			]
 		},
 		"string_var": {
-			"match": "(#)?\\s*([a-zA-Z]+)\\s*(#)?",
+			"match": "(#)?\\s*([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)\\s*(#)?",
 			"captures": {
 				"1": {
 					"name": "keyword.operator.bibtex"

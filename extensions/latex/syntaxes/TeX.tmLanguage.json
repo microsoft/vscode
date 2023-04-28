@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/890b6155b82b12c67b350aa99be5637eaa64f222",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/2be145a0bde15dfaf367676a1227c8a701792f90",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
@@ -117,7 +117,7 @@
 					"name": "punctuation.definition.function.tex"
 				}
 			},
-			"match": "(\\\\)(?:[A-Za-z@]+|[,;])",
+			"match": "(\\\\)(?:[\\p{Alphabetic}@]+|[,;])",
 			"name": "support.function.general.tex"
 		},
 		{
