@@ -181,8 +181,12 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 				}
 
 				if (!originalRange.isEmpty()) {
+					let content = original.getValueInRange(originalRange);
+					if (content.length > 7) {
+						content = content.substring(0, 7) + '…';
+					}
 					options.before = {
-						content: original.getValueInRange(originalRange),
+						content,
 						inlineClassName: 'interactive-editor-lines-deleted-range-inline'
 					};
 				}
