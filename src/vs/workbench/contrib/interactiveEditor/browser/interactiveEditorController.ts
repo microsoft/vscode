@@ -504,7 +504,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctxLastFeedbackKind.reset();
 			// reveal the line after the whole range to ensure that the input box is visible
 			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
-			if (autoSend && !this._currentSession.lastResponse) {
+			if (autoSend) {
 				autoSend = false;
 				this.accept();
 			}
