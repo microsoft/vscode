@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InteractiveEditorController, InteractiveEditorRunOptions, Recording } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_UNDO, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_UNDO, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { IAction2Options } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -23,6 +23,7 @@ import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
+import { fromNow } from 'vs/base/common/date';
 
 
 export class StartSessionAction extends EditorAction2 {
@@ -476,24 +477,20 @@ export class CopyRecordings extends AbstractInteractiveEditorAction {
 		const clipboardService = accessor.get(IClipboardService);
 		const quickPickService = accessor.get(IQuickInputService);
 
-		const picks: (IQuickPickItem & { rec: Recording })[] = ctrl.recordings().map(rec => {
-			return {
-				rec,
-				label: localize('label', "{0} messages, started {1}", rec.exchanges.length, rec.when.toLocaleTimeString()),
-				tooltip: rec.exchanges.map(ex => ex.req.prompt).join('\n'),
-			};
-		});
-
-		if (picks.length === 0) {
+		const recordings = ctrl.recordings().filter(r => r.exchanges.length > 0);
+		if (recordings.length === 0) {
 			return;
 		}
 
-		let pick: typeof picks[number] | undefined;
-		if (picks.length === 1) {
-			pick = picks[0];
-		} else {
-			pick = await quickPickService.pick(picks, { canPickMany: false });
-		}
+		const picks: (IQuickPickItem & { rec: Recording })[] = recordings.map(rec => {
+			return {
+				rec,
+				label: localize('label', "'{0}' and {1} follow ups ({2})", rec.exchanges[0].prompt, rec.exchanges.length - 1, fromNow(rec.when, true)),
+				tooltip: rec.exchanges.map(ex => ex.prompt).join('\n'),
+			};
+		});
+
+		const pick = await quickPickService.pick(picks, { canPickMany: false });
 		if (pick) {
 			clipboardService.writeText(JSON.stringify(pick.rec, undefined, 2));
 		}
@@ -510,12 +507,52 @@ export class ViewInChatAction extends AbstractInteractiveEditorAction {
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE,
 				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.isEqualTo('message'),
-				group: 'viewInChat',
+				group: '1_viewInChat',
 				order: 1
 			}
 		});
 	}
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
 		ctrl.viewInChat();
+	}
+}
+
+export class ExpandMessageAction extends AbstractInteractiveEditorAction {
+	constructor() {
+		super({
+			id: 'interactiveEditor.expandMessageAction',
+			title: localize('expandMessage', 'Expand Message'),
+			icon: Codicon.chevronDown,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE,
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.isEqualTo('message'), CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.isEqualTo('cropped')),
+				group: '2_expandOrContract',
+				order: 1
+			}
+		});
+	}
+	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.updateExpansionState(true);
+	}
+}
+
+export class ContractMessageAction extends AbstractInteractiveEditorAction {
+	constructor() {
+		super({
+			id: 'interactiveEditor.contractMessageAction',
+			title: localize('contractMessage', 'Contract Message'),
+			icon: Codicon.chevronUp,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE,
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.isEqualTo('message'), CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.isEqualTo('expanded')),
+				group: '2_expandOrContract',
+				order: 1
+			}
+		});
+	}
+	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.updateExpansionState(false);
 	}
 }

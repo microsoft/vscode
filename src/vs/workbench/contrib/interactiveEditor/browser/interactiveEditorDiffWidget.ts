@@ -10,7 +10,7 @@ import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/e
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
@@ -21,7 +21,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class InteractiveEditorDiffWidget extends ZoneWidget {
@@ -31,6 +31,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 	private readonly _elements = h('div.interactive-editor-diff-widget@domNode');
 
 	private readonly _diffEditor: IDiffEditor;
+	private readonly _inlineDiffDecorations: IEditorDecorationsCollection;
 	private readonly _sessionStore = this._disposables.add(new DisposableStore());
 	private _dim: Dimension | undefined;
 
@@ -43,6 +44,8 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 	) {
 		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
 		super.create();
+
+		this._inlineDiffDecorations = editor.createDecorationsCollection();
 
 		const diffContributions = EditorExtensionsRegistry
 			.getEditorContributions()
@@ -92,14 +95,26 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		this._disposables.add(themeService.onDidColorThemeChange(doStyle));
 	}
 
+	override dispose(): void {
+		this._inlineDiffDecorations.clear();
+		super.dispose();
+	}
+
 	protected override _fillContainer(container: HTMLElement): void {
 		container.appendChild(this._elements.domNode);
 	}
 
 	// --- show / hide --------------------
 
+	override hide(): void {
+		this._cleanupFullDiff();
+		this._cleanupInlineDiff();
+		this._sessionStore.clear();
+		super.hide();
+	}
+
 	override show(): void {
-		throw new Error('not supported like this');
+		throw new Error('not supported like this, use showDiff');
 	}
 
 	showDiff(range: () => Range, changes: LineRangeMapping[]): void {
@@ -109,7 +124,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
 			const result = this._diffEditor.getDiffComputationResult();
 			const hasFocus = this._diffEditor.hasTextFocus();
-			this._doShowForChanges(range(), result?.changes2 ?? []);
+			this._updateFromChanges(range(), result?.changes2 ?? []);
 			// TODO@jrieken find a better fix for this. this is the challenge:
 			// the _doShowForChanges method invokes show of the zone widget which removes and adds the
 			// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
@@ -118,19 +133,80 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 				this._diffEditor.focus();
 			}
 		}));
-		this._doShowForChanges(range(), changes);
+		this._updateFromChanges(range(), changes);
 	}
 
-	private _doShowForChanges(range: Range, changes: LineRangeMapping[]): void {
+	private _updateFromChanges(range: Range, changes: LineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
 
-		const modified = this.editor.getModel();
-		const ranges = this._computeHiddenRanges(modified, range, changes);
-
-		if (!ranges) {
+		if (changes.length === 0) {
+			// no change
+			this._logService.debug('[IE] livePreview-mode: no diff');
 			this.hide();
-			return;
+
+		} else if (changes.every(isInlineDiffFriendly)) {
+			// simple changes
+			this._logService.debug('[IE] livePreview-mode: inline diff');
+			this._cleanupFullDiff();
+			this._renderChangesWithInlineDiff(changes);
+
+		} else {
+			// complex changes
+			this._logService.debug('[IE] livePreview-mode: full diff');
+			this._cleanupInlineDiff();
+			this._renderChangesWithFullDiff(changes, range);
 		}
+	}
+
+	// --- inline diff
+
+	private _renderChangesWithInlineDiff(changes: LineRangeMapping[]) {
+		const original = this._textModelv0;
+
+		const decorations: IModelDeltaDecoration[] = [];
+
+		for (const { innerChanges } of changes) {
+			if (!innerChanges) {
+				continue;
+			}
+			for (const { modifiedRange, originalRange } of innerChanges) {
+
+				const options: IModelDecorationOptions = {
+					description: 'interactive-diff-inline',
+					showIfCollapsed: true,
+				};
+
+				if (!modifiedRange.isEmpty()) {
+					options.className = 'interactive-editor-lines-inserted-range';
+				}
+
+				if (!originalRange.isEmpty()) {
+					options.before = {
+						content: original.getValueInRange(originalRange),
+						inlineClassName: 'interactive-editor-lines-deleted-range-inline'
+					};
+				}
+
+				decorations.push({
+					range: modifiedRange,
+					options
+				});
+			}
+		}
+
+		this._inlineDiffDecorations.set(decorations);
+	}
+
+	private _cleanupInlineDiff() {
+		this._inlineDiffDecorations.clear();
+	}
+
+	// --- full diff
+
+	private _renderChangesWithFullDiff(changes: LineRangeMapping[], range: Range) {
+
+		const modified = this.editor.getModel()!;
+		const ranges = this._computeHiddenRanges(modified, range, changes);
 
 		this._hideEditorRanges(this.editor, [ranges.modifiedHidden]);
 		this._hideEditorRanges(this._diffEditor.getOriginalEditor(), ranges.originalDiffHidden);
@@ -149,10 +225,15 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		this._logService.debug(`[IE] diff SHOWING at ${ranges.anchor} with ${heightInLines} lines height`);
 	}
 
+	private _cleanupFullDiff() {
+		this.editor.setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
+		this._diffEditor.getOriginalEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
+		this._diffEditor.getModifiedEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
+		super.hide();
+	}
+
 	private _computeHiddenRanges(model: ITextModel, range: Range, changes: LineRangeMapping[]) {
-		if (changes.length === 0) {
-			return undefined;
-		}
+		assertType(changes.length > 0);
 
 		let originalLineRange = changes[0].originalRange;
 		let modifiedLineRange = changes[0].modifiedRange;
@@ -190,18 +271,11 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		if (lineRanges.length === 0) {
 			// todo?
 			this._logService.debug(`[IE] diff NOTHING to hide for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
-		} else {
-			const ranges = lineRanges.map(r => new Range(r.startLineNumber, 1, r.endLineNumberExclusive - 1, 1));
-			editor.setHiddenAreas(ranges, InteractiveEditorDiffWidget._hideId);
-			this._logService.debug(`[IE] diff HIDING ${ranges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
+			return;
 		}
-	}
-
-	override hide(): void {
-		this.editor.setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
-		this._diffEditor.getOriginalEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
-		this._diffEditor.getModifiedEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
-		super.hide();
+		const ranges = lineRanges.map(r => new Range(r.startLineNumber, 1, r.endLineNumberExclusive - 1, 1));
+		editor.setHiddenAreas(ranges, InteractiveEditorDiffWidget._hideId);
+		this._logService.debug(`[IE] diff HIDING ${ranges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 	}
 
 	protected override revealRange(range: Range, isLastLine: boolean): void {
@@ -234,4 +308,19 @@ function invert(range: LineRange, model: ITextModel): LineRange[] {
 	result.push(new LineRange(1, range.startLineNumber));
 	result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount() + 1));
 	return result.filter(r => !r.isEmpty);
+}
+
+function isInlineDiffFriendly(mapping: LineRangeMapping): boolean {
+	if (!mapping.modifiedRange.equals(mapping.originalRange)) {
+		return false;
+	}
+	if (!mapping.innerChanges) {
+		return false;
+	}
+	for (const { modifiedRange, originalRange } of mapping.innerChanges) {
+		if (Range.spansMultipleLines(modifiedRange) || Range.spansMultipleLines(originalRange)) {
+			return false;
+		}
+	}
+	return true;
 }
