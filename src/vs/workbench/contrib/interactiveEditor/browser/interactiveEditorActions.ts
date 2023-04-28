@@ -23,6 +23,7 @@ import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
+import { fromNow } from 'vs/base/common/date';
 
 
 export class StartSessionAction extends EditorAction2 {
@@ -476,24 +477,20 @@ export class CopyRecordings extends AbstractInteractiveEditorAction {
 		const clipboardService = accessor.get(IClipboardService);
 		const quickPickService = accessor.get(IQuickInputService);
 
-		const picks: (IQuickPickItem & { rec: Recording })[] = ctrl.recordings().map(rec => {
-			return {
-				rec,
-				label: localize('label', "{0} messages, started {1}", rec.exchanges.length, rec.when.toLocaleTimeString()),
-				tooltip: rec.exchanges.map(ex => ex.req.prompt).join('\n'),
-			};
-		});
-
-		if (picks.length === 0) {
+		const recordings = ctrl.recordings().filter(r => r.exchanges.length > 0);
+		if (recordings.length === 0) {
 			return;
 		}
 
-		let pick: typeof picks[number] | undefined;
-		if (picks.length === 1) {
-			pick = picks[0];
-		} else {
-			pick = await quickPickService.pick(picks, { canPickMany: false });
-		}
+		const picks: (IQuickPickItem & { rec: Recording })[] = recordings.map(rec => {
+			return {
+				rec,
+				label: localize('label', "'{0}' and {1} follow ups ({2})", rec.exchanges[0].prompt, rec.exchanges.length - 1, fromNow(rec.when, true)),
+				tooltip: rec.exchanges.map(ex => ex.prompt).join('\n'),
+			};
+		});
+
+		const pick = await quickPickService.pick(picks, { canPickMany: false });
 		if (pick) {
 			clipboardService.writeText(JSON.stringify(pick.rec, undefined, 2));
 		}

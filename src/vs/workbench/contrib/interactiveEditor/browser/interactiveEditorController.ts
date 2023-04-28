@@ -11,7 +11,6 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
@@ -49,32 +48,17 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
-type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
-export type Recording = { when: Date; session: IInteractiveEditorSession; value: string; exchanges: Exchange[] };
-
-class SessionRecorder {
-
-	private readonly _data = new LRUCache<IInteractiveEditorSession, Recording>(3);
-
-	add(session: IInteractiveEditorSession, model: ITextModel) {
-		this._data.set(session, { when: new Date(), session, value: model.getValue(), exchanges: [] });
-	}
-
-	addExchange(session: IInteractiveEditorSession, req: IInteractiveEditorRequest, res: IInteractiveEditorResponse) {
-		this._data.get(session)?.exchanges.push({ req, res });
-	}
-
-	getAll(): Recording[] {
-		return [...this._data.values()];
-	}
-}
+export type Recording = {
+	when: Date;
+	session: IInteractiveEditorSession;
+	exchanges: { prompt: string; res: IInteractiveEditorResponse }[];
+};
 
 type TelemetryData = {
 	extension: string;
 	rounds: string;
 	undos: string;
 	edits: boolean;
-	terminalEdits: boolean;
 	startTime: string;
 	endTime: string;
 	editMode: string;
@@ -87,7 +71,6 @@ type TelemetryDataClassification = {
 	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of request that were made' };
 	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Requests that have been undone' };
 	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits happen while the session was active' };
-	terminalEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits terminal the session' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
 	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
@@ -227,8 +210,8 @@ export class EditResponse {
 class Session {
 
 	private readonly _exchange: SessionExchange[] = [];
-
-	readonly teldata: TelemetryData;
+	private readonly _startTime = new Date();
+	private readonly _teldata: Partial<TelemetryData>;
 
 	constructor(
 		readonly editMode: EditMode,
@@ -237,12 +220,10 @@ class Session {
 		readonly provider: IInteractiveEditorSessionProvider,
 		readonly session: IInteractiveEditorSession,
 	) {
-		this.teldata = {
+		this._teldata = {
 			extension: provider.debugName,
-			startTime: new Date().toISOString(),
-			endTime: new Date().toISOString(),
+			startTime: this._startTime.toISOString(),
 			edits: false,
-			terminalEdits: false,
 			rounds: '',
 			undos: '',
 			editMode
@@ -251,11 +232,30 @@ class Session {
 
 	addExchange(exchange: SessionExchange): void {
 		const newLen = this._exchange.push(exchange);
-		this.teldata.rounds += `${newLen}|`;
+		this._teldata.rounds += `${newLen}|`;
 	}
 
 	get lastExchange(): SessionExchange | undefined {
 		return this._exchange[this._exchange.length - 1];
+	}
+
+	recordExternalEditOccurred() {
+		this._teldata.edits = true;
+	}
+
+	asTelemetryData(): TelemetryData {
+		return <TelemetryData>{
+			...this._teldata,
+			endTime: new Date().toISOString(),
+		};
+	}
+
+	asRecording(): Recording {
+		return {
+			session: this.session,
+			when: this._startTime,
+			exchanges: this._exchange.map(e => ({ prompt: e.prompt, res: e.response.raw }))
+		};
 	}
 }
 
@@ -289,7 +289,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _historyOffset: number = -1;
 
 	private readonly _store = new DisposableStore();
-	private readonly _recorder = new SessionRecorder();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private readonly _ctxInlineDiff: IContextKey<boolean>;
@@ -302,12 +301,10 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _inlineDiffEnabled: boolean = false;
 
 	private _currentSession?: Session;
+	private _recordings: Recording[] = [];
 
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
-
-	private _requestPrompt: string | undefined;
-	private _messageReply: string | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -347,8 +344,10 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	viewInChat() {
-		if (this._messageReply && this._requestPrompt) {
-			this._instaService.invokeFunction(showMessageResponse, this._requestPrompt, this._messageReply);
+		if (this._currentSession?.lastExchange?.response instanceof MarkdownResponse) {
+
+			this._instaService.invokeFunction(showMessageResponse, this._currentSession.lastExchange.prompt, this._currentSession.lastExchange.response.raw.message.value);
+
 		}
 	}
 
@@ -380,7 +379,6 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return;
 		}
-		this._recorder.add(session, textModel);
 		this._logService.trace('[IE] NEW session', provider.debugName);
 
 		const store = new DisposableStore();
@@ -449,7 +447,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				inlineDiffDecorations.clear();
 
 				// note when "other" edits happen
-				this._currentSession!.teldata.edits = true;
+				this._currentSession?.recordExternalEditOccurred();
 
 				// CANCEL if the document has changed outside the current range
 				const wholeRange = wholeRangeDecoration.getRange(0);
@@ -569,13 +567,10 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 
-			this._recorder.addExchange(session, request, reply);
 			this._zone.widget.updateToolbar(true);
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				this._messageReply = reply.message.value;
-				this._requestPrompt = request.prompt;
 				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
 				this._zone.widget.updateStatus('');
 				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
@@ -689,11 +684,15 @@ export class InteractiveEditorController implements IEditorContribution {
 
 
 		this._logService.trace('[IE] session DONE', provider.debugName);
-		this._currentSession.teldata.endTime = new Date().toISOString();
-		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', this._currentSession.teldata);
+		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', this._currentSession.asTelemetryData());
+
+		// keep recording
+		const newLen = this._recordings.unshift(this._currentSession.asRecording());
+		if (newLen > 5) {
+			this._recordings.pop();
+		}
 
 		// done, cleanup
-
 		diffZone.hide();
 		diffZone.dispose();
 
@@ -787,8 +786,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._historyOffset = pos;
 	}
 
-	recordings() {
-		return this._recorder.getAll();
+	recordings(): Recording[] {
+		return this._recordings;
 	}
 
 	undoLast(): string | void {
