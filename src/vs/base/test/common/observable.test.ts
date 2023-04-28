@@ -700,6 +700,41 @@ suite('observables', () => {
 		assert.deepStrictEqual(log.getAndClearEntries(), ([]));
 	});
 
+	test('changing observables in endUpdate', () => {
+		const log = new Log();
+
+		const myObservable1 = new LoggingObservableValue('myObservable1', 0, log);
+		const myObservable2 = new LoggingObservableValue('myObservable2', 0, log);
+
+		const myDerived1 = derived('myDerived1', (reader) => {
+			const val = myObservable1.read(reader);
+			log.log(`myDerived1.read(myObservable: ${val})`);
+			return val;
+		});
+
+		const myDerived2 = derived('myDerived2', (reader) => {
+			const val = myObservable2.read(reader);
+			if (val === 1) {
+				myDerived1.read(reader);
+			}
+			log.log(`myDerived2.read(myObservable: ${val})`);
+			return val;
+		});
+
+		autorun('myAutorun', (reader) => {
+			const myDerived1Val = myDerived1.read(reader);
+			const myDerived2Val = myDerived2.read(reader);
+			log.log(`myAutorun.run(myDerived1: ${myDerived1Val}, myDerived2: ${myDerived2Val})`);
+		});
+
+		transaction(tx => {
+			myObservable2.set(1, tx);
+			// end update of this observable will trigger endUpdate of myDerived1 and
+			// the autorun and the autorun will add myDerived2 as observer to myDerived1
+			myObservable1.set(1, tx);
+		});
+	});
+
 	test('set dependency in derived', () => {
 		const log = new Log();
 

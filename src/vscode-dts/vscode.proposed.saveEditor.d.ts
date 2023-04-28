@@ -11,7 +11,7 @@ declare module 'vscode' {
 
 		/**
 		 * Saves the editor identified by the given resource and returns the resulting resource or `undefined`
-		 * if save was not successful.
+		 * if save was not successful or no editor with the given resource was found.
 		 *
 		 * **Note** that an editor with the provided resource must be opened in order to be saved.
 		 *
@@ -22,7 +22,8 @@ declare module 'vscode' {
 
 		/**
 		 * Saves the editor identified by the given resource to a new file name as provided by the user and
-		 * returns the resulting resource or `undefined` if save was not successful or cancelled.
+		 * returns the resulting resource or `undefined` if save was not successful or cancelled or no editor
+		 * with the given resource was found.
 		 *
 		 * **Note** that an editor with the provided resource must be opened in order to be saved as.
 		 *

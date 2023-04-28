@@ -41,7 +41,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		@IThemeService themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true });
+		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
 		super.create();
 
 		const diffContributions = EditorExtensionsRegistry
@@ -102,21 +102,21 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		throw new Error('not supported like this');
 	}
 
-	getEndPositionForChanges(range: Range, changes: LineRangeMapping[]): Position | undefined {
-		assertType(this.editor.hasModel());
-
-		const modified = this.editor.getModel();
-		const ranges = this._computeHiddenRanges(modified, range, changes);
-		return ranges?.anchor;
-	}
-
 	showDiff(range: () => Range, changes: LineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
 		this._sessionStore.clear();
 
 		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
 			const result = this._diffEditor.getDiffComputationResult();
+			const hasFocus = this._diffEditor.hasTextFocus();
 			this._doShowForChanges(range(), result?.changes2 ?? []);
+			// TODO@jrieken find a better fix for this. this is the challenge:
+			// the _doShowForChanges method invokes show of the zone widget which removes and adds the
+			// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
+			// focus
+			if (hasFocus) {
+				this._diffEditor.focus();
+			}
 		}));
 		this._doShowForChanges(range(), changes);
 	}
@@ -189,7 +189,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		lineRanges = lineRanges.filter(range => !range.isEmpty);
 		if (lineRanges.length === 0) {
 			// todo?
-			this._logService.debug(`[IE] diff NOTHING to hide for ${String(editor.getModel()?.uri)}`);
+			this._logService.debug(`[IE] diff NOTHING to hide for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 		} else {
 			const ranges = lineRanges.map(r => new Range(r.startLineNumber, 1, r.endLineNumberExclusive - 1, 1));
 			editor.setHiddenAreas(ranges, InteractiveEditorDiffWidget._hideId);

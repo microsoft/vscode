@@ -314,10 +314,10 @@ export class UndoCommand extends AbstractInteractiveEditorAction {
 			title: localize('undo', 'Undo'),
 			icon: Codicon.commentDiscussion,
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE.isEqualTo('simple')),
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib + 10,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyZ,
-			},
+			// keybinding: {
+			// 	weight: KeybindingWeight.EditorContrib + 10,
+			// 	primary: KeyMod.CtrlCmd | KeyCode.KeyZ,
+			// },
 			menu: {
 				when: CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE.isEqualTo('simple'),
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_UNDO,
