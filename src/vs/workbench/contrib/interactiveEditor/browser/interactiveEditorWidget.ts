@@ -28,7 +28,7 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TextEdit } from 'vs/editor/common/languages';
@@ -287,7 +287,7 @@ class InteractiveEditorWidget {
 		}
 	}
 
-	getInput(placeholder: string, value: string, token: CancellationToken, setSelection: boolean = true): Promise<string | undefined> {
+	getInput(placeholder: string, value: string, token: CancellationToken, ops?: { inputValue: string; position: Position }): Promise<string | undefined> {
 
 		console.log('Inside of getInput');
 		console.log('placeholder : ', placeholder);
@@ -297,12 +297,15 @@ class InteractiveEditorWidget {
 		this._elements.placeholder.style.fontSize = `${this.inputEditor.getOption(EditorOption.fontSize)}px`;
 		this._elements.placeholder.style.lineHeight = `${this.inputEditor.getOption(EditorOption.lineHeight)}px`;
 
-		this._inputModel.setValue(value);
-		if (setSelection) {
-			this.inputEditor.setSelection(this._inputModel.getFullModelRange());
+		const fullRange = this._inputModel.getFullModelRange();
+		if (typeof ops === 'undefined') {
+			this._inputModel.setValue(value);
+			this.inputEditor.setSelection(fullRange);
 		} else {
-			// const lineCount = this.inputEditor.linenu
-			// this.inputEditor.setPosition();
+			console.log('ops.inputValue : ', ops.inputValue);
+			console.log('ops.position : ', ops.position);
+			this._inputModel.setValue(ops.inputValue);
+			this.inputEditor.setPosition(ops.position);
 		}
 
 		this.inputEditor.updateOptions({ ariaLabel: localize('aria-label.N', "Interactive Editor Input: {0}", placeholder) });
@@ -582,13 +585,13 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken, setSelection: boolean = true): Promise<string | undefined> {
+	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken, ops?: { inputValue: string; position: Position }): Promise<string | undefined> {
 		console.log('Inside of async get inoput');
 		assertType(this.editor.hasModel());
 		super.show(where, this._computeHeightInLines());
 		this._ctxVisible.set(true);
 
-		const task = this.widget.getInput(placeholder, value, token, setSelection);
+		const task = this.widget.getInput(placeholder, value, token, ops);
 		const result = await task;
 		return result;
 	}

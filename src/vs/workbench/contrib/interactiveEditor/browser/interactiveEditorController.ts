@@ -302,6 +302,8 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _messageReply: string | undefined;
 
 	private _setSelection: boolean = false;
+	private _inputValue: string = '';
+	private _position: Position = new Position(1, 1);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -329,6 +331,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				this.cancelCurrentRequest();
 				this._ctxHasActiveRequest.set(false);
 				this._setSelection = false;
+				this._inputValue = this._zone.widget.inputEditor.getValue();
+				this._position = this._zone.widget.inputEditor.getPosition() ?? new Position(1, 1);
 			}
 		});
 	}
@@ -495,7 +499,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token, this._setSelection);
+			const options = this._setSelection ? undefined : { inputValue: this._inputValue, position: this._position };
+			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token, options);
 			this._setSelection = true;
 
 			if (textModel0Changes && editMode === EditMode.LivePreview) {
