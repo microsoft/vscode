@@ -120,7 +120,7 @@ class InteractiveEditorWidget {
 			h('div.previewCreate.hidden@previewCreate'),
 			h('div.status@status', [
 				h('div.actions.hidden@statusToolbar'),
-				h('div.label@statusLabel')
+				h('div.label.hidden@statusLabel')
 			]),
 			h('div.markdownMessage.hidden@markdownMessage', [
 				h('div.message@message'),
@@ -229,11 +229,7 @@ class InteractiveEditorWidget {
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
 		this._elements.message.tabIndex = 0;
-		this._elements.message.setAttribute('aria-label', 'Copilot Inline Message');
-		this._elements.message.setAttribute('role', 'alert');
 		this._elements.statusLabel.tabIndex = 0;
-		this._elements.statusLabel.setAttribute('aria-label', 'Copilot Status Update');
-		this._elements.statusLabel.setAttribute('role', 'alert');
 		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
 		this._historyStore.add(markdownMessageToolbar);
 	}
@@ -402,9 +398,9 @@ class InteractiveEditorWidget {
 		} else if (!isTempMessage && !ops.keepMessage) {
 			this._elements.markdownMessage.classList.toggle('hidden', true);
 		}
-		this._elements.status.classList.toggle('hidden', false);
 		reset(this._elements.statusLabel, message);
 		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
+		this._elements.statusLabel.classList.toggle('hidden', !message);
 		if (isTempMessage) {
 			this._elements.statusLabel.dataset['state'] = 'temp';
 		} else {
@@ -416,6 +412,7 @@ class InteractiveEditorWidget {
 	reset() {
 		this._ctxInputEmpty.reset();
 		reset(this._elements.statusLabel);
+		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.statusToolbar.classList.add('hidden');
 		this.hideCreatePreview();
 		this.hideEditsPreview();
@@ -514,7 +511,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'interactive-editor-widget', keepEditorSelection: true });
+		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'interactive-editor-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 + 3 });
 
 		this._ctxVisible = CTX_INTERACTIVE_EDITOR_VISIBLE.bindTo(contextKeyService);
 		this._ctxCursorPosition = CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
