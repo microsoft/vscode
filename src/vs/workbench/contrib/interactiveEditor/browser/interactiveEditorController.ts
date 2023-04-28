@@ -351,6 +351,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
+	updateExpansionState(expand: boolean) {
+		this._zone.widget.updateToggleState(expand);
+	}
+
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
 
 		// hide/cancel inline completions when invoking IE
