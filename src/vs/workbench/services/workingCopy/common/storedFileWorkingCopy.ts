@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -28,9 +28,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ReadonlyHelper } from 'vs/workbench/services/filesConfiguration/common/readonlyHelper';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 /**
  * Stored file specific working copy model factory.
@@ -312,8 +309,6 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
-	private readonly readonlyHelper;
-
 	//#endregion
 
 	constructor(
@@ -323,8 +318,6 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		private readonly modelFactory: IStoredFileWorkingCopyModelFactory<M>,
 		private readonly externalResolver: IStoredFileWorkingCopyResolver,
 		@IFileService fileService: IFileService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
@@ -336,7 +329,6 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
 	) {
 		super(resource, fileService);
-		this.readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, fileService, contextService, configurationService));
 
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
@@ -1147,6 +1139,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
+		const oldReadonly = this.isReadonly();
+
 		// First resolve - just take
 		if (!this.lastResolvedFileStat) {
 			this.lastResolvedFileStat = newFileStat;
@@ -1161,10 +1155,10 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			this.lastResolvedFileStat = newFileStat;
 		}
 
-		// readonlyHelper also needs to read lastResolvedFileStat
-		this.readonlyHelper.setLastResolvedFileStat(this.lastResolvedFileStat);
-		// Signal if the readonly state changed
-		this.isReadonly();
+		// Signal that the readonly state changed
+		if (this.isReadonly() !== oldReadonly) {
+			this._onDidChangeReadonly.fire();
+		}
 	}
 
 	//#endregion
@@ -1242,8 +1236,9 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	//#region Utilities
 
 	isReadonly(): boolean {
-		return this.readonlyHelper.isReadonly();
+		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
+
 	private trace(msg: string): void {
 		this.logService.trace(`[stored file working copy] ${msg}`, this.resource.toString(), this.typeId);
 	}

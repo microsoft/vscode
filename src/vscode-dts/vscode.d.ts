@@ -8085,7 +8085,7 @@ declare module 'vscode' {
 		 * is set. As a consequence, it is not possible to have a readonly file system provider
 		 * registered where some `FileStat` are not readonly.
 		 */
-		Readonly = 1 << 0,
+		Readonly = 1
 	}
 
 	/**

@@ -12,7 +12,7 @@ import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEdit
 import { IRevertOptions, SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
@@ -32,9 +32,6 @@ import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ReadonlyHelper } from 'vs/workbench/services/filesConfiguration/common/readonlyHelper';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -104,9 +101,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
-	// private _readonlyHelper needs access to private _onDidChangeReadonly Emitter
-	private readonly readonlyHelper;
-
 	private dirty = false;
 	private inConflictMode = false;
 	private inOrphanMode = false;
@@ -124,8 +118,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -133,7 +125,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService);
-		this.readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, fileService, contextService, configurationService));
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -980,6 +971,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
+		const oldReadonly = this.isReadonly();
+
 		// First resolve - just take
 		if (!this.lastResolvedFileStat) {
 			this.lastResolvedFileStat = newFileStat;
@@ -992,10 +985,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.lastResolvedFileStat = newFileStat;
 		}
 
-		// readonlyHelper also needs to read lastResolvedFileStat
-		this.readonlyHelper.setLastResolvedFileStat(this.lastResolvedFileStat);
-		// Signal if the readonly state changed
-		this.isReadonly();
+		// Signal that the readonly state changed
+		if (this.isReadonly() !== oldReadonly) {
+			this._onDidChangeReadonly.fire();
+		}
 	}
 
 	//#endregion
@@ -1163,7 +1156,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override isReadonly(): boolean {
-		return this.readonlyHelper.isReadonly();
+		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	override dispose(): void {

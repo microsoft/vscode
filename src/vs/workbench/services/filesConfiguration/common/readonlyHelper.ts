@@ -100,9 +100,9 @@ export class ReadonlyHelper extends ReadonlyHelperNoResource {
 
 		if (!ReadonlyHelper.fileServiceHelper) {
 			const rh = ReadonlyHelper.fileServiceHelper = new ReadonlyHelperNoResource(contextService, configurationService);
-			fileService.setReadonlyQueryFn((fileStat) => {
-				const rv = rh.isGlobReadonly(fileStat.resource);
-				return rv === null ? fileStat.readonly : rv;
+			fileService.setReadonlyQueryFn((readonly: boolean | undefined, resource: URI) => {
+				const rv = rh.isGlobReadonly(resource);
+				return rv === null ? readonly : rv;
 			});
 		}
 	}

@@ -38,8 +38,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IFileWorkingCopy<S | U>> {
 
@@ -156,8 +154,6 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@INotificationService notificationService: INotificationService,
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
@@ -175,7 +171,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			this.workingCopyTypeId,
 			this.storedWorkingCopyModelFactory,
 			fileService, lifecycleService, labelService, logService, workingCopyFileService,
-			workingCopyBackupService, uriIdentityService, filesConfigurationService, configurationService, contextService, workingCopyService,
+			workingCopyBackupService, uriIdentityService, filesConfigurationService, workingCopyService,
 			notificationService, workingCopyEditorService, editorService, elevatedFileService
 		));
 

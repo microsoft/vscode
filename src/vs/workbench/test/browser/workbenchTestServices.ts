@@ -1004,6 +1004,9 @@ export class TestEditorService implements EditorServiceImpl {
 }
 
 export class TestFileService implements IFileService {
+	setReadonlyQueryFn(fn: (readonly: boolean | undefined, resource: URI) => boolean | undefined): void {
+		// ignore readonlyQueryFn
+	}
 
 	declare readonly _serviceBrand: undefined;
 
