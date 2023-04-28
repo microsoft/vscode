@@ -38,7 +38,8 @@ const nonBuiltInLanguages = { // { fileNames, extensions  }
 	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
 	"todo": { fileNames: ['todo'] },
 	"vala": { extensions: ['vala'] },
-	"vue": { extensions: ['vue'] }
+	"vue": { extensions: ['vue'] },
+	"wick": { extensions: ['wick'] }
 };
 
 // list of languagesId that inherit the icon from another language
