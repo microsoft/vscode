@@ -28,7 +28,7 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TextEdit } from 'vs/editor/common/languages';
@@ -289,18 +289,20 @@ class InteractiveEditorWidget {
 
 	getInput(placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean = false): Promise<string | undefined> {
 
+		const currentInputEditorPosition = this.inputEditor.getPosition();
+		const currentInputEditorValue = this.inputEditor.getValue();
+
 		this._elements.placeholder.innerText = placeholder;
 		this._elements.placeholder.style.fontSize = `${this.inputEditor.getOption(EditorOption.fontSize)}px`;
 		this._elements.placeholder.style.lineHeight = `${this.inputEditor.getOption(EditorOption.lineHeight)}px`;
 
-		const currentInputEditorValue = this.inputEditor.getValue();
 		this._inputModel.setValue(requestCancelledOnModelContentChanged ? currentInputEditorValue : value);
+		const fullInputModelRange = this._inputModel.getFullModelRange();
 
 		if (requestCancelledOnModelContentChanged) {
-			// const position = this.inputEditor.
-			// this.inputEditor.setPosition(new Position(fullInputModelRange.endLineNumber, fullInputModelRange.endColumn));
+			this.inputEditor.setPosition(currentInputEditorPosition ?? new Position(fullInputModelRange.endLineNumber, fullInputModelRange.endColumn));
 		} else {
-			this.inputEditor.setSelection(this._inputModel.getFullModelRange());
+			this.inputEditor.setSelection(fullInputModelRange);
 		}
 		this.inputEditor.updateOptions({ ariaLabel: localize('aria-label.N', "Interactive Editor Input: {0}", placeholder) });
 
