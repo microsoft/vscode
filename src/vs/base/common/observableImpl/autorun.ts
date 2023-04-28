@@ -67,19 +67,8 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 	private state = AutorunState.stale;
 	private updateCount = 0;
 	private disposed = false;
-
-	/**
-	 * The actual dependencies.
-	*/
-	private _dependencies = new Set<IObservable<any>>();
-	public get dependencies() {
-		return this._dependencies;
-	}
-
-	/**
-	 * Dependencies that have to be removed when {@link runFn} ran through.
-	*/
-	private staleDependencies = new Set<IObservable<any>>();
+	private dependencies = new Set<IObservable<any>>();
+	private dependenciesToBeRemoved = new Set<IObservable<any>>();
 
 	constructor(
 		public readonly debugName: string,
@@ -87,22 +76,47 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 		private readonly _handleChange: ((context: IChangeContext) => boolean) | undefined
 	) {
 		getLogger()?.handleAutorunCreated(this);
-		this.runIfNeeded();
+		this._runIfNeeded();
 	}
 
-	public readObservable<T>(observable: IObservable<T>): T {
-		// In case the run action disposes the autorun
-		if (this.disposed) {
-			return observable.get();
+	public dispose(): void {
+		this.disposed = true;
+		for (const o of this.dependencies) {
+			o.removeObserver(this);
+		}
+		this.dependencies.clear();
+	}
+
+	private _runIfNeeded() {
+		if (this.state === AutorunState.upToDate) {
+			return;
 		}
 
-		observable.addObserver(this);
-		const value = observable.get();
-		this._dependencies.add(observable);
-		this.staleDependencies.delete(observable);
-		return value;
+		const emptySet = this.dependenciesToBeRemoved;
+		this.dependenciesToBeRemoved = this.dependencies;
+		this.dependencies = emptySet;
+
+		this.state = AutorunState.upToDate;
+
+		getLogger()?.handleAutorunTriggered(this);
+
+		try {
+			this.runFn(this);
+		} finally {
+			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
+			// Thus, we only unsubscribe from observables that are definitely not read anymore.
+			for (const o of this.dependenciesToBeRemoved) {
+				o.removeObserver(this);
+			}
+			this.dependenciesToBeRemoved.clear();
+		}
 	}
 
+	public toString(): string {
+		return `Autorun<${this.debugName}>`;
+	}
+
+	// IObserver implementation
 	public beginUpdate(): void {
 		if (this.state === AutorunState.upToDate) {
 			this.state = AutorunState.dependenciesMightHaveChanged;
@@ -115,7 +129,7 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 			do {
 				if (this.state === AutorunState.dependenciesMightHaveChanged) {
 					this.state = AutorunState.upToDate;
-					for (const d of this._dependencies) {
+					for (const d of this.dependencies) {
 						d.reportChanges();
 						if (this.state as AutorunState === AutorunState.stale) {
 							// The other dependencies will refresh on demand
@@ -124,7 +138,7 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 					}
 				}
 
-				this.runIfNeeded();
+				this._runIfNeeded();
 			} while (this.state !== AutorunState.upToDate);
 		}
 		this.updateCount--;
@@ -149,42 +163,18 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 		}
 	}
 
-	private runIfNeeded() {
-		if (this.state === AutorunState.upToDate) {
-			return;
+	// IReader implementation
+	public readObservable<T>(observable: IObservable<T>): T {
+		// In case the run action disposes the autorun
+		if (this.disposed) {
+			return observable.get();
 		}
 
-		// Assert: this.staleDependencies is an empty set.
-		const emptySet = this.staleDependencies;
-		this.staleDependencies = this._dependencies;
-		this._dependencies = emptySet;
-
-		this.state = AutorunState.upToDate;
-
-		getLogger()?.handleAutorunTriggered(this);
-
-		try {
-			this.runFn(this);
-		} finally {
-			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
-			// Thus, we only unsubscribe from observables that are definitely not read anymore.
-			for (const o of this.staleDependencies) {
-				o.removeObserver(this);
-			}
-			this.staleDependencies.clear();
-		}
-	}
-
-	public dispose(): void {
-		this.disposed = true;
-		for (const o of this._dependencies) {
-			o.removeObserver(this);
-		}
-		this._dependencies.clear();
-	}
-
-	public toString(): string {
-		return `Autorun<${this.debugName}>`;
+		observable.addObserver(this);
+		const value = observable.get();
+		this.dependencies.add(observable);
+		this.dependenciesToBeRemoved.delete(observable);
+		return value;
 	}
 }
 

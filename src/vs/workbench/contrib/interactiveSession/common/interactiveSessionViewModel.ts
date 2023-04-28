@@ -119,10 +119,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 
 		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
 		this._register(_model.onDidChange(e => {
-			if (e.kind === 'clear') {
-				this._items.length = 0;
-				this._onDidChange.fire();
-			} else if (e.kind === 'addRequest') {
+			if (e.kind === 'addRequest') {
 				this._items.push(new InteractiveRequestViewModel(e.request));
 				if (e.request.response) {
 					this.onAddResponse(e.request.response);

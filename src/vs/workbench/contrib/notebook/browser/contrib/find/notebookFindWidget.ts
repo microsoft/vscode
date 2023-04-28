@@ -236,7 +236,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 	override async show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): Promise<void> {
 		const searchStringUpdate = this._state.searchString !== initialInput;
 		super.show(initialInput, options);
-		this._state.change({ searchString: initialInput ?? '', isRevealed: true }, false);
+		this._state.change({ searchString: initialInput ?? this._state.searchString, isRevealed: true }, false);
 
 		if (typeof options?.matchIndex === 'number') {
 			if (!this._findModel.findMatches.length) {

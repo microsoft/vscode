@@ -8,6 +8,7 @@ declare module 'vscode' {
 	// See https://github.com/microsoft/vscode/issues/63943
 
 	export interface ThreadFocus {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'thread';
 
 		/**
@@ -22,6 +23,7 @@ declare module 'vscode' {
 	}
 
 	export interface StackFrameFocus {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'stackFrame';
 
 		/**

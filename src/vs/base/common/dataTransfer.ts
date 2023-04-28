@@ -85,7 +85,7 @@ export class VSDataTransfer {
 		}
 
 		// Wildcard, such as `image/*`
-		const wildcard = this.toKey(mimeTypeGlob).match(/^([a-z]+)$\/([a-z]+|\*)/i);
+		const wildcard = this.toKey(mimeTypeGlob).match(/^([a-z]+)\/([a-z]+|\*)$/i);
 		if (!wildcard) {
 			return false;
 		}

@@ -190,7 +190,7 @@ export class InlineDiffMargin extends Disposable {
 			}
 		}));
 
-		this._register(editor.onMouseUp((e: IEditorMouseEvent) => {
+		this._register(editor.onMouseDown((e: IEditorMouseEvent) => {
 			if (!e.event.rightButton) {
 				return;
 			}
