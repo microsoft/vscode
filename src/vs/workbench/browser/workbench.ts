@@ -40,6 +40,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ReadonlyHelper } from 'vs/workbench/services/filesConfiguration/common/readonlyHelper';
 
 export interface IWorkbenchOptions {
 
@@ -173,6 +174,9 @@ export class Workbench extends Layout {
 
 				// Restore
 				this.restore(lifecycleService);
+
+				// ReadonlyHelper for FileService
+				this._register(instantiationService.createInstance(ReadonlyHelper));
 			});
 
 			return instantiationService;
