@@ -482,6 +482,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				break;
 			}
 
+
 			// visuals: add block decoration
 			blockDecoration.set([{
 				range: wholeRange,
@@ -542,6 +543,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._zone.widget.updateProgress(true);
 				this._ctxHasActiveRequest.set(true);
 				reply = await raceCancellationError(Promise.resolve(task), this._ctsRequest.token);
+
 			} catch (e) {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
