@@ -617,8 +617,6 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started .button-link {
 	margin: 0;
-	outline: none;
-	user-select: none;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started .see-all-walkthroughs {
