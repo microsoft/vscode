@@ -39,15 +39,15 @@ struct SingletonServerContext {
 }
 
 const CONTROL_INSTRUCTIONS_COMMON: &str =
-	"Connected to an existing tunnel process running on this machine. You can press:
-
-- \"x\" + Enter to stop the tunnel and exit
-- \"r\" + Enter to restart the tunnel
-";
+	"Connected to an existing tunnel process running on this machine.";
 
 const CONTROL_INSTRUCTIONS_INTERACTIVE: &str = concatcp!(
 	CONTROL_INSTRUCTIONS_COMMON,
-	"- Ctrl+C to detach
+	" You can press:
+
+- \"x\" + Enter to stop the tunnel and exit
+- \"r\" + Enter to restart the tunnel
+- Ctrl+C to detach
 "
 );
 
