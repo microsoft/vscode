@@ -287,7 +287,7 @@ class InteractiveEditorWidget {
 		}
 	}
 
-	getInput(placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean = false): Promise<string | undefined> {
+	getInput(placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean): Promise<string | undefined> {
 
 		const currentInputEditorPosition = this.inputEditor.getPosition();
 		const currentInputEditorValue = this.inputEditor.getValue();
@@ -573,7 +573,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean = false): Promise<string | undefined> {
+	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean): Promise<string | undefined> {
 		assertType(this.editor.hasModel());
 		super.show(where, this._computeHeightInLines());
 		this._ctxVisible.set(true);
