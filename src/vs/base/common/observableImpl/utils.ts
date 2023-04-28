@@ -198,34 +198,34 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	}
 }
 
-export function observableSignal(
+export function observableSignal<TDelta = void>(
 	debugName: string
-): IObservableSignal {
-	return new ObservableSignal(debugName);
+): IObservableSignal<TDelta> {
+	return new ObservableSignal<TDelta>(debugName);
 }
 
-export interface IObservableSignal extends IObservable<void> {
-	trigger(tx: ITransaction | undefined): void;
+export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
+	trigger(tx: ITransaction | undefined, change: TChange): void;
 }
 
-class ObservableSignal extends BaseObservable<void> implements IObservableSignal {
+class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements IObservableSignal<TChange> {
 	constructor(
 		public readonly debugName: string
 	) {
 		super();
 	}
 
-	public trigger(tx: ITransaction | undefined): void {
+	public trigger(tx: ITransaction | undefined, change: TChange): void {
 		if (!tx) {
 			transaction(tx => {
-				this.trigger(tx);
+				this.trigger(tx, change);
 			}, () => `Trigger signal ${this.debugName}`);
 			return;
 		}
 
 		for (const o of this.observers) {
 			tx.updateObserver(o, this);
-			o.handleChange(this, undefined);
+			o.handleChange(this, change);
 		}
 	}
 
@@ -276,8 +276,12 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
 }
 
 /**
- * This ensures the observable is kept up-to-date.
- * This is useful when the observables `get` method is used.
+ * This ensures the observable cache is kept up-to-date, even if there are no subscribers.
+ * This is useful when the observables `get` method is used, but not its `read` method.
+ *
+ * (Usually, when no one is actually observing the observable, getting its value will
+ * compute it from scratch, as the cache cannot be trusted:
+ * Because no one is actually observing its value, keeping the cache up-to-date would be too expensive)
 */
 export function keepAlive(observable: IObservable<any>): IDisposable {
 	const o = new KeepAliveObserver();
@@ -292,11 +296,15 @@ class KeepAliveObserver implements IObserver {
 		// NO OP
 	}
 
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
+	endUpdate<T>(observable: IObservable<T, void>): void {
 		// NO OP
 	}
 
-	endUpdate<T>(observable: IObservable<T, void>): void {
+	handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
+		// NO OP
+	}
+
+	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
 		// NO OP
 	}
 }

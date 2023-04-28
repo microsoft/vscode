@@ -38,11 +38,19 @@ export interface IViewZone {
 	 * This is relevant for wrapped lines.
 	 */
 	afterColumn?: number;
-
 	/**
 	 * If the `afterColumn` has multiple view columns, the affinity specifies which one to use. Defaults to `none`.
 	*/
 	afterColumnAffinity?: PositionAffinity;
+	/**
+	 * Render the zone even when its line is hidden.
+	 */
+	showInHiddenAreas?: boolean;
+	/**
+	 * Tiebreaker that is used when multiple view zones want to be after the same line.
+	 * Defaults to `afterColumn` otherwise 10000;
+	 */
+	ordinal?: number;
 	/**
 	 * Suppress mouse down events.
 	 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
@@ -127,14 +135,22 @@ export const enum ContentWidgetPositionPreference {
  */
 export interface IContentWidgetPosition {
 	/**
-	 * Desired position for the content widget.
-	 * `preference` will also affect the placement.
+	 * Desired position which serves as an anchor for placing the content widget.
+	 * The widget will be placed above, at, or below the specified position, based on the
+	 * provided preference. The widget will always touch this position.
+	 *
+	 * Given sufficient horizontal space, the widget will be placed to the right of the
+	 * passed in position. This can be tweaked by providing a `secondaryPosition`.
+	 *
+	 * @see preference
+	 * @see secondaryPosition
 	 */
 	position: IPosition | null;
 	/**
-	 * Optionally, a secondary position can be provided to further
-	 * define the position of the content widget. The secondary position
-	 * must have the same line number as the primary position.
+	 * Optionally, a secondary position can be provided to further define the placing of
+	 * the content widget. The secondary position must have the same line number as the
+	 * primary position. If possible, the widget will be placed such that it also touches
+	 * the secondary position.
 	 */
 	secondaryPosition?: IPosition | null;
 	/**
@@ -796,6 +812,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Change the scroll position of the editor's viewport.
 	 */
 	setScrollPosition(position: editorCommon.INewScrollPosition, scrollType?: editorCommon.ScrollType): void;
+	/**
+	 * Check if the editor is currently scrolling towards a different scroll position.
+	 */
+	hasPendingScrollAnimation(): boolean;
 
 	/**
 	 * Get an action that is a contribution to this editor.
@@ -855,7 +875,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @deprecated
+	 * @deprecated Use `createDecorationsCollection`
+	 * @see createDecorationsCollection
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 

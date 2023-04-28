@@ -8,7 +8,7 @@ import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalE
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -185,11 +185,11 @@ class ExtensionBisectUi {
 	private _showBisectPrompt(): void {
 
 		const goodPrompt: IPromptChoice = {
-			label: 'Good now',
+			label: 'Good Now',
 			run: () => this._commandService.executeCommand('extension.bisect.next', false)
 		};
 		const badPrompt: IPromptChoice = {
-			label: 'This is bad',
+			label: 'This is Bad',
 			run: () => this._commandService.executeCommand('extension.bisect.next', true)
 		};
 		const stop: IPromptChoice = {
@@ -205,7 +205,7 @@ class ExtensionBisectUi {
 			Severity.Info,
 			message,
 			[goodPrompt, badPrompt, stop],
-			{ sticky: true }
+			{ sticky: true, priority: NotificationPriority.URGENT }
 		);
 	}
 }

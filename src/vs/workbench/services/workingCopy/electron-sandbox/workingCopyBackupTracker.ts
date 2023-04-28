@@ -14,7 +14,7 @@ import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage 
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -319,7 +319,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 			let result: boolean | undefined = undefined;
 			if (typeof arg1 === 'boolean' || dirtyWorkingCopies.length === this.workingCopyService.dirtyCount) {
-				result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
+				result = (await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions })).success;
 			}
 
 			// If we still have dirty working copies, save those directly

@@ -17,7 +17,6 @@ use crate::{
 	constants::TUNNEL_ACTIVITY_NAME,
 	log,
 	state::LauncherPaths,
-	tunnels::shutdown_signal::ShutdownSignal,
 	util::errors::{wrap, wrapdbg, AnyError},
 };
 
@@ -60,7 +59,7 @@ impl CliServiceManager for WindowsService {
 		};
 
 		for arg in args {
-			add_arg(*arg);
+			add_arg(arg);
 		}
 
 		add_arg("--log-to-file");
@@ -90,8 +89,7 @@ impl CliServiceManager for WindowsService {
 		launcher_paths: LauncherPaths,
 		mut handle: impl 'static + ServiceContainer,
 	) -> Result<(), AnyError> {
-		let rx = ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC]);
-		handle.run_service(self.log, launcher_paths, rx).await
+		handle.run_service(self.log, launcher_paths).await
 	}
 
 	async fn unregister(&self) -> Result<(), AnyError> {

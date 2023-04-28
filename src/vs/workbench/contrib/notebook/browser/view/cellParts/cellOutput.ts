@@ -215,7 +215,7 @@ class CellOutputElement extends Disposable {
 			return undefined;
 		}
 
-		this.notebookEditor.createOutput(this.viewCell, this.renderResult, this.viewCell.getOutputOffset(index));
+		this.notebookEditor.createOutput(this.viewCell, this.renderResult, this.viewCell.getOutputOffset(index), false);
 		innerContainer.classList.add('background');
 
 		return { initRenderIsSynchronous: false };
@@ -535,7 +535,7 @@ export class CellOutputContainer extends CellContentPart {
 			const viewHandler = this._outputEntries[index];
 			const outputEntry = viewHandler.element;
 			if (outputEntry.renderResult) {
-				this.notebookEditor.createOutput(this.viewCell, outputEntry.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
+				this.notebookEditor.createOutput(this.viewCell, outputEntry.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index), false);
 			} else {
 				outputEntry.render(undefined);
 			}
@@ -688,7 +688,7 @@ export class CellOutputContainer extends CellContentPart {
 		// if it's clearing all outputs, or outputs are all rendered synchronously
 		// shrink immediately as the final output height will be zero.
 		// if it's rerun, then the output clearing might be temporary, so we don't shrink immediately
-		this._validateFinalOutputHeight(false || (context === CellOutputUpdateContext.Other && this.viewCell.outputsViewModels.length === 0));
+		this._validateFinalOutputHeight(context === CellOutputUpdateContext.Other && this.viewCell.outputsViewModels.length === 0);
 	}
 
 	private _generateShowMoreElement(disposables: DisposableStore): HTMLElement {

@@ -56,6 +56,7 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ActiveEditorContext, EmptyWorkspaceSupportContext } from 'vs/workbench/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File...");
@@ -72,7 +73,6 @@ export const UPLOAD_COMMAND_ID = 'explorer.upload';
 export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
-export const fileCategory = { value: nls.localize('filesCategory', "File"), original: 'File' };
 
 function onError(notificationService: INotificationService, error: any): void {
 	if (error.message === 'string') {
@@ -486,7 +486,7 @@ export class GlobalCompareResourcesAction extends Action2 {
 			id: GlobalCompareResourcesAction.ID,
 			title: { value: GlobalCompareResourcesAction.LABEL, original: 'Compare Active File With...' },
 			f1: true,
-			category: fileCategory,
+			category: Categories.File,
 			precondition: ActiveEditorContext
 		});
 	}
@@ -523,7 +523,7 @@ export class ToggleAutoSaveAction extends Action2 {
 			id: ToggleAutoSaveAction.ID,
 			title: { value: ToggleAutoSaveAction.LABEL, original: 'Toggle Auto Save' },
 			f1: true,
-			category: fileCategory
+			category: Categories.File
 		});
 	}
 
@@ -614,7 +614,7 @@ export class FocusFilesExplorer extends Action2 {
 			id: FocusFilesExplorer.ID,
 			title: { value: FocusFilesExplorer.LABEL, original: 'Focus on Files Explorer' },
 			f1: true,
-			category: fileCategory
+			category: Categories.File
 		});
 	}
 
@@ -634,7 +634,7 @@ export class ShowActiveFileInExplorer extends Action2 {
 			id: ShowActiveFileInExplorer.ID,
 			title: { value: ShowActiveFileInExplorer.LABEL, original: 'Reveal Active File in Explorer View' },
 			f1: true,
-			category: fileCategory
+			category: Categories.File
 		});
 	}
 
@@ -659,7 +659,7 @@ export class ShowOpenedFileInNewWindow extends Action2 {
 			id: ShowOpenedFileInNewWindow.ID,
 			title: { value: ShowOpenedFileInNewWindow.LABEL, original: 'Open Active File in New Window' },
 			f1: true,
-			category: fileCategory,
+			category: Categories.File,
 			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
 			precondition: EmptyWorkspaceSupportContext
 		});
@@ -769,7 +769,7 @@ export class CompareNewUntitledTextFilesAction extends Action2 {
 			id: CompareNewUntitledTextFilesAction.ID,
 			title: { value: CompareNewUntitledTextFilesAction.LABEL, original: 'Compare New Untitled Text Files' },
 			f1: true,
-			category: fileCategory
+			category: Categories.File
 		});
 	}
 
@@ -797,7 +797,7 @@ export class CompareWithClipboardAction extends Action2 {
 			id: CompareWithClipboardAction.ID,
 			title: { value: CompareWithClipboardAction.LABEL, original: 'Compare Active File with Clipboard' },
 			f1: true,
-			category: fileCategory,
+			category: Categories.File,
 			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC), weight: KeybindingWeight.WorkbenchContrib }
 		});
 	}
@@ -907,6 +907,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const onSuccess = async (value: string): Promise<void> => {
 		try {
 			const resourceToCreate = resources.joinPath(folder.resource, value);
+			if (value.endsWith('/')) {
+				isFolder = true;
+			}
 			await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, { folder: isFolder })], {
 				undoLabel: nls.localize('createBulkEdit', "Create {0}", value),
 				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value),

@@ -322,6 +322,11 @@ export interface IEditorGroupsService {
 	applyLayout(layout: EditorGroupLayout): void;
 
 	/**
+	 * Returns an editor layout describing the current grid
+	 */
+	getLayout(): EditorGroupLayout;
+
+	/**
 	 * Enable or disable centered editor layout.
 	 */
 	centerLayout(active: boolean): void;
@@ -337,7 +342,7 @@ export interface IEditorGroupsService {
 	setGroupOrientation(orientation: GroupOrientation): void;
 
 	/**
-	 * Find a groupd in a specific scope:
+	 * Find a group in a specific scope:
 	 * * `GroupLocation.FIRST`: the first group
 	 * * `GroupLocation.LAST`: the last group
 	 * * `GroupLocation.NEXT`: the next group from either the active one or `source`

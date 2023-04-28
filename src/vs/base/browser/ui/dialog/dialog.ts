@@ -375,6 +375,8 @@ export class Dialog extends Disposable {
 						this.iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), spinModifierClassName);
 						break;
 					case 'none':
+						this.iconElement.classList.add('no-codicon');
+						break;
 					case 'info':
 					case 'question':
 					default:

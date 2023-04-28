@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -36,14 +37,14 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 				getDefaultSystemShell: async (remoteAuthority, platform) => {
 					const backend = await terminalInstanceService.getBackend(remoteAuthority);
 					if (!backend) {
-						throw new Error(`Cannot get default system shell when there is no backend for remote authority '${remoteAuthority}'`);
+						throw new ErrorNoTelemetry(`Cannot get default system shell when there is no backend for remote authority '${remoteAuthority}'`);
 					}
 					return backend.getDefaultSystemShell(platform);
 				},
 				getEnvironment: async (remoteAuthority) => {
 					const backend = await terminalInstanceService.getBackend(remoteAuthority);
 					if (!backend) {
-						throw new Error(`Cannot get environment when there is no backend for remote authority '${remoteAuthority}'`);
+						throw new ErrorNoTelemetry(`Cannot get environment when there is no backend for remote authority '${remoteAuthority}'`);
 					}
 					return backend.getEnvironment();
 				}

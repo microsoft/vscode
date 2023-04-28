@@ -142,7 +142,7 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.noWalkthroughs .gettingStartedSlideCategories li.showWalkthroughsEntry {
+.monaco-workbench .part.editor>.content .gettingStartedContainer.noWalkthroughs .gettingStartedSlideCategories li.showWalkthroughsEntry, .gettingStartedContainer.noExtensions {
 	display: unset;
 }
 
@@ -273,7 +273,6 @@
 	line-height: normal;
 	margin: 8px 8px 8px 0;
 	padding: 3px 6px 6px;
-	left: -3px;
 	text-align: left;
 }
 
@@ -291,6 +290,7 @@
 	width: 100%;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-description-content,
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content {
 	text-align: left;
 	margin-left: 28px;
@@ -303,6 +303,15 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content:not(:empty){
 	margin-bottom: 8px;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-description-content:not(:empty){
+	margin-bottom: 8px;
+	margin-left: 48px;
+	overflow: hidden;
+	-webkit-line-clamp: 2;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
@@ -354,6 +363,14 @@
 	top: auto;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category img.featured-icon {
+	padding-right: 8px;
+	max-width: 40px;
+	border-radius: 10%;
+	max-height: 40px;
+	position: relative;
+	top: auto;
+}
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category img.category-icon {
 	margin-right: 10px;
 	margin-left: 10px;
@@ -612,6 +629,14 @@
 	text-align: center;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer.noExtensions .index-list.featured-extensions {
+	display: none;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer.noWalkthroughs .index-list.getting-started  {
+	display: none;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right img {
 	object-fit: contain;
 	cursor: unset;
@@ -834,6 +859,7 @@
 	padding: 0 11px;
 	margin-bottom: 12px;
 	align-items: center;
+	min-width: max-content;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button {

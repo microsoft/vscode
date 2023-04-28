@@ -748,7 +748,10 @@ registerAction2(class extends Action2 {
 			id: 'interactive.history.focus',
 			title: { value: localize('interactive.history.focus', "Focus History"), original: 'Focus History' },
 			category: interactiveWindowCategory,
-			f1: true,
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+			},
 			precondition: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
 		});
 	}

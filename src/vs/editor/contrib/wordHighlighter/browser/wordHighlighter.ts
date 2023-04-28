@@ -245,6 +245,14 @@ class WordHighlighter {
 		this._run();
 	}
 
+	public stop(): void {
+		if (!this.occurrencesHighlight) {
+			return;
+		}
+
+		this._stopAll();
+	}
+
 	private _getSortedHighlights(): Range[] {
 		return (
 			this.decorations.getRanges()
@@ -453,7 +461,7 @@ class WordHighlighter {
 	}
 }
 
-class WordHighlighterContribution extends Disposable implements IEditorContribution {
+export class WordHighlighterContribution extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.wordHighlighter';
 
@@ -500,6 +508,10 @@ class WordHighlighterContribution extends Disposable implements IEditorContribut
 		if (this.wordHighlighter && state) {
 			this.wordHighlighter.restore();
 		}
+	}
+
+	public stopHighlighting() {
+		this.wordHighlighter?.stop();
 	}
 
 	public override dispose(): void {

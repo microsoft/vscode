@@ -25,10 +25,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ILogService } from 'vs/platform/log/common/log';
 
-
 export type ServicesAccessor = InstantiationServicesAccessor;
-export type IEditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
-export type IDiffEditorContributionCtor = IConstructorSignature<IDiffEditorContribution, [IDiffEditor]>;
+export type EditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
+export type DiffEditorContributionCtor = IConstructorSignature<IDiffEditorContribution, [IDiffEditor]>;
 
 export const enum EditorContributionInstantiation {
 	/**
@@ -65,13 +64,13 @@ export const enum EditorContributionInstantiation {
 
 export interface IEditorContributionDescription {
 	readonly id: string;
-	readonly ctor: IEditorContributionCtor;
+	readonly ctor: EditorContributionCtor;
 	readonly instantiation: EditorContributionInstantiation;
 }
 
 export interface IDiffEditorContributionDescription {
 	id: string;
-	ctor: IDiffEditorContributionCtor;
+	ctor: DiffEditorContributionCtor;
 }
 
 //#region Command
@@ -515,10 +514,18 @@ export function registerInstantiatedEditorAction(editorAction: EditorAction): vo
 	EditorContributionRegistry.INSTANCE.registerEditorAction(editorAction);
 }
 
+/**
+ * Registers an editor contribution. Editor contributions have a lifecycle which is bound
+ * to a specific code editor instance.
+ */
 export function registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }, instantiation: EditorContributionInstantiation): void {
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor, instantiation);
 }
 
+/**
+ * Registers a diff editor contribution. Diff editor contributions have a lifecycle which
+ * is bound to a specific diff editor instance.
+ */
 export function registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
 	EditorContributionRegistry.INSTANCE.registerDiffEditorContribution(id, ctor);
 }
@@ -555,20 +562,16 @@ class EditorContributionRegistry {
 
 	public static readonly INSTANCE = new EditorContributionRegistry();
 
-	private readonly editorContributions: IEditorContributionDescription[];
-	private readonly diffEditorContributions: IDiffEditorContributionDescription[];
-	private readonly editorActions: EditorAction[];
-	private readonly editorCommands: { [commandId: string]: EditorCommand };
+	private readonly editorContributions: IEditorContributionDescription[] = [];
+	private readonly diffEditorContributions: IDiffEditorContributionDescription[] = [];
+	private readonly editorActions: EditorAction[] = [];
+	private readonly editorCommands: { [commandId: string]: EditorCommand } = Object.create(null);
 
 	constructor() {
-		this.editorContributions = [];
-		this.diffEditorContributions = [];
-		this.editorActions = [];
-		this.editorCommands = Object.create(null);
 	}
 
 	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }, instantiation: EditorContributionInstantiation): void {
-		this.editorContributions.push({ id, ctor: ctor as IEditorContributionCtor, instantiation });
+		this.editorContributions.push({ id, ctor: ctor as EditorContributionCtor, instantiation });
 	}
 
 	public getEditorContributions(): IEditorContributionDescription[] {
@@ -576,7 +579,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
-		this.diffEditorContributions.push({ id, ctor: ctor as IDiffEditorContributionCtor });
+		this.diffEditorContributions.push({ id, ctor: ctor as DiffEditorContributionCtor });
 	}
 
 	public getDiffEditorContributions(): IDiffEditorContributionDescription[] {

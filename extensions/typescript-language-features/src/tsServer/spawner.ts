@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { Logger } from '../logging/logger';
+import { TelemetryReporter } from '../logging/telemetry';
+import Tracer from '../logging/tracer';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
 import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
-import API from '../utils/api';
-import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
-import { Logger } from '../utils/logger';
+import { memoize } from '../utils/memoize';
 import { isWeb, isWebAndHasSharedArrayBuffers } from '../utils/platform';
-import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
-import { PluginManager } from '../utils/plugins';
-import { TelemetryReporter } from '../utils/telemetry';
-import Tracer from '../utils/tracer';
+import { API } from './api';
 import { ILogDirectoryProvider } from './logDirectoryProvider';
+import { TypeScriptPluginPathsProvider } from './pluginPathsProvider';
+import { PluginManager } from './plugins';
 import { GetErrRoutingTsServer, ITypeScriptServer, SingleTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerLog, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
-import { memoize } from '../utils/memoize';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -142,18 +142,18 @@ export class TypeScriptServerSpawner {
 		const { args, tsServerLog, tsServerTraceDirectory } = this.getTsServerArgs(kind, configuration, version, apiVersion, pluginManager, canceller.cancellationPipeName);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
-			if (!isWeb()) {
-				if (tsServerLog) {
-					this._logger.info(`<${kind}> Log file: ${tsServerLog}`);
-				} else {
-					this._logger.error(`<${kind}> Could not create log directory`);
-				}
+			if (tsServerLog?.type === 'file') {
+				this._logger.info(`<${kind}> Log file: ${tsServerLog.uri.fsPath}`);
+			} else if (tsServerLog?.type === 'output') {
+				this._logger.info(`<${kind}> Logging to output`);
+			} else {
+				this._logger.error(`<${kind}> Could not create TS Server log`);
 			}
 		}
 
 		if (configuration.enableTsServerTracing) {
 			if (tsServerTraceDirectory) {
-				this._logger.info(`<${kind}> Trace directory: ${tsServerTraceDirectory}`);
+				this._logger.info(`<${kind}> Trace directory: ${tsServerTraceDirectory.fsPath}`);
 			} else {
 				this._logger.error(`<${kind}> Could not create trace directory`);
 			}
@@ -232,7 +232,7 @@ export class TypeScriptServerSpawner {
 					tsServerLog = { type: 'file', uri: logFilePath };
 
 					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-					args.push('--logFile', logFilePath.path);
+					args.push('--logFile', logFilePath.fsPath);
 				}
 			}
 		}
@@ -240,7 +240,7 @@ export class TypeScriptServerSpawner {
 		if (configuration.enableTsServerTracing && !isWeb()) {
 			tsServerTraceDirectory = this._logDirectoryProvider.getNewLogDirectory();
 			if (tsServerTraceDirectory) {
-				args.push('--traceDirectory', tsServerTraceDirectory.path);
+				args.push('--traceDirectory', tsServerTraceDirectory.fsPath);
 			}
 		}
 
@@ -275,7 +275,7 @@ export class TypeScriptServerSpawner {
 			args.push('--enableProjectWideIntelliSenseOnWeb');
 		}
 
-		return { args, tsServerLog: tsServerLog, tsServerTraceDirectory };
+		return { args, tsServerLog, tsServerTraceDirectory };
 	}
 
 	private static isLoggingEnabled(configuration: TypeScriptServiceConfiguration) {

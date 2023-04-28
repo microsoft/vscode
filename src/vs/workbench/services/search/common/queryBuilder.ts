@@ -80,6 +80,12 @@ export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	beforeContext?: number;
 	afterContext?: number;
 	isSmartCase?: boolean;
+	notebookSearchConfig?: {
+		includeMarkupInput: boolean;
+		includeMarkupPreview: boolean;
+		includeCodeInput: boolean;
+		includeOutput: boolean;
+	};
 }
 
 export class QueryBuilder {
@@ -112,7 +118,8 @@ export class QueryBuilder {
 			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
 			beforeContext: options.beforeContext,
 			afterContext: options.afterContext,
-			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles
+			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
+
 		};
 	}
 
@@ -137,6 +144,27 @@ export class QueryBuilder {
 
 		if (this.isMultiline(inputPattern)) {
 			newPattern.isMultiline = true;
+		}
+
+		if (options.notebookSearchConfig?.includeMarkupInput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookMarkdownInput = options.notebookSearchConfig.includeMarkupInput;
+		}
+
+		if (options.notebookSearchConfig?.includeCodeInput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookCellInput = options.notebookSearchConfig.includeCodeInput;
+		}
+
+		if (options.notebookSearchConfig?.includeOutput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookCellOutput = options.notebookSearchConfig.includeOutput;
 		}
 
 		return newPattern;

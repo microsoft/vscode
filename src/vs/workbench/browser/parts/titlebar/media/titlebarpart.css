@@ -140,7 +140,7 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item > .action-label {
-	color: var(--vscode-titleBar-foreground);
+	color: var(--vscode-titleBar-activeForeground);
 }
 
 .monaco-workbench .part.titlebar.inactive > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item > .action-label {
@@ -382,7 +382,7 @@
 }
 
 .monaco-workbench .part.titlebar .window-controls-container .window-icon {
-	color: var(--vscode-titleBarActiveForeground);
+	color: var(--vscode-titleBar-activeForeground);
 }
 
 .monaco-workbench .part.titlebar.inactive .window-controls-container .window-icon {

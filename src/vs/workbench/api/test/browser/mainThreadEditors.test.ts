@@ -52,8 +52,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { MainThreadBulkEdits } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -86,17 +84,12 @@ suite('MainThreadEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		const logService = new NullLogService();
 		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
-			themeService,
-			logService,
 			undoRedoService,
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService(),
-			new LanguageFeatureDebounceService(logService),
-			new LanguageFeaturesService()
 		);
 
 		const services = new ServiceCollection();

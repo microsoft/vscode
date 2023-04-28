@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/b98c2d4911652824fc990f4b26c9c30be59b78a2",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/d80a1a5dcff9b85217e174242dd3d0e2210b94a0",
 	"name": "BibTeX",
 	"scopeName": "text.bibtex",
 	"comment": "Grammar based on description from http://artis.imag.fr/~Xavier.Decoret/resources/xdkbibtex/bibtex_summary.html#comment\n\t\n\tTODO: Does not support @preamble\n\t",
@@ -18,6 +18,13 @@
 			},
 			"end": "$\\n?",
 			"name": "comment.line.at-sign.bibtex"
+		},
+		{
+			"patterns": [
+				{
+					"include": "#percentage_comment"
+				}
+			]
 		},
 		{
 			"begin": "((@)(?i:string))\\s*(\\{)\\s*([a-zA-Z]*)",
@@ -49,7 +56,7 @@
 			]
 		},
 		{
-			"begin": "((@)i(?i::string))\\s*(\\()\\s*([a-zA-Z]*)",
+			"begin": "((@)(?i:string))\\s*(\\()\\s*([a-zA-Z]*)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.string-constant.bibtex"
@@ -102,6 +109,12 @@
 			"name": "meta.entry.braces.bibtex",
 			"patterns": [
 				{
+					"include": "#percentage_comment"
+				},
+				{
+					"include": "#url_field"
+				},
+				{
 					"begin": "([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)\\s*(\\=)",
 					"beginCaptures": {
 						"1": {
@@ -114,6 +127,9 @@
 					"end": "(?=[,}])",
 					"name": "meta.key-assignment.bibtex",
 					"patterns": [
+						{
+							"include": "#percentage_comment"
+						},
 						{
 							"include": "#string_var"
 						},
@@ -152,6 +168,12 @@
 			"name": "meta.entry.parenthesis.bibtex",
 			"patterns": [
 				{
+					"include": "#percentage_comment"
+				},
+				{
+					"include": "#url_field"
+				},
+				{
 					"begin": "([a-zA-Z0-9\\!\\$\\&\\*\\+\\-\\.\\/\\:\\;\\<\\>\\?\\[\\]\\^\\_\\`\\|]+)\\s*(\\=)",
 					"beginCaptures": {
 						"1": {
@@ -164,6 +186,9 @@
 					"end": "(?=[,)])",
 					"name": "meta.key-assignment.bibtex",
 					"patterns": [
+						{
+							"include": "#percentage_comment"
+						},
 						{
 							"include": "#string_var"
 						},
@@ -238,6 +263,12 @@
 					},
 					"patterns": [
 						{
+							"include": "#url_cmd"
+						},
+						{
+							"include": "#percentage_comment"
+						},
+						{
 							"match": "@",
 							"name": "invalid.illegal.at-sign.bibtex"
 						},
@@ -261,10 +292,104 @@
 					},
 					"patterns": [
 						{
+							"include": "#url_cmd"
+						},
+						{
+							"include": "#percentage_comment"
+						},
+						{
 							"match": "@",
 							"name": "invalid.illegal.at-sign.bibtex"
 						}
 					]
+				}
+			]
+		},
+		"string_url": {
+			"patterns": [
+				{
+					"begin": "\\{|\"",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.bibtex"
+						}
+					},
+					"end": "(\\}|\")(?=(?:,?\\s*\\}?\\s*\\n)|(?:\\s*#))",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.string.end.bibtex"
+						}
+					},
+					"contentName": "meta.url.bibtex",
+					"patterns": [
+						{
+							"include": "#url_cmd"
+						}
+					]
+				}
+			]
+		},
+		"percentage_comment": {
+			"patterns": [
+				{
+					"begin": "(^[ \\t]+)?(?=%)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.whitespace.comment.leading.bibtex"
+						}
+					},
+					"end": "(?!\\G)",
+					"patterns": [
+						{
+							"begin": "%",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.bibtex"
+								}
+							},
+							"end": "$\\n?",
+							"name": "comment.line.percentage.bibtex"
+						}
+					]
+				}
+			]
+		},
+		"url_cmd": {
+			"captures": {
+				"1": {
+					"name": "support.function.url.bibtex"
+				},
+				"2": {
+					"name": "punctuation.definition.function.bibtex"
+				},
+				"3": {
+					"name": "punctuation.definition.arguments.begin.bibtex"
+				},
+				"4": {
+					"name": "markup.underline.link.bibtex"
+				},
+				"5": {
+					"name": "punctuation.definition.arguments.end.bibtex"
+				}
+			},
+			"match": "(?:\\s*)((\\\\)(?:url|href))(\\{)([^}]*)(\\})",
+			"name": "meta.function.link.url.bibtex"
+		},
+		"url_field": {
+			"begin": "(url)\\s*(\\=)",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.key.bibtex"
+				},
+				"2": {
+					"name": "punctuation.separator.key-value.bibtex"
+				}
+			},
+			"end": "(?=[,}])",
+			"name": "meta.key-assignment.url.bibtex",
+			"patterns": [
+				{
+					"include": "#string_url"
 				}
 			]
 		}

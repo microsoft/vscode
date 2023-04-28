@@ -35,6 +35,7 @@ export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 export const PORT_AUTO_SOURCE_SETTING = 'remote.autoForwardPortsSource';
 export const PORT_AUTO_SOURCE_SETTING_PROCESS = 'process';
 export const PORT_AUTO_SOURCE_SETTING_OUTPUT = 'output';
+export const PORT_AUTO_SOURCE_SETTING_HYBRID = 'hybrid';
 
 export enum TunnelType {
 	Candidate = 'Candidate',
@@ -424,6 +425,7 @@ export class TunnelModel extends Disposable {
 	public readonly configPortsAttributes: PortsAttributes;
 	private restoreListener: IDisposable | undefined;
 	private knownPortsRestoreValue: string | undefined;
+	private unrestoredExtensionTunnels: Map<string, Tunnel> = new Map();
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
 
@@ -519,9 +521,13 @@ export class TunnelModel extends Disposable {
 		return URI.parse(`${protocol}://${localAddress}`);
 	}
 
-	private async getStorageKey(): Promise<string> {
+	private async getStorageKey(): Promise<string | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
 		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash(workspace.folders[0].uri.path) : undefined);
+		if (workspaceHash === undefined) {
+			this.logService.debug('Could not get workspace hash for forwarded ports storage key.');
+			return undefined;
+		}
 		return `${TUNNELS_TO_RESTORE}.${this.environmentService.remoteAuthority}.${workspaceHash}`;
 	}
 
@@ -532,8 +538,11 @@ export class TunnelModel extends Disposable {
 			await this.storeForwarded();
 			return deprecatedValue;
 		}
-
-		return this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE);
+		const storageKey = await this.getStorageKey();
+		if (!storageKey) {
+			return undefined;
+		}
+		return this.storageService.get(storageKey, StorageScope.PROFILE);
 	}
 
 	async restoreForwarded() {
@@ -543,7 +552,9 @@ export class TunnelModel extends Disposable {
 				const tunnels = <Tunnel[] | undefined>JSON.parse(tunnelRestoreValue) ?? [];
 				this.logService.trace(`ForwardedPorts: (TunnelModel) restoring ports ${tunnels.map(tunnel => tunnel.remotePort).join(', ')}`);
 				for (const tunnel of tunnels) {
-					if (!mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort)) {
+					const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort);
+					// Extension forwarded ports should only be updated, not restored.
+					if ((tunnel.source.source === TunnelSource.User && !alreadyForwarded) || (tunnel.source.source === TunnelSource.Extension && alreadyForwarded)) {
 						await this.forward({
 							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
 							local: tunnel.localPort,
@@ -551,6 +562,8 @@ export class TunnelModel extends Disposable {
 							privacy: tunnel.privacy,
 							elevateIfNeeded: true
 						});
+					} else if (tunnel.source.source === TunnelSource.Extension && !alreadyForwarded) {
+						this.unrestoredExtensionTunnels.set(makeAddress(tunnel.remoteHost, tunnel.remotePort), tunnel);
 					}
 				}
 			}
@@ -561,8 +574,9 @@ export class TunnelModel extends Disposable {
 			const key = await this.getStorageKey();
 			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
 				if (e.key === key) {
-					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE));
+					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(key, StorageScope.PROFILE));
 					await this.restoreForwarded();
+
 				}
 			}));
 		}
@@ -571,10 +585,13 @@ export class TunnelModel extends Disposable {
 	@debounce(1000)
 	private async storeForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source === TunnelSource.User));
+			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source !== TunnelSource.Auto));
 			if (valueToStore !== this.knownPortsRestoreValue) {
 				this.knownPortsRestoreValue = valueToStore;
-				this.storageService.store(await this.getStorageKey(), this.knownPortsRestoreValue, StorageScope.PROFILE, StorageTarget.USER);
+				const key = await this.getStorageKey();
+				if (key) {
+					this.storageService.store(key, this.knownPortsRestoreValue, StorageScope.PROFILE, StorageTarget.USER);
+				}
 			}
 		}
 	}
@@ -614,7 +631,7 @@ export class TunnelModel extends Disposable {
 
 			const key = makeAddress(tunnelProperties.remote.host, tunnelProperties.remote.port);
 			this.inProgress.set(key, true);
-			const tunnel = await this.tunnelService.openTunnel(addressProvider, tunnelProperties.remote.host, tunnelProperties.remote.port, undefined, localPort, (!tunnelProperties.elevateIfNeeded) ? attributes?.elevateIfNeeded : tunnelProperties.elevateIfNeeded, tunnelProperties.privacy, attributes?.protocol);
+			let tunnel = await this.tunnelService.openTunnel(addressProvider, tunnelProperties.remote.host, tunnelProperties.remote.port, undefined, localPort, (!tunnelProperties.elevateIfNeeded) ? attributes?.elevateIfNeeded : tunnelProperties.elevateIfNeeded, tunnelProperties.privacy, attributes?.protocol);
 			if (tunnel && tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), tunnelProperties.remote.host, tunnelProperties.remote.port);
 				const protocol = (tunnel.protocol ?
@@ -641,6 +658,19 @@ export class TunnelModel extends Disposable {
 				await this.storeForwarded();
 				await this.showPortMismatchModalIfNeeded(tunnel, localPort, attributes);
 				this._onForwardPort.fire(newForward);
+				if (this.unrestoredExtensionTunnels.has(key)) {
+					const updateProps = this.unrestoredExtensionTunnels.get(key);
+					this.unrestoredExtensionTunnels.delete(key);
+					if (updateProps) {
+						tunnel = await this.forward({
+							remote: { host: newForward.remoteHost, port: newForward.remotePort },
+							local: newForward.localPort,
+							name: newForward.name,
+							privacy: updateProps.privacy,
+							elevateIfNeeded: true,
+						});
+					}
+				}
 				return tunnel;
 			}
 			this.inProgress.delete(key);

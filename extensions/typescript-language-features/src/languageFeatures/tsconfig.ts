@@ -18,8 +18,8 @@ function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): 
 
 const openExtendsLinkCommandId = '_typescript.openExtendsLink';
 type OpenExtendsLinkCommandArgs = {
-	resourceUri: vscode.Uri;
-	extendsValue: string;
+	readonly resourceUri: vscode.Uri;
+	readonly extendsValue: string;
 };
 
 
@@ -53,7 +53,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		}
 
 		const args: OpenExtendsLinkCommandArgs = {
-			resourceUri: document.uri,
+			resourceUri: { ...document.uri.toJSON(), $mid: undefined }, // Prevent VS Code from trying to transform the uri
 			extendsValue: extendsValue
 		};
 
@@ -199,7 +199,7 @@ export function register() {
 
 	return vscode.Disposable.from(
 		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, extendsValue, }: OpenExtendsLinkCommandArgs) => {
-			const tsconfigPath = await getTsconfigPath(Utils.dirname(resourceUri), extendsValue);
+			const tsconfigPath = await getTsconfigPath(Utils.dirname(vscode.Uri.from(resourceUri)), extendsValue);
 			if (tsconfigPath === undefined) {
 				vscode.window.showErrorMessage(vscode.l10n.t("Failed to resolve {0} as module", extendsValue));
 				return;

@@ -42,7 +42,7 @@ suite('ExtensionsProfileScannerService', () => {
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		const uriIdentityService = instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
-		const environmentService = instantiationService.stub(IEnvironmentService, { userRoamingDataHome: ROOT });
+		const environmentService = instantiationService.stub(IEnvironmentService, { userRoamingDataHome: ROOT, cacheHome: joinPath(ROOT, 'cache'), });
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
 	});
@@ -401,6 +401,45 @@ suite('ExtensionsProfileScannerService', () => {
 			await testObject.scanProfileExtensions(extensionsManifest);
 			assert.fail('Should throw error');
 		} catch (error) { /*expected*/ }
+	});
+
+	test('read extension when manifest is empty', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(''));
+
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual, []);
+	});
+
+	test('read extension when manifest has empty lines and spaces', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(`
+
+
+		`));
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual, []);
+	});
+
+	test('read extension when the relative location is empty', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
+			identifier: extension.identifier,
+			location: extension.location.toJSON(),
+			relativeLocation: '',
+			version: extension.manifest.version,
+		}])));
+
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined }]);
+
+		const manifestContent = JSON.parse((await instantiationService.get(IFileService).readFile(extensionsManifest)).value.toString());
+		assert.deepStrictEqual(manifestContent, [{ identifier: extension.identifier, location: extension.location.toJSON(), relativeLocation: 'pub.a-1.0.0', version: extension.manifest.version }]);
 	});
 
 	function aExtension(id: string, location: URI, e?: Partial<IExtension>): IExtension {

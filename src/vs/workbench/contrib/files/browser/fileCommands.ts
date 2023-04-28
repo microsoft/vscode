@@ -11,7 +11,7 @@ import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindo
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
+import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -46,10 +46,11 @@ import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/ed
 import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenEditorsView } from 'vs/workbench/contrib/files/browser/views/openEditorsView';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -308,7 +309,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyP),
 	id: 'workbench.action.files.copyPathOfActiveFile',
-	handler: async (accessor) => {
+	handler: async accessor => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
@@ -320,22 +321,21 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 CommandsRegistry.registerCommand({
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewService = accessor.get(IViewsService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
-		const viewlet = (await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, false))?.getViewPaneContainer() as ExplorerViewPaneContainer;
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
-			const explorerView = viewlet.getExplorerView();
+			const explorerView = await viewService.openView(VIEW_ID, false);
 			if (explorerView) {
 				explorerView.setExpanded(true);
 				await explorerService.select(uri, 'force');
 				explorerView.focus();
 			}
 		} else {
-			const openEditorsView = viewlet.getOpenEditorsView();
+			const openEditorsView = await viewService.openView(OpenEditorsView.ID, false);
 			if (openEditorsView) {
 				openEditorsView.setExpanded(true);
 				openEditorsView.focus();
@@ -491,7 +491,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS },
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS) },
 	id: SAVE_ALL_COMMAND_ID,
-	handler: (accessor) => {
+	handler: accessor => {
 		return saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
 	}
 });
@@ -516,10 +516,11 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SAVE_FILES_COMMAND_ID,
-	handler: accessor => {
+	handler: async accessor => {
 		const editorService = accessor.get(IEditorService);
 
-		return editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+		const res = await editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+		return res.success;
 	}
 });
 
@@ -580,7 +581,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
 	primary: KeyCode.LeftArrow,
 	id: PREVIOUS_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -599,7 +600,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
 	primary: KeyCode.RightArrow,
 	id: NEXT_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -618,7 +619,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
 	primary: KeyCode.Home,
 	id: FIRST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -637,7 +638,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
 	primary: KeyCode.End,
 	id: LAST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 

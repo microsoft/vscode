@@ -19,7 +19,7 @@ import { IRemoteDiagnosticError, isRemoteDiagnosticError } from 'vs/platform/dia
 import { ByteSize } from 'vs/platform/files/common/files';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
@@ -163,7 +163,7 @@ class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProc
 
 
 class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTemplateData> {
-	constructor(private platform: string, private totalMem: number, private mapPidToWindowTitle: Map<number, string>) { }
+	constructor(private platform: string, private totalMem: number, private mapPidToName: Map<number, string>) { }
 
 	templateId: string = 'process';
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
@@ -179,12 +179,12 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
 		const { element } = node;
 
-		let name = element.name;
-		if (name === 'window') {
-			const windowTitle = this.mapPidToWindowTitle.get(element.pid);
-			name = windowTitle !== undefined ? `${name} (${this.mapPidToWindowTitle.get(element.pid)})` : name;
-		}
 		const pid = element.pid.toFixed(0);
+
+		let name = element.name;
+		if (this.mapPidToName.has(element.pid)) {
+			name = this.mapPidToName.get(element.pid)!;
+		}
 
 		templateData.name.textContent = name;
 		templateData.name.title = element.cmd;
@@ -230,7 +230,7 @@ function isProcessItem(item: any): item is ProcessItem {
 class ProcessExplorer {
 	private lastRequestTime: number;
 
-	private mapPidToWindowTitle = new Map<number, string>();
+	private mapPidToName = new Map<number, string>();
 
 	private nativeHostService: INativeHostService;
 
@@ -243,10 +243,12 @@ class ProcessExplorer {
 		this.applyStyles(data.styles);
 		this.setEventHandlers(data);
 
-		// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
-		ipcRenderer.on('vscode:windowsInfoResponse', (event: unknown, windows: any[]) => {
-			this.mapPidToWindowTitle = new Map<number, string>();
-			windows.forEach(window => this.mapPidToWindowTitle.set(window.pid, window.title));
+		ipcRenderer.on('vscode:pidToNameResponse', (event: unknown, pidToNames: [number, string][]) => {
+			this.mapPidToName = new Map<number, string>();
+
+			for (const [pid, name] of pidToNames) {
+				this.mapPidToName.set(pid, name);
+			}
 		});
 
 		ipcRenderer.on('vscode:listProcessesResponse', async (event: unknown, processRoots: MachineProcessInformation[]) => {
@@ -267,7 +269,7 @@ class ProcessExplorer {
 		});
 
 		this.lastRequestTime = Date.now();
-		ipcRenderer.send('vscode:windowsInfoRequest');
+		ipcRenderer.send('vscode:pidToNameRequest');
 		ipcRenderer.send('vscode:listProcesses');
 	}
 
@@ -304,7 +306,7 @@ class ProcessExplorer {
 		const { totalmem } = await this.nativeHostService.getOSStatistics();
 
 		const renderers = [
-			new ProcessRenderer(this.data.platform, totalmem, this.mapPidToWindowTitle),
+			new ProcessRenderer(this.data.platform, totalmem, this.mapPidToName),
 			new ProcessHeaderTreeRenderer(),
 			new MachineRenderer(),
 			new ErrorRenderer()
@@ -484,6 +486,7 @@ class ProcessExplorer {
 
 		if (isLocal) {
 			items.push({
+				accelerator: 'Alt+E',
 				label: localize('killProcess', "Kill Process"),
 				click: () => {
 					this.nativeHostService.killProcess(pid, 'SIGTERM');
@@ -555,7 +558,7 @@ class ProcessExplorer {
 
 			// Wait at least a second between requests.
 			if (waited > 1000) {
-				ipcRenderer.send('vscode:windowsInfoRequest');
+				ipcRenderer.send('vscode:pidToNameRequest');
 				ipcRenderer.send('vscode:listProcesses');
 			} else {
 				this.requestProcessList(waited);

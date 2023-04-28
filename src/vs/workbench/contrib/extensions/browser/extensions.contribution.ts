@@ -77,6 +77,7 @@ import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
+import { DeprecatedExtensionsChecker } from 'vs/workbench/contrib/extensions/browser/deprecatedExtensionsChecker';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -222,11 +223,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				}]
 			},
-			'extensions.experimental.useUtilityProcess': { // TODO@bpasero remove me once sandbox is enabled by default
-				type: 'boolean',
-				description: localize('extensionsUseUtilityProcess', "When enabled, the extension host will be launched using the new UtilityProcess Electron API."),
-				default: true
-			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
 				scope: ConfigurationScope.APPLICATION,
@@ -252,6 +248,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						}
 					}
 				}
+			},
+			'extensions.experimental.deferredStartupFinishedActivation': {
+				type: 'boolean',
+				description: localize('extensionsDeferredStartupFinishedActivation', "When enabled, extensions which declare the `onStartupFinished` activation event will be activated after a timeout."),
+				default: false
 			}
 		}
 	});
@@ -326,6 +327,7 @@ CommandsRegistry.registerCommand({
 	},
 	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean; context?: IStringDictionary<any> }) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
 		try {
 			if (typeof arg === 'string') {
 				const [id, version] = getIdAndVersion(arg);
@@ -337,6 +339,10 @@ CommandsRegistry.registerCommand({
 						installGivenVersion: !!version,
 						context: options?.context
 					};
+					if (extension.gallery && extension.enablementState === EnablementState.DisabledByExtensionKind) {
+						await extensionManagementService.installFromGallery(extension.gallery, installOptions);
+						return;
+					}
 					if (version) {
 						await extensionsWorkbenchService.installVersion(extension, version, installOptions);
 					} else {
@@ -1617,6 +1623,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, Life
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(DeprecatedExtensionsChecker, LifecyclePhase.Eventually);
 if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }

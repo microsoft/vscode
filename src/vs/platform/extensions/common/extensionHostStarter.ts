@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SerializedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -27,11 +26,9 @@ export interface IExtensionHostStarter {
 	onDynamicStdout(id: string): Event<string>;
 	onDynamicStderr(id: string): Event<string>;
 	onDynamicMessage(id: string): Event<any>;
-	onDynamicError(id: string): Event<{ error: SerializedError }>;
 	onDynamicExit(id: string): Event<{ code: number; signal: string }>;
 
-	canUseUtilityProcess(): Promise<boolean>;
-	createExtensionHost(useUtilityProcess: boolean): Promise<{ id: string }>;
+	createExtensionHost(): Promise<{ id: string }>;
 	start(id: string, opts: IExtensionHostProcessOptions): Promise<void>;
 	enableInspectPort(id: string): Promise<boolean>;
 	kill(id: string): Promise<void>;

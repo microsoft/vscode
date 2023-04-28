@@ -160,8 +160,8 @@ export class FoldingModel {
 				const foldRange = this._regions.toFoldRange(i);
 				const decRange = this._textModel.getDecorationRange(this._editorDecorationIds[i]);
 				if (decRange) {
-					if (isCollapsed && (isBlocked(decRange.startLineNumber, decRange.endLineNumber) || decRange.endLineNumber - decRange.startLineNumber !== foldRange.endLineNumber - foldRange.startLineNumber)) {
-						isCollapsed = false; // uncollapse is the range is blocked or there has been lines removed or added
+					if (isCollapsed && isBlocked(decRange.startLineNumber, decRange.endLineNumber)) {
+						isCollapsed = false; // uncollapse is the range is blocked
 					}
 					foldedRanges.push({
 						startLineNumber: decRange.startLineNumber,

@@ -478,8 +478,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				}),
 				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: {
-					listBackground: this.getBackgroundColor(),
-					listInactiveSelectionIconForeground: undefined // we don't want to override the severity icon color
+					listBackground: this.getBackgroundColor()
 				},
 				selectionNavigation: true,
 				multipleSelectionSupport: true,

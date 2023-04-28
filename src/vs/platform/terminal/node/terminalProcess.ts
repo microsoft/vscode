@@ -193,7 +193,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
+	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
 		const firstError = results.find(r => r !== undefined);
 		if (firstError) {
@@ -231,6 +231,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		try {
 			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
+			if (injection?.newArgs) {
+				return { injectedArgs: injection.newArgs };
+			}
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -372,7 +375,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
 				this._logService.trace('IPty#kill');
-				this._ptyProcess.kill();
+				this._ptyProcess.kill(!isWindows ? 'SIGKILL' : undefined);
 			}
 		} catch (ex) {
 			// Swallow, the pty has already been killed

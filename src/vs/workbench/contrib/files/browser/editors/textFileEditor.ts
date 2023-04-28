@@ -35,6 +35,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 /**
  * An implementation of editor for file system resources.
@@ -96,7 +97,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 	}
 
 	override async setInput(input: FileEditorInput, options: IFileEditorInputOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		mark(`code/willSetInputToTextFileEditor`);
+		mark('code/willSetInputToTextFileEditor');
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
@@ -151,7 +152,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			await this.handleSetInputError(error, input, options);
 		}
 
-		mark(`code/didSetInputToTextFileEditor`);
+		mark('code/didSetInputToTextFileEditor');
 	}
 
 	protected async handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
@@ -284,6 +285,14 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 
 		// Clear Model
 		this.editorControl?.setModel(null);
+	}
+
+	protected override createEditorControl(parent: HTMLElement, initialOptions: ICodeEditorOptions): void {
+		mark('code/willCreateTextFileEditorControl');
+
+		super.createEditorControl(parent, initialOptions);
+
+		mark('code/didCreateTextFileEditorControl');
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {

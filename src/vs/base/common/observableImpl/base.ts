@@ -3,69 +3,113 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from 'vs/base/common/lifecycle';
 import type { derived } from 'vs/base/common/observableImpl/derived';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
 
-export interface IObservable<T, TChange = void> {
-	readonly TChange: TChange;
-
+export interface IObservable<T, TChange = unknown> {
 	/**
-	 * Reads the current value.
+	 * Returns the current value.
 	 *
-	 * Must not be called from {@link IObserver.handleChange}.
+	 * Calls {@link IObserver.handleChange} if the observable notices that the value changed.
+	 * Must not be called from {@link IObserver.handleChange}!
 	 */
 	get(): T;
 
 	/**
-	 * Adds an observer.
+	 * Forces the observable to check for and report changes.
+	 *
+	 * Has the same effect as calling {@link IObservable.get}, but does not force the observable
+	 * to actually construct the value, e.g. if change deltas are used.
+	 * Calls {@link IObserver.handleChange} if the observable notices that the value changed.
+	 * Must not be called from {@link IObserver.handleChange}!
+	 */
+	reportChanges(): void;
+
+	/**
+	 * Adds the observer to the set of subscribed observers.
+	 * This method is idempotent.
 	 */
 	addObserver(observer: IObserver): void;
+
+	/**
+	 * Removes the observer from the set of subscribed observers.
+	 * This method is idempotent.
+	 */
 	removeObserver(observer: IObserver): void;
 
 	/**
-	 * Subscribes the reader to this observable and returns the current value of this observable.
+	 * Reads the current value and subscribes to this observable.
+	 *
+	 * Just calls {@link IReader.readObservable} if a reader is given, otherwise {@link IObservable.get}
+	 * (see {@link ConvenientObservable.read}).
 	 */
-	read(reader: IReader): T;
+	read(reader: IReader | undefined): T;
 
-	map<TNew>(fn: (value: T) => TNew): IObservable<TNew>;
+	/**
+	 * Creates a derived observable that depends on this observable.
+	 * Use the reader to read other observables
+	 * (see {@link ConvenientObservable.map}).
+	 */
+	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 
+	/**
+	 * A human-readable name for debugging purposes.
+	 */
 	readonly debugName: string;
+
+	/**
+	 * This property captures the type of the change object. Do not use it at runtime!
+	 */
+	readonly TChange: TChange;
 }
 
 export interface IReader {
 	/**
-	 * Reports an observable that was read.
-	 *
-	 * Is called by {@link IObservable.read}.
+	 * Reads the value of an observable and subscribes to it.
 	 */
-	subscribeTo<T>(observable: IObservable<T, any>): void;
+	readObservable<T>(observable: IObservable<T, any>): T;
 }
 
+/**
+ * Represents an observer that can be subscribed to an observable.
+ *
+ * If an observer is subscribed to an observable and that observable didn't signal
+ * a change through one of the observer methods, the observer can assume that the
+ * observable didn't change.
+ * If an observable reported a possible change, {@link IObservable.reportChanges} forces
+ * the observable to report an actual change if there was one.
+ */
 export interface IObserver {
 	/**
-	 * Indicates that an update operation is about to begin.
+	 * Signals that the given observable might have changed and a transaction potentially modifying that observable started.
+	 * Before the given observable can call this method again, is must call {@link IObserver.endUpdate}.
 	 *
-	 * During an update, invariants might not hold for subscribed observables and
-	 * change events might be delayed.
-	 * However, all changes must be reported before all update operations are over.
+	 * The method {@link IObservable.reportChanges} can be used to force the observable to report the changes.
 	 */
 	beginUpdate<T>(observable: IObservable<T>): void;
 
 	/**
-	 * Is called by a subscribed observable immediately after it notices a change.
-	 *
-	 * When {@link IObservable.get} returns and no change has been reported,
-	 * there has been no change for that observable.
-	 *
-	 * Implementations must not call into other observables!
-	 * The change should be processed when {@link IObserver.endUpdate} is called.
-	 */
-	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void;
-
-	/**
-	 * Indicates that an update operation has completed.
+	 * Signals that the transaction that potentially modified the given observable ended.
 	 */
 	endUpdate<T>(observable: IObservable<T>): void;
+
+	/**
+	 * Signals that the given observable might have changed.
+	 * The method {@link IObservable.reportChanges} can be used to force the observable to report the changes.
+	 *
+	 * Implementations must not call into other observables, as they might not have received this event yet!
+	 * The change should be processed lazily or in {@link IObserver.endUpdate}.
+	 */
+	handlePossibleChange<T>(observable: IObservable<T>): void;
+
+	/**
+	 * Signals that the given observable changed.
+	 *
+	 * Implementations must not call into other observables, as they might not have received this event yet!
+	 * The change should be processed lazily or in {@link IObserver.endUpdate}.
+	 */
+	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void;
 }
 
 export interface ISettable<T, TChange = void> {
@@ -74,13 +118,10 @@ export interface ISettable<T, TChange = void> {
 
 export interface ITransaction {
 	/**
-	 * Calls `Observer.beginUpdate` immediately
-	 * and `Observer.endUpdate` when the transaction is complete.
+	 * Calls {@link Observer.beginUpdate} immediately
+	 * and {@link Observer.endUpdate} when the transaction ends.
 	 */
-	updateObserver(
-		observer: IObserver,
-		observable: IObservable<any, any>
-	): void;
+	updateObserver(observer: IObserver, observable: IObservable<any, any>): void;
 }
 
 let _derived: typeof derived;
@@ -96,23 +137,31 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	get TChange(): TChange { return null!; }
 
 	public abstract get(): T;
+
+	public reportChanges(): void {
+		this.get();
+	}
+
 	public abstract addObserver(observer: IObserver): void;
 	public abstract removeObserver(observer: IObserver): void;
 
 	/** @sealed */
-	public read(reader: IReader): T {
-		reader.subscribeTo(this);
-		return this.get();
+	public read(reader: IReader | undefined): T {
+		if (reader) {
+			return reader.readObservable(this);
+		} else {
+			return this.get();
+		}
 	}
 
 	/** @sealed */
-	public map<TNew>(fn: (value: T) => TNew): IObservable<TNew> {
+	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew> {
 		return _derived(
 			() => {
 				const name = getFunctionName(fn);
 				return name !== undefined ? name : `${this.debugName} (mapped)`;
 			},
-			(reader) => fn(this.read(reader))
+			(reader) => fn(this.read(reader), reader)
 		);
 	}
 
@@ -154,15 +203,6 @@ export function transaction(fn: (tx: ITransaction) => void, getDebugName?: () =>
 	}
 }
 
-export function getFunctionName(fn: Function): string | undefined {
-	const fnSrc = fn.toString();
-	// Pattern: /** @description ... */
-	const regexp = /\/\*\*\s*@description\s*([^*]*)\*\//;
-	const match = regexp.exec(fnSrc);
-	const result = match ? match[1] : undefined;
-	return result?.trim();
-}
-
 export class TransactionImpl implements ITransaction {
 	private updatingObservers: { observer: IObserver; observable: IObservable<any> }[] | null = [];
 
@@ -175,10 +215,7 @@ export class TransactionImpl implements ITransaction {
 		return getFunctionName(this.fn);
 	}
 
-	public updateObserver(
-		observer: IObserver,
-		observable: IObservable<any>
-	): void {
+	public updateObserver(observer: IObserver, observable: IObservable<any>): void {
 		this.updatingObservers!.push({ observer, observable });
 		observer.beginUpdate(observable);
 	}
@@ -193,6 +230,15 @@ export class TransactionImpl implements ITransaction {
 	}
 }
 
+export function getFunctionName(fn: Function): string | undefined {
+	const fnSrc = fn.toString();
+	// Pattern: /** @description ... */
+	const regexp = /\/\*\*\s*@description\s*([^*]*)\*\//;
+	const match = regexp.exec(fnSrc);
+	const result = match ? match[1] : undefined;
+	return result?.trim();
+}
+
 export interface ISettableObservable<T, TChange = void> extends IObservable<T, TChange>, ISettable<T, TChange> {
 }
 
@@ -204,41 +250,66 @@ export class ObservableValue<T, TChange = void>
 	extends BaseObservable<T, TChange>
 	implements ISettableObservable<T, TChange>
 {
-	private value: T;
+	protected _value: T;
 
 	constructor(public readonly debugName: string, initialValue: T) {
 		super();
-		this.value = initialValue;
+		this._value = initialValue;
 	}
-
 	public get(): T {
-		return this.value;
+		return this._value;
 	}
 
 	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
-		if (this.value === value) {
+		if (this._value === value) {
 			return;
 		}
 
+		let _tx: TransactionImpl | undefined;
 		if (!tx) {
-			transaction((tx) => {
-				this.set(value, tx, change);
-			}, () => `Setting ${this.debugName}`);
-			return;
+			tx = _tx = new TransactionImpl(() => { }, () => `Setting ${this.debugName}`);
 		}
+		try {
+			const oldValue = this._value;
+			this._setValue(value);
+			getLogger()?.handleObservableChanged(this, { oldValue, newValue: value, change, didChange: true });
 
-		const oldValue = this.value;
-		this.value = value;
-		getLogger()?.handleObservableChanged(this, { oldValue, newValue: value, change, didChange: true });
-
-		for (const observer of this.observers) {
-			tx.updateObserver(observer, this);
-			observer.handleChange(this, change);
+			for (const observer of this.observers) {
+				tx.updateObserver(observer, this);
+				observer.handleChange(this, change);
+			}
+		} finally {
+			if (_tx) {
+				_tx.finish();
+			}
 		}
 	}
 
 	override toString(): string {
-		return `${this.debugName}: ${this.value}`;
+		return `${this.debugName}: ${this._value}`;
+	}
+
+	protected _setValue(newValue: T): void {
+		this._value = newValue;
 	}
 }
 
+export function disposableObservableValue<T extends IDisposable | undefined, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange> & IDisposable {
+	return new DisposableObservableValue(name, initialValue);
+}
+
+export class DisposableObservableValue<T extends IDisposable | undefined, TChange = void> extends ObservableValue<T, TChange> implements IDisposable {
+	protected override _setValue(newValue: T): void {
+		if (this._value === newValue) {
+			return;
+		}
+		if (this._value) {
+			this._value.dispose();
+		}
+		this._value = newValue;
+	}
+
+	public dispose(): void {
+		this._value?.dispose();
+	}
+}

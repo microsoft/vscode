@@ -183,6 +183,42 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
+export class VerifiedPublisherWidget extends ExtensionWidget {
+
+	private disposables = this._register(new DisposableStore());
+
+	constructor(
+		private container: HTMLElement,
+		private small: boolean,
+		@IOpenerService private readonly openerService: IOpenerService,
+	) {
+		super();
+		this.render();
+	}
+
+	render(): void {
+		reset(this.container);
+		this.disposables.clear();
+		if (!this.extension?.publisherDomain?.verified) {
+			return;
+		}
+
+		const publisherDomainLink = URI.parse(this.extension.publisherDomain.link);
+		const verifiedPublisher = append(this.container, $('span.extension-verified-publisher.clickable'));
+		append(verifiedPublisher, renderIcon(verifiedPublisherIcon));
+
+		if (!this.small) {
+			verifiedPublisher.tabIndex = 0;
+			verifiedPublisher.title = this.extension.publisherDomain.link;
+			verifiedPublisher.setAttribute('role', 'link');
+
+			append(verifiedPublisher, $('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
+			this.disposables.add(onClick(verifiedPublisher, () => this.openerService.open(publisherDomainLink)));
+		}
+
+	}
+}
+
 export class SponsorWidget extends ExtensionWidget {
 
 	private disposables = this._register(new DisposableStore());

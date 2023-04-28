@@ -260,6 +260,11 @@ export interface IWorkbenchConstructionOptions {
 	//#region Profile options
 
 	/**
+	 * Profile to use for the workbench.
+	 */
+	readonly profile?: { readonly name: string; readonly contents?: string | UriComponents };
+
+	/**
 	 * URI of the profile to preview.
 	 */
 	readonly profileToPreview?: UriComponents;
@@ -313,6 +318,11 @@ export interface IWorkbenchConstructionOptions {
 	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
+
+	/**
+	 *  Welcome view dialog on first launch. Can be dismissed by the user.
+	 */
+	readonly welcomeDialog?: IWelcomeDialog;
 
 	//#endregion
 
@@ -510,10 +520,10 @@ export interface IWelcomeBanner {
 	/**
 	 * Optional actions to appear as links after the welcome banner message.
 	 */
-	actions?: IWelcomeBannerAction[];
+	actions?: IWelcomeLinkAction[];
 }
 
-export interface IWelcomeBannerAction {
+export interface IWelcomeLinkAction {
 
 	/**
 	 * The link to open when clicking. Supports command invocation when
@@ -576,6 +586,35 @@ export interface IInitialColorTheme {
 	 * A list of workbench colors to apply initially.
 	 */
 	readonly colors?: { [colorId: string]: string };
+}
+
+export interface IWelcomeDialog {
+
+	/**
+	 * Unique identifier of the welcome dialog. The identifier will be used to determine
+	 * if the dialog has been previously displayed.
+	 */
+	id: string;
+
+	/**
+	 * Title of the welcome dialog.
+	 */
+	title: string;
+
+	/**
+	 * Button text of the welcome dialog.
+	 */
+	buttonText: string;
+
+	/**
+	 * Message text and icon for the welcome dialog.
+	 */
+	messages: { message: string; icon: string }[];
+
+	/**
+	 * Optional action to appear as links at the bottom of the welcome dialog.
+	 */
+	action?: IWelcomeLinkAction;
 }
 
 export interface IDefaultView {
@@ -675,7 +714,23 @@ export interface ISettingsSyncOptions {
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
-	enablementHandler?(enablement: boolean): void;
+	enablementHandler?(enablement: boolean, authenticationProvider: string): void;
+
+	/**
+	 * Authentication provider
+	 */
+	readonly authenticationProvider?: {
+		/**
+		 * Unique identifier of the authentication provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * Called when the user wants to signin to Settings Sync using the given authentication provider.
+		 * The returned promise should resolve to the authentication session id.
+		 */
+		signIn(): Promise<string>;
+	};
 }
 
 export interface IDevelopmentOptions {

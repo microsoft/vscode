@@ -38,6 +38,7 @@ export interface IExtensionRecommendationsService {
 	getWorkspaceRecommendations(): Promise<string[]>;
 	getKeymapRecommendations(): string[];
 	getLanguageRecommendations(): string[];
+	getRemoteRecommendations(): string[];
 }
 
 export type IgnoredRecommendationChangeNotification = {
