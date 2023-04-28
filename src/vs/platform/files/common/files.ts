@@ -125,6 +125,7 @@ export interface IFileService {
 	resolveAll(toResolve: { resource: URI; options: IResolveMetadataFileOptions }[]): Promise<IFileStatResult[]>;
 	resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]>;
 
+	setReadonlyQueryFn(fn: (fileStat: IFileStat) => boolean | undefined): void;
 	/**
 	 * Same as `resolve()` but without resolving the children of a folder if the
 	 * resource is pointing to a folder.
@@ -1042,6 +1043,11 @@ export interface IFileStat extends IBaseFileStat {
 	 * The children of the file stat or undefined if none.
 	 */
 	children: IFileStat[] | undefined;
+
+	/**
+	 * Determine if this resource is currently readonly.
+	 */
+	isReadonly?: () => boolean | undefined;
 }
 
 export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetadata {

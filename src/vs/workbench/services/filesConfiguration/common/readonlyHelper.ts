@@ -20,11 +20,20 @@ class Keys {
 }
 
 export class ReadonlyHelper extends Disposable {
+	/** singleton ReadonlyHelper for isGlobReadonly(resource) queries from FileService. */
+	static fileServiceHelper: ReadonlyHelper;
+
 	private readonly disposables = new DisposableStore();
 
 	private getGlobs(key: string, root?: URI) {
 		return this.configurationService.getValue<{ [glob: string]: boolean }>(key);
 	}
+
+	// slightly suboptimal:
+	// we need only a singleton RGM for each of the Keys, so RGM is notified once when a setting changes.
+	// if single RGM could emit onExpressionChange to *all* the RH listeners, that would be marginally better.
+	// someone would need to manage the list of active RH listeners... as it is, Editor create/delete just does it.
+	// TODO: find out how to subscribe/unsubscribe to the RGM event/emitter
 
 	private makeRGM(key: string, onChanged: () => void, contextService: IWorkspaceContextService, configurationService: IConfigurationService) {
 		const rgm = new ResourceGlobMatcher(
@@ -50,8 +59,11 @@ export class ReadonlyHelper extends Disposable {
 		this.includeMatcher = this.makeRGM(Keys.include, () => this.include_exclude_GlobsChanged(), contextService, configurationService);
 		this.excludeMatcher = this.makeRGM(Keys.exclude, () => this.include_exclude_GlobsChanged(), contextService, configurationService);
 		this.exactPathMatcher = this.makeRGM(Keys.path, () => this.pathGlobChanged(), contextService, configurationService);
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
-		this.setGlobReadonly(this.resource);    // and then track with onDidChangeConfiguration()
+		this._register(configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
+		this.globReadonly = this.isGlobReadonly(resource);    // and then track with onDidChangeConfiguration()
+		if (!ReadonlyHelper.fileServiceHelper && resource.scheme !== 'null') {
+			ReadonlyHelper.fileServiceHelper = new FilesServiceReadonlyHelper(fileService, contextService, configurationService);
+		}
 	}
 
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
@@ -71,15 +83,15 @@ export class ReadonlyHelper extends Disposable {
 	}
 
 	/** if the resource is matched by either set of Globs, that determines isReadonly() */
-	private setGlobReadonly(resource: URI) {
+	isGlobReadonly(resource: URI) {
 		const isInclude = this.includeMatcher.matches(resource);
 		const isExclude = this.excludeMatcher.matches(resource);
 		const isSpecified = isInclude || isExclude;
-		this.globReadonly = isSpecified ? isInclude && !isExclude : null;
+		return isSpecified ? isInclude && !isExclude : null;
 	}
 
-	private include_exclude_GlobsChanged() {
-		this.setGlobReadonly(this.resource);
+	protected include_exclude_GlobsChanged() {
+		this.globReadonly = this.isGlobReadonly(this.resource);
 		this.isReadonly(); // fire event if/when onDidChangeReadonly
 	}
 
@@ -87,7 +99,7 @@ export class ReadonlyHelper extends Disposable {
 	 * Exact path can specify: true, false, toggle [flip] or null [ignore].
 	 * Used by interactive command/keybinding to set, clear or toggle isReadonly.
 	 */
-	pathGlobChanged() {
+	protected pathGlobChanged() {
 		const readonlyPath = this.configurationService.getValue<{ [glob: string]: boolean | null | 'toggle' }>(Keys.path);
 		if (readonlyPath !== undefined) {
 			const pathValue = readonlyPath[this.resource.path]; // specifically *this* path. NOT in other workspaces...
@@ -131,4 +143,23 @@ export class ReadonlyHelper extends Disposable {
 				this.globReadonly !== null ? !!this.globReadonly :
 					!this.ignoreReadonlyStat ? (this.lastResolvedFileStat?.readonly || false) : false);
 	}
+}
+
+/** ReadonlyHelper without a resource; handles isGlobReadonly(resource) queries from FileService. */
+class FilesServiceReadonlyHelper extends ReadonlyHelper {
+	// TODO: make this the base class of ReadonlyHelper, without this.resource: URI & associated methods.
+	constructor(
+		fileService: IFileService,
+		contextService: IWorkspaceContextService,
+		configurationService: IConfigurationService,
+	) {
+		super(URI.parse('null://do_not_use'), new Emitter(), fileService, contextService, configurationService);
+		fileService.setReadonlyQueryFn((fileStat) => {
+			const rv = this.isGlobReadonly(fileStat.resource);
+			return rv === null ? fileStat.readonly : rv;
+		});
+	}
+	protected override include_exclude_GlobsChanged(): void { }
+	protected override pathGlobChanged(): void { }
+	override isReadonly(): boolean { return false; }
 }

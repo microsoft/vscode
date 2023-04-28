@@ -233,6 +233,11 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
+	private readonlyQueryFn: (fileStat: IFileStat) => boolean | undefined = (fileStat) => fileStat.readonly;
+	setReadonlyQueryFn(queryFn: (fileStat: IFileStat) => boolean | undefined) {
+		this.readonlyQueryFn = queryFn;
+	}
+
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat>;
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, resolveMetadata: true, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStatWithMetadata>;
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
@@ -252,6 +257,7 @@ export class FileService extends Disposable implements IFileService {
 			etag: etag({ mtime: stat.mtime, size: stat.size }),
 			children: undefined
 		};
+		fileStat.isReadonly = () => (this.readonlyQueryFn && this.readonlyQueryFn(fileStat));
 
 		// check to recurse for directories
 		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
