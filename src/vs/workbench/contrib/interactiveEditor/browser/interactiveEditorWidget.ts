@@ -28,7 +28,7 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IPosition } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TextEdit } from 'vs/editor/common/languages';
@@ -287,27 +287,21 @@ class InteractiveEditorWidget {
 		}
 	}
 
-	getInput(placeholder: string, value: string, token: CancellationToken, ops?: { inputValue: string; position: Position }): Promise<string | undefined> {
-
-		console.log('Inside of getInput');
-		console.log('placeholder : ', placeholder);
-		console.log('value : ', value);
+	getInput(placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean = false): Promise<string | undefined> {
 
 		this._elements.placeholder.innerText = placeholder;
 		this._elements.placeholder.style.fontSize = `${this.inputEditor.getOption(EditorOption.fontSize)}px`;
 		this._elements.placeholder.style.lineHeight = `${this.inputEditor.getOption(EditorOption.lineHeight)}px`;
 
-		const fullRange = this._inputModel.getFullModelRange();
-		if (typeof ops === 'undefined') {
-			this._inputModel.setValue(value);
-			this.inputEditor.setSelection(fullRange);
-		} else {
-			console.log('ops.inputValue : ', ops.inputValue);
-			console.log('ops.position : ', ops.position);
-			this._inputModel.setValue(ops.inputValue);
-			this.inputEditor.setPosition(ops.position);
-		}
+		const currentInputEditorValue = this.inputEditor.getValue();
+		this._inputModel.setValue(requestCancelledOnModelContentChanged ? currentInputEditorValue : value);
 
+		if (requestCancelledOnModelContentChanged) {
+			// const position = this.inputEditor.
+			// this.inputEditor.setPosition(new Position(fullInputModelRange.endLineNumber, fullInputModelRange.endColumn));
+		} else {
+			this.inputEditor.setSelection(this._inputModel.getFullModelRange());
+		}
 		this.inputEditor.updateOptions({ ariaLabel: localize('aria-label.N', "Interactive Editor Input: {0}", placeholder) });
 
 		const disposeOnDone = new DisposableStore();
@@ -322,8 +316,6 @@ class InteractiveEditorWidget {
 		return new Promise<string | undefined>(resolve => {
 
 			this._cancelInput = () => {
-				console.log('Inside of _cancelInput');
-
 				this.acceptInput = InteractiveEditorWidget._noop;
 				this._cancelInput = InteractiveEditorWidget._noop;
 				resolve(undefined);
@@ -331,11 +323,7 @@ class InteractiveEditorWidget {
 			};
 
 			this.acceptInput = () => {
-				console.log('Inside of acceptInput');
-
 				const newValue = this.inputEditor.getModel()!.getValue();
-				console.log('newValue : ', newValue);
-
 				if (newValue.trim().length === 0) {
 					// empty or whitespace only
 					this._cancelInput();
@@ -376,8 +364,6 @@ class InteractiveEditorWidget {
 			this.focus();
 
 		}).finally(() => {
-			console.log('Inside of finally');
-
 			disposeOnDone.dispose();
 
 			ctxInnerCursorFirst.reset();
@@ -585,13 +571,12 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken, ops?: { inputValue: string; position: Position }): Promise<string | undefined> {
-		console.log('Inside of async get inoput');
+	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean = false): Promise<string | undefined> {
 		assertType(this.editor.hasModel());
 		super.show(where, this._computeHeightInLines());
 		this._ctxVisible.set(true);
 
-		const task = this.widget.getInput(placeholder, value, token, ops);
+		const task = this.widget.getInput(placeholder, value, token, requestCancelledOnModelContentChanged);
 		const result = await task;
 		return result;
 	}
