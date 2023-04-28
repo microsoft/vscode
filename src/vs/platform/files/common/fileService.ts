@@ -233,8 +233,8 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private readonlyQueryFn: (readonly: boolean | undefined, resource: URI) => boolean | undefined = (readonly, resource) => readonly;
-	setReadonlyQueryFn(queryFn: (readonly: boolean | undefined, resource: URI) => boolean | undefined) {
+	private readonlyQueryFn: (readonly: boolean, resource: URI) => boolean = (readonly, resource) => readonly;
+	setReadonlyQueryFn(queryFn: (readonly: boolean, resource: URI) => boolean) {
 		this.readonlyQueryFn = queryFn;
 	}
 
@@ -243,7 +243,10 @@ export class FileService extends Disposable implements IFileService {
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 		const { providerExtUri } = this.getExtUri(provider);
 
-		const readonly = Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly);
+		// Initially assume writeable if Provider asserts FileWriteUnlock:
+		const readonly = Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly) ||
+			Boolean(provider.capabilities & FileSystemProviderCapabilities.FileWriteUnlock) ? false :
+			Boolean((stat.permissions ?? 0) & FilePermission.Readonly);
 		// convert to file stat
 		const fileStat: IFileStat = {
 			resource,
