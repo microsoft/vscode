@@ -22,6 +22,9 @@ export class ExtHostConsumerFileSystem extends CommonExtHostConsumerFileSystem {
 	) {
 		super(extHostRpc, fileSystemInfo);
 
+		// Register disk file system provider so that certain
+		// file operations can execute fast within the extension
+		// host without roundtripping.
 		this.addFileSystemProvider(Schemas.file, new DiskFileSystemProviderAdapter(logService));
 	}
 }
