@@ -327,6 +327,7 @@ CommandsRegistry.registerCommand({
 	},
 	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean; context?: IStringDictionary<any> }) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
 		try {
 			if (typeof arg === 'string') {
 				const [id, version] = getIdAndVersion(arg);
@@ -338,6 +339,10 @@ CommandsRegistry.registerCommand({
 						installGivenVersion: !!version,
 						context: options?.context
 					};
+					if (extension.gallery && extension.enablementState === EnablementState.DisabledByExtensionKind) {
+						await extensionManagementService.installFromGallery(extension.gallery, installOptions);
+						return;
+					}
 					if (version) {
 						await extensionsWorkbenchService.installVersion(extension, version, installOptions);
 					} else {
