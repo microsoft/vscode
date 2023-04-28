@@ -126,11 +126,18 @@ async function saveClientLogs(page: playwright.Page) {
 
 				cursor.onsuccess = () => {
 					if (cursor.result) {
-						items.set(cursor.result.key.toString(), textDecoder.decode(cursor.result.value));
+						const contents = textDecoder.decode(cursor.result.value);
+						if (contents.trim().length > 0) {
+							items.set(cursor.result.key.toString(), contents);
+						}
 						cursor.result.continue();
 					} else {
-						resolve(JSON.stringify(Array.from(items.entries()))); // reached end of table
+						resolve(JSON.stringify(Array.from(items.entries())));
 					}
+				};
+
+				cursor.onerror = () => {
+					reject(cursor.error);
 				};
 			};
 
@@ -140,29 +147,11 @@ async function saveClientLogs(page: playwright.Page) {
 		});
 	});
 
-	const clientLogs = new Map<string, string>(JSON.parse(res));
-	for (const [logsPath, logsValue] of clientLogs) {
-		const segments = logsPath.split('/');
-		let currentLogsPath = logsRoot;
-		for (const segment of segments) {
-			const newLogsRoot = path.join(currentLogsPath, segment);
-			currentLogsPath = newLogsRoot;
+	for (const [relativeLogsPath, logsValue] of JSON.parse(res)) {
+		const absoluteLogsPath = path.join(logsRoot, relativeLogsPath);
 
-			if (currentLogsPath === logsRoot) {
-				continue; // exists
-			}
-
-			if (currentLogsPath.endsWith('.log')) {
-				await fs.promises.writeFile(currentLogsPath, logsValue);
-				break;
-			} else {
-				try {
-					await fs.promises.mkdir(currentLogsPath);
-				} catch (error) {
-					// exists
-				}
-			}
-		}
+		await fs.promises.mkdir(path.dirname(absoluteLogsPath), { recursive: true });
+		await fs.promises.writeFile(absoluteLogsPath, logsValue);
 	}
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from '@playwright/test';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { promises } from 'fs';
 import { IWindowDriver } from './driver';
 import { PageFunction } from 'playwright-core/types/structs';
@@ -108,10 +108,18 @@ export class PlaywrightDriver {
 			// Ignore
 		}
 
-		// Web: exit via `close` method
+		// Web: Extract client logs
 		if (this.options.web) {
 			try {
 				await measureAndLog(() => this.saveWebClientLogs(), 'saveWebClientLogs()', this.options.logger);
+			} catch (error) {
+				this.options.logger.log(`Error saving web client logs (${error})`);
+			}
+		}
+
+		// Web: exit via `close` method
+		if (this.options.web) {
+			try {
 				await measureAndLog(() => this.application.close(), 'playwright.close()', this.options.logger);
 			} catch (error) {
 				this.options.logger.log(`Error closing appliction (${error})`);
@@ -130,66 +138,6 @@ export class PlaywrightDriver {
 		// Server: via `teardown`
 		if (this.serverProcess) {
 			await measureAndLog(() => teardown(this.serverProcess!, this.options.logger), 'teardown server process', this.options.logger);
-		}
-	}
-
-	private async saveWebClientLogs() {
-		const res: string = await this.page.evaluate(() => {
-			return new Promise((resolve, reject) => {
-				const request = window.indexedDB.open('vscode-web-db');
-				const textDecoder = new TextDecoder();
-
-				request.onsuccess = function () {
-					const db = this.result;
-					const transaction = db.transaction('vscode-logs-store', 'readonly');
-					const objectStore = transaction.objectStore('vscode-logs-store');
-
-					const items = new Map<string, string>();
-
-					const cursor = objectStore.openCursor();
-					if (!cursor) {
-						return resolve(JSON.stringify(Array.from(items.entries())));
-					}
-
-					cursor.onsuccess = () => {
-						if (cursor.result) {
-							items.set(cursor.result.key.toString(), textDecoder.decode(cursor.result.value));
-							cursor.result.continue();
-						} else {
-							resolve(JSON.stringify(Array.from(items.entries()))); // reached end of table
-						}
-					};
-				};
-
-				request.onerror = () => {
-					reject(request.error);
-				};
-			});
-		});
-
-		const clientLogs = new Map<string, string>(JSON.parse(res));
-		for (const [logsPath, logsValue] of clientLogs) {
-			const segments = logsPath.split('/');
-			let currentLogsPath = this.options.logsPath;
-			for (const segment of segments) {
-				const newLogsRoot = join(currentLogsPath, segment);
-				currentLogsPath = newLogsRoot;
-
-				if (currentLogsPath === this.options.logsPath) {
-					continue; // exists
-				}
-
-				if (currentLogsPath.endsWith('.log')) {
-					await promises.writeFile(currentLogsPath, logsValue);
-					break;
-				} else {
-					try {
-						await promises.mkdir(currentLogsPath);
-					} catch (error) {
-						// exists
-					}
-				}
-			}
 		}
 	}
 
@@ -278,5 +226,54 @@ export class PlaywrightDriver {
 
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
 		return this.page.evaluateHandle('window.driver');
+	}
+
+	private async saveWebClientLogs(): Promise<void> {
+		const res: string = await this.page.evaluate(() => {
+			return new Promise((resolve, reject) => {
+				const request = window.indexedDB.open('vscode-web-db');
+				const textDecoder = new TextDecoder();
+
+				request.onsuccess = function () {
+					const db = this.result;
+					const transaction = db.transaction('vscode-logs-store', 'readonly');
+					const objectStore = transaction.objectStore('vscode-logs-store');
+
+					const items = new Map<string, string>();
+
+					const cursor = objectStore.openCursor();
+					if (!cursor) {
+						return resolve(JSON.stringify(Array.from(items.entries())));
+					}
+
+					cursor.onsuccess = () => {
+						if (cursor.result) {
+							const contents = textDecoder.decode(cursor.result.value);
+							if (contents.trim().length > 0) {
+								items.set(cursor.result.key.toString(), contents);
+							}
+							cursor.result.continue();
+						} else {
+							resolve(JSON.stringify(Array.from(items.entries())));
+						}
+					};
+
+					cursor.onerror = () => {
+						reject(cursor.error);
+					};
+				};
+
+				request.onerror = () => {
+					reject(request.error);
+				};
+			});
+		});
+
+		for (const [relativeLogsPath, logsValue] of JSON.parse(res)) {
+			const absoluteLogsPath = join(this.options.logsPath, relativeLogsPath);
+
+			await promises.mkdir(dirname(absoluteLogsPath), { recursive: true });
+			await promises.writeFile(absoluteLogsPath, logsValue);
+		}
 	}
 }
