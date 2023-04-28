@@ -4511,10 +4511,6 @@ declare namespace monaco.editor {
 		 */
 		filterGraceful?: boolean;
 		/**
-		 * Prevent quick suggestions when a snippet is active. Defaults to true.
-		 */
-		snippetsPreventQuickSuggestions?: boolean;
-		/**
 		 * Favors words that appear close to the cursor.
 		 */
 		localityBonus?: boolean;
