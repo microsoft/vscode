@@ -161,7 +161,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	// IObserver Implementation
-	public beginUpdate(): void {
+	public beginUpdate<T>(_observable: IObservable<T>): void {
 		this.updateCount++;
 		const propagateBeginUpdate = this.updateCount === 1;
 		if (this.state === DerivedState.upToDate) {
@@ -180,7 +180,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		}
 	}
 
-	public endUpdate(): void {
+	public endUpdate<T>(_observable: IObservable<T>): void {
 		this.updateCount--;
 		if (this.updateCount === 0) {
 			// End update could change the observer list.
@@ -236,5 +236,19 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		this.dependencies.add(observable);
 		this.dependenciesToBeRemoved.delete(observable);
 		return value;
+	}
+
+	public override addObserver(observer: IObserver): void {
+		if (!this.observers.has(observer) && this.updateCount > 0) {
+			observer.beginUpdate(this);
+		}
+		super.addObserver(observer);
+	}
+
+	public override removeObserver(observer: IObserver): void {
+		if (this.observers.has(observer) && this.updateCount > 0) {
+			observer.endUpdate(this);
+		}
+		super.removeObserver(observer);
 	}
 }

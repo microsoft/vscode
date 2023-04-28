@@ -171,7 +171,6 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
 	protected readonly observers = new Set<IObserver>();
 
-	/** @sealed */
 	public addObserver(observer: IObserver): void {
 		const len = this.observers.size;
 		this.observers.add(observer);
@@ -180,7 +179,6 @@ export abstract class BaseObservable<T, TChange = void> extends ConvenientObserv
 		}
 	}
 
-	/** @sealed */
 	public removeObserver(observer: IObserver): void {
 		const deleted = this.observers.delete(observer);
 		if (deleted && this.observers.size === 0) {
