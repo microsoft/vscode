@@ -20,8 +20,7 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 suite('Workbench - Test Results Service', () => {
 	const getLabelsIn = (it: Iterable<TestResultItem>) => [...it].map(t => t.item.label).sort();
 	const getChangeSummary = () => [...changed]
-		.map(c => ({ reason: c.reason, label: c.item.item.label }))
-		.sort((a, b) => a.label.localeCompare(b.label));
+		.map(c => ({ reason: c.reason, label: c.item.item.label }));
 
 	let r: TestLiveTestResult;
 	let changed = new Set<TestResultItemChange>();
@@ -85,13 +84,8 @@ suite('Workbench - Test Results Service', () => {
 			).tests), []);
 		});
 
-		test('initially queues with update', () => {
-			assert.deepStrictEqual(getChangeSummary(), [
-				{ label: 'a', reason: TestResultItemChangeReason.ComputedStateChange },
-				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
-				{ label: 'ab', reason: TestResultItemChangeReason.OwnStateChange },
-				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
-			]);
+		test('initially queues nothing', () => {
+			assert.deepStrictEqual(getChangeSummary(), []);
 		});
 
 		test('initializes with the subtree of requested tests', () => {
@@ -101,8 +95,7 @@ suite('Workbench - Test Results Service', () => {
 		test('initializes with valid counts', () => {
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
-				[TestResultState.Queued]: 2,
-				[TestResultState.Unset]: 2,
+				[TestResultState.Unset]: 4,
 			});
 		});
 
@@ -126,9 +119,14 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a']).toString())?.tasks[0].state, TestResultState.Failed);
 			assert.deepStrictEqual(getChangeSummary(), [
 				{ label: 'a', reason: TestResultItemChangeReason.OwnStateChange },
+				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
 				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
 				{ label: 'ab', reason: TestResultItemChangeReason.OwnStateChange },
+
+				{ label: 'a', reason: TestResultItemChangeReason.OwnStateChange },
 				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
+				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
+				{ label: 'ab', reason: TestResultItemChangeReason.OwnStateChange },
 			]);
 		});
 
@@ -138,16 +136,15 @@ suite('Workbench - Test Results Service', () => {
 			r.updateState(testId, 't', TestResultState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
-				[TestResultState.Unset]: 2,
+				[TestResultState.Unset]: 3,
 				[TestResultState.Running]: 1,
-				[TestResultState.Queued]: 1,
 			});
 			assert.deepStrictEqual(r.getStateById(testId)?.ownComputedState, TestResultState.Running);
 			// update computed state:
 			assert.deepStrictEqual(r.getStateById(tests.root.id)?.computedState, TestResultState.Running);
 			assert.deepStrictEqual(getChangeSummary(), [
-				{ label: 'a', reason: TestResultItemChangeReason.ComputedStateChange },
 				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
+				{ label: 'a', reason: TestResultItemChangeReason.ComputedStateChange },
 				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
 			]);
 
@@ -166,8 +163,7 @@ suite('Workbench - Test Results Service', () => {
 			r.updateState(new TestId(['ctrlId', 'id-b']).toString(), 't', TestResultState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
-				[TestResultState.Queued]: 2,
-				[TestResultState.Unset]: 2,
+				[TestResultState.Unset]: 4,
 			});
 			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-b']).toString()), undefined);
 		});
