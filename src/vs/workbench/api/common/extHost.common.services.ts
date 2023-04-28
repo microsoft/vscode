@@ -18,6 +18,7 @@ import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHost
 import { IExtHostTunnelService, ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostApiDeprecationService, ExtHostApiDeprecationService, } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { IExtHostWindow, ExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
+import { IExtHostConsumerFileSystem, ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { IExtHostFileSystemInfo, ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostSecretState, ExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
 import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
@@ -32,6 +33,7 @@ registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delaye
 registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService, InstantiationType.Delayed);
 registerSingleton(IExtHostCommands, ExtHostCommands, InstantiationType.Eager);
 registerSingleton(IExtHostConfiguration, ExtHostConfiguration, InstantiationType.Eager);
+registerSingleton(IExtHostConsumerFileSystem, ExtHostConsumerFileSystem, InstantiationType.Eager);
 registerSingleton(IExtHostDebugService, WorkerExtHostDebugService, InstantiationType.Eager);
 registerSingleton(IExtHostDecorations, ExtHostDecorations, InstantiationType.Eager);
 registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors, InstantiationType.Eager);

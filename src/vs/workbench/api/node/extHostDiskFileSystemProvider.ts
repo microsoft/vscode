@@ -4,28 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { ExtHostConsumerFileSystem as CommonExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
+import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FileSystemProviderError } from 'vs/platform/files/common/files';
 import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 
-export class ExtHostConsumerFileSystem extends CommonExtHostConsumerFileSystem {
+export class ExtHostDiskFileSystemProvider {
 
 	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostFileSystemInfo fileSystemInfo: IExtHostFileSystemInfo,
+		@IExtHostConsumerFileSystem extHostConsumerFileSystem: IExtHostConsumerFileSystem,
 		@ILogService logService: ILogService
 	) {
-		super(extHostRpc, fileSystemInfo);
 
 		// Register disk file system provider so that certain
 		// file operations can execute fast within the extension
 		// host without roundtripping.
-		this.addFileSystemProvider(Schemas.file, new DiskFileSystemProviderAdapter(logService));
+		extHostConsumerFileSystem.addFileSystemProvider(Schemas.file, new DiskFileSystemProviderAdapter(logService));
 	}
 }
 

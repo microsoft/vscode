@@ -7,7 +7,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostConsumerFileSystem, ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { ExtensionStoragePaths, IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensionService';
@@ -21,4 +20,3 @@ import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensio
 registerSingleton(ILogService, new SyncDescriptor(ExtHostLogService, [true], true));
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
-registerSingleton(IExtHostConsumerFileSystem, ExtHostConsumerFileSystem, InstantiationType.Eager);
