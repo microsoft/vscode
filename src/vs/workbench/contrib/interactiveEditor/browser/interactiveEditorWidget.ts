@@ -151,6 +151,7 @@ class InteractiveEditorWidget {
 
 	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
+
 	private _inputValue: string | undefined;
 	private _placeholder: string | undefined;
 
@@ -202,16 +203,10 @@ class InteractiveEditorWidget {
 
 		const inputEditor = this._store.add(trackFocus(this.inputEditor.getDomNode()!));
 		this._store.add(inputEditor.onDidFocus(() => {
-			console.log('due to focus');
 			this.doAriaAlert(typeof this._inputValue !== 'undefined' ? this._inputValue : '');
 		}));
 		this._store.add(this.inputEditor.onDidChangeModelContent(() => {
-			console.log('insid of on did change model content');
-			if (typeof this._inputValue === 'undefined' && typeof this._placeholder === 'string') {
-				this._inputValue = this._placeholder;
-			} else {
-				this._inputValue = this.inputEditor.getValue();
-			}
+			this._inputValue = typeof this._inputValue === 'undefined' && typeof this._placeholder === 'string' ? this._placeholder : this.inputEditor.getValue();
 		}));
 		this._store.add(addDisposableListener(this._elements.placeholder, 'click', () => this.inputEditor.focus()));
 
@@ -302,7 +297,6 @@ class InteractiveEditorWidget {
 	getInput(placeholder: string, value: string, token: CancellationToken): Promise<string | undefined> {
 
 		this._placeholder = placeholder;
-
 		this._elements.placeholder.innerText = placeholder;
 		this._elements.placeholder.style.fontSize = `${this.inputEditor.getOption(EditorOption.fontSize)}px`;
 		this._elements.placeholder.style.lineHeight = `${this.inputEditor.getOption(EditorOption.lineHeight)}px`;
@@ -368,7 +362,6 @@ class InteractiveEditorWidget {
 			disposeOnDone.add(this.inputEditor.onDidBlurEditorWidget(updateFocused));
 			updateFocused();
 
-			console.log('right before calling focus from getInput');
 			this.focus();
 
 		}).finally(() => {
@@ -419,10 +412,7 @@ class InteractiveEditorWidget {
 	}
 
 	doAriaAlert(value: string) {
-		console.log('insider of doAriaAlert');
-		const alertMessage = 'Interactive Editor Input ' + value;
-		console.log('alertMessage: ' + alertMessage);
-		aria.alert(alertMessage);
+		aria.alert('Interactive Editor Input : ' + value);
 	}
 
 	reset() {
@@ -436,7 +426,6 @@ class InteractiveEditorWidget {
 	}
 
 	focus() {
-		console.log('calling focus on input editor');
 		this.inputEditor.focus();
 	}
 
