@@ -160,6 +160,14 @@ class InlineDiffDecorations {
 	}
 }
 
+export class SessionExchange {
+	constructor(readonly prompt: string, readonly response: MarkdownResponse | EditResponse) { }
+}
+
+export class MarkdownResponse {
+	constructor(readonly localUri: URI, readonly raw: IInteractiveEditorMessageResponse) { }
+}
+
 export class EditResponse {
 
 	readonly localEdits: TextEdit[] = [];
@@ -218,7 +226,7 @@ export class EditResponse {
 
 class Session {
 
-	private readonly _responses: (EditResponse | IInteractiveEditorMessageResponse)[] = [];
+	private readonly _exchange: SessionExchange[] = [];
 
 	readonly teldata: TelemetryData;
 
@@ -241,13 +249,13 @@ class Session {
 		};
 	}
 
-	addResponse(response: EditResponse | IInteractiveEditorMessageResponse): void {
-		const newLen = this._responses.push(response);
+	addExchange(exchange: SessionExchange): void {
+		const newLen = this._exchange.push(exchange);
 		this.teldata.rounds += `${newLen}|`;
 	}
 
-	get lastResponse(): EditResponse | IInteractiveEditorMessageResponse | undefined {
-		return this._responses[this._responses.length - 1];
+	get lastExchange(): SessionExchange | undefined {
+		return this._exchange[this._exchange.length - 1];
 	}
 }
 
@@ -571,12 +579,13 @@ export class InteractiveEditorController implements IEditorContribution {
 				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
 				this._zone.widget.updateStatus('');
 				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
-				this._currentSession.addResponse(reply);
+				const markdownResponse = new MarkdownResponse(textModel.uri, reply);
+				this._currentSession.addExchange(new SessionExchange(value, markdownResponse));
 				continue;
 			}
 
 			const editResponse = new EditResponse(textModel.uri, reply);
-			this._currentSession.addResponse(editResponse);
+			this._currentSession.addExchange(new SessionExchange(value, editResponse));
 
 			const canContinue = this._strategy.update(editResponse);
 			if (!canContinue) {
@@ -783,29 +792,28 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	undoLast(): string | void {
-		if (this._currentSession?.lastResponse instanceof EditResponse) {
+		if (this._currentSession?.lastExchange?.response instanceof EditResponse) {
 			this._currentSession.modelN.undo();
-			return this._currentSession.lastResponse.localEdits[0].text;
+			return this._currentSession.lastExchange.response.localEdits[0].text;
 		}
 	}
 
 	feedbackLast(helpful: boolean) {
-		if (this._currentSession?.lastResponse) {
+		if (this._currentSession?.lastExchange?.response) {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
-			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastResponse instanceof EditResponse ? this._currentSession.lastResponse.raw : this._currentSession.lastResponse, kind);
+			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastExchange.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
 			this._zone.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
 	async applyChanges(): Promise<EditResponse | void> {
-		if (this._currentSession?.lastResponse instanceof EditResponse && this._strategy) {
-			const { lastResponse } = this._currentSession;
+		if (this._currentSession?.lastExchange?.response instanceof EditResponse && this._strategy) {
 			const strategy = this._strategy;
 			this._strategy = undefined;
 			await strategy?.apply();
 			this._ctsSession.cancel();
-			return lastResponse;
+			return this._currentSession.lastExchange.response;
 		}
 	}
 
@@ -854,21 +862,20 @@ class PreviewStrategy extends EditModeStrategy {
 
 	async apply() {
 
-		const response = this._session.lastResponse;
-		if (!(response instanceof EditResponse)) {
+		if (!(this._session.lastExchange?.response instanceof EditResponse)) {
 			return;
 		}
+		const editResponse = this._session.lastExchange?.response;
+		if (editResponse.workspaceEdits) {
+			await this._bulkEditService.apply(editResponse.workspaceEdits);
 
-		if (response.workspaceEdits) {
-			await this._bulkEditService.apply(response.workspaceEdits);
-
-		} else if (!response.workspaceEditsIncludeLocalEdits) {
+		} else if (!editResponse.workspaceEditsIncludeLocalEdits) {
 
 			const { modelN } = this._session;
 
 			if (modelN.equalsTextBuffer(this._session.model0.getTextBuffer())) {
 				modelN.pushStackElement();
-				const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+				const edits = editResponse.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
 				modelN.pushEditOperations(null, edits, () => null);
 				modelN.pushStackElement();
 			}
