@@ -16,7 +16,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
 import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ITextModel } from 'vs/editor/common/model';
-import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
+import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset, trackFocus } from 'vs/base/browser/dom';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -38,6 +38,7 @@ import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IAction } from 'vs/base/common/actions';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -150,6 +151,8 @@ class InteractiveEditorWidget {
 
 	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
+	private _inputValue: string | undefined;
+	private _placeholder: string | undefined;
 
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
@@ -197,6 +200,19 @@ class InteractiveEditorWidget {
 		this._store.add(this._inputModel.onDidChangeContent(togglePlaceholder));
 		togglePlaceholder();
 
+		const inputEditor = this._store.add(trackFocus(this.inputEditor.getDomNode()!));
+		this._store.add(inputEditor.onDidFocus(() => {
+			console.log('due to focus');
+			this.doAriaAlert(typeof this._inputValue !== 'undefined' ? this._inputValue : '');
+		}));
+		this._store.add(this.inputEditor.onDidChangeModelContent(() => {
+			console.log('insid of on did change model content');
+			if (typeof this._inputValue === 'undefined' && typeof this._placeholder === 'string') {
+				this._inputValue = this._placeholder;
+			} else {
+				this._inputValue = this.inputEditor.getValue();
+			}
+		}));
 		this._store.add(addDisposableListener(this._elements.placeholder, 'click', () => this.inputEditor.focus()));
 
 
@@ -285,6 +301,8 @@ class InteractiveEditorWidget {
 
 	getInput(placeholder: string, value: string, token: CancellationToken): Promise<string | undefined> {
 
+		this._placeholder = placeholder;
+
 		this._elements.placeholder.innerText = placeholder;
 		this._elements.placeholder.style.fontSize = `${this.inputEditor.getOption(EditorOption.fontSize)}px`;
 		this._elements.placeholder.style.lineHeight = `${this.inputEditor.getOption(EditorOption.lineHeight)}px`;
@@ -350,6 +368,13 @@ class InteractiveEditorWidget {
 			disposeOnDone.add(this.inputEditor.onDidBlurEditorWidget(updateFocused));
 			updateFocused();
 
+			// console.log('this._inputValue : ', this._inputValue);
+			// if (typeof this._inputValue === 'undefined') {
+			// 	this._inputValue = placeholder;
+			// 	console.log('this._inputValue : ', this._inputValue);
+			// }
+
+			console.log('right before calling focus from getInput');
 			this.focus();
 
 		}).finally(() => {
@@ -399,6 +424,13 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
+	doAriaAlert(value: string) {
+		console.log('insider of doAriaAlert');
+		const alertMessage = 'Interactive Editor Input ' + value;
+		console.log('alertMessage: ' + alertMessage);
+		aria.alert(alertMessage);
+	}
+
 	reset() {
 		this._ctxInputEmpty.reset();
 		reset(this._elements.statusLabel);
@@ -410,6 +442,7 @@ class InteractiveEditorWidget {
 	}
 
 	focus() {
+		console.log('calling focus on input editor');
 		this.inputEditor.focus();
 	}
 

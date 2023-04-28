@@ -50,6 +50,7 @@ export function alert(msg: string): void {
 	if (!ariaContainer) {
 		return;
 	}
+	console.log('msg : ', msg);
 
 	// Use alternate containers such that duplicated messages get read out by screen readers #99466
 	if (alertContainer.textContent !== msg) {
@@ -83,6 +84,9 @@ export function status(msg: string): void {
 }
 
 function insertMessage(target: HTMLElement, msg: string): void {
+
+	console.log('msg : ', msg);
+
 	dom.clearNode(target);
 	if (msg.length > MAX_MESSAGE_LENGTH) {
 		msg = msg.substr(0, MAX_MESSAGE_LENGTH);
