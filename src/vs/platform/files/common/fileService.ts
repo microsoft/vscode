@@ -233,8 +233,8 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
-	private readonlyQueryFn: (fileStat: IFileStat) => boolean | undefined = (fileStat) => fileStat.readonly;
-	setReadonlyQueryFn(queryFn: (fileStat: IFileStat) => boolean | undefined) {
+	private readonlyQueryFn: (readonly: boolean | undefined, resource: URI) => boolean | undefined = (readonly, resource) => readonly;
+	setReadonlyQueryFn(queryFn: (readonly: boolean | undefined, resource: URI) => boolean | undefined) {
 		this.readonlyQueryFn = queryFn;
 	}
 
@@ -243,6 +243,7 @@ export class FileService extends Disposable implements IFileService {
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 		const { providerExtUri } = this.getExtUri(provider);
 
+		const readonly = Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly);
 		// convert to file stat
 		const fileStat: IFileStat = {
 			resource,
@@ -253,11 +254,10 @@ export class FileService extends Disposable implements IFileService {
 			mtime: stat.mtime,
 			ctime: stat.ctime,
 			size: stat.size,
-			readonly: Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly),
+			readonly: this.readonlyQueryFn(readonly, resource),
 			etag: etag({ mtime: stat.mtime, size: stat.size }),
 			children: undefined
 		};
-		fileStat.isReadonly = () => (this.readonlyQueryFn && this.readonlyQueryFn(fileStat));
 
 		// check to recurse for directories
 		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
