@@ -245,7 +245,6 @@ export class FileService extends Disposable implements IFileService {
 
 		// Initially assume writeable if Provider asserts FileWriteUnlock:
 		const readonly = Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly) ||
-			Boolean(provider.capabilities & FileSystemProviderCapabilities.FileWriteUnlock) ? false :
 			Boolean((stat.permissions ?? 0) & FilePermission.Readonly);
 		// convert to file stat
 		const fileStat: IFileStat = {

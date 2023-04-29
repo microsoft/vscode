@@ -62,7 +62,7 @@ export class ReadonlyHelper extends Disposable implements IReadonlyHelper {
 		}
 		fileService.setReadonlyQueryFn((statReadonly, resource) => {
 			const globReadonly = this.isGlobReadonly(resource);
-			return globReadonly === null ? statReadonly : globReadonly;
+			return globReadonly !== null ? globReadonly : this.ignoreReadonlyStat ? false : statReadonly;
 		});
 
 		this._register(configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
@@ -85,9 +85,11 @@ export class ReadonlyHelper extends Disposable implements IReadonlyHelper {
 		return isSpecified ? (isInclude && !isExclude) : null;
 	}
 }
+
 export interface IReadonlyHelper {
 	isGlobReadonly(resource: URI): boolean | null;
 }
+
 export const IReadonlyHelper = createDecorator<IReadonlyHelper>('readonlyHelper');
 
 registerSingleton(IReadonlyHelper, ReadonlyHelper, InstantiationType.Delayed);
