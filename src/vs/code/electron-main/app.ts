@@ -117,6 +117,7 @@ import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
 import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { isRosettaTranslated, ProcTranslated } from 'vs/code/node/rosetta';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1216,6 +1217,11 @@ export class CodeApplication extends Disposable {
 
 		// Crash reporter
 		this.updateCrashReporterEnablement();
+
+		if (isMacintosh && isRosettaTranslated() === ProcTranslated.Translated) {
+			this.windowsMainService?.sendToFocused('vscode:showInfoMessage', localize("runningUnderRosetta", "You are running a non native build for Apple Silicon!"));
+		}
+
 	}
 
 	private async installMutex(): Promise<void> {
