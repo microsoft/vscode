@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -272,12 +272,13 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	// This is important because we want to ensure that we only
 	// forward events from the watched paths for this session and
 	// not other clients that asked to watch other paths.
-	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService, { watcher: { recursive: this.getRecursiveWatcherOptions(this.environmentService) } }));
+	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService, this.loggerService, { watcher: { recursive: this.getRecursiveWatcherOptions(this.environmentService) } }));
 
 	constructor(
 		private readonly uriTransformer: IURITransformer,
 		sessionEmitter: Emitter<IFileChange[] | string>,
 		private readonly logService: ILogService,
+		private readonly loggerService: ILoggerService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();

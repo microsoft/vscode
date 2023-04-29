@@ -7,7 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IFileChange } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -22,9 +22,10 @@ export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystem
 
 	constructor(
 		logService: ILogService,
+		private readonly loggerService: ILoggerService,
 		private readonly environmentService: IServerEnvironmentService
 	) {
-		super(new DiskFileSystemProvider(logService), logService);
+		super(new DiskFileSystemProvider(logService, loggerService), logService);
 
 		this._register(this.provider);
 	}
@@ -52,7 +53,7 @@ export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystem
 	//#region File Watching
 
 	protected createSessionFileWatcher(uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>): ISessionFileWatcher {
-		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.environmentService);
+		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.loggerService, this.environmentService);
 	}
 
 	//#endregion
@@ -64,9 +65,10 @@ class SessionFileWatcher extends AbstractSessionFileWatcher {
 		uriTransformer: IURITransformer,
 		sessionEmitter: Emitter<IFileChange[] | string>,
 		logService: ILogService,
+		loggerService: ILoggerService,
 		environmentService: IServerEnvironmentService
 	) {
-		super(uriTransformer, sessionEmitter, logService, environmentService);
+		super(uriTransformer, sessionEmitter, logService, loggerService, environmentService);
 	}
 
 	protected override getRecursiveWatcherOptions(environmentService: IServerEnvironmentService): IRecursiveWatcherOptions | undefined {

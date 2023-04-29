@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { IDiskFileChange, ILogMessage, AbstractUniversalWatcherClient } from 'vs/platform/files/common/watcher';
 import { UniversalWatcherClient } from 'vs/workbench/services/files/electron-sandbox/watcherClient';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 
 /**
@@ -35,9 +35,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	constructor(
 		private readonly mainProcessService: IMainProcessService,
 		private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
-		logService: ILogService
+		logService: ILogService,
+		loggerService: ILoggerService
 	) {
-		super(logService, { watcher: { forceUniversal: true /* send all requests to universal watcher process */ } });
+		super(logService, loggerService, { watcher: { forceUniversal: true /* send all requests to universal watcher process */ } });
 
 		this.registerListeners();
 	}

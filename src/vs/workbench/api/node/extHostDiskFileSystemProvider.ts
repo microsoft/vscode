@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { Schemas } from 'vs/base/common/network';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FileSystemProviderError } from 'vs/platform/files/common/files';
 import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
@@ -15,21 +15,25 @@ export class ExtHostDiskFileSystemProvider {
 
 	constructor(
 		@IExtHostConsumerFileSystem extHostConsumerFileSystem: IExtHostConsumerFileSystem,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@ILoggerService loggerService: ILoggerService
 	) {
 
 		// Register disk file system provider so that certain
 		// file operations can execute fast within the extension
 		// host without roundtripping.
-		extHostConsumerFileSystem.addFileSystemProvider(Schemas.file, new DiskFileSystemProviderAdapter(logService));
+		extHostConsumerFileSystem.addFileSystemProvider(Schemas.file, new DiskFileSystemProviderAdapter(logService, loggerService));
 	}
 }
 
 class DiskFileSystemProviderAdapter implements vscode.FileSystemProvider {
 
-	private readonly impl = new DiskFileSystemProvider(this.logService);
+	private readonly impl = new DiskFileSystemProvider(this.logService, this.loggerService);
 
-	constructor(private readonly logService: ILogService) { }
+	constructor(
+		private readonly logService: ILogService,
+		private readonly loggerService: ILoggerService
+	) { }
 
 	async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
 		try {

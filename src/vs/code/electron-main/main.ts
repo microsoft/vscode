@@ -175,7 +175,7 @@ class CodeMain {
 		// Files
 		const fileService = new FileService(logService);
 		services.set(IFileService, fileService);
-		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		const diskFileSystemProvider = new DiskFileSystemProvider(logService, loggerService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// URI Identity

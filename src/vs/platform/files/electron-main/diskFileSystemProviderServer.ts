@@ -12,7 +12,7 @@ import { IFileDeleteOptions, IFileChange, IWatchOptions, createFileSystemProvide
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { basename, normalize } from 'vs/base/common/path';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProviderChannel, AbstractSessionFileWatcher, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
 import { DefaultURITransformer, IURITransformer } from 'vs/base/common/uriIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -22,6 +22,7 @@ export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProvide
 	constructor(
 		provider: DiskFileSystemProvider,
 		logService: ILogService,
+		private readonly loggerService: ILoggerService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super(provider, logService);
@@ -56,7 +57,7 @@ export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProvide
 	//#region File Watching
 
 	protected createSessionFileWatcher(uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>): ISessionFileWatcher {
-		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.environmentService);
+		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.loggerService, this.environmentService);
 	}
 
 	//#endregion

@@ -10,7 +10,7 @@ import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { NullLoggerService, NullLogService } from 'vs/platform/log/common/log';
 
 suite('Checksum Service', () => {
 
@@ -21,7 +21,7 @@ suite('Checksum Service', () => {
 		const logService = new NullLogService();
 		fileService = new FileService(logService);
 
-		diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		diskFileSystemProvider = new DiskFileSystemProvider(logService, new NullLoggerService());
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 	});
 

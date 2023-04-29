@@ -10,7 +10,7 @@ import { TokenStyle, getTokenClassificationRegistry } from 'vs/platform/theme/co
 import { Color } from 'vs/base/common/color';
 import { isString } from 'vs/base/common/types';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService, NullLoggerService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { ExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoaderService';
@@ -90,7 +90,7 @@ suite('Themes - TokenStyleResolving', () => {
 
 	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService, storageService, TestProductService, environmentService, configurationService, requestService);
 
-	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
+	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService(), new NullLoggerService());
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 	teardown(() => {

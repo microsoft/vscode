@@ -19,7 +19,7 @@ import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { NullLoggerService, NullLogService } from 'vs/platform/log/common/log';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
@@ -147,11 +147,11 @@ flakySuite('Disk File Service', function () {
 		service = new FileService(logService);
 		disposables.add(service);
 
-		fileProvider = new TestDiskFileSystemProvider(logService);
+		fileProvider = new TestDiskFileSystemProvider(logService, new NullLoggerService());
 		disposables.add(service.registerProvider(Schemas.file, fileProvider));
 		disposables.add(fileProvider);
 
-		testProvider = new TestDiskFileSystemProvider(logService);
+		testProvider = new TestDiskFileSystemProvider(logService, new NullLoggerService());
 		disposables.add(service.registerProvider(testSchema, testProvider));
 		disposables.add(testProvider);
 

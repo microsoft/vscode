@@ -119,7 +119,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	// Files
 	const fileService = disposables.add(new FileService(logService));
 	services.set(IFileService, fileService);
-	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService)));
+	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService, loggerService)));
 
 	// URI Identity
 	const uriIdentityService = new UriIdentityService(fileService);
@@ -221,7 +221,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI, logService), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService);
 		socketServer.registerChannel(RemoteExtensionsScannerChannelName, new RemoteExtensionsScannerChannel(remoteExtensionsScanner, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
-		const remoteFileSystemChannel = new RemoteAgentFileSystemProviderChannel(logService, environmentService);
+		const remoteFileSystemChannel = new RemoteAgentFileSystemProviderChannel(logService, loggerService, environmentService);
 		socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
 
 		socketServer.registerChannel('request', new RequestChannel(accessor.get(IRequestService)));

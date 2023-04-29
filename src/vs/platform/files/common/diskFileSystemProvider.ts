@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { insert } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -12,7 +13,7 @@ import { normalize } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileChange, IFileSystemProvider, IWatchOptions } from 'vs/platform/files/common/files';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, toFileChanges } from 'vs/platform/files/common/watcher';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 
 export interface IDiskFileSystemProviderOptions {
 	watcher?: {
@@ -41,8 +42,11 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	Pick<IFileSystemProvider, 'onDidChangeFile'>,
 	Pick<IFileSystemProvider, 'onDidWatchError'> {
 
+	private readonly watcherLogger = this._register(this.loggerService.createLogger('fileWatcher', { name: localize('fileWatcher', "File Watcher") }));
+
 	constructor(
 		protected readonly logService: ILogService,
+		private readonly loggerService: ILoggerService,
 		private readonly options?: IDiskFileSystemProviderOptions
 	) {
 		super();
@@ -211,7 +215,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			this._onDidWatchError.fire(msg.message);
 		}
 
-		this.logService[msg.type](msg.message);
+		this.watcherLogger[msg.type](msg.message);
 	}
 
 	protected toFilePath(resource: URI): string {

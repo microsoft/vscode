@@ -14,11 +14,10 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 // eslint-disable-next-line local/code-import-patterns
 import 'vs/workbench/workbench.desktop.main';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService, NullLoggerService } from 'vs/platform/log/common/log';
 import { mock } from 'vs/base/test/common/mock';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileAccess } from 'vs/base/common/network';
-import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
 
 interface ColorInfo {
 	description: string;
@@ -91,7 +90,7 @@ suite('Color Registry', function () {
 
 		const docUrl = 'https://raw.githubusercontent.com/microsoft/vscode-docs/main/api/references/theme-color.md';
 
-		const reqContext = await new RequestService(new TestConfigurationService(), environmentService, new NullLogService(), new TestLoggerService()).request({ url: docUrl }, CancellationToken.None);
+		const reqContext = await new RequestService(new TestConfigurationService(), environmentService, new NullLogService(), new NullLoggerService()).request({ url: docUrl }, CancellationToken.None);
 		const content = (await asTextOrError(reqContext))!;
 
 		const expression = /-\s*\`([\w\.]+)\`: (.*)/g;

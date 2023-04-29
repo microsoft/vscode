@@ -14,7 +14,7 @@ import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLoggerService, NullLogService } from 'vs/platform/log/common/log';
 import { FileStorage, SaveStrategy } from 'vs/platform/state/node/stateService';
 
 flakySuite('StateService', () => {
@@ -30,7 +30,7 @@ flakySuite('StateService', () => {
 		logService = new NullLogService();
 
 		fileService = new FileService(logService);
-		diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		diskFileSystemProvider = new DiskFileSystemProvider(logService, new NullLoggerService());
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		return Promises.mkdir(testDir, { recursive: true });

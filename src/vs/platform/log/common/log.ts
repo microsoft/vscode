@@ -727,6 +727,14 @@ export class NullLogger implements ILogger {
 	flush(): void { }
 }
 
+export class NullLoggerService extends AbstractLoggerService {
+	constructor(logsHome?: URI) {
+		super(LogLevel.Info, logsHome ?? URI.file('nullLogger').with({ scheme: 'vscode-nullLogger' }));
+	}
+
+	protected doCreateLogger(): ILogger { return new NullLogger(); }
+}
+
 export class NullLogService extends NullLogger implements ILogService {
 	declare readonly _serviceBrand: undefined;
 }
