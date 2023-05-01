@@ -609,13 +609,11 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		if (focusDto.kind === 'thread') {
 			focus = {
-				kind: focusDto.kind,
 				threadId: focusDto.threadId,
 				session,
 			};
 		} else {
 			focus = {
-				kind: focusDto.kind,
 				threadId: focusDto.threadId,
 				frameId: focusDto.frameId,
 				session,

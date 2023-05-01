@@ -2915,6 +2915,46 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 	}
 }
 
+
+@es5ClassCompat
+export class StackFrameFocus {
+	static isStackFrameFocus(thing: any): thing is StackFrameFocus {
+		if (thing instanceof StackFrameFocus) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+
+		return !!(<StackFrameFocus>thing).session;
+	}
+
+	constructor(
+		public readonly session: vscode.DebugSession,
+		readonly threadId?: number,
+		readonly frameId?: number) { }
+}
+
+@es5ClassCompat
+export class ThreadFocus {
+	static isThreadFocus(thing: any): thing is StackFrameFocus {
+		if (thing instanceof ThreadFocus) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+
+		return !!(<StackFrameFocus>thing).session && !('frameId' in thing);
+	}
+
+	constructor(
+		public readonly session: vscode.DebugSession,
+		readonly threadId?: number) { }
+}
+
+
+
 @es5ClassCompat
 export class EvaluatableExpression implements vscode.EvaluatableExpression {
 	readonly range: vscode.Range;

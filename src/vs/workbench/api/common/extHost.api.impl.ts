@@ -1487,7 +1487,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EditSessionIdentityMatch: EditSessionIdentityMatch,
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
 			InteractiveSessionCopyKind: extHostTypes.InteractiveSessionCopyKind,
-			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind
+			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
+			StackFrameFocus: extHostTypes.StackFrameFocus,
+			ThreadFocus: extHostTypes.ThreadFocus
 		};
 	};
 }
