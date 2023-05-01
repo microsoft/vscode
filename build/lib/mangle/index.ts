@@ -9,6 +9,8 @@ import * as fs from 'fs';
 import { argv } from 'process';
 import { Mapping, SourceMapGenerator } from 'source-map';
 import { pathToFileURL } from 'url';
+import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
+import * as workerpool from 'workerpool';
 
 class ShortIdent {
 
@@ -386,61 +388,6 @@ class ConstData {
 	}
 }
 
-class StaticLanguageServiceHost implements ts.LanguageServiceHost {
-
-	private readonly _cmdLine: ts.ParsedCommandLine;
-	private readonly _scriptSnapshots: Map<string, ts.IScriptSnapshot> = new Map();
-
-	constructor(readonly projectPath: string) {
-		const existingOptions: Partial<ts.CompilerOptions> = {};
-		const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
-		if (parsed.error) {
-			throw parsed.error;
-		}
-		this._cmdLine = ts.parseJsonConfigFileContent(parsed.config, ts.sys, path.dirname(projectPath), existingOptions);
-		if (this._cmdLine.errors.length > 0) {
-			throw parsed.error;
-		}
-	}
-	getCompilationSettings(): ts.CompilerOptions {
-		return this._cmdLine.options;
-	}
-	getScriptFileNames(): string[] {
-		return this._cmdLine.fileNames;
-	}
-	getScriptVersion(_fileName: string): string {
-		return '1';
-	}
-	getProjectVersion(): string {
-		return '1';
-	}
-	getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
-		let result: ts.IScriptSnapshot | undefined = this._scriptSnapshots.get(fileName);
-		if (result === undefined) {
-			const content = ts.sys.readFile(fileName);
-			if (content === undefined) {
-				return undefined;
-			}
-			result = ts.ScriptSnapshot.fromString(content);
-			this._scriptSnapshots.set(fileName, result);
-		}
-		return result;
-	}
-	getCurrentDirectory(): string {
-		return path.dirname(this.projectPath);
-	}
-	getDefaultLibFileName(options: ts.CompilerOptions): string {
-		return ts.getDefaultLibFilePath(options);
-	}
-	directoryExists = ts.sys.directoryExists;
-	getDirectories = ts.sys.getDirectories;
-	fileExists = ts.sys.fileExists;
-	readFile = ts.sys.readFile;
-	readDirectory = ts.sys.readDirectory;
-	// this is necessary to make source references work.
-	realpath = ts.sys.realpath;
-}
-
 export interface MangleOutput {
 	out: string;
 	sourceMap?: string;
@@ -461,12 +408,17 @@ export class Mangler {
 	private readonly allExportedDeclarationsByKey = new Map<string, DeclarationData | ConstData>();
 
 	private readonly service: ts.LanguageService;
+	private readonly renameWorkerPool: workerpool.WorkerPool;
 
 	constructor(readonly projectPath: string, readonly log: typeof console.log = () => { }) {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
+
+		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
+			minWorkers: 'max'
+		});
 	}
 
-	computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Map<string, MangleOutput> {
+	async computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Promise<Map<string, MangleOutput>> {
 
 		// STEP find all classes and their field info. Find all exported consts and functions.
 
@@ -595,6 +547,8 @@ export class Mangler {
 		this.log(`Done creating class replacements`);
 
 		// STEP: prepare rename edits
+		this.log(`Starting prepare rename edits`);
+
 		type Edit = { newText: string; offset: number; length: number };
 		const editsByFile = new Map<string, Edit[]>();
 
@@ -614,8 +568,16 @@ export class Mangler {
 			});
 		};
 
-		for (const data of this.allClassDataByKey.values()) {
+		type RenameFn = (projectName: string, fileName: string, pos: number) => ts.RenameLocation[];
 
+		const renameResults: Array<Promise<{ readonly newName: string; readonly locations: readonly ts.RenameLocation[] }>> = [];
+
+		const queueRename = (fileName: string, pos: number, newName: string) => {
+			renameResults.push(Promise.resolve(this.renameWorkerPool.exec<RenameFn>('findRenameLocations', [this.projectPath, fileName, pos]))
+				.then((locations) => ({ newName, locations })));
+		};
+
+		for (const data of this.allClassDataByKey.values()) {
 			if (hasModifier(data.node, ts.SyntaxKind.DeclareKeyword)) {
 				continue;
 			}
@@ -635,11 +597,8 @@ export class Mangler {
 					parent = parent.parent;
 				}
 
-				const newText = data.lookupShortName(name);
-				const locations = this.service.findRenameLocations(data.fileName, info.pos, false, false, true) ?? [];
-				for (const loc of locations) {
-					appendRename(newText, loc);
-				}
+				const newName = data.lookupShortName(name);
+				queueRename(data.fileName, info.pos, newName);
 			}
 		}
 
@@ -650,12 +609,19 @@ export class Mangler {
 
 			const newText = data.replacementName;
 			for (const { fileName, offset } of data.locations) {
-				const locations = this.service.findRenameLocations(fileName, offset, false, false, true) ?? [];
-				for (const loc of locations) {
-					appendRename(newText, loc);
-				}
+				queueRename(fileName, offset, newText);
 			}
 		}
+
+		await Promise.all(renameResults).then((result) => {
+			for (const { newName, locations } of result) {
+				for (const loc of locations) {
+					appendRename(newName, loc);
+				}
+			}
+		});
+
+		await this.renameWorkerPool.terminate();
 
 		this.log(`Done preparing edits: ${editsByFile.size} files`);
 
@@ -745,6 +711,8 @@ export class Mangler {
 
 		this.log(`Done: ${savedBytes / 1000}kb saved`);
 		return result;
+
+
 	}
 }
 
@@ -761,13 +729,14 @@ function normalize(path: string): string {
 
 async function _run() {
 
-	const projectPath = path.join(__dirname, '../../src/tsconfig.json');
+	const projectPath = path.join(__dirname, '../../../src/tsconfig.json');
 	const projectBase = path.dirname(projectPath);
 	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '2');
 
 	fs.cpSync(projectBase, newProjectBase, { recursive: true });
 
-	for await (const [fileName, contents] of new Mangler(projectPath, console.log).computeNewFileContents(new Set(['saveState']))) {
+	const mangler = new Mangler(projectPath, console.log);
+	for (const [fileName, contents] of await mangler.computeNewFileContents(new Set(['saveState']))) {
 		const newFilePath = path.join(newProjectBase, path.relative(projectBase, fileName));
 		await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });
 		await fs.promises.writeFile(newFilePath, contents.out);
