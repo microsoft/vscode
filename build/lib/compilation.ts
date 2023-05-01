@@ -136,9 +136,10 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 				}
 				this.push(data);
 			}, async function end() {
-				this.push(null);
 				// free resources
 				(await newContentsByFileName).clear();
+
+				this.push(null);
 				(<any>ts2tsMangler) = undefined;
 			});
 		}
