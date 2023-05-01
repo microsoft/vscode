@@ -6,9 +6,11 @@
 import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages';
 import { FontStyle, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+
+import * as nls from 'vs/nls';
 
 const enum SemanticTokensProviderStylingConstants {
 	NO_STYLING = 0b01111111111111111111111111111111
@@ -20,14 +22,16 @@ export class SemanticTokensProviderStyling {
 	private _hasWarnedOverlappingTokens = false;
 	private _hasWarnedInvalidLengthTokens = false;
 	private _hasWarnedInvalidEditStart = false;
+	private _logger: ILogger;
 
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@ILogService private readonly _logService: ILogService
+		@ILoggerService loggerService: ILoggerService
 	) {
 		this._hashTable = new HashTable();
+		this._logger = loggerService.createLogger('semanticTokensProviderStyling', { name: nls.localize('semanticTokensLogName', 'Semantic Tokens') });
 	}
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
@@ -36,8 +40,8 @@ export class SemanticTokensProviderStyling {
 		let metadata: number;
 		if (entry) {
 			metadata = entry.metadata;
-			if (this._logService.getLevel() === LogLevel.Trace) {
-				this._logService.trace(`SemanticTokensProviderStyling [CACHED] ${tokenTypeIndex} / ${tokenModifierSet}: foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
+			if (this._logger.getLevel() === LogLevel.Trace) {
+				this._logger.trace(`SemanticTokensProviderStyling [CACHED] ${tokenTypeIndex} / ${tokenModifierSet}: foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
 			}
 		} else {
 			let tokenType = this._legend.tokenTypes[tokenTypeIndex];
@@ -50,8 +54,8 @@ export class SemanticTokensProviderStyling {
 					}
 					modifierSet = modifierSet >> 1;
 				}
-				if (modifierSet > 0 && this._logService.getLevel() === LogLevel.Trace) {
-					this._logService.trace(`SemanticTokensProviderStyling: unknown token modifier index: ${tokenModifierSet.toString(2)} for legend: ${JSON.stringify(this._legend.tokenModifiers)}`);
+				if (modifierSet > 0 && this._logger.getLevel() === LogLevel.Trace) {
+					this._logger.trace(`SemanticTokensProviderStyling: unknown token modifier index: ${tokenModifierSet.toString(2)} for legend: ${JSON.stringify(this._legend.tokenModifiers)}`);
 					tokenModifiers.push('not-in-legend');
 				}
 
@@ -86,16 +90,16 @@ export class SemanticTokensProviderStyling {
 					}
 				}
 			} else {
-				if (this._logService.getLevel() === LogLevel.Trace) {
-					this._logService.trace(`SemanticTokensProviderStyling: unknown token type index: ${tokenTypeIndex} for legend: ${JSON.stringify(this._legend.tokenTypes)}`);
+				if (this._logger.getLevel() === LogLevel.Trace) {
+					this._logger.trace(`SemanticTokensProviderStyling: unknown token type index: ${tokenTypeIndex} for legend: ${JSON.stringify(this._legend.tokenTypes)}`);
 				}
 				metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
 				tokenType = 'not-in-legend';
 			}
 			this._hashTable.add(tokenTypeIndex, tokenModifierSet, encodedLanguageId, metadata);
 
-			if (this._logService.getLevel() === LogLevel.Trace) {
-				this._logService.trace(`SemanticTokensProviderStyling ${tokenTypeIndex} (${tokenType}) / ${tokenModifierSet} (${tokenModifiers.join(' ')}): foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
+			if (this._logger.getLevel() === LogLevel.Trace) {
+				this._logger.trace(`SemanticTokensProviderStyling ${tokenTypeIndex} (${tokenType}) / ${tokenModifierSet} (${tokenModifiers.join(' ')}): foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
 			}
 		}
 

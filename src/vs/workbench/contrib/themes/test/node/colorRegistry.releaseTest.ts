@@ -18,7 +18,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { mock } from 'vs/base/test/common/mock';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileAccess } from 'vs/base/common/network';
-import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestLoggerService } from 'vs/platform/log/test/common/testLoggerService';
 
 interface ColorInfo {
 	description: string;

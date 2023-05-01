@@ -99,7 +99,7 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -167,6 +167,7 @@ import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions,
 import { Codicon } from 'vs/base/common/codicons';
 import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
+import { TestLoggerService } from 'vs/platform/log/test/common/testLoggerService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);

@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { DocumentTokensProvider } from 'vs/editor/common/services/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService } from 'vs/platform/log/common/log';
 import { SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { ISemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStyling';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -20,7 +20,7 @@ export class SemanticTokensStylingService extends Disposable implements ISemanti
 
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
-		@ILogService private readonly _logService: ILogService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
@@ -32,7 +32,7 @@ export class SemanticTokensStylingService extends Disposable implements ISemanti
 
 	public getStyling(provider: DocumentTokensProvider): SemanticTokensProviderStyling {
 		if (!this._caches.has(provider)) {
-			this._caches.set(provider, new SemanticTokensProviderStyling(provider.getLegend(), this._themeService, this._languageService, this._logService));
+			this._caches.set(provider, new SemanticTokensProviderStyling(provider.getLegend(), this._themeService, this._languageService, this._loggerService));
 		}
 		return this._caches.get(provider)!;
 	}

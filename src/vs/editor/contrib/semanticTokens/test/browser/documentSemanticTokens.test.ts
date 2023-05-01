@@ -10,7 +10,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -31,6 +30,8 @@ import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeatu
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { SemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStylingService';
 import { DocumentSemanticTokensFeature } from 'vs/editor/contrib/semanticTokens/browser/documentSemanticTokens';
+import { TestLoggerService } from 'vs/platform/log/test/common/testLoggerService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ModelSemanticColoring', () => {
 
@@ -43,10 +44,11 @@ suite('ModelSemanticColoring', () => {
 		const configService = new TestConfigurationService({ editor: { semanticHighlighting: true } });
 		const themeService = new TestThemeService();
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK, true));
-		const logService = new NullLogService();
+		const loggerService = new TestLoggerService();
+
 		languageFeaturesService = new LanguageFeaturesService();
 		languageService = disposables.add(new LanguageService(false));
-		const semanticTokensStylingService = disposables.add(new SemanticTokensStylingService(themeService, logService, languageService));
+		const semanticTokensStylingService = disposables.add(new SemanticTokensStylingService(themeService, loggerService, languageService));
 		modelService = disposables.add(new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
@@ -54,7 +56,7 @@ suite('ModelSemanticColoring', () => {
 			languageService,
 			new TestLanguageConfigurationService(),
 		));
-		disposables.add(new DocumentSemanticTokensFeature(semanticTokensStylingService, modelService, themeService, configService, new LanguageFeatureDebounceService(logService), languageFeaturesService));
+		disposables.add(new DocumentSemanticTokensFeature(semanticTokensStylingService, modelService, themeService, configService, new LanguageFeatureDebounceService(new NullLogService()), languageFeaturesService));
 	});
 
 	teardown(() => {
