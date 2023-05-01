@@ -238,10 +238,14 @@ class MoveToFileRefactorCommand implements Command {
 		quickPick.placeholder = vscode.l10n.t("Enter file path");
 		quickPick.matchOnDescription = true;
 		quickPick.onDidChangeValue(updateItems);
-		quickPick.onDidHide(quickPick.dispose);
 		const picked = await new Promise<vscode.QuickPickItem | undefined>(resolve => {
 			quickPick.onDidAccept(() => {
-				resolve(quickPick.activeItems[0]);
+				resolve(quickPick.selectedItems[0]);
+				quickPick.dispose();
+			});
+			quickPick.onDidHide(() => {
+				resolve(undefined);
+				quickPick.dispose();
 			});
 			quickPick.show();
 		});
