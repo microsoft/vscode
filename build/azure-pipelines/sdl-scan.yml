@@ -32,6 +32,8 @@ variables:
     value: x64
   - name: Codeql.enabled
     value: true
+  - name: Codeql.TSAEnabled
+    value: true
 
 stages:
   - stage: Windows
