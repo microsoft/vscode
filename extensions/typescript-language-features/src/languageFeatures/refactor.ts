@@ -187,36 +187,63 @@ class MoveToFileRefactorCommand implements Command {
 		type DestinationItem = vscode.QuickPickItem & { readonly file: string };
 
 		const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-		const destinationItems = response.body.files.map((file): DestinationItem => {
-			const uri = this.client.toResource(file);
-			const parentDir = Utils.dirname(uri);
 
-			let description;
-			if (workspaceFolder) {
-				if (uri.scheme === Schemes.file) {
-					description = path.relative(workspaceFolder.uri.fsPath, parentDir.fsPath);
+		const quickPick = vscode.window.createQuickPick();
+		const body = response.body;
+		const updateItems = () => {
+			const destinationItems = body.files.map((file): DestinationItem | undefined => {
+				const uri = this.client.toResource(file);
+				const parentDir = Utils.dirname(uri);
+				const filename = Utils.basename(uri);
+
+				let description;
+				const filterQuery = ['./', '../'].find(str => quickPick.value.startsWith(str));
+				if (workspaceFolder) {
+					if (uri.scheme === Schemes.file) {
+						description = path.relative(workspaceFolder.uri.fsPath, parentDir.fsPath);
+					} else {
+						description = path.posix.relative(workspaceFolder.uri.path, parentDir.path);
+					}
+					if (filterQuery) {
+						const convertRelativePath = (str: string) => {
+							return !str.startsWith('../') ? `./${str}` : str;
+						};
+
+						const relativePath = convertRelativePath(path.relative(path.dirname(document.uri.fsPath), uri.fsPath));
+						if (!relativePath.startsWith(filterQuery)) {
+							return;
+						}
+						description = relativePath;
+					}
 				} else {
-					description = path.posix.relative(workspaceFolder.uri.path, parentDir.path);
+					description = parentDir.fsPath;
 				}
-			} else {
-				description = parentDir.fsPath;
-			}
 
-			return {
-				file,
-				label: Utils.basename(uri),
-				description,
-			};
-		});
+				return {
+					file,
+					label: filename,
+					description: description && (filterQuery ? description : path.join(description, filename)),
+				};
+			});
+			quickPick.items = [
+				selectExistingFileItem,
+				selectNewFileItem,
+				{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
+				...destinationItems.filter(Boolean) as DestinationItem[]
+			];
+		};
+		updateItems();
 
-		const picked = await vscode.window.showQuickPick([
-			selectExistingFileItem,
-			selectNewFileItem,
-			{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
-			...destinationItems
-		], {
-			title: vscode.l10n.t("Move to File"),
-			placeHolder: vscode.l10n.t("Enter file path"),
+		quickPick.title = vscode.l10n.t("Move to File");
+		quickPick.placeholder = vscode.l10n.t("Enter file path");
+		quickPick.matchOnDescription = true;
+		quickPick.onDidChangeValue(updateItems);
+		quickPick.onDidHide(quickPick.dispose);
+		const picked = await new Promise<vscode.QuickPickItem | undefined>(resolve => {
+			quickPick.onDidAccept(() => {
+				resolve(quickPick.activeItems[0]);
+			});
+			quickPick.show();
 		});
 		if (!picked) {
 			return;
