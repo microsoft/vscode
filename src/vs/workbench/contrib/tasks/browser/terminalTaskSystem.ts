@@ -356,7 +356,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public isTaskVisible(task: Task): boolean {
 		const terminalData = this._activeTasks[task.getMapKey()];
-		if (!terminalData || !terminalData.terminal) {
+		if (!terminalData?.terminal) {
 			return false;
 		}
 		const activeTerminalInstance = this._terminalService.activeInstance;
@@ -367,7 +367,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public revealTask(task: Task): boolean {
 		const terminalData = this._activeTasks[task.getMapKey()];
-		if (!terminalData || !terminalData.terminal) {
+		if (!terminalData?.terminal) {
 			return false;
 		}
 		const isTerminalInPanel: boolean = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID) === ViewContainerLocation.Panel;
@@ -425,8 +425,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public customExecutionComplete(task: Task, result: number): Promise<void> {
 		const activeTerminal = this._activeTasks[task.getMapKey()];
-		if (!activeTerminal || !activeTerminal.terminal) {
-			return Promise.reject(new Error('Expected to have a terminal for an custom execution task'));
+		if (!activeTerminal?.terminal) {
+			return Promise.reject(new Error('Expected to have a terminal for a custom execution task'));
 		}
 
 		return new Promise<void>((resolve) => {
@@ -467,10 +467,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public terminate(task: Task): Promise<ITaskTerminateResponse> {
 		const activeTerminal = this._activeTasks[task.getMapKey()];
-		if (!activeTerminal || !activeTerminal.terminal) {
+		const terminal = activeTerminal.terminal;
+		if (!terminal) {
 			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
 		}
-		const terminal = activeTerminal.terminal;
 		return new Promise<ITaskTerminateResponse>((resolve, reject) => {
 			terminal.onDisposed(terminal => {
 				this._fireTaskEvent(TaskEvent.create(TaskEventKind.Terminated, task, terminal.instanceId, terminal.exitReason));
