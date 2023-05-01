@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use bytes::Buf;
 use tokio::{
 	io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
 	pin,
@@ -124,8 +125,8 @@ impl tokio_util::codec::Decoder for U32PrefixedCodec {
 			return Ok(None);
 		}
 
-		let msg = src[U32_SIZE..].to_vec();
-		src.resize(0, 0);
+		let msg = src[U32_SIZE..required_len].to_vec();
+		src.advance(required_len);
 		Ok(Some(msg))
 	}
 }
