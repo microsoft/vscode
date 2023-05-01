@@ -1351,6 +1351,14 @@ begin
       MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version.', mbInformation, MB_OK);
     end;
   end;
+
+	if not IsBackgroundUpdate() then
+		while CheckForMutexes('{#TunnelMutex}') do
+		begin
+			MsgBox('Tunnel is still running', mbError, MB_OK);
+		end;
+	end;
+
 end;
 
 function WizardNotSilent(): Boolean;
@@ -1395,7 +1403,7 @@ begin
   if IsBackgroundUpdate() then
     Result := ''
   else
-    Result := '{#AppMutex},{#TunnelMutex}';
+    Result := '{#AppMutex}';
 end;
 
 function GetDestDir(Value: string): string;
@@ -1457,6 +1465,7 @@ begin
   if (CurStep = ssInstall) and CheckForMutexes('{#TunnelServiceMutex}') then
   begin
     // stop the tunnel service
+		Log('Stopping the tunnel service...');
     Exec(ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"'), 'tunnel service uninstall', '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
 
     while (CheckForMutexes('{#TunnelServiceMutex}')) do
@@ -1471,9 +1480,15 @@ begin
   begin
     CreateMutex('{#AppMutex}-ready');
 
-    while (CheckForMutexes('{#AppMutex},{#TunnelMutex}')) do
+    while (CheckForMutexes('{#AppMutex}')) do
     begin
       Log('Application is still running, waiting');
+      Sleep(1000);
+    end;
+
+		while (CheckForMutexes('{#TunnelMutex}')) do
+    begin
+      Log('Tunnel is still running, waiting');
       Sleep(1000);
     end;
 
@@ -1483,6 +1498,7 @@ begin
 	if (CurStep = ssPostInstall) and StartTunnelService then
 	begin
 		// start the tunnel service
+		Log('Restarting the tunnel service...');
     Exec(ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"'), 'tunnel service install', '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
 		StartTunnelService := False
 	end;
