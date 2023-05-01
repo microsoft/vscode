@@ -128,7 +128,7 @@ export function gitPushSetUpstream(): ITerminalQuickFixInternalOptions {
 		type: 'internal',
 		commandLineMatcher: GitPushCommandLineRegex,
 		/**
-			Example output:
+			Example output on Windows:
 			8: PS C:\Users\merogge\repos\xterm.js> git push
 			7: fatal: The current branch sdjfskdjfdslkjf has no upstream branch.
 			6: To push the current branch and set the remote as upstream, use
@@ -138,12 +138,20 @@ export function gitPushSetUpstream(): ITerminalQuickFixInternalOptions {
 			2: To have this happen automatically for branches without a tracking
 			1: upstream, see 'push.autoSetupRemote' in 'git help config'.
 			0:
+
+			Example output on macOS:
+			5: meganrogge@Megans-MacBook-Pro xterm.js % git push
+			4: fatal: The current branch merogge/asjdkfsjdkfsdjf has no upstream branch.
+			3: To push the current branch and set the remote as upstream, use
+			2:
+			1:	git push --set-upstream origin merogge/asjdkfsjdkfsdjf
+			0:
 		 */
 		outputMatcher: {
 			lineMatcher: GitPushOutputRegex,
 			anchor: 'bottom',
-			offset: 3,
-			length: 3
+			offset: 0,
+			length: 7
 		},
 		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
