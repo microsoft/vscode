@@ -257,7 +257,7 @@ class MoveToFileRefactorCommand implements Command {
 			const picked = await vscode.window.showOpenDialog({
 				title: vscode.l10n.t("Select move destination"),
 				openLabel: vscode.l10n.t("Move to File"),
-				defaultUri
+				defaultUri: document.uri
 			});
 			return picked?.length ? this.client.toTsFilePath(picked[0]) : undefined;
 		} else if (picked === selectNewFileItem) {
