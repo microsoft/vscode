@@ -550,12 +550,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			inputBoxStyles: defaultInputBoxStyles
 		});
 
-		const lastDot = value.lastIndexOf('.');
+		let indexOfLastDot = value.lastIndexOf('.');
+		if (indexOfLastDot > 5) {
+			const possiblySpecOrTest = value.substring(indexOfLastDot - 5, indexOfLastDot);
+			if (possiblySpecOrTest === '.test' || possiblySpecOrTest === '.spec') {
+				indexOfLastDot -= 5;
+			}
+		}
+
 		let currentSelectionState = 'prefix';
 
 		inputBox.value = value;
 		inputBox.focus();
-		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
+		inputBox.select({ start: 0, end: indexOfLastDot > 0 && !stat.isDirectory ? indexOfLastDot : value.length });
 
 		const done = once((success: boolean, finishEditing: boolean) => {
 			label.element.style.display = 'none';
