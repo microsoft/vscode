@@ -42,6 +42,10 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 
 	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {
 		const gotDirty = workingCopy.isDirty();
+		if (workingCopy.capabilities | WorkingCopyCapabilities.Scratchpad) {
+			return; // scratchpad working copies are never marked dirty
+		}
+
 		if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 			return; // do not indicate dirty of working copies that are auto saved after short delay
 		}

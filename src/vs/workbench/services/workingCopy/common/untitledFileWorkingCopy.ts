@@ -92,7 +92,7 @@ export interface IUntitledFileWorkingCopyInitialContents {
 
 export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
 
-	readonly capabilities = WorkingCopyCapabilities.Untitled;
+	readonly capabilities: WorkingCopyCapabilities;
 
 	private _model: M | undefined = undefined;
 	get model(): M | undefined { return this._model; }
@@ -121,6 +121,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		readonly resource: URI,
 		readonly name: string,
 		readonly hasAssociatedFilePath: boolean,
+		readonly scratchPad: boolean,
 		private readonly initialContents: IUntitledFileWorkingCopyInitialContents | undefined,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
 		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate<M>,
@@ -129,6 +130,8 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this.capabilities = scratchPad ? WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad : WorkingCopyCapabilities.Untitled;
 
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
@@ -312,4 +315,8 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	private trace(msg: string): void {
 		this.logService.trace(`[untitled file working copy] ${msg}`, this.resource.toString(), this.typeId);
 	}
+}
+
+export class ScratchpadWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends UntitledFileWorkingCopy<M>{
+	override readonly capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
 }

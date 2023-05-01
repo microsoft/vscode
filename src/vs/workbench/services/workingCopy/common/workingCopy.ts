@@ -21,7 +21,13 @@ export const enum WorkingCopyCapabilities {
 	 * additional input when saving, e.g. an
 	 * associated path to save to.
 	 */
-	Untitled = 1 << 1
+	Untitled = 1 << 1,
+
+	/**
+	 * Signals that a dirty working copy can
+	 * be discarded without prompting the user.
+	 */
+	Scratchpad = 1 << 2,
 }
 
 /**

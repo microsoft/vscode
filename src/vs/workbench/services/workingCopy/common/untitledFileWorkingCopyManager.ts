@@ -91,6 +91,8 @@ export interface INewOrExistingUntitledFileWorkingCopyOptions extends INewUntitl
 	 * Note: the resource will not be used unless the scheme is `untitled`.
 	 */
 	untitledResource: URI;
+
+	scratchPad?: boolean;
 }
 
 type IInternalUntitledFileWorkingCopyOptions = INewUntitledFileWorkingCopyOptions & INewUntitledFileWorkingCopyWithAssociatedResourceOptions & INewOrExistingUntitledFileWorkingCopyOptions;
@@ -167,6 +169,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 		// Handle untitled resource
 		else if (options.untitledResource?.scheme === Schemas.untitled) {
 			massagedOptions.untitledResource = options.untitledResource;
+			massagedOptions.scratchPad = options.scratchPad;
 		}
 
 		// Take over initial value
@@ -199,6 +202,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 			untitledResource,
 			this.labelService.getUriBasenameLabel(untitledResource),
 			!!options.associatedResource,
+			!!options.scratchPad,
 			options.contents,
 			this.modelFactory,
 			this.saveDelegate,

@@ -40,6 +40,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = this._register(new DisposableStore());
+	private readonly scratchPad: boolean;
 
 	constructor(
 		readonly resource: URI,
@@ -51,16 +52,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	) {
 		super();
 
-		if (this.viewType === 'interactive') {
-			lifecycleService.onBeforeShutdown(async e => e.veto(this.onBeforeShutdown(), 'veto.InteractiveWindow'));
-		}
-	}
-
-	private async onBeforeShutdown() {
-		if (this._workingCopy?.isDirty()) {
-			await this._workingCopy.save();
-		}
-		return false;
+		this.scratchPad = viewType === 'interactive';
 	}
 
 	override dispose(): void {
@@ -126,7 +118,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				if (this._hasAssociatedFilePath) {
 					this._workingCopy = await this._workingCopyManager.resolve({ associatedResource: this.resource });
 				} else {
-					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
+					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, scratchPad: this.scratchPad });
 				}
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, options?.forceReadFromFile ? { reload: { async: false, force: true } } : undefined);
