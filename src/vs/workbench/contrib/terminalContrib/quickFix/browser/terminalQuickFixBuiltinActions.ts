@@ -151,7 +151,7 @@ export function gitPushSetUpstream(): ITerminalQuickFixInternalOptions {
 			lineMatcher: GitPushOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
-			length: 7
+			length: 8
 		},
 		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
