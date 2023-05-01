@@ -499,8 +499,34 @@ export class TerminalService implements ITerminalService {
 		this.onDidChangeInstances(() => updateTerminalContextKeys());
 	}
 
-	async getActiveOrCreateInstance(): Promise<ITerminalInstance> {
-		return this.activeInstance || this.createTerminal();
+	async getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance> {
+		const activeInstance = this.activeInstance;
+		// No instance, create
+		if (!activeInstance) {
+			return this.createTerminal();
+		}
+		// Active instance, ensure accepts input
+		// Don't use task terminals or other terminals that don't accept input
+		if (!options?.acceptsInput || activeInstance?.shellLaunchConfig.type !== 'Task' && activeInstance.xterm?.isStdinDisabled !== true) {
+			return activeInstance;
+		}
+		// Active instance doesn't accept input, create and focus
+		const instance = await this.createTerminal();
+		this.setActiveInstance(instance);
+		await this.revealActiveTerminal();
+		return instance;
+	}
+
+	async revealActiveTerminal(): Promise<void> {
+		const instance = this.activeInstance;
+		if (!instance) {
+			return;
+		}
+		if (instance.target === TerminalLocation.Editor) {
+			await this._terminalEditorService.revealActiveEditor();
+		} else {
+			await this._terminalGroupService.showPanel();
+		}
 	}
 
 	setEditable(instance: ITerminalInstance, data?: IEditableData | null): void {
