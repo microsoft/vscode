@@ -51,7 +51,6 @@ import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/work
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { InteractiveWindowFileSystem } from 'vs/workbench/contrib/interactive/browser/interactiveWindowFileSystem';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -95,9 +94,6 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			transientDocumentMetadata: {},
 			cellContentMetadata: {}
 		};
-
-		const interactiveWindowFS = new InteractiveWindowFileSystem();
-		this._register(fileService.registerProvider(Schemas.vscodeInteractive, interactiveWindowFS));
 
 		const serializer: INotebookSerializer = {
 			options: contentOptions,
