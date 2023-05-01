@@ -343,6 +343,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
 				'default': false
 			},
+			'workbench.commandPalette.experimental.useSemanticSimilarity': {
+				'type': 'boolean',
+				'description': localize('useSemanticSimilarity', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Semantic Similarity."),
+				'default': false
+			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',
 				'description': localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
