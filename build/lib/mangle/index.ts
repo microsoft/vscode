@@ -414,6 +414,7 @@ export class Mangler {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 
 		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
+			maxWorkers: 4,
 			minWorkers: 'max'
 		});
 	}
