@@ -316,7 +316,3 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		this.logService.trace(`[untitled file working copy] ${msg}`, this.resource.toString(), this.typeId);
 	}
 }
-
-export class ScratchpadWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends UntitledFileWorkingCopy<M>{
-	override readonly capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
-}
