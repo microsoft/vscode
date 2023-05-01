@@ -63,29 +63,31 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 		"An existing tunnel is running on this machine, connecting to it..."
 	);
 
-	let stdin_handle = rpc.get_caller(msg_tx.clone());
-	thread::spawn(move || {
-		let mut input = String::new();
-		loop {
-			input.truncate(0);
+	if *IS_INTERACTIVE_CLI {
+		let stdin_handle = rpc.get_caller(msg_tx.clone());
+		thread::spawn(move || {
+			let mut input = String::new();
+			loop {
+				input.truncate(0);
+				println!("reading line");
+				match std::io::stdin().read_line(&mut input) {
+					Err(_) | Ok(0) => return, // EOF or not a tty
+					_ => {}
+				};
 
-			match std::io::stdin().read_line(&mut input) {
-				Err(_) | Ok(0) => return, // EOF or not a tty
-				_ => {}
-			};
-
-			match input.chars().next().map(|c| c.to_ascii_lowercase()) {
-				Some('x') => {
-					stdin_handle.notify(protocol::singleton::METHOD_SHUTDOWN, EmptyObject {});
-					return;
+				match input.chars().next().map(|c| c.to_ascii_lowercase()) {
+					Some('x') => {
+						stdin_handle.notify(protocol::singleton::METHOD_SHUTDOWN, EmptyObject {});
+						return;
+					}
+					Some('r') => {
+						stdin_handle.notify(protocol::singleton::METHOD_RESTART, EmptyObject {});
+					}
+					Some(_) | None => {}
 				}
-				Some('r') => {
-					stdin_handle.notify(protocol::singleton::METHOD_RESTART, EmptyObject {});
-				}
-				Some(_) | None => {}
 			}
-		}
-	});
+		});
+	}
 
 	let caller = rpc.get_caller(msg_tx);
 	let mut rpc = rpc.methods(SingletonServerContext {
