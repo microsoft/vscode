@@ -127,7 +127,9 @@ function computeConfig(
 
 	if (!languageConfig) {
 		if (!languageService.isRegisteredLanguageId(languageId)) {
-			throw new Error(`Language id "${languageId}" is not configured nor known`);
+			// this happens for the null language, which can be returned by monarch.
+			// Instead of throwing an error, we just return a default config.
+			return new ResolvedLanguageConfiguration(languageId, {});
 		}
 		languageConfig = new ResolvedLanguageConfiguration(languageId, {});
 	}
@@ -442,8 +444,8 @@ export class ResolvedLanguageConfiguration {
 		return new AutoClosingPairs(this.characterPair.getAutoClosingPairs());
 	}
 
-	public getAutoCloseBeforeSet(): string {
-		return this.characterPair.getAutoCloseBeforeSet();
+	public getAutoCloseBeforeSet(forQuotes: boolean): string {
+		return this.characterPair.getAutoCloseBeforeSet(forQuotes);
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {

@@ -13,8 +13,5 @@ module.exports = withDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/extension.ts',
-	},
-	externals: {
-		'keytar': 'commonjs keytar'
 	}
 });

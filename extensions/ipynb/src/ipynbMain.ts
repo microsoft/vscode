@@ -85,7 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(notebookImagePasteSetup());
 
-	const enabled = vscode.workspace.getConfiguration('ipynb').get('experimental.pasteImages.enabled', false);
+	const enabled = vscode.workspace.getConfiguration('ipynb').get('pasteImagesAsAttachments.enabled', false);
 	if (enabled) {
 		const cleaner = new AttachmentCleaner();
 		context.subscriptions.push(cleaner);

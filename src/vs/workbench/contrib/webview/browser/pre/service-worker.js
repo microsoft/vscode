@@ -24,13 +24,18 @@ const remoteAuthority = searchParams.get('remoteAuthority');
  */
 const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
-const resolveTimeout = 30000;
+const resolveTimeout = 30_000;
+
+/**
+ * @template T
+ * @typedef {{ status: 'ok'; value: T } | { status: 'timeout' }} RequestStoreResult
+ */
 
 /**
  * @template T
  * @typedef {{
- *     resolve: (x: T) => void,
- *     promise: Promise<T>
+ *     resolve: (x: RequestStoreResult<T>) => void,
+ *     promise: Promise<RequestStoreResult<T>>
  * }} RequestStoreEntry
  */
 
@@ -47,28 +52,19 @@ class RequestStore {
 	}
 
 	/**
-	 * @param {number} requestId
-	 * @return {Promise<T> | undefined}
-	 */
-	get(requestId) {
-		const entry = this.map.get(requestId);
-		return entry && entry.promise;
-	}
-
-	/**
-	 * @returns {{ requestId: number, promise: Promise<T> }}
+	 * @returns {{ requestId: number, promise: Promise<RequestStoreResult<T>> }}
 	 */
 	create() {
 		const requestId = ++this.requestPool;
 
-		/** @type {undefined | ((x: T) => void)} */
+		/** @type {undefined | ((x: RequestStoreResult<T>) => void)} */
 		let resolve;
 
-		/** @type {Promise<T>} */
+		/** @type {Promise<RequestStoreResult<T>>} */
 		const promise = new Promise(r => resolve = r);
 
 		/** @type {RequestStoreEntry<T>} */
-		const entry = { resolve: /** @type {(x: T) => void} */ (resolve), promise };
+		const entry = { resolve: /** @type {(x: RequestStoreResult<T>) => void} */ (resolve), promise };
 
 		this.map.set(requestId, entry);
 
@@ -76,7 +72,9 @@ class RequestStore {
 			clearTimeout(timeout);
 			const existingEntry = this.map.get(requestId);
 			if (existingEntry === entry) {
-				return this.map.delete(requestId);
+				existingEntry.resolve({ status: 'timeout' });
+				this.map.delete(requestId);
+				return;
 			}
 		};
 		const timeout = setTimeout(dispose, resolveTimeout);
@@ -93,7 +91,7 @@ class RequestStore {
 		if (!entry) {
 			return false;
 		}
-		entry.resolve(result);
+		entry.resolve({ status: 'ok', value: result });
 		this.map.delete(requestId);
 		return true;
 	}
@@ -129,41 +127,42 @@ const notFound = () =>
 const methodNotAllowed = () =>
 	new Response('Method Not Allowed', { status: 405, });
 
+const requestTimeout = () =>
+	new Response('Request Timeout', { status: 408, });
+
 sw.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
-		case 'version':
-			{
-				const source = /** @type {Client} */ (event.source);
-				sw.clients.get(source.id).then(client => {
-					if (client) {
-						client.postMessage({
-							channel: 'version',
-							version: VERSION
-						});
-					}
-				});
-				return;
-			}
-		case 'did-load-resource':
-			{
-				/** @type {ResourceResponse} */
-				const response = event.data.data;
-				if (!resourceRequestStore.resolve(response.id, response)) {
-					console.log('Could not resolve unknown resource', response.path);
+		case 'version': {
+			const source = /** @type {Client} */ (event.source);
+			sw.clients.get(source.id).then(client => {
+				if (client) {
+					client.postMessage({
+						channel: 'version',
+						version: VERSION
+					});
 				}
-				return;
+			});
+			return;
+		}
+		case 'did-load-resource': {
+			/** @type {ResourceResponse} */
+			const response = event.data.data;
+			if (!resourceRequestStore.resolve(response.id, response)) {
+				console.log('Could not resolve unknown resource', response.path);
 			}
-		case 'did-load-localhost':
-			{
-				const data = event.data.data;
-				if (!localhostRequestStore.resolve(data.id, data.location)) {
-					console.log('Could not resolve unknown localhost', data.origin);
-				}
-				return;
+			return;
+		}
+		case 'did-load-localhost': {
+			const data = event.data.data;
+			if (!localhostRequestStore.resolve(data.id, data.location)) {
+				console.log('Could not resolve unknown localhost', data.origin);
 			}
-		default:
+			return;
+		}
+		default: {
 			console.log('Unknown message');
 			return;
+		}
 	}
 });
 
@@ -183,8 +182,9 @@ sw.addEventListener('fetch', (event) => {
 					query: requestUrl.search.replace(/^\?/, ''),
 				}));
 			}
-			default:
+			default: {
 				return event.respondWith(methodNotAllowed());
+			}
 		}
 	}
 
@@ -195,16 +195,17 @@ sw.addEventListener('fetch', (event) => {
 	if (requestUrl.origin !== sw.origin && requestUrl.host === remoteAuthority) {
 		switch (event.request.method) {
 			case 'GET':
-			case 'HEAD':
+			case 'HEAD': {
 				return event.respondWith(processResourceRequest(event, {
 					path: requestUrl.pathname,
 					scheme: requestUrl.protocol.slice(0, requestUrl.protocol.length - 1),
 					authority: requestUrl.host,
 					query: requestUrl.search.replace(/^\?/, ''),
 				}));
-
-			default:
+			}
+			default: {
 				return event.respondWith(methodNotAllowed());
+			}
 		}
 	}
 
@@ -247,10 +248,15 @@ async function processResourceRequest(event, requestUrlComponents) {
 	const shouldTryCaching = (event.request.method === 'GET');
 
 	/**
-	 * @param {ResourceResponse} entry
+	 * @param {RequestStoreResult<ResourceResponse>} result
 	 * @param {Response | undefined} cachedResponse
 	 */
-	const resolveResourceEntry = (entry, cachedResponse) => {
+	const resolveResourceEntry = (result, cachedResponse) => {
+		if (result.status === 'timeout') {
+			return requestTimeout();
+		}
+
+		const entry = result.value;
 		if (entry.status === 304) { // Not modified
 			if (cachedResponse) {
 				return cachedResponse.clone();
@@ -393,13 +399,15 @@ async function processLocalhostRequest(event, requestUrl) {
 	const origin = requestUrl.origin;
 
 	/**
-	 * @param {string | undefined} redirectOrigin
+	 * @param {RequestStoreResult<string | undefined>} result
 	 * @return {Promise<Response>}
 	 */
-	const resolveRedirect = async (redirectOrigin) => {
-		if (!redirectOrigin) {
+	const resolveRedirect = async (result) => {
+		if (result.status !== 'ok' || !result.value) {
 			return fetch(event.request);
 		}
+
+		const redirectOrigin = result.value;
 		const location = event.request.url.replace(new RegExp(`^${requestUrl.origin}(/|$)`), `${redirectOrigin}$1`);
 		return new Response(null, {
 			status: 302,

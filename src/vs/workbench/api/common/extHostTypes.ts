@@ -6,7 +6,7 @@
 import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
@@ -43,6 +43,16 @@ function es5ClassCompat(target: Function): any {
 		}
 	};
 	return Object.assign(target, interceptFunctions);
+}
+
+export enum TerminalOutputAnchor {
+	Top = 0,
+	Bottom = 1
+}
+
+export enum TerminalQuickFixType {
+	Command = 0,
+	Opener = 1
 }
 
 @es5ClassCompat
@@ -482,7 +492,7 @@ export class ResolvedAuthority {
 			throw illegalArgument('port');
 		}
 		if (typeof connectionToken !== 'undefined') {
-			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
+			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z_\-]+$/.test(connectionToken)) {
 				throw illegalArgument('connectionToken');
 			}
 		}
@@ -515,9 +525,7 @@ export class RemoteAuthorityResolverError extends Error {
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
 		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
-		}
+		Object.setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 	}
 }
 
@@ -700,7 +708,7 @@ export interface IFileOperationOptions {
 	readonly ignoreIfExists?: boolean;
 	readonly ignoreIfNotExists?: boolean;
 	readonly recursive?: boolean;
-	readonly contents?: Uint8Array;
+	readonly contents?: Uint8Array | vscode.DataTransferFile;
 }
 
 export const enum FileEditType {
@@ -770,7 +778,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array | vscode.DataTransferFile }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
@@ -1470,11 +1478,11 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.value = value;
 	}
 
-	get isTrusted(): boolean | undefined {
+	get isTrusted(): boolean | MarkdownStringTrustedOptions | undefined {
 		return this.#delegate.isTrusted;
 	}
 
-	set isTrusted(value: boolean | undefined) {
+	set isTrusted(value: boolean | MarkdownStringTrustedOptions | undefined) {
 		this.#delegate.isTrusted = value;
 	}
 
@@ -1719,37 +1727,14 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 
 @es5ClassCompat
 export class InlineSuggestionList implements vscode.InlineCompletionList {
-	items: vscode.InlineCompletionItemNew[];
+	items: vscode.InlineCompletionItem[];
 
 	commands: vscode.Command[] | undefined = undefined;
 
-	constructor(items: vscode.InlineCompletionItemNew[]) {
+	suppressSuggestions: boolean | undefined = undefined;
+
+	constructor(items: vscode.InlineCompletionItem[]) {
 		this.items = items;
-	}
-}
-
-@es5ClassCompat
-export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
-	insertText: string;
-	range?: Range;
-	command?: vscode.Command;
-
-	constructor(insertText: string, range?: Range, command?: vscode.Command) {
-		this.insertText = insertText;
-		this.range = range;
-		this.command = command;
-	}
-}
-
-@es5ClassCompat
-export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
-	items: vscode.InlineCompletionItemNew[];
-
-	commands: vscode.Command[] | undefined;
-
-	constructor(items: vscode.InlineCompletionItemNew[], commands?: vscode.Command[]) {
-		this.items = items;
-		this.commands = commands;
 	}
 }
 
@@ -1940,6 +1925,20 @@ export class TerminalLink implements vscode.TerminalLink {
 		if (tooltip !== undefined && typeof tooltip !== 'string') {
 			throw illegalArgument('tooltip');
 		}
+	}
+}
+
+export class TerminalQuickFixOpener {
+	uri: vscode.Uri;
+	constructor(uri: vscode.Uri) {
+		this.uri = uri;
+	}
+}
+
+export class TerminalQuickFixCommand {
+	terminalCommand: string;
+	constructor(terminalCommand: string) {
+		this.terminalCommand = terminalCommand;
 	}
 }
 
@@ -2497,10 +2496,23 @@ export class TreeItem {
 	checkboxState?: vscode.TreeItemCheckboxState;
 
 	static isTreeItem(thing: any, extension: IExtensionDescription): thing is TreeItem {
+		const treeItemThing = thing as vscode.TreeItem2;
+
+		if (treeItemThing.checkboxState !== undefined) {
+			checkProposedApiEnabled(extension, 'treeItemCheckbox');
+			const checkbox = isNumber(treeItemThing.checkboxState) ? treeItemThing.checkboxState :
+				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.state) ? treeItemThing.checkboxState.state : undefined;
+			const tooltip = !isNumber(treeItemThing.checkboxState) && isObject(treeItemThing.checkboxState) ? treeItemThing.checkboxState.tooltip : undefined;
+			if (checkbox === undefined || (checkbox !== TreeItemCheckboxState.Checked && checkbox !== TreeItemCheckboxState.Unchecked) || (tooltip !== undefined && !isString(tooltip))) {
+				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
+				return false;
+			}
+		}
+
 		if (thing instanceof TreeItem) {
 			return true;
 		}
-		const treeItemThing = thing as vscode.TreeItem2;
+
 		if (treeItemThing.label !== undefined && !isString(treeItemThing.label) && !(treeItemThing.label?.label)) {
 			console.log('INVALID tree item, invalid label', treeItemThing.label);
 			return false;
@@ -2544,16 +2556,6 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid accessibilityInformation', treeItemThing.accessibilityInformation);
 			return false;
 		}
-		if (treeItemThing.checkboxState !== undefined) {
-			checkProposedApiEnabled(extension, 'treeItemCheckbox');
-			const checkbox = isNumber(treeItemThing.checkboxState) ? treeItemThing.checkboxState :
-				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.state) ? treeItemThing.checkboxState.state : undefined;
-			const tooltip = !isNumber(treeItemThing.checkboxState) && isObject(treeItemThing.checkboxState) ? treeItemThing.checkboxState.tooltip : undefined;
-			if (checkbox === undefined || (checkbox !== TreeItemCheckboxState.Checked && checkbox !== TreeItemCheckboxState.Unchecked) || (tooltip !== undefined && !isString(tooltip))) {
-				console.log('INVALID tree item, invalid checkboxState', treeItemThing.checkboxState);
-				return false;
-			}
-		}
 
 		return true;
 	}
@@ -2582,7 +2584,7 @@ export enum TreeItemCheckboxState {
 }
 
 @es5ClassCompat
-export class DataTransferItem {
+export class DataTransferItem implements vscode.DataTransferItem {
 
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
@@ -2602,29 +2604,52 @@ export class DataTransferItem {
 	}
 }
 
+/**
+ * Intentionally not exported to extensions
+ */
+export class DataTransferFile implements vscode.DataTransferFile {
+
+	public readonly name: string;
+	public readonly uri: vscode.Uri | undefined;
+
+	public readonly _itemId: string;
+	private readonly _getData: () => Promise<Uint8Array>;
+
+	constructor(name: string, uri: vscode.Uri | undefined, itemId: string, getData: () => Promise<Uint8Array>) {
+		this.name = name;
+		this.uri = uri;
+		this._itemId = itemId;
+		this._getData = getData;
+	}
+
+	data(): Promise<Uint8Array> {
+		return this._getData();
+	}
+}
+
 @es5ClassCompat
 export class DataTransfer implements vscode.DataTransfer {
 	#items = new Map<string, DataTransferItem[]>();
 
 	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
 		for (const [mime, item] of init ?? []) {
-			const existing = this.#items.get(mime);
+			const existing = this.#items.get(this.#normalizeMime(mime));
 			if (existing) {
 				existing.push(item);
 			} else {
-				this.#items.set(mime, [item]);
+				this.#items.set(this.#normalizeMime(mime), [item]);
 			}
 		}
 	}
 
 	get(mimeType: string): DataTransferItem | undefined {
-		return this.#items.get(mimeType)?.[0];
+		return this.#items.get(this.#normalizeMime(mimeType))?.[0];
 	}
 
 	set(mimeType: string, value: DataTransferItem): void {
 		// This intentionally overwrites all entries for a given mimetype.
 		// This is similar to how the DOM DataTransfer type works
-		this.#items.set(mimeType, [value]);
+		this.#items.set(this.#normalizeMime(mimeType), [value]);
 	}
 
 	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
@@ -2641,6 +2666,10 @@ export class DataTransfer implements vscode.DataTransfer {
 				yield [mime, item];
 			}
 		}
+	}
+
+	#normalizeMime(mimeType: string): string {
+		return mimeType.toLowerCase();
 	}
 }
 
@@ -2678,6 +2707,14 @@ export class ThemeIcon {
 	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
 		this.color = color;
+	}
+
+	static isThemeIcon(thing: any) {
+		if (typeof thing.id !== 'string') {
+			console.log('INVALID ThemeIcon, invalid id', thing.id);
+			return false;
+		}
+		return true;
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');
@@ -2754,6 +2791,20 @@ export class RelativePattern implements IRelativePattern {
 	}
 }
 
+const breakpointIds = new WeakMap<Breakpoint, string>();
+
+/**
+ * We want to be able to construct Breakpoints internally that have a particular id, but we don't want extensions to be
+ * able to do this with the exposed Breakpoint classes in extension API.
+ * We also want "instanceof" to work with debug.breakpoints and the exposed breakpoint classes.
+ * And private members will be renamed in the built js, so casting to any and setting a private member is not safe.
+ * So, we store internal breakpoint IDs in a WeakMap. This function must be called after constructing a Breakpoint
+ * with a known id.
+ */
+export function setBreakpointId(bp: Breakpoint, id: string) {
+	breakpointIds.set(bp, id);
+}
+
 @es5ClassCompat
 export class Breakpoint {
 
@@ -2779,7 +2830,7 @@ export class Breakpoint {
 
 	get id(): string {
 		if (!this._id) {
-			this._id = generateUuid();
+			this._id = breakpointIds.get(this) ?? generateUuid();
 		}
 		return this._id;
 	}
@@ -2824,7 +2875,6 @@ export class DataBreakpoint extends Breakpoint {
 		this.canPersist = canPersist;
 	}
 }
-
 
 @es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
@@ -2877,11 +2927,6 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 }
 
 export enum InlineCompletionTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
-}
-
-export enum InlineCompletionTriggerKindNew {
 	Invoke = 0,
 	Automatic = 1,
 }
@@ -2976,9 +3021,7 @@ export class FileSystemError extends Error {
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
 		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
-		}
+		Object.setPrototypeOf(this, FileSystemError.prototype);
 
 		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
 			// nice stack traces
@@ -3030,6 +3073,11 @@ export enum CommentThreadCollapsibleState {
 export enum CommentMode {
 	Editing = 0,
 	Preview = 1
+}
+
+export enum CommentState {
+	Published = 0,
+	Draft = 1
 }
 
 export enum CommentThreadState {
@@ -3308,13 +3356,17 @@ export enum ExtensionKind {
 export class FileDecoration {
 
 	static validate(d: FileDecoration): boolean {
-		if (d.badge) {
+		if (typeof d.badge === 'string') {
 			let len = nextCharLength(d.badge, 0);
 			if (len < d.badge.length) {
 				len += nextCharLength(d.badge, len);
 			}
 			if (d.badge.length > len) {
 				throw new Error(`The 'badge'-property must be undefined or a short character`);
+			}
+		} else if (d.badge) {
+			if (!ThemeIcon.isThemeIcon(d.badge)) {
+				throw new Error(`The 'badge'-property is not a valid ThemeIcon`);
 			}
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
@@ -3323,12 +3375,12 @@ export class FileDecoration {
 		return true;
 	}
 
-	badge?: string;
+	badge?: string | vscode.ThemeIcon;
 	tooltip?: string;
 	color?: vscode.ThemeColor;
 	propagate?: boolean;
 
-	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
+	constructor(badge?: string | ThemeIcon, tooltip?: string, color?: ThemeColor) {
 		this.badge = badge;
 		this.tooltip = tooltip;
 		this.color = color;
@@ -3635,6 +3687,15 @@ export class NotebookRendererScript {
 	}
 }
 
+export class NotebookKernelSourceAction {
+	description?: string;
+	detail?: string;
+	command?: vscode.Command;
+	constructor(
+		public label: string
+	) { }
+}
+
 //#endregion
 
 //#region Timeline
@@ -3735,8 +3796,13 @@ export class TestRunRequest implements vscode.TestRunRequest {
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
+		public readonly continuous = false,
 	) { }
 }
+
+/** Back-compat for proposed API users */
+@es5ClassCompat
+export class TestRunRequest2 extends TestRunRequest { }
 
 @es5ClassCompat
 export class TestMessage implements vscode.TestMessage {
@@ -3917,4 +3983,28 @@ export class TerminalEditorTabInput {
 export class InteractiveWindowInput {
 	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
 }
+//#endregion
+
+//#region Interactive session
+
+export enum InteractiveSessionVoteDirection {
+	Up = 1,
+	Down = 2
+}
+
+export enum InteractiveSessionCopyKind {
+	Action = 1,
+	Toolbar = 2
+}
+
+//#endregion
+
+//#region Interactive Editor
+
+export enum InteractiveEditorResponseFeedbackKind {
+	Unhelpful = 0,
+	Helpful = 1,
+	Undone = 2
+}
+
 //#endregion

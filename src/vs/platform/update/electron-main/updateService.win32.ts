@@ -71,13 +71,13 @@ export class Win32UpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
-	override async initialize(): Promise<void> {
+	protected override async initialize(): Promise<void> {
 		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
 			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
 			return;
 		}
 
-		super.initialize();
+		await super.initialize();
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
@@ -224,7 +224,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		});
 
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
-		const mutex = await import('windows-mutex');
+		const mutex = await import('@vscode/windows-mutex');
 
 		// poll for mutex-ready
 		pollUntil(() => mutex.isActive(readyMutexName))

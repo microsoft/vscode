@@ -94,7 +94,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	}
 
 	// take the local options and remove the ones that don't apply
-	const options: OptionDescriptions<RemoteParsedArgs> = { ...OPTIONS };
+	const options: OptionDescriptions<Required<RemoteParsedArgs>> = { ...OPTIONS, gitCredential: { type: 'string' }, openExternal: { type: 'boolean' } };
 	const isSupported = cliCommand ? isSupportedForCmd : isSupportedForPipe;
 	for (const optionId in OPTIONS) {
 		const optId = <keyof RemoteParsedArgs>optionId;

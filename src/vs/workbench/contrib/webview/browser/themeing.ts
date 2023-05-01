@@ -34,13 +34,13 @@ export class WebviewThemeDataProvider extends Disposable {
 		super();
 
 		this._register(this._themeService.onDidColorThemeChange(() => {
-			this.reset();
+			this._reset();
 		}));
 
 		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize'];
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (webviewConfigurationKeys.some(key => e.affectsConfiguration(key))) {
-				this.reset();
+				this._reset();
 			}
 		}));
 	}
@@ -82,7 +82,7 @@ export class WebviewThemeDataProvider extends Disposable {
 		return this._cachedWebViewThemeData;
 	}
 
-	private reset() {
+	private _reset() {
 		this._cachedWebViewThemeData = undefined;
 		this._onThemeDataChanged.fire();
 	}

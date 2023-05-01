@@ -17,7 +17,6 @@ function logLevelToString(level: LogLevel): string {
 		case LogLevel.Info: return 'info';
 		case LogLevel.Warning: return 'warn';
 		case LogLevel.Error: return 'error';
-		case LogLevel.Critical: return 'error';
 	}
 	return 'info';
 }
@@ -38,7 +37,12 @@ export class ConsoleLogInAutomationLogger extends AdapterLogger implements ILogg
 	private consoleLog(type: string, args: any[]): void {
 		const automatedWindow = window as unknown as IAutomatedWindow;
 		if (typeof automatedWindow.codeAutomationLog === 'function') {
-			automatedWindow.codeAutomationLog(type, args);
+			try {
+				automatedWindow.codeAutomationLog(type, args);
+			} catch (err) {
+				// see https://github.com/microsoft/vscode-test-web/issues/69
+				console.error('Problems writing to codeAutomationLog', err);
+			}
 		}
 	}
 }

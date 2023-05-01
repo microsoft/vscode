@@ -19,9 +19,11 @@ import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelServ
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
 import { ExtHostLoggerService } from 'vs/workbench/api/node/extHostLoggerService';
-import { ILoggerService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { NodeExtHostVariableResolverProviderService } from 'vs/workbench/api/node/extHostVariableResolverService';
 import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
+import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 // #########################################################################
 // ###                                                                   ###
@@ -29,13 +31,14 @@ import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHos
 // ###                                                                   ###
 // #########################################################################
 
-registerSingleton(IExtHostExtensionService, ExtHostExtensionService, false);
+registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, false);
+registerSingleton(ILogService, new SyncDescriptor(ExtHostLogService, [false], true));
+registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
 
-registerSingleton(IExtHostDebugService, ExtHostDebugService, false);
-registerSingleton(IExtHostSearch, NativeExtHostSearch, false);
-registerSingleton(IExtHostTask, ExtHostTask, false);
-registerSingleton(IExtHostTerminalService, ExtHostTerminalService, false);
-registerSingleton(IExtHostTunnelService, ExtHostTunnelService, false);
-registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, false);
+registerSingleton(IExtHostDebugService, ExtHostDebugService, InstantiationType.Eager);
+registerSingleton(IExtHostSearch, NativeExtHostSearch, InstantiationType.Eager);
+registerSingleton(IExtHostTask, ExtHostTask, InstantiationType.Eager);
+registerSingleton(IExtHostTerminalService, ExtHostTerminalService, InstantiationType.Eager);
+registerSingleton(IExtHostTunnelService, ExtHostTunnelService, InstantiationType.Eager);
+registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, InstantiationType.Eager);

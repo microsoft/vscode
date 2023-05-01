@@ -37,6 +37,8 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extname } from 'vs/base/common/resources';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -67,6 +69,7 @@ export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChan
 export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrimarySide';
 export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSecondarySide';
 export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
+export const DIFF_OPEN_SIDE = 'workbench.action.compareEditor.openSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
@@ -291,7 +294,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 	}
 }
 
-function registerEditorGroupsLayoutCommand(): void {
+function registerEditorGroupsLayoutCommands(): void {
 
 	function applyEditorLayout(accessor: ServicesAccessor, layout: EditorGroupLayout): void {
 		if (!layout || typeof layout !== 'object') {
@@ -306,7 +309,7 @@ function registerEditorGroupsLayoutCommand(): void {
 		applyEditorLayout(accessor, args);
 	});
 
-	// API Command
+	// API Commands
 	CommandsRegistry.registerCommand({
 		id: 'vscode.setEditorLayout',
 		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
@@ -330,6 +333,20 @@ function registerEditorGroupsLayoutCommand(): void {
 					}
 				}
 			}]
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: 'vscode.getEditorLayout',
+		handler: (accessor: ServicesAccessor) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			return editorGroupService.getLayout();
+		},
+		description: {
+			description: 'Get Editor Layout',
+			args: [],
+			returns: 'An editor layout object, in the same format as vscode.setEditorLayout'
 		}
 	});
 }
@@ -1339,6 +1356,33 @@ function registerOtherEditorCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_OPEN_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: EditorContextKeys.inDiffEditor,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyO),
+		handler: async accessor => {
+			const editorService = accessor.get(IEditorService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const activeEditor = editorService.activeEditor;
+			const activeTextEditorControl = editorService.activeTextEditorControl;
+			if (!isDiffEditor(activeTextEditorControl) || !(activeEditor instanceof DiffEditorInput)) {
+				return;
+			}
+
+			let editor: EditorInput | undefined;
+			const originalEditor = activeTextEditorControl.getOriginalEditor();
+			if (originalEditor.hasTextFocus()) {
+				editor = activeEditor.original;
+			} else {
+				editor = activeEditor.modified;
+			}
+
+			return editorGroupService.activeGroup.openEditor(editor);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: UNPIN_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ActiveEditorStickyContext,
@@ -1476,7 +1520,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 export function setup(): void {
 	registerActiveEditorMoveCopyCommand();
-	registerEditorGroupsLayoutCommand();
+	registerEditorGroupsLayoutCommands();
 	registerDiffEditorCommands();
 	registerOpenEditorAPICommands();
 	registerOpenEditorAtIndexCommands();

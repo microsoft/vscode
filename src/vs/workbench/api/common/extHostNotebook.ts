@@ -26,12 +26,9 @@ import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/
 import type * as vscode from 'vscode';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 
-type NotebookContentProviderData = {
-	readonly provider: vscode.NotebookContentProvider;
-	readonly extension: IExtensionDescription;
-};
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
@@ -40,13 +37,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _notebookDocumentsProxy: MainThreadNotebookDocumentsShape;
 	private readonly _notebookEditorsProxy: MainThreadNotebookEditorsShape;
 
-	private readonly _notebookContentProviders = new Map<string, NotebookContentProviderData>();
 	private readonly _notebookStatusBarItemProviders = new Map<number, vscode.NotebookCellStatusBarItemProvider>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _commandsConverter: CommandsConverter;
 
-	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
+	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>({ onListenerError: onUnexpectedExternalError });
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
 
 	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
@@ -58,12 +54,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return this._visibleNotebookEditors.map(editor => editor.apiEditor);
 	}
 
-	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
+	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>({ onListenerError: onUnexpectedExternalError });
 	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
-	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
+	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>({ onListenerError: onUnexpectedExternalError });
 	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 
-	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
+	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>({ onListenerError: onUnexpectedExternalError });
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
 
 	private _statusBarCache = new Cache<IDisposable>('NotebookCellStatusBarCache');
@@ -90,6 +86,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					const cell = data?.getCell(cellHandle);
 					if (cell) {
 						return cell.apiCell;
+					}
+				}
+				if (arg && arg.$mid === MarshalledId.NotebookActionContext) {
+					const notebookUri = arg.uri;
+					const data = this._documents.get(notebookUri);
+					if (data) {
+						return data.apiNotebook;
 					}
 				}
 				return arg;
@@ -130,42 +133,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return result;
 	}
 
-	private _getProviderData(viewType: string): NotebookContentProviderData {
-		const result = this._notebookContentProviders.get(viewType);
-		if (!result) {
-			throw new Error(`NO provider for '${viewType}'`);
-		}
-		return result;
-	}
 
-	registerNotebookContentProvider(
-		extension: IExtensionDescription,
-		viewType: string,
-		provider: vscode.NotebookContentProvider,
-		options?: vscode.NotebookDocumentContentOptions,
-		registration?: vscode.NotebookRegistrationData
-	): vscode.Disposable {
-		if (isFalsyOrWhitespace(viewType)) {
-			throw new Error(`viewType cannot be empty or just whitespace`);
-		}
-		if (this._notebookContentProviders.has(viewType)) {
-			throw new Error(`Notebook provider for '${viewType}' already registered`);
-		}
-
-		this._notebookContentProviders.set(viewType, { extension, provider });
-
-		this._notebookProxy.$registerNotebookProvider(
-			{ id: extension.identifier, location: extension.extensionLocation },
-			viewType,
-			typeConverters.NotebookDocumentContentOptions.from(options),
-			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
-		);
-
-		return new extHostTypes.Disposable(() => {
-			this._notebookContentProviders.delete(viewType);
-			this._notebookProxy.$unregisterNotebookProvider(viewType);
-		});
-	}
 
 	private static _convertNotebookRegistrationData(extension: IExtensionDescription, registration: vscode.NotebookRegistrationData | undefined): INotebookContributionData | undefined {
 		if (!registration) {
@@ -335,14 +303,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	// --- open, save, saveAs, backup
 
-	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>> {
-		const { provider } = this._getProviderData(viewType);
-		const data = await provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData: untitledDocumentData?.buffer }, token);
-		return new SerializableObjectWithBuffers({
-			metadata: data.metadata ?? Object.create(null),
-			cells: data.cells.map(typeConverters.NotebookCellData.from),
-		});
-	}
 
 	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, data: INotebookEditorAddData) {
 
@@ -465,6 +425,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			// clear active notebook as current active editor is non-notebook editor
 			this._activeNotebookEditor = undefined;
 		} else if (delta.value.newActiveEditor) {
+			const activeEditor = this._editors.get(delta.value.newActiveEditor);
+			if (!activeEditor) {
+				console.error(`FAILED to find active notebook editor ${delta.value.newActiveEditor}`);
+			}
 			this._activeNotebookEditor = this._editors.get(delta.value.newActiveEditor);
 		}
 		if (delta.value.newActiveEditor !== undefined) {

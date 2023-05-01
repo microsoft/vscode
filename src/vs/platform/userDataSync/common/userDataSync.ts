@@ -46,6 +46,8 @@ export interface IUserDataSyncConfiguration {
 	ignoredSettings?: string[];
 }
 
+export const CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM = 'settingsSync.keybindingsPerPlatform';
+
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -55,7 +57,7 @@ export function registerConfiguration(): IDisposable {
 		title: localize('settings sync', "Settings Sync"),
 		type: 'object',
 		properties: {
-			'settingsSync.keybindingsPerPlatform': {
+			[CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM]: {
 				type: 'boolean',
 				description: localize('settingsSync.keybindingsPerPlatform', "Synchronize keybindings for each platform."),
 				default: true,
@@ -189,7 +191,7 @@ export interface IUserDataSyncStoreService {
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
-	readonly onTokenFailed: Event<void>;
+	readonly onTokenFailed: Event<UserDataSyncErrorCode>;
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
 
@@ -212,7 +214,7 @@ export interface IUserDataSyncBackupStoreService {
 	readonly _serviceBrand: undefined;
 	backup(profile: IUserDataProfile, resource: SyncResource, content: string): Promise<void>;
 	getAllRefs(profile: IUserDataProfile, resource: SyncResource): Promise<IResourceRefHandle[]>;
-	resolveContent(profile: IUserDataProfile, resource: SyncResource, ref?: string): Promise<string | null>;
+	resolveContent(profile: IUserDataProfile, resource: SyncResource, ref: string): Promise<string | null>;
 }
 
 //#endregion
@@ -235,6 +237,9 @@ export function createSyncHeaders(executionId: string): IHeaders {
 export const enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
+	Forbidden = 'Forbidden', /* 403 */
+	NotFound = 'NotFound', /* 404 */
+	MethodNotFound = 'MethodNotFound', /* 405 */
 	Conflict = 'Conflict', /* 409 */
 	Gone = 'Gone', /* 410 */
 	PreconditionFailed = 'PreconditionFailed', /* 412 */
@@ -258,13 +263,13 @@ export const enum UserDataSyncErrorCode {
 	SessionExpired = 'SessionExpired',
 	ServiceChanged = 'ServiceChanged',
 	DefaultServiceChanged = 'DefaultServiceChanged',
+	LocalTooManyProfiles = 'LocalTooManyProfiles',
 	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
 	LocalError = 'LocalError',
 	IncompatibleLocalContent = 'IncompatibleLocalContent',
 	IncompatibleRemoteContent = 'IncompatibleRemoteContent',
-	UnresolvedConflicts = 'UnresolvedConflicts',
 
 	Unknown = 'Unknown',
 }
@@ -323,17 +328,26 @@ export interface ISyncUserDataProfile {
 	readonly shortName?: string;
 }
 
-export interface ISyncExtension {
+export type ISyncExtension = ILocalSyncExtension | IRemoteSyncExtension;
+
+export interface ILocalSyncExtension {
 	identifier: IExtensionIdentifier;
-	preRelease?: boolean;
-	version?: string;
+	pinned: boolean;
+	version: string;
+	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
 	state?: IStringDictionary<any>;
 }
 
-export interface ISyncExtensionWithVersion extends ISyncExtension {
+export interface IRemoteSyncExtension {
+	identifier: IExtensionIdentifier;
 	version: string;
+	pinned?: boolean;
+	preRelease?: boolean;
+	disabled?: boolean;
+	installed?: boolean;
+	state?: IStringDictionary<any>;
 }
 
 export interface IStorageValue {
@@ -410,7 +424,7 @@ export interface IUserDataSyncResourceError extends IUserDataSyncResource {
 	readonly error: UserDataSyncError;
 }
 
-export interface IUserDataInitializer {
+export interface IUserDataSyncResourceInitializer {
 	initialize(userData: IUserData): Promise<void>;
 }
 
@@ -426,7 +440,6 @@ export interface IUserDataSynchroniser {
 	readonly onDidChangeLocal: Event<void>;
 
 	sync(manifest: IUserDataResourceManifest | null, headers: IHeaders): Promise<void>;
-	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
 	preview(manifest: IUserDataResourceManifest | null, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
@@ -440,10 +453,7 @@ export interface IUserDataSynchroniser {
 	resetLocal(): Promise<void>;
 
 	resolveContent(resource: URI): Promise<string | null>;
-	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
-	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	replace(content: string): Promise<boolean>;
 }
 
 //#endregion
@@ -478,7 +488,7 @@ export interface IUserDataSyncTask {
 	stop(): Promise<void>;
 }
 
-export interface IUserDataManualSyncTask extends IDisposable {
+export interface IUserDataManualSyncTask {
 	readonly id: string;
 	merge(): Promise<void>;
 	apply(): Promise<void>;
@@ -506,20 +516,34 @@ export interface IUserDataSyncService {
 
 	createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<IUserDataSyncTask>;
 	createManualSyncTask(): Promise<IUserDataManualSyncTask>;
+	resolveContent(resource: URI): Promise<string | null>;
 	accept(syncResource: IUserDataSyncResource, resource: URI, content: string | null | undefined, apply: boolean | { force: boolean }): Promise<void>;
 
 	reset(): Promise<void>;
 	resetRemote(): Promise<void>;
+	cleanUpRemoteData(): Promise<void>;
 	resetLocal(): Promise<void>;
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 
+	getRemoteProfiles(): Promise<ISyncUserDataProfile[]>;
+	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]>;
+	getLocalSyncResourceHandles(syncResource: SyncResource, profile?: IUserDataProfile): Promise<ISyncResourceHandle[]>;
+	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
+	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	replace(syncResourceHandle: ISyncResourceHandle): Promise<void>;
+}
+
+export const IUserDataSyncResourceProviderService = createDecorator<IUserDataSyncResourceProviderService>('IUserDataSyncResourceProviderService');
+export interface IUserDataSyncResourceProviderService {
+	_serviceBrand: any;
+	getRemoteSyncedProfiles(): Promise<ISyncUserDataProfile[]>;
+	getLocalSyncResourceHandles(syncResource: SyncResource, profile: IUserDataProfile): Promise<ISyncResourceHandle[]>;
+	getRemoteSyncResourceHandles(syncResource: SyncResource, profile: ISyncUserDataProfile | undefined): Promise<ISyncResourceHandle[]>;
+	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
+	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
 	resolveContent(resource: URI): Promise<string | null>;
-	replace(resource: IUserDataSyncResource, uri: URI): Promise<void>;
-	getLocalSyncResourceHandles(resource: IUserDataSyncResource): Promise<ISyncResourceHandle[]>;
-	getRemoteSyncResourceHandles(resource: IUserDataSyncResource): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(resource: IUserDataSyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
-	getMachineId(resource: IUserDataSyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	resolveUserDataSyncResource(syncResourceHandle: ISyncResourceHandle): IUserDataSyncResource | undefined;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
@@ -550,5 +574,6 @@ export interface IConflictSetting {
 
 //#endregion
 
+export const USER_DATA_SYNC_LOG_ID = 'userDataSync';
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const PREVIEW_DIR_NAME = 'preview';

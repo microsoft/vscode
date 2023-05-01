@@ -16,13 +16,15 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalInRunCommandPicker: IContextKey<boolean>;
+	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 	private _configHelper: TerminalConfigHelper;
+	private _backendRegistration = new Map<string | undefined, { promise: Promise<void>; resolve: () => void }>();
 
 	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
@@ -30,21 +32,30 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService
+		@IWorkbenchEnvironmentService readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
 		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
+		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+
+
+		for (const remoteAuthority of [undefined, _environmentService.remoteAuthority]) {
+			let resolve: () => void;
+			const p = new Promise<void>(r => resolve = r);
+			this._backendRegistration.set(remoteAuthority, { promise: p, resolve: resolve! });
+		}
 	}
 
-	createInstance(profile: ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance;
-	createInstance(shellLaunchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
-	createInstance(config: IShellLaunchConfig | ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance {
+	createInstance(profile: ITerminalProfile, target: TerminalLocation, resource?: URI): ITerminalInstance;
+	createInstance(shellLaunchConfig: IShellLaunchConfig, target: TerminalLocation, resource?: URI): ITerminalInstance;
+	createInstance(config: IShellLaunchConfig | ITerminalProfile, target: TerminalLocation, resource?: URI): ITerminalInstance {
 		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(config);
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalShellTypeContextKey,
 			this._terminalInRunCommandPicker,
+			this._terminalSuggestWidgetVisibleContextKey,
 			this._configHelper,
 			shellLaunchConfig,
 			resource
@@ -85,8 +96,17 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	}
 
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> {
-		await this._lifecycleService.when(LifecyclePhase.Restored);
-		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
+		let backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
+		if (!backend) {
+			// Ensure backend is initialized and try again
+			await this._backendRegistration.get(remoteAuthority)?.promise;
+			backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
+		}
+		return backend;
+	}
+
+	didRegisterBackend(remoteAuthority?: string) {
+		this._backendRegistration.get(remoteAuthority)?.resolve();
 	}
 }
 

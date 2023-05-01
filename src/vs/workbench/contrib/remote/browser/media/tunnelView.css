@@ -101,3 +101,7 @@
 	background-repeat: no-repeat;
 	padding: 2px;
 }
+
+.monaco-workbench .codicon.codicon-ports-forwarded-with-process-icon {
+	color: var(--vscode-ports-iconRunningProcessForeground);
+}

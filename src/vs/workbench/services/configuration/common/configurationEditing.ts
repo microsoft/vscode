@@ -12,7 +12,7 @@ import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IConfigurationService, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
 import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -114,11 +114,7 @@ export interface IConfigurationValue {
 	value: any;
 }
 
-export interface IConfigurationEditingOptions {
-	/**
-	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
-	 */
-	donotNotifyError?: boolean;
+export interface IConfigurationEditingOptions extends IConfigurationUpdateOptions {
 	/**
 	 * Scope of configuration to be written into.
 	 */
@@ -137,10 +133,6 @@ interface IConfigurationEditOperation extends IConfigurationValue {
 	jsonPath: json.JSONPath;
 	resource?: URI;
 	workspaceStandAloneConfigurationKey?: string;
-}
-
-interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
-	handleDirtyFile?: 'save' | 'revert';
 }
 
 export class ConfigurationEditing {
@@ -181,7 +173,7 @@ export class ConfigurationEditing {
 		});
 	}
 
-	private async doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): Promise<void> {
+	private async doWriteConfiguration(operation: IConfigurationEditOperation, options: IConfigurationEditingOptions): Promise<void> {
 		await this.validate(operation.target, operation, !options.handleDirtyFile, options.scopes || {});
 		const resource: URI = operation.resource!;
 		const reference = await this.resolveModelReference(resource);
@@ -193,7 +185,7 @@ export class ConfigurationEditing {
 		}
 	}
 
-	private async updateConfiguration(operation: IConfigurationEditOperation, model: ITextModel, formattingOptions: FormattingOptions, options: ConfigurationEditingOptions): Promise<void> {
+	private async updateConfiguration(operation: IConfigurationEditOperation, model: ITextModel, formattingOptions: FormattingOptions, options: IConfigurationEditingOptions): Promise<void> {
 		if (this.hasParseErrors(model.getValue(), operation)) {
 			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, operation.target, operation);
 		}
@@ -301,7 +293,7 @@ export class ConfigurationEditing {
 					label: nls.localize('saveAndRetry', "Save and Retry"),
 					run: () => {
 						const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey!;
-						this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ handleDirtyFile: 'save', scopes });
+						this.writeConfiguration(operation.target, { key, value: operation.value }, <IConfigurationEditingOptions>{ handleDirtyFile: 'save', scopes });
 					}
 				},
 				{
@@ -313,7 +305,7 @@ export class ConfigurationEditing {
 			this.notificationService.prompt(Severity.Error, error.message,
 				[{
 					label: nls.localize('saveAndRetry', "Save and Retry"),
-					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ handleDirtyFile: 'save', scopes })
+					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <IConfigurationEditingOptions>{ handleDirtyFile: 'save', scopes })
 				},
 				{
 					label: nls.localize('open', "Open Settings"),

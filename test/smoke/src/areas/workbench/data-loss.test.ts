@@ -71,18 +71,18 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		it('verifies that "hot exit" works for dirty files (without delay)', function () {
-			return testHotExit.call(this, 'test_verifies_that_hot_exit_works_for_dirty_files_without_delay', undefined);
+			return testHotExit.call(this, 'test_verifies_that_hot_exit_works_for_dirty_files_without_delay', undefined, undefined);
 		});
 
 		it('verifies that "hot exit" works for dirty files (with delay)', function () {
-			return testHotExit.call(this, 'test_verifies_that_hot_exit_works_for_dirty_files_with_delay', 2000);
+			return testHotExit.call(this, 'test_verifies_that_hot_exit_works_for_dirty_files_with_delay', 2000, undefined);
 		});
 
 		it('verifies that auto save triggers on shutdown', function () {
 			return testHotExit.call(this, 'test_verifies_that_auto_save_triggers_on_shutdown', undefined, true);
 		});
 
-		async function testHotExit(title: string, restartDelay: number | undefined, autoSave: boolean | undefined) {
+		async function testHotExit(this: import('mocha').Context, title: string, restartDelay: number | undefined, autoSave: boolean | undefined) {
 			app = createApp({
 				...this.defaultOptions,
 				logsPath: suiteLogsPath(this.defaultOptions, title),
@@ -201,7 +201,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			return testHotExit.call(this, `test_verifies_that_hot_exit_works_for_dirty_files_with_delay_from_stable`, 2000);
 		});
 
-		async function testHotExit(title: string, restartDelay: number | undefined) {
+		async function testHotExit(this: import('mocha').Context, title: string, restartDelay: number | undefined) {
 			const stableCodePath = ensureStableCode();
 			if (!stableCodePath) {
 				this.skip();

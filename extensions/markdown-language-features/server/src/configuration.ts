@@ -8,11 +8,22 @@ import { Disposable } from './util/dispose';
 
 export type ValidateEnabled = 'ignore' | 'warning' | 'error' | 'hint';
 
-interface Settings {
+export interface Settings {
 	readonly markdown: {
+		readonly server: {
+			readonly log: 'off' | 'debug' | 'trace';
+		};
+
+		readonly preferredMdPathExtensionStyle: 'auto' | 'includeExtension' | 'removeExtension';
+
+		readonly occurrencesHighlight: {
+			readonly enabled: boolean;
+		};
+
 		readonly suggest: {
 			readonly paths: {
 				readonly enabled: boolean;
+				readonly includeWorkspaceHeaderCompletions: 'never' | 'onSingleOrDoubleHash' | 'onDoubleHash';
 			};
 		};
 

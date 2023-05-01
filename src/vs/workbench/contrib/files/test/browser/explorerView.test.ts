@@ -12,7 +12,7 @@ import { getContext } from 'vs/workbench/contrib/files/browser/views/explorerVie
 import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompressedNavigationController } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import * as dom from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { provideDecorations } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 const $ = dom.$;
@@ -44,7 +44,7 @@ suite('Files - ExplorerView', () => {
 	test('decoration provider', async function () {
 		const d = new Date().getTime();
 		const s1 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		s1.isError = true;
+		s1.error = new Error('A test error');
 		const s2 = createStat.call(this, '/path/to', 'to', true, false, 8096, d, true);
 		const s3 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d);
 		assert.strictEqual(provideDecorations(s3), undefined);
@@ -53,7 +53,7 @@ suite('Files - ExplorerView', () => {
 			letter: '\u2937'
 		});
 		assert.deepStrictEqual(provideDecorations(s1), {
-			tooltip: 'Unable to resolve workspace folder',
+			tooltip: 'Unable to resolve workspace folder (A test error)',
 			letter: '!',
 			color: listInvalidItemForeground
 		});
@@ -84,7 +84,8 @@ suite('Files - ExplorerView', () => {
 
 		const navigationController = new CompressedNavigationController('id', [s1, s2, s3], {
 			container,
-			elementDisposable: Disposable.None,
+			templateDisposables: new DisposableStore(),
+			elementDisposables: new DisposableStore(),
 			label: <any>{
 				container: label,
 				onDidRender: emitter.event

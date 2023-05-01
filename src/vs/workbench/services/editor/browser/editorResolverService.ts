@@ -114,7 +114,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		let resource = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		const options = untypedEditor.options;
 
 		// If it was resolved before we await for the extensions to activate and then proceed with resolution or else the backing extensions won't be registered
 		if (this.cache && resource && this.resourceMatchesCache(resource)) {
@@ -178,12 +177,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return ResolvedStatus.NONE;
 		}
 
-		// If it's the currently active editor we shouldn't do anything
-		const activeEditor = group.activeEditor;
-		const isActive = activeEditor ? activeEditor.matches(untypedEditor) : false;
-		if (activeEditor && isActive) {
-			return { editor: activeEditor, options, group };
-		}
 		const input = await this.doResolveEditor(untypedEditor, group, selectedEditor);
 		if (conflictingDefault && input) {
 			// Show the conflicting default dialog

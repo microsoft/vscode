@@ -3,74 +3,96 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
 
 export interface ILinesDiffComputer {
-	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): ILinesDiff;
+	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff;
 }
 
 export interface ILinesDiffComputerOptions {
-	ignoreTrimWhitespace: boolean;
-	maxComputationTime: number;
+	readonly ignoreTrimWhitespace: boolean;
+	readonly maxComputationTimeMs: number;
 }
 
-export interface ILinesDiff {
-	readonly quitEarly: boolean;
-	readonly changes: LineRangeMapping[];
-}
-
-export class LineRangeMapping {
+export class LinesDiff {
 	constructor(
-		readonly originalRange: LineRange,
-		readonly modifiedRange: LineRange,
+		readonly changes: readonly LineRangeMapping[],
+
 		/**
-		 * Meaning of `undefined` unclear.
-		*/
-		readonly innerChanges: RangeMapping[] | undefined,
-	) { }
-
-	toString(): string {
-		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
-	}
-}
-
-export class RangeMapping {
-	constructor(
-		readonly originalRange: Range,
-		readonly modifiedRange: Range,
-	) { }
-
-	toString(): string {
-		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
+		 * Indicates if the time out was reached.
+		 * In that case, the diffs might be an approximation and the user should be asked to rerun the diff with more time.
+		 */
+		readonly hitTimeout: boolean,
+	) {
 	}
 }
 
 /**
- * 1-based.
-*/
-export class LineRange {
-	constructor(public readonly startLineNumber: number, public readonly endLineNumberExclusive: number) { }
+ * Maps a line range in the original text model to a line range in the modified text model.
+ */
+export class LineRangeMapping {
+	/**
+	 * The line range in the original text model.
+	 */
+	public readonly originalRange: LineRange;
 
-	get isEmpty(): boolean {
-		return this.startLineNumber === this.endLineNumberExclusive;
+	/**
+	 * The line range in the modified text model.
+	 */
+	public readonly modifiedRange: LineRange;
+
+	/**
+	 * If inner changes have not been computed, this is set to undefined.
+	 * Otherwise, it represents the character-level diff in this line range.
+	 * The original range of each range mapping should be contained in the original line range (same for modified), exceptions are new-lines.
+	 * Must not be an empty array.
+	 */
+	public readonly innerChanges: RangeMapping[] | undefined;
+
+	constructor(
+		originalRange: LineRange,
+		modifiedRange: LineRange,
+		innerChanges: RangeMapping[] | undefined,
+	) {
+		this.originalRange = originalRange;
+		this.modifiedRange = modifiedRange;
+		this.innerChanges = innerChanges;
 	}
 
-	public delta(offset: number): LineRange {
-		return new LineRange(this.startLineNumber + offset, this.endLineNumberExclusive + offset);
+	public toString(): string {
+		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
 	}
 
-	public get length(): number {
-		return this.endLineNumberExclusive - this.startLineNumber;
+	public get changedLineCount() {
+		return Math.max(this.originalRange.length, this.modifiedRange.length);
+	}
+}
+
+/**
+ * Maps a range in the original text model to a range in the modified text model.
+ */
+export class RangeMapping {
+	/**
+	 * The original range.
+	 */
+	readonly originalRange: Range;
+
+	/**
+	 * The modified range.
+	 */
+	readonly modifiedRange: Range;
+
+	constructor(
+		originalRange: Range,
+
+		modifiedRange: Range,
+	) {
+		this.originalRange = originalRange;
+		this.modifiedRange = modifiedRange;
 	}
 
-	toString(): string {
-		return `[${this.startLineNumber},${this.endLineNumberExclusive})`;
-	}
-
-	public join(other: LineRange): LineRange {
-		return new LineRange(
-			Math.min(this.startLineNumber, other.startLineNumber),
-			Math.max(this.endLineNumberExclusive, other.endLineNumberExclusive)
-		);
+	public toString(): string {
+		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
 	}
 }

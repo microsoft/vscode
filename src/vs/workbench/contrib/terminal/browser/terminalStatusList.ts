@@ -11,8 +11,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * The set of _internal_ terminal statuses, other components building on the terminal should put
@@ -22,30 +22,8 @@ export const enum TerminalStatus {
 	Bell = 'bell',
 	Disconnected = 'disconnected',
 	RelaunchNeeded = 'relaunch-needed',
+	EnvironmentVariableInfoChangesActive = 'env-var-info-changes-active',
 	ShellIntegrationAttentionNeeded = 'shell-integration-attention-needed'
-}
-
-export interface ITerminalStatus {
-	/** An internal string ID used to identify the status. */
-	id: string;
-	/**
-	 * The severity of the status, this defines both the color and how likely the status is to be
-	 * the "primary status".
-	 */
-	severity: Severity;
-	/**
-	 * An icon representing the status, if this is not specified it will not show up on the terminal
-	 * tab and will use the generic `info` icon when hovering.
-	 */
-	icon?: ThemeIcon;
-	/**
-	 * What to show for this status in the terminal's hover.
-	 */
-	tooltip?: string | undefined;
-	/**
-	 * Actions to expose on hover.
-	 */
-	hoverActions?: IHoverAction[];
 }
 
 export interface ITerminalStatusList {
@@ -117,6 +95,11 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 			if (oldPrimary !== newPrimary) {
 				this._onDidChangePrimaryStatus.fire(newPrimary);
 			}
+		} else {
+			this._statuses.set(status.id, status);
+			// It maybe the case that status hasn't changed, there isn't a good way to check this based on
+			// `ITerminalStatus`, so just fire the event anyway.
+			this._onDidAddStatus.fire(status);
 		}
 	}
 

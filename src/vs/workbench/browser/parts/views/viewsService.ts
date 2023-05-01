@@ -367,13 +367,16 @@ export class ViewsService extends Disposable implements IViewsService {
 					const viewsService = serviceAccessor.get(IViewsService);
 					const viewContainerLocation = viewDescriptorService.getViewContainerLocation(viewContainer);
 					switch (viewContainerLocation) {
-						case ViewContainerLocation.Sidebar:
-							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.SIDEBAR_PART)) {
+						case ViewContainerLocation.AuxiliaryBar:
+						case ViewContainerLocation.Sidebar: {
+							const part = viewContainerLocation === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
+							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(part)) {
 								await viewsService.openViewContainer(viewContainer.id, true);
 							} else {
 								editorGroupService.activeGroup.focus();
 							}
 							break;
+						}
 						case ViewContainerLocation.Panel:
 							if (!viewsService.isViewContainerVisible(viewContainer.id) || !layoutService.hasFocus(Parts.PANEL_PART)) {
 								await viewsService.openViewContainer(viewContainer.id, true);

@@ -84,7 +84,7 @@ export class CompletionItem {
 	) {
 		this.textLabel = typeof completion.label === 'string'
 			? completion.label
-			: completion.label.label;
+			: completion.label?.label;
 
 		// ensure lower-variants (perf)
 		this.labelLow = this.textLabel.toLowerCase();
@@ -167,6 +167,7 @@ export class CompletionOptions {
 		readonly snippetSortOrder = SnippetSortOrder.Bottom,
 		readonly kindFilter = new Set<languages.CompletionItemKind>(),
 		readonly providerFilter = new Set<languages.CompletionItemProvider>(),
+		readonly providerItemsToReuse: ReadonlyMap<languages.CompletionItemProvider, CompletionItem[]> = new Map<languages.CompletionItemProvider, CompletionItem[]>(),
 		readonly showDeprecated = true
 	) { }
 }
@@ -265,6 +266,12 @@ export async function provideSuggestionItems(
 		if (!_snippetSuggestSupport || options.kindFilter.has(languages.CompletionItemKind.Snippet)) {
 			return;
 		}
+		// we have items from a previous session that we can reuse
+		const reuseItems = options.providerItemsToReuse.get(_snippetSuggestSupport);
+		if (reuseItems) {
+			reuseItems.forEach(item => result.push(item));
+			return;
+		}
 		if (options.providerFilter.size > 0 && !options.providerFilter.has(_snippetSuggestSupport)) {
 			return;
 		}
@@ -281,6 +288,14 @@ export async function provideSuggestionItems(
 		// for each support in the group ask for suggestions
 		let didAddResult = false;
 		await Promise.all(providerGroup.map(async provider => {
+			// we have items from a previous session that we can reuse
+			if (options.providerItemsToReuse.has(provider)) {
+				const items = options.providerItemsToReuse.get(provider)!;
+				items.forEach(item => result.push(item));
+				didAddResult = didAddResult || items.length > 0;
+				return;
+			}
+			// check if this provider is filtered out
 			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
 				return;
 			}
@@ -382,7 +397,8 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 		};
 
 		const resolving: Promise<any>[] = [];
-		const completions = await provideSuggestionItems(completionProvider, ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter, triggerKind: triggerCharacter ? languages.CompletionTriggerKind.TriggerCharacter : languages.CompletionTriggerKind.Invoke });
+		const actualPosition = ref.object.textEditorModel.validatePosition(position);
+		const completions = await provideSuggestionItems(completionProvider, ref.object.textEditorModel, actualPosition, undefined, { triggerCharacter: triggerCharacter ?? undefined, triggerKind: triggerCharacter ? languages.CompletionTriggerKind.TriggerCharacter : languages.CompletionTriggerKind.Invoke });
 		for (const item of completions.items) {
 			if (resolving.length < (maxItemsToResolve ?? 0)) {
 				resolving.push(item.resolve(CancellationToken.None));

@@ -26,3 +26,5 @@ export interface MergeEditorContents {
 	result: string;
 	initialResult?: string;
 }
+
+export const StorageCloseWithConflicts = 'mergeEditorCloseWithConflicts';

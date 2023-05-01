@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionStatsClassification, LanguageDetectionStatsId } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -27,10 +27,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 const TOP_LANG_COUNTS = 12;
 
-const regexpModuleLocation = '../../../../../../node_modules/vscode-regexp-languagedetection';
-const regexpModuleLocationAsar = '../../../../../../node_modules.asar/vscode-regexp-languagedetection';
-const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
-const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
+const regexpModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-regexp-languagedetection`;
+const regexpModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-regexp-languagedetection`;
+const moduleLocation: AppResourcePath = `${nodeModulesPath}/@vscode/vscode-languagedetection`;
+const moduleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/@vscode/vscode-languagedetection`;
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
@@ -72,17 +72,17 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			telemetryService,
 			// TODO: See if it's possible to bundle vscode-languagedetection
 			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`, require).toString(true)
-				: FileAccess.asBrowserUri(`${moduleLocation}/dist/lib/index.js`, require).toString(true),
+				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`).toString(true)
+				: FileAccess.asBrowserUri(`${moduleLocation}/dist/lib/index.js`).toString(true),
 			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/model.json`, require).toString(true)
-				: FileAccess.asBrowserUri(`${moduleLocation}/model/model.json`, require).toString(true),
+				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/model.json`).toString(true)
+				: FileAccess.asBrowserUri(`${moduleLocation}/model/model.json`).toString(true),
 			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/group1-shard1of1.bin`, require).toString(true)
-				: FileAccess.asBrowserUri(`${moduleLocation}/model/group1-shard1of1.bin`, require).toString(true),
+				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/group1-shard1of1.bin`).toString(true)
+				: FileAccess.asBrowserUri(`${moduleLocation}/model/group1-shard1of1.bin`).toString(true),
 			this._environmentService.isBuilt && !isWeb
-				? FileAccess.asBrowserUri(`${regexpModuleLocationAsar}/dist/index.js`, require).toString(true)
-				: FileAccess.asBrowserUri(`${regexpModuleLocation}/dist/index.js`, require).toString(true),
+				? FileAccess.asBrowserUri(`${regexpModuleLocationAsar}/dist/index.js`).toString(true)
+				: FileAccess.asBrowserUri(`${regexpModuleLocation}/dist/index.js`).toString(true),
 			languageConfigurationService
 		);
 
@@ -154,13 +154,13 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	// only gives history for a workspace... where this takes advantage of history at a global level as well.
 	private initEditorOpenedListeners(storageService: IStorageService) {
 		try {
-			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.PROFILE, '[]'));
-			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistroyData);
+			const globalLangHistoryData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.PROFILE, '[]'));
+			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistoryData);
 		} catch (e) { console.error(e); }
 
 		try {
-			const workspaceLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, StorageScope.WORKSPACE, '[]'));
-			this.historicalWorkspaceOpenedLanguageIds.fromJSON(workspaceLangHistroyData);
+			const workspaceLangHistoryData = JSON.parse(storageService.get(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, StorageScope.WORKSPACE, '[]'));
+			this.historicalWorkspaceOpenedLanguageIds.fromJSON(workspaceLangHistoryData);
 		} catch (e) { console.error(e); }
 
 		this._register(this._editorService.onDidActiveEditorChange(() => {
@@ -261,7 +261,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		return undefined;
 	}
 
-	override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
+	protected override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
 		return (await this._getOrCreateLanguageDetectionWorker()).getProxyObject();
 	}
 
@@ -332,7 +332,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 		await this._withSyncedResources([resource]);
 		const modelId = await (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
-		const langaugeId = this.getLanguageId(modelId);
+		const languageId = this.getLanguageId(modelId);
 
 		const LanguageDetectionStatsId = 'automaticlanguagedetection.perf';
 
@@ -350,10 +350,10 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 		this._telemetryService.publicLog2<ILanguageDetectionPerf, LanguageDetectionPerfClassification>(LanguageDetectionStatsId, {
 			timeSpent: Date.now() - startTime,
-			detection: langaugeId || 'unknown',
+			detection: languageId || 'unknown',
 		});
 
-		return langaugeId;
+		return languageId;
 	}
 }
 

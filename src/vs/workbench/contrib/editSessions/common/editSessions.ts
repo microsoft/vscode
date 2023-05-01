@@ -13,21 +13,24 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
+import { StringSHA1 } from 'vs/base/common/hash';
 
 export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
-	original: 'Edit Sessions',
-	value: localize('session sync', 'Edit Sessions')
+	original: 'Cloud Changes',
+	value: localize('cloud changes', 'Cloud Changes')
 };
 
 export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageService>('IEditSessionsStorageService');
 export interface IEditSessionsStorageService {
 	_serviceBrand: undefined;
 
+	readonly SIZE_LIMIT: number;
+
 	readonly isSignedIn: boolean;
 	readonly onDidSignIn: Event<void>;
 	readonly onDidSignOut: Event<void>;
 
-	initialize(fromContinueOn: boolean, silent?: boolean): Promise<boolean>;
+	initialize(silent?: boolean): Promise<boolean>;
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
 	delete(ref: string | null): Promise<void>;
@@ -67,14 +70,16 @@ export interface Folder {
 	name: string;
 	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
+	absoluteUri: string | undefined;
 }
 
-export const EditSessionSchemaVersion = 2;
+export const EditSessionSchemaVersion = 3;
 
 export interface EditSession {
 	version: number;
 	machine?: string;
 	folders: Folder[];
+	state: { [key: string]: unknown };
 }
 
 export const EDIT_SESSIONS_SIGNED_IN_KEY = 'editSessionsSignedIn';
@@ -82,9 +87,9 @@ export const EDIT_SESSIONS_SIGNED_IN = new RawContextKey<boolean>(EDIT_SESSIONS_
 
 export const EDIT_SESSIONS_CONTAINER_ID = 'workbench.view.editSessions';
 export const EDIT_SESSIONS_DATA_VIEW_ID = 'workbench.views.editSessions.data';
-export const EDIT_SESSIONS_TITLE = localize('edit sessions', 'Edit Sessions');
+export const EDIT_SESSIONS_TITLE = localize('cloud changes', 'Cloud Changes');
 
-export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', Codicon.cloudDownload, localize('editSessionViewIcon', 'View icon of the edit sessions view.'));
+export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', Codicon.cloudDownload, localize('editSessionViewIcon', 'View icon of the cloud changes view.'));
 
 export const EDIT_SESSIONS_SHOW_VIEW = new RawContextKey<boolean>('editSessionsShowView', false);
 
@@ -100,3 +105,11 @@ export function decodeEditSessionFileContent(version: number, content: string): 
 			throw new Error('Upgrade to a newer version to decode this content.');
 	}
 }
+
+export function hashedEditSessionId(editSessionId: string) {
+	const sha1 = new StringSHA1();
+	sha1.update(editSessionId);
+	return sha1.digest();
+}
+
+export const editSessionsLogId = 'editSessions';

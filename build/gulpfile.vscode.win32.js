@@ -87,6 +87,7 @@ function buildWin32Setup(arch, target) {
 		productJson['target'] = target;
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
+		const quality = product.quality || 'dev';
 		const definitions = {
 			NameLong: product.nameLong,
 			NameShort: product.nameShort,
@@ -109,8 +110,14 @@ function buildWin32Setup(arch, target) {
 			RepoDir: repoPath,
 			OutputDir: outputPath,
 			InstallTarget: target,
-			ProductJsonPath: productJsonPath
+			ProductJsonPath: productJsonPath,
+			Quality: quality
 		};
+
+		if (quality === 'insider') {
+			definitions['AppxPackage'] = `code_insiders_explorer_${arch === 'ia32' ? 'x86' : arch}.appx`;
+			definitions['AppxPackageFullname'] = `Microsoft.${product.win32RegValueName}_1.0.0.0_neutral__8wekyb3d8bbwe`;
+		}
 
 		packageInnoSetup(issPath, { definitions }, cb);
 	};

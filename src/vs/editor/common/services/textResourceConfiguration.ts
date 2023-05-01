@@ -16,7 +16,7 @@ export interface ITextResourceConfigurationChangeEvent {
 	/**
 	 * All affected keys. Also includes language overrides and keys changed under language overrides.
 	 */
-	readonly affectedKeys: string[];
+	readonly affectedKeys: ReadonlySet<string>;
 
 	/**
 	 * Returns `true` if the given section has changed for the given resource.
@@ -26,7 +26,7 @@ export interface ITextResourceConfigurationChangeEvent {
 	 * @param resource Resource for which the configuration has to be checked.
 	 * @param section Section of the configuration
 	 */
-	affectsConfiguration(resource: URI, section: string): boolean;
+	affectsConfiguration(resource: URI | undefined, section: string): boolean;
 }
 
 export interface ITextResourceConfigurationService {

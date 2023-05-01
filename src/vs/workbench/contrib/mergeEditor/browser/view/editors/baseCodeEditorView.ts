@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reset } from 'vs/base/browser/dom';
+import { h, reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
@@ -55,6 +55,16 @@ export class BaseCodeEditorView extends CodeEditorView {
 				}
 				this.editor.setModel(vm.model.base);
 				reset(this.htmlElements.title, ...renderLabelWithIcons(localize('base', 'Base')));
+
+				const baseShowDiffAgainst = vm.baseShowDiffAgainst.read(reader);
+
+				let node: Node | undefined = undefined;
+				if (baseShowDiffAgainst) {
+					const label = localize('compareWith', 'Comparing with {0}', baseShowDiffAgainst === 1 ? vm.model.input1.title : vm.model.input2.title);
+					const tooltip = localize('compareWithTooltip', 'Differences are highlighted with a background color.');
+					node = h('span', { title: tooltip }, [label]).root;
+				}
+				reset(this.htmlElements.description, ...(node ? [node] : []));
 			})
 		);
 
@@ -71,6 +81,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 
 		const activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);
 		const showNonConflictingChanges = viewModel.showNonConflictingChanges.read(reader);
+		const showDeletionMarkers = this.showDeletionMarkers.read(reader);
 
 		const result: IModelDeltaDecoration[] = [];
 		for (const modifiedBaseRange of model.modifiedBaseRanges.read(reader)) {
@@ -93,6 +104,37 @@ export class BaseCodeEditorView extends CodeEditorView {
 				blockClassNames.push('focused');
 			}
 			blockClassNames.push('base');
+
+			const inputToDiffAgainst = viewModel.baseShowDiffAgainst.read(reader);
+
+			if (inputToDiffAgainst) {
+				for (const diff of modifiedBaseRange.getInputDiffs(inputToDiffAgainst)) {
+					const range = diff.inputRange.toInclusiveRange();
+					if (range) {
+						result.push({
+							range,
+							options: {
+								className: `merge-editor-diff base`,
+								description: 'Merge Editor',
+								isWholeLine: true,
+							}
+						});
+					}
+
+					for (const diff2 of diff.rangeMappings) {
+						if (showDeletionMarkers || !diff2.inputRange.isEmpty()) {
+							result.push({
+								range: diff2.inputRange,
+								options: {
+									className: diff2.inputRange.isEmpty() ? `merge-editor-diff-empty-word base` : `merge-editor-diff-word base`,
+									description: 'Merge Editor',
+									showIfCollapsed: true,
+								},
+							});
+						}
+					}
+				}
+			}
 
 			result.push({
 				range: range.toInclusiveRangeOrEmpty(),

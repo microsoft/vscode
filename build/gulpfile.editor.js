@@ -6,6 +6,7 @@
 const gulp = require('gulp');
 const path = require('path');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
 const es = require('event-stream');
@@ -18,7 +19,7 @@ const monacoapi = require('./lib/monaco-api');
 const fs = require('fs');
 
 const root = path.dirname(__dirname);
-const sha1 = util.getVersion(root);
+const sha1 = getVersion(root);
 const semver = require('./monaco/package.json').version;
 const headerVersion = semver + '(' + sha1 + ')';
 
@@ -84,7 +85,8 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	});
 });
 
-const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
+// Disable mangling for the editor, as it complicates debugging & quite a few users rely on private/protected fields.
+const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true }));
 
 const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(
 	{

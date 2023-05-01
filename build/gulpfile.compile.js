@@ -16,6 +16,7 @@ const compileBuildTask = task.define('compile-build',
 	task.series(
 		util.rimraf('out-build'),
 		util.buildWebNodePaths('out-build'),
+		compilation.compileApiProposalNamesTask,
 		compilation.compileTask('src', 'out-build', true),
 		optimize.optimizeLoaderTask('out-build', 'out-build', true)
 	)

@@ -5,21 +5,22 @@
 
 // Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
 
+import * as fs from 'fs';
+import * as path from 'path';
 import * as debug from 'debug';
 import * as extract from 'extract-zip';
-import * as fs from 'fs-extra';
-import * as path from 'path';
-import * as packageJSON from '../../package.json';
 import { downloadArtifact } from '@electron/get';
+
+const root = path.dirname(path.dirname(__dirname));
 
 const d = debug('libcxx-fetcher');
 
 export async function downloadLibcxxHeaders(outDir: string, electronVersion: string, lib_name: string): Promise<void> {
-	if (await fs.pathExists(path.resolve(outDir, 'include'))) {
+	if (await fs.existsSync(path.resolve(outDir, 'include'))) {
 		return;
 	}
-	if (!await fs.pathExists(outDir)) {
-		await fs.mkdirp(outDir);
+	if (!await fs.existsSync(outDir)) {
+		await fs.mkdirSync(outDir, { recursive: true });
 	}
 
 	d(`downloading ${lib_name}_headers`);
@@ -34,11 +35,11 @@ export async function downloadLibcxxHeaders(outDir: string, electronVersion: str
 }
 
 export async function downloadLibcxxObjects(outDir: string, electronVersion: string, targetArch: string = 'x64'): Promise<void> {
-	if (await fs.pathExists(path.resolve(outDir, 'libc++.a'))) {
+	if (await fs.existsSync(path.resolve(outDir, 'libc++.a'))) {
 		return;
 	}
-	if (!await fs.pathExists(outDir)) {
-		await fs.mkdirp(outDir);
+	if (!await fs.existsSync(outDir)) {
+		await fs.mkdirSync(outDir, { recursive: true });
 	}
 
 	d(`downloading libcxx-objects-linux-${targetArch}`);
@@ -58,6 +59,7 @@ async function main(): Promise<void> {
 	const libcxxHeadersDownloadDir = process.env['VSCODE_LIBCXX_HEADERS_DIR'];
 	const libcxxabiHeadersDownloadDir = process.env['VSCODE_LIBCXXABI_HEADERS_DIR'];
 	const arch = process.env['VSCODE_ARCH'];
+	const packageJSON = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 	const electronVersion = packageJSON.devDependencies.electron;
 
 	if (!libcxxObjectsDirPath || !libcxxHeadersDownloadDir || !libcxxabiHeadersDownloadDir) {

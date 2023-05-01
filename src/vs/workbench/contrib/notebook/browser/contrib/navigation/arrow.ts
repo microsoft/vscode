@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -41,6 +43,7 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 				{
 					when: ContextKeyExpr.and(
 						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
 						ContextKeyExpr.and(
 							ContextKeyExpr.has(InputFocusedContextKey),
@@ -55,6 +58,7 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 				{
 					when: ContextKeyExpr.and(
 						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
 						ContextKeyExpr.and(
 							NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
@@ -100,10 +104,12 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 		super({
 			id: NOTEBOOK_FOCUS_PREVIOUS_EDITOR,
 			title: localize('cursorMoveUp', 'Focus Previous Cell Editor'),
+			precondition: CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 			keybinding: [
 				{
 					when: ContextKeyExpr.and(
 						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
 						ContextKeyExpr.and(
 							ContextKeyExpr.has(InputFocusedContextKey),
@@ -118,6 +124,7 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 				{
 					when: ContextKeyExpr.and(
 						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
 						ContextKeyExpr.and(
 							NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
@@ -225,7 +232,7 @@ registerAction2(class extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
-		await editor.focusNotebookCell(activeCell, 'output');
+		return timeout(0).then(() => editor.focusNotebookCell(activeCell, 'output'));
 	}
 });
 
@@ -235,7 +242,7 @@ registerAction2(class extends NotebookCellAction {
 			id: FOCUS_OUT_OUTPUT_COMMAND_ID,
 			title: localize('focusOutputOut', 'Focus Out Active Cell Output'),
 			keybinding: {
-				when: NOTEBOOK_EDITOR_FOCUSED,
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED),
 				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.UpArrow, },
 				weight: KeybindingWeight.WorkbenchContrib

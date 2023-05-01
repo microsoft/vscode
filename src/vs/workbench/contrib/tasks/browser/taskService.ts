@@ -18,17 +18,14 @@ export class TaskService extends AbstractTaskService {
 		if (this._taskSystem) {
 			return this._taskSystem;
 		}
-		if (this.executionEngine === ExecutionEngine.Terminal) {
-			this._taskSystem = this._createTerminalTaskSystem();
-		} else {
+		if (this.executionEngine !== ExecutionEngine.Terminal) {
 			throw new Error(TaskService.ProcessTaskSystemSupportMessage);
 		}
-		const taskSystem = this._createTerminalTaskSystem();
-		this._taskSystem = taskSystem;
+		this._taskSystem = this._createTerminalTaskSystem();
 		this._taskSystemListeners =
 			[
-				taskSystem.onDidStateChange((event) => {
-					this._taskRunningState.set(taskSystem.isActiveSync());
+				this._taskSystem.onDidStateChange((event) => {
+					this._taskRunningState.set(this._taskSystem!.isActiveSync());
 					this._onDidStateChange.fire(event);
 				}),
 			];

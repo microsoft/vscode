@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EXPAND_CELL_OUTPUT_COMMAND_ID, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 
 const $ = DOM.$;
 
-export class CollapsedCellOutput extends CellPart {
+export class CollapsedCellOutput extends CellContentPart {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		cellOutputCollapseContainer: HTMLElement,
@@ -23,11 +24,11 @@ export class CollapsedCellOutput extends CellPart {
 		const placeholder = DOM.append(cellOutputCollapseContainer, $('span.expandOutputPlaceholder')) as HTMLElement;
 		placeholder.textContent = localize('cellOutputsCollapsedMsg', "Outputs are collapsed");
 		const expandIcon = DOM.append(cellOutputCollapseContainer, $('span.expandOutputIcon'));
-		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
 
 		const keybinding = keybindingService.lookupKeybinding(EXPAND_CELL_OUTPUT_COMMAND_ID);
 		if (keybinding) {
-			placeholder.title = localize('cellExpandOutputButtonLabelWithDoubleClick', "Double click to expand cell output ({0})", keybinding.getLabel());
+			placeholder.title = localize('cellExpandOutputButtonLabelWithDoubleClick', "Double-click to expand cell output ({0})", keybinding.getLabel());
 			cellOutputCollapseContainer.title = localize('cellExpandOutputButtonLabel', "Expand Cell Output (${0})", keybinding.getLabel());
 		}
 

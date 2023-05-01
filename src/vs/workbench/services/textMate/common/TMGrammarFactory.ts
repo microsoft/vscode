@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import type { IGrammar, Registry, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
+import type { IGrammar, Registry, StateStack, IOnigLib, IRawTheme } from 'vscode-textmate';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TMScopeRegistry, IValidGrammarDefinition, IValidEmbeddedLanguagesMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 
@@ -17,7 +17,7 @@ interface ITMGrammarFactoryHost {
 export interface ICreateGrammarResult {
 	languageId: string;
 	grammar: IGrammar | null;
-	initialState: StackElement;
+	initialState: StateStack;
 	containsEmbeddedLanguages: boolean;
 }
 
@@ -26,7 +26,7 @@ export const missingTMGrammarErrorMessage = 'No TM Grammar registered for this l
 export class TMGrammarFactory extends Disposable {
 
 	private readonly _host: ITMGrammarFactoryHost;
-	private readonly _initialState: StackElement;
+	private readonly _initialState: StateStack;
 	private readonly _scopeRegistry: TMScopeRegistry;
 	private readonly _injections: { [scopeName: string]: string[] };
 	private readonly _injectedEmbeddedLanguages: { [scopeName: string]: IValidEmbeddedLanguagesMap[] };
@@ -37,7 +37,7 @@ export class TMGrammarFactory extends Disposable {
 		super();
 		this._host = host;
 		this._initialState = vscodeTextmate.INITIAL;
-		this._scopeRegistry = this._register(new TMScopeRegistry());
+		this._scopeRegistry = new TMScopeRegistry();
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();

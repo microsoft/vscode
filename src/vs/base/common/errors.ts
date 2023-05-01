@@ -78,6 +78,21 @@ export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) =>
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
 
+/**
+ * Returns if the error is a SIGPIPE error. SIGPIPE errors should generally be
+ * logged at most once, to avoid a loop.
+ *
+ * @see https://github.com/microsoft/vscode-remote-release/issues/6481
+ */
+export function isSigPipeError(e: unknown): e is Error {
+	if (!e || typeof e !== 'object') {
+		return false;
+	}
+
+	const cast = e as Record<string, string | undefined>;
+	return cast.code === 'EPIPE' && cast.syscall?.toUpperCase() === 'WRITE';
+}
+
 export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isCancellationError(e)) {
@@ -123,15 +138,15 @@ export function transformErrorForSerialization(error: any): any {
 
 // see https://github.com/v8/v8/wiki/Stack%20Trace%20API#basic-stack-traces
 export interface V8CallSite {
-	getThis(): any;
-	getTypeName(): string;
-	getFunction(): string;
-	getFunctionName(): string;
-	getMethodName(): string;
-	getFileName(): string;
-	getLineNumber(): number;
-	getColumnNumber(): number;
-	getEvalOrigin(): string;
+	getThis(): unknown;
+	getTypeName(): string | null;
+	getFunction(): Function | undefined;
+	getFunctionName(): string | null;
+	getMethodName(): string | null;
+	getFileName(): string | null;
+	getLineNumber(): number | null;
+	getColumnNumber(): number | null;
+	getEvalOrigin(): string | undefined;
 	isToplevel(): boolean;
 	isEval(): boolean;
 	isNative(): boolean;

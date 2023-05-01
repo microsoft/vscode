@@ -18,7 +18,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -231,7 +231,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 	}
 
-	override async resolve(perf?: NotebookPerfMarks): Promise<IResolvedNotebookEditorModel | null> {
+	override async resolve(_options?: IEditorOptions, perf?: NotebookPerfMarks): Promise<IResolvedNotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType)) {
 			return null;
 		}

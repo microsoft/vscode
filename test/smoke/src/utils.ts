@@ -19,25 +19,6 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-/**
- * Defines a test-case that will run but will be skips it if it throws an exception. This is useful
- * to get some runs in CI when trying to stabilize a flaky test, without failing the build. Note
- * that this only works if something inside the test throws, so a test's overall timeout won't work
- * but throwing due to a polling timeout will.
- * @param title The test-case title.
- * @param callback The test-case callback.
- */
-export function itSkipOnFail(title: string, callback: (this: Context) => any): void {
-	it(title, function () {
-		return Promise.resolve().then(() => {
-			return callback.apply(this, arguments);
-		}).catch(e => {
-			console.warn(`Test "${title}" failed but was marked as skip on fail:`, e);
-			this.skip();
-		});
-	});
-}
-
 export function installAllHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
 	installDiagnosticsHandler(logger);
 	installAppBeforeHandler(optionsTransform);
@@ -195,7 +176,7 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 
 			return await task();
 		} catch (error) {
-			lastError = error;
+			lastError = error as Error;
 
 			await timeout(delay);
 		}

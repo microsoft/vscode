@@ -198,7 +198,7 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 	}
 }
 
-export const defaultWebSocketFactory = new class implements IWebSocketFactory {
+const defaultWebSocketFactory = new class implements IWebSocketFactory {
 	create(url: string, debugLabel: string): IWebSocket {
 		return new BrowserWebSocket(url, debugLabel);
 	}

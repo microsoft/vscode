@@ -306,3 +306,87 @@
 .notebook-text-diff-editor .notebook-overview-ruler-container .diffViewport {
 	z-index: var(--notebook-diff-view-viewport-slider);
 }
+
+.notebook-text-diff-editor .diffViewport {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.notebook-text-diff-editor .diffViewport:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.notebook-text-diff-editor .diffViewport:active {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/** Diff cell borders */
+.notebook-text-diff-editor .cell-body .border-container .top-border,
+.notebook-text-diff-editor .cell-body .border-container .bottom-border,
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
+	border-top: 1px solid var(--vscode-notebook-cellBorderColor);
+}
+
+.notebook-text-diff-editor .cell-body .border-container .left-border {
+	border-left: 1px solid var(--vscode-notebook-cellBorderColor);
+}
+
+.notebook-text-diff-editor .cell-body .border-container .right-border {
+	border-right: 1px solid var(--vscode-notebook-cellBorderColor);
+}
+
+/** Diff cell active borders */
+.notebook-text-diff-editor .monaco-list-row.focused .cell-body .border-container .top-border,
+.notebook-text-diff-editor .monaco-list-row.focused .cell-body .border-container .bottom-border {
+	border-top: 1px solid var(--vscode-notebook-focusedEditorBorder);
+}
+
+.notebook-text-diff-editor .monaco-list-row.focused .cell-body .border-container .left-border {
+	border-left: 1px solid var(--vscode-notebook-focusedEditorBorder);
+}
+
+.notebook-text-diff-editor .monaco-list-row.focused .cell-body .border-container .right-border {
+	border-right: 1px solid var(--vscode-notebook-focusedEditorBorder);
+}
+
+/** Diff cell diff background */
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right div.foreground,
+.monaco-workbench .notebook-text-diff-editor .cell-body.right .output-info-container .output-view-container div.foreground,
+.monaco-workbench .notebook-text-diff-editor .cell-body.right .output-info-container .output-view-container div.output-empty-view,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container .monaco-editor .margin,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container .monaco-editor .monaco-editor-background,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container .monaco-editor .margin,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container .monaco-editor .monaco-editor-background,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .margin,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .monaco-editor-background,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-header-container,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-header-container {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left div.foreground,
+.monaco-workbench .notebook-text-diff-editor .cell-body.left .output-info-container .output-view-container div.foreground,
+.monaco-workbench .notebook-text-diff-editor .cell-body.left .output-info-container .output-view-container div.output-empty-view,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container .monaco-editor .margin,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container .monaco-editor .monaco-editor-background,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container .monaco-editor .margin,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container .monaco-editor .monaco-editor-background,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-editor-container,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-editor-container .monaco-editor .margin,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-editor-container .monaco-editor .monaco-editor-background,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-header-container,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-header-container {
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+}
+
+/** Diff cell editor background */
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .source-container .monaco-editor .margin,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .source-container .monaco-editor .monaco-editor-background {
+	background: var(--vscode-notebook-cellEditorBackground, var(--vscode-editor-background));
+}

@@ -1091,6 +1091,22 @@ suite('Glob', () => {
 		}
 	});
 
+	test('relative pattern - trailing slash / backslash (#162498)', function () {
+		if (isWindows) {
+			let p: glob.IRelativePattern = { base: 'C:\\', pattern: 'foo.cs' };
+			assertGlobMatch(p, 'C:\\foo.cs');
+
+			p = { base: 'C:\\bar\\', pattern: 'foo.cs' };
+			assertGlobMatch(p, 'C:\\bar\\foo.cs');
+		} else {
+			let p: glob.IRelativePattern = { base: '/', pattern: 'foo.cs' };
+			assertGlobMatch(p, '/foo.cs');
+
+			p = { base: '/bar/', pattern: 'foo.cs' };
+			assertGlobMatch(p, '/bar/foo.cs');
+		}
+	});
+
 	test('pattern with "base" does not explode - #36081', function () {
 		assert.ok(glob.match({ 'base': true }, 'base'));
 	});

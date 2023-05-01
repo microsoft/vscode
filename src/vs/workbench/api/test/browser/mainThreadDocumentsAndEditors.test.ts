@@ -20,7 +20,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -32,8 +31,6 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -63,17 +60,12 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		const logService = new NullLogService();
 		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
-			themeService,
-			new NullLogService(),
 			undoRedoService,
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService(),
-			new LanguageFeatureDebounceService(logService),
-			new LanguageFeaturesService()
 		);
 		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {
@@ -145,10 +137,10 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 	test('ignore huge model', function () {
 
-		const oldLimit = (<any>TextModel).MODEL_SYNC_LIMIT;
+		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
 		try {
 			const largeModelString = 'abc'.repeat(1024);
-			(<any>TextModel).MODEL_SYNC_LIMIT = largeModelString.length / 2;
+			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
 
 			const model = modelService.createModel(largeModelString, null);
 			assert.ok(model.isTooLargeForSyncing());
@@ -162,16 +154,16 @@ suite('MainThreadDocumentsAndEditors', () => {
 			assert.strictEqual(delta.removedEditors, undefined);
 
 		} finally {
-			(<any>TextModel).MODEL_SYNC_LIMIT = oldLimit;
+			TextModel._MODEL_SYNC_LIMIT = oldLimit;
 		}
 	});
 
 	test('ignore huge model from editor', function () {
 
-		const oldLimit = (<any>TextModel).MODEL_SYNC_LIMIT;
+		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
 		try {
 			const largeModelString = 'abc'.repeat(1024);
-			(<any>TextModel).MODEL_SYNC_LIMIT = largeModelString.length / 2;
+			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
 
 			const model = modelService.createModel(largeModelString, null);
 			const editor = myCreateTestCodeEditor(model);
@@ -182,7 +174,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			editor.dispose();
 
 		} finally {
-			(<any>TextModel).MODEL_SYNC_LIMIT = oldLimit;
+			TextModel._MODEL_SYNC_LIMIT = oldLimit;
 		}
 	});
 

@@ -12,8 +12,15 @@ pub mod log;
 pub mod commands;
 pub mod desktop;
 pub mod options;
-pub mod tunnels;
+pub mod self_update;
 pub mod state;
-pub mod update;
+pub mod tunnels;
 pub mod update_service;
 pub mod util;
+
+mod download_cache;
+mod async_pipe;
+mod json_rpc;
+mod msgpack_rpc;
+mod rpc;
+mod singleton;

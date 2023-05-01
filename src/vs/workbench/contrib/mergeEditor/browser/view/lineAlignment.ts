@@ -59,7 +59,9 @@ export function getAlignments(m: ModifiedBaseRange): LineAlignment[] {
 		}
 	}
 
-	result.push([m.input1Range.endLineNumberExclusive, m.baseRange.endLineNumberExclusive, m.input2Range.endLineNumberExclusive]);
+	const finalLineAlignment: LineAlignment = [m.input1Range.endLineNumberExclusive, m.baseRange.endLineNumberExclusive, m.input2Range.endLineNumberExclusive];
+	result = result.filter(r => r.every((v, idx) => v !== finalLineAlignment[idx]));
+	result.push(finalLineAlignment);
 
 	assertFn(() => checkAdjacentItems(result.map(r => r[0]).filter(isDefined), (a, b) => a < b)
 		&& checkAdjacentItems(result.map(r => r[1]).filter(isDefined), (a, b) => a <= b)

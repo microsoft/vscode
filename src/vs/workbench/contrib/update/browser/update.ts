@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import { Action } from 'vs/base/common/actions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -18,7 +17,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ReleaseNotesManager } from 'vs/workbench/contrib/update/browser/releaseNotesEditor';
-import { isWindows } from 'vs/base/common/platform';
+import { isWeb, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -33,10 +32,11 @@ import { Event } from 'vs/base/common/event';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
+export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-export function showReleaseNotes(instantiationService: IInstantiationService, version: string) {
+export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string) {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
@@ -44,62 +44,28 @@ export function showReleaseNotes(instantiationService: IInstantiationService, ve
 	return releaseNotesManager.show(version);
 }
 
-export class OpenLatestReleaseNotesInBrowserAction extends Action {
+async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
+	const openerService = accessor.get(IOpenerService);
+	const productService = accessor.get(IProductService);
 
-	constructor(
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService
-	) {
-		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
-	}
-
-	override async run(): Promise<void> {
-		if (this.productService.releaseNotesUrl) {
-			const uri = URI.parse(this.productService.releaseNotesUrl);
-			await this.openerService.open(uri);
-		} else {
-			throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", this.productService.nameLong));
-		}
+	if (productService.releaseNotesUrl) {
+		const uri = URI.parse(productService.releaseNotesUrl);
+		await openerService.open(uri);
+	} else {
+		throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
 	}
 }
 
-export abstract class AbstractShowReleaseNotesAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		private version: string,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		super(id, label, undefined, true);
-	}
-
-	override async run(): Promise<void> {
-		if (!this.enabled) {
-			return;
-		}
-		this.enabled = false;
-
+async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
+	const instantiationService = accessor.get(IInstantiationService);
+	try {
+		await showReleaseNotesInEditor(instantiationService, version);
+	} catch (err) {
 		try {
-			await showReleaseNotes(this.instantiationService, this.version);
-		} catch (err) {
-			const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
-			try {
-				await action.run();
-			} catch (err2) {
-				throw new Error(`${err.message} and ${err2.message}`);
-			}
+			await instantiationService.invokeFunction(openLatestReleaseNotesInBrowser);
+		} catch (err2) {
+			throw new Error(`${err.message} and ${err2.message}`);
 		}
-	}
-}
-
-export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
-
-	constructor(
-		version: string,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), version, instantiationService);
 	}
 }
 
@@ -146,6 +112,14 @@ export class ProductContribution implements IWorkbenchContribution {
 			const releaseNotesUrlKey = RELEASE_NOTES_URL.bindTo(contextKeyService);
 			releaseNotesUrlKey.set(productService.releaseNotesUrl);
 		}
+		if (productService.downloadUrl) {
+			const downloadUrlKey = DOWNLOAD_URL.bindTo(contextKeyService);
+			downloadUrlKey.set(productService.downloadUrl);
+		}
+
+		if (isWeb) {
+			return;
+		}
 
 		hostService.hadLastFocus().then(async hadLastFocus => {
 			if (!hadLastFocus) {
@@ -159,7 +133,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 			// was there a major/minor update? if so, open release notes
 			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotes(instantiationService, productService.version)
+				showReleaseNotesInEditor(instantiationService, productService.version)
 					.then(undefined, () => {
 						notificationService.prompt(
 							severity.Info,
@@ -293,10 +267,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private onUpdateNotAvailable(): void {
-		this.dialogService.show(
-			severity.Info,
-			nls.localize('noUpdatesAvailable', "There are currently no updates available.")
-		);
+		this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
 
 	// linux
@@ -317,9 +288,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}, {
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-					action.run();
-					action.dispose();
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
 				}
 			}]
 		);
@@ -343,9 +312,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}, {
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-					action.run();
-					action.dispose();
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
 				}
 			}]
 		);
@@ -370,9 +337,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			actions.push({
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-					action.run();
-					action.dispose();
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
 				}
 			});
 		}
@@ -476,6 +441,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});
+
+		CommandsRegistry.registerCommand('_update.state', () => {
+			return this.state;
+		});
 	}
 }
 
@@ -543,7 +512,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 							detail: newQuality === 'insider' ?
 								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the Insiders version of VS Code.") :
 								nls.localize('relaunchDetailStable', "Press the reload button to switch to the Stable version of VS Code."),
-							primaryButton: nls.localize('reload', "&&Reload")
+							primaryButton: nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")
 						});
 
 						if (res.confirmed) {
@@ -574,20 +543,23 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 				}
 
 				private async selectSettingsSyncService(dialogService: IDialogService): Promise<UserDataSyncStoreType | undefined> {
-					const res = await dialogService.show(
-						Severity.Info,
-						nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
-						[
-							nls.localize('use insiders', "Insiders"),
-							nls.localize('use stable', "Stable (current)"),
-							nls.localize('cancel', "Cancel"),
+					const { result } = await dialogService.prompt<UserDataSyncStoreType>({
+						type: Severity.Info,
+						message: nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
+						detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
+						buttons: [
+							{
+								label: nls.localize({ key: 'use insiders', comment: ['&& denotes a mnemonic'] }, "&&Insiders"),
+								run: () => 'insiders'
+							},
+							{
+								label: nls.localize({ key: 'use stable', comment: ['&& denotes a mnemonic'] }, "&&Stable (current)"),
+								run: () => 'stable'
+							}
 						],
-						{
-							detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
-							cancelId: 2
-						}
-					);
-					return res.choice === 0 ? 'insiders' : res.choice === 1 ? 'stable' : undefined;
+						cancelButton: true
+					});
+					return result;
 				}
 			});
 		}

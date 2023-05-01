@@ -2,6 +2,7 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Dark (Visual Studio)",
 	"colors": {
+		"checkbox.border": "#6B6B6B",
 		"editor.background": "#1E1E1E",
 		"editor.foreground": "#D4D4D4",
 		"editor.inactiveSelectionBackground": "#3A3D41",
@@ -12,8 +13,10 @@
 		"activityBarBadge.background": "#007ACC",
 		"sideBarTitle.foreground": "#BBBBBB",
 		"input.placeholderForeground": "#A6A6A6",
-		"menu.background": "#303031",
+		"menu.background": "#252526",
 		"menu.foreground": "#CCCCCC",
+		"menu.separatorBackground": "#454545",
+		"menu.border": "#454545",
 		"statusBarItem.remoteForeground": "#FFF",
 		"statusBarItem.remoteBackground": "#16825D",
 		"ports.iconRunningProcessForeground": "#369432",
@@ -22,6 +25,7 @@
 		"tab.lastPinnedBorder": "#ccc3",
 		"list.activeSelectionIconForeground": "#FFF",
 		"terminal.inactiveSelectionBackground": "#3A3D41",
+		"widget.border": "#303031",
 	},
 	"tokenColors": [
 		{

@@ -90,7 +90,7 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 	}
 }
 
-const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
+const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 
 export class WebClientServer {
 
@@ -290,7 +290,7 @@ export class WebClientServer {
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(path.resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
-		const filePath = FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html', require).fsPath;
+		const filePath = FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html').fsPath;
 		const authSessionInfo = !this._environmentService.isBuilt && this._environmentService.args['github-auth'] ? {
 			id: generateUuid(),
 			providerId: 'github',
@@ -298,6 +298,24 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
+		const productConfiguration = <Partial<IProductConfiguration>>{
+			embedderIdentifier: 'server-distro',
+			extensionsGallery: this._webExtensionResourceUrlTemplate ? {
+				...this._productService.extensionsGallery,
+				'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
+					scheme: 'http',
+					authority: remoteAuthority,
+					path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+				}).toString(true)
+			} : undefined
+		};
+
+		if (!this._environmentService.isBuilt) {
+			try {
+				const productOverrides = JSON.parse((await fsp.readFile(join(APP_ROOT, 'product.overrides.json'))).toString());
+				Object.assign(productConfiguration, productOverrides);
+			} catch (err) {/* Ignore Error */ }
+		}
 
 		const workbenchWebConfiguration = {
 			remoteAuthority,
@@ -307,17 +325,7 @@ export class WebClientServer {
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
-			productConfiguration: <Partial<IProductConfiguration>>{
-				embedderIdentifier: 'server-distro',
-				extensionsGallery: this._webExtensionResourceUrlTemplate ? {
-					...this._productService.extensionsGallery,
-					'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
-						scheme: 'http',
-						authority: remoteAuthority,
-						path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
-					}).toString(true)
-				} : undefined
-			},
+			productConfiguration,
 			callbackRoute: this._callbackRoute
 		};
 
@@ -346,7 +354,7 @@ export class WebClientServer {
 			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-fh3TwPMflhsEIpR8g1OYTIMVWhXTLcjQ9kh2tIpmv54=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
-			'worker-src \'self\' data:;',
+			'worker-src \'self\' data: blob:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',
 			'font-src \'self\' blob:;',
@@ -398,7 +406,7 @@ export class WebClientServer {
 	 * Handle HTTP requests for /callback
 	 */
 	private async _handleCallback(res: http.ServerResponse): Promise<void> {
-		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath;
+		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html').fsPath;
 		const data = (await fsp.readFile(filePath)).toString();
 		const cspDirectives = [
 			'default-src \'self\';',

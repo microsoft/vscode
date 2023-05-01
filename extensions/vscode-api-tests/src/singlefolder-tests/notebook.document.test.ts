@@ -20,14 +20,6 @@ suite('Notebook Document', function () {
 		}
 	};
 
-	const complexContentProvider = new class implements vscode.NotebookContentProvider {
-		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
-			return new vscode.NotebookData(
-				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, uri.toString(), 'javascript')],
-			);
-		}
-	};
-
 	const disposables: vscode.Disposable[] = [];
 	const testDisposables: vscode.Disposable[] = [];
 
@@ -45,17 +37,7 @@ suite('Notebook Document', function () {
 	});
 
 	suiteSetup(function () {
-		disposables.push(vscode.workspace.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider));
-		disposables.push(vscode.workspace.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider));
-	});
-
-	test('cannot register sample provider multiple times', function () {
-		assert.throws(() => {
-			vscode.workspace.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider);
-		});
-		// assert.throws(() => {
-		// 	vscode.workspace.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider);
-		// });
+		disposables.push(vscode.workspace.registerNotebookSerializer('notebook.nbdtest', simpleContentProvider));
 	});
 
 	test('cannot open unknown types', async function () {
@@ -131,7 +113,7 @@ suite('Notebook Document', function () {
 	});
 
 	test('open untitled notebook', async function () {
-		const nb = await vscode.workspace.openNotebookDocument('notebook.nbdserializer');
+		const nb = await vscode.workspace.openNotebookDocument('notebook.nbdtest');
 		assert.strictEqual(nb.isUntitled, true);
 		assert.strictEqual(nb.isClosed, false);
 		assert.strictEqual(nb.uri.scheme, 'untitled');
@@ -140,7 +122,7 @@ suite('Notebook Document', function () {
 
 	test('open untitled with data', async function () {
 		const nb = await vscode.workspace.openNotebookDocument(
-			'notebook.nbdserializer',
+			'notebook.nbdtest',
 			new vscode.NotebookData([
 				new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'console.log()', 'javascript'),
 				new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, 'Hey', 'markdown'),
@@ -353,7 +335,7 @@ suite('Notebook Document', function () {
 	});
 
 	test('dirty state - serializer', async function () {
-		const resource = await utils.createRandomFile(undefined, undefined, '.nbdserializer');
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const document = await vscode.workspace.openNotebookDocument(resource);
 		assert.strictEqual(document.isDirty, false);
 

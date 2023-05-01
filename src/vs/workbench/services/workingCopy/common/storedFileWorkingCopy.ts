@@ -20,7 +20,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { hash } from 'vs/base/common/hash';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { isWindows } from 'vs/base/common/platform';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
@@ -781,6 +781,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
+	private ignoreSaveFromSaveParticipants = false;
+
 	async save(options: IStoredFileWorkingCopySaveOptions = Object.create(null)): Promise<boolean> {
 		if (!this.isResolved()) {
 			return false;
@@ -816,6 +818,15 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		let versionId = this.versionId;
 		this.trace(`doSave(${versionId}) - enter with versionId ${versionId}`);
+
+		// Return early if saved from within save participant to break recursion
+		//
+		// Scenario: a save participant triggers a save() on the working copy
+		if (this.ignoreSaveFromSaveParticipants) {
+			this.trace(`doSave(${versionId}) - exit - refusing to save() recursively from save participant`);
+
+			return;
+		}
 
 		// Lookup any running pending save for this versionId and return it if found
 		//
@@ -902,7 +913,12 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Run save participants unless save was cancelled meanwhile
 					if (!saveCancellation.token.isCancellationRequested) {
-						await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+						this.ignoreSaveFromSaveParticipants = true;
+						try {
+							await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+						} finally {
+							this.ignoreSaveFromSaveParticipants = false;
+						}
 					}
 				} catch (error) {
 					this.logService.error(`[stored file working copy] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(), this.typeId);
@@ -1052,6 +1068,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 			const canSaveElevated = this.elevatedFileService.isSupported(this.resource);
+
+			// Error with Actions
+			if (isErrorWithActions(error)) {
+				primaryActions.push(...error.actions);
+			}
 
 			// Save Elevated
 			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {

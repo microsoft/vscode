@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 
@@ -23,4 +23,4 @@ export class MarkerDecorationsContribution implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(MarkerDecorationsContribution.ID, MarkerDecorationsContribution);
+registerEditorContribution(MarkerDecorationsContribution.ID, MarkerDecorationsContribution, EditorContributionInstantiation.Eager); // eager because it instantiates IMarkerDecorationsService which is responsible for rendering squiggles

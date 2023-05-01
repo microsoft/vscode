@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCellList', () => {
@@ -40,6 +40,7 @@ suite('NotebookCellList', () => {
 			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
+					cellLineNumberStates: {},
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
 					collapsedInputCells: {},
@@ -59,17 +60,17 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 1, top 50, bottom 150, which is fully visible in the viewport
-				cellList.revealElementsInView({ start: 1, end: 2 });
+				cellList.revealCellsInView({ start: 1, end: 2 });
 				assert.deepStrictEqual(cellList.scrollTop, 5);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 2, top 150, bottom 200, which is fully visible in the viewport
-				cellList.revealElementsInView({ start: 2, end: 3 });
+				cellList.revealCellsInView({ start: 2, end: 3 });
 				assert.deepStrictEqual(cellList.scrollTop, 5);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 3, top 200, bottom 300, which is partially visible in the viewport
-				cellList.revealElementsInView({ start: 3, end: 4 });
+				cellList.revealCellsInView({ start: 3, end: 4 });
 				assert.deepStrictEqual(cellList.scrollTop, 90);
 			});
 	});
@@ -88,6 +89,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -103,7 +105,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
 
 				// reveal cell 3, top 200, bottom 300, which is partially visible in the viewport
-				cellList.revealElementsInView({ start: 3, end: 4 });
+				cellList.revealCellsInView({ start: 3, end: 4 });
 				assert.deepStrictEqual(cellList.scrollTop, 90);
 
 				// scroll to 5
@@ -112,7 +114,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 0, top 0, bottom 50
-				cellList.revealElementsInView({ start: 0, end: 1 });
+				cellList.revealCellsInView({ start: 0, end: 1 });
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 			});
 	});
@@ -131,6 +133,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -147,7 +150,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
 
-				cellList.revealElementsInView({ start: 4, end: 5 });
+				cellList.revealCellsInView({ start: 4, end: 5 });
 				assert.deepStrictEqual(cellList.scrollTop, 140);
 				// assert.deepStrictEqual(cellList.getViewScrollBottom(), 330);
 			});
@@ -167,6 +170,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -208,6 +212,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -260,6 +265,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -295,6 +301,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -343,6 +350,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false],
 					editorViewStates: [null],
 					cellTotalHeights: [50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});

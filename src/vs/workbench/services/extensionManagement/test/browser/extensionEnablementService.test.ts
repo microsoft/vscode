@@ -65,6 +65,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onUninstallExtension: new Emitter<UninstallExtensionEvent>().event,
 					onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
 					onDidChangeProfile: new Emitter<DidChangeProfileEvent>().event,
+					onDidUpdateExtensionMetadata: new Emitter<ILocalExtension>().event,
 				},
 			}, null, null));
 		const extensionManagementService = instantiationService.createInstance(ExtensionManagementService);
@@ -318,10 +319,10 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
 	});
 
-	test('test enable an extension globally return truthy promise', () => {
-		return testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.DisabledGlobally)
-			.then(() => testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.EnabledGlobally))
-			.then(value => assert.ok(value));
+	test('test enable an extension globally return truthy promise', async () => {
+		await testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.DisabledGlobally);
+		const value = await testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.EnabledGlobally);
+		assert.strictEqual(value[0], true);
 	});
 
 	test('test enable an extension globally triggers change event', () => {
@@ -615,13 +616,6 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.strictEqual(testObject.canChangeEnablement(aLocalExtension('pub.a')), false);
-	});
-
-	test('test canChangeEnablement return false for system extension when extension is disabled in environment', () => {
-		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
-		testObject = new TestExtensionEnablementService(instantiationService);
-		const extension = aLocalExtension('pub.a', undefined, ExtensionType.System);
-		assert.ok(!testObject.canChangeEnablement(extension));
 	});
 
 	test('test extension does not support vitrual workspace is not enabled in virtual workspace', async () => {

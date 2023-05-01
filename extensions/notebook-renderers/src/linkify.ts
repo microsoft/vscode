@@ -11,7 +11,7 @@ const WIN_RELATIVE_PATH = /(?:(?:\~|\.)(?:(?:\\|\/)[\w\.-]*)+)/;
 const WIN_PATH = new RegExp(`(${WIN_ABSOLUTE_PATH.source}|${WIN_RELATIVE_PATH.source})`);
 const POSIX_PATH = /((?:\~|\.)?(?:\/[\w\.-]*)+)/;
 const LINE_COLUMN = /(?:\:([\d]+))?(?:\:([\d]+))?/;
-const isWindows = navigator.userAgent.indexOf('Windows') >= 0;
+const isWindows = (typeof navigator !== 'undefined') ? navigator.userAgent && navigator.userAgent.indexOf('Windows') >= 0 : false;
 const PATH_LINK_REGEX = new RegExp(`${isWindows ? WIN_PATH.source : POSIX_PATH.source}${LINE_COLUMN.source}`, 'g');
 
 const MAX_LENGTH = 2000;
@@ -64,17 +64,9 @@ export class LinkDetector {
 						container.appendChild(document.createTextNode(part.value));
 						break;
 					case 'web':
+					case 'path':
 						container.appendChild(this.createWebLink(part.value));
 						break;
-					case 'path': {
-						container.appendChild(document.createTextNode(part.value));
-
-						// const path = part.captures[0];
-						// const lineNumber = part.captures[1] ? Number(part.captures[1]) : 0;
-						// const columnNumber = part.captures[2] ? Number(part.captures[2]) : 0;
-						// container.appendChild(this.createPathLink(part.value, path, lineNumber, columnNumber, workspaceFolder));
-						break;
-					}
 				}
 			} catch (e) {
 				container.appendChild(document.createTextNode(part.value));
@@ -85,7 +77,7 @@ export class LinkDetector {
 
 	private createWebLink(url: string): Node {
 		const link = this.createLink(url);
-
+		link.href = url;
 		return link;
 	}
 
@@ -127,7 +119,7 @@ export class LinkDetector {
 	// 	return link;
 	// }
 
-	private createLink(text: string): HTMLElement {
+	private createLink(text: string): HTMLAnchorElement {
 		const link = document.createElement('a');
 		link.textContent = text;
 		return link;

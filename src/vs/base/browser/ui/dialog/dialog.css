@@ -146,7 +146,6 @@
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
 	width: fit-content;
-	width: -moz-fit-content;
 	padding: 5px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;

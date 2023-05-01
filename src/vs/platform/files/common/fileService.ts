@@ -11,16 +11,17 @@ import { Emitter } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { mark } from 'vs/base/common/performance';
 import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/common/resources';
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability } from 'vs/platform/files/common/files';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -136,9 +137,8 @@ export class FileService extends Disposable implements IFileService {
 		// Assert provider
 		const provider = this.provider.get(resource.scheme);
 		if (!provider) {
-			const error = new Error();
-			error.name = 'ENOPRO';
-			error.message = localize('noProviderFound', "No file system provider found for resource '{0}'", resource.toString());
+			const error = new ErrorNoTelemetry();
+			error.message = localize('noProviderFound', "ENOPRO: No file system provider found for resource '{0}'", resource.toString());
 
 			throw error;
 		}
@@ -594,13 +594,22 @@ export class FileService extends Disposable implements IFileService {
 
 			// Re-throw errors as file operation errors but preserve
 			// specific errors (such as not modified since)
-			const message = localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString());
-			if (error instanceof NotModifiedSinceFileOperationError) {
-				throw new NotModifiedSinceFileOperationError(message, error.stat, options);
-			} else {
-				throw new FileOperationError(message, toFileOperationResult(error), options);
-			}
+			throw this.restoreReadError(error, resource, options);
 		}
+	}
+
+	private restoreReadError(error: Error, resource: URI, options?: IReadFileStreamOptions): FileOperationError {
+		const message = localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString());
+
+		if (error instanceof NotModifiedSinceFileOperationError) {
+			return new NotModifiedSinceFileOperationError(message, error.stat, options);
+		}
+
+		if (error instanceof TooLargeFileOperationError) {
+			return new TooLargeFileOperationError(message, error.fileOperationResult, error.size, error.options);
+		}
+
+		return new FileOperationError(message, toFileOperationResult(error), options);
 	}
 
 	private readFileStreamed(provider: IFileSystemProviderWithFileReadStreamCapability, resource: URI, token: CancellationToken, options: IReadFileStreamOptions = Object.create(null)): VSBufferReadableStream {
@@ -608,7 +617,7 @@ export class FileService extends Disposable implements IFileService {
 
 		return transform(fileStream, {
 			data: data => data instanceof VSBuffer ? data : VSBuffer.wrap(data),
-			error: error => new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options)
+			error: error => this.restoreReadError(error, resource, options)
 		}, data => VSBuffer.concat(data));
 	}
 
@@ -618,7 +627,7 @@ export class FileService extends Disposable implements IFileService {
 		readFileIntoStream(provider, resource, stream, data => data, {
 			...options,
 			bufferSize: this.BUFFER_SIZE,
-			errorTransformer: error => new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options)
+			errorTransformer: error => this.restoreReadError(error, resource, options)
 		}, token);
 
 		return stream;
@@ -682,20 +691,8 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private validateReadFileLimits(resource: URI, size: number, options?: IReadFileStreamOptions): void {
-		if (options?.limits) {
-			let tooLargeErrorResult: FileOperationResult | undefined = undefined;
-
-			if (typeof options.limits.memory === 'number' && size > options.limits.memory) {
-				tooLargeErrorResult = FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
-			}
-
-			if (typeof options.limits.size === 'number' && size > options.limits.size) {
-				tooLargeErrorResult = FileOperationResult.FILE_TOO_LARGE;
-			}
-
-			if (typeof tooLargeErrorResult === 'number') {
-				throw new FileOperationError(localize('fileTooLargeError', "Unable to read file '{0}' that is too large to open", this.resourceForError(resource)), tooLargeErrorResult);
-			}
+		if (typeof options?.limits?.size === 'number' && size > options.limits.size) {
+			throw new TooLargeFileOperationError(localize('fileTooLargeError', "Unable to read file '{0}' that is too large to open", this.resourceForError(resource)), FileOperationResult.FILE_TOO_LARGE, size, options);
 		}
 	}
 

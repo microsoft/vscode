@@ -18,7 +18,7 @@ const typeId = 'workbench.editors.walkThroughInput';
 const inputOptions: WalkThroughInputOptions = {
 	typeId,
 	name: localize('editorWalkThrough.title', "Editor Playground"),
-	resource: FileAccess.asBrowserUri('./vs_code_editor_walkthrough.md', require)
+	resource: FileAccess.asBrowserUri('vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.md')
 		.with({
 			scheme: Schemas.walkThrough,
 			query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough' })
@@ -29,7 +29,7 @@ const inputOptions: WalkThroughInputOptions = {
 export class EditorWalkThroughAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.showInteractivePlayground';
-	public static readonly LABEL = localize('editorWalkThrough', "Interactive Editor Playground");
+	public static readonly LABEL = { value: localize('editorWalkThrough', "Interactive Editor Playground"), original: 'Interactive Editor Playground' };
 
 	constructor() {
 		super({

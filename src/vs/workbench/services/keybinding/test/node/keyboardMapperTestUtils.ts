@@ -5,11 +5,11 @@
 
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { Keybinding, KeybindingModifier, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { SingleModifierChord, ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
 import { Promises } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
+import { FileAccess } from 'vs/base/common/network';
 
 export interface IResolvedKeybinding {
 	label: string | null;
@@ -17,9 +17,9 @@ export interface IResolvedKeybinding {
 	electronAccelerator: string | null;
 	userSettingsLabel: string | null;
 	isWYSIWYG: boolean;
-	isChord: boolean;
+	isMultiChord: boolean;
 	dispatchParts: (string | null)[];
-	singleModifierDispatchParts: (KeybindingModifier | null)[];
+	singleModifierDispatchParts: (SingleModifierChord | null)[];
 }
 
 function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
@@ -29,15 +29,10 @@ function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
 		electronAccelerator: kb.getElectronAccelerator(),
 		userSettingsLabel: kb.getUserSettingsLabel(),
 		isWYSIWYG: kb.isWYSIWYG(),
-		isChord: kb.isChord(),
-		dispatchParts: kb.getDispatchParts(),
-		singleModifierDispatchParts: kb.getSingleModifierDispatchParts()
+		isMultiChord: kb.hasMultipleChords(),
+		dispatchParts: kb.getDispatchChords(),
+		singleModifierDispatchParts: kb.getSingleModifierDispatchChords()
 	};
-}
-
-export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Keybinding | null, expected: IResolvedKeybinding[]): void {
-	const actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding!).map(toIResolvedKeybinding);
-	assert.deepStrictEqual(actual, expected);
 }
 
 export function assertResolveKeyboardEvent(mapper: IKeyboardMapper, keyboardEvent: IKeyboardEvent, expected: IResolvedKeybinding): void {
@@ -45,13 +40,13 @@ export function assertResolveKeyboardEvent(mapper: IKeyboardMapper, keyboardEven
 	assert.deepStrictEqual(actual, expected);
 }
 
-export function assertResolveUserBinding(mapper: IKeyboardMapper, parts: (SimpleKeybinding | ScanCodeBinding)[], expected: IResolvedKeybinding[]): void {
-	const actual: IResolvedKeybinding[] = mapper.resolveUserBinding(parts).map(toIResolvedKeybinding);
+export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Keybinding, expected: IResolvedKeybinding[]): void {
+	const actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding).map(toIResolvedKeybinding);
 	assert.deepStrictEqual(actual, expected);
 }
 
 export function readRawMapping<T>(file: string): Promise<T> {
-	return Promises.readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/node/${file}.js`)).then((buff) => {
+	return Promises.readFile(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}.js`).fsPath).then((buff) => {
 		const contents = buff.toString();
 		const func = new Function('define', contents);
 		let rawMappings: T | null = null;
@@ -63,7 +58,7 @@ export function readRawMapping<T>(file: string): Promise<T> {
 }
 
 export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): Promise<void> {
-	const filePath = path.normalize(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/node/${file}`));
+	const filePath = path.normalize(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}`).fsPath);
 
 	return Promises.readFile(filePath).then((buff) => {
 		const expected = buff.toString().replace(/\r\n/g, '\n');

@@ -10,7 +10,7 @@ import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
-export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
+export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	/* ----- server setup ----- */
 
@@ -147,7 +147,7 @@ export interface ServerParsedArgs {
 	'disable-telemetry'?: boolean;
 	'file-watcher-polling'?: string;
 
-	'log'?: string;
+	'log'?: string[];
 	'logsPath'?: string;
 
 	'force-disable-user-env'?: boolean;
@@ -209,5 +209,6 @@ export interface IServerEnvironmentService extends INativeEnvironmentService {
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
+	get isRemoteServer(): boolean { return true; }
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
 }

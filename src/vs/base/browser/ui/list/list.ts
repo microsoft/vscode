@@ -24,40 +24,40 @@ export interface IListRenderer<T, TTemplateData> {
 }
 
 export interface IListEvent<T> {
-	elements: T[];
-	indexes: number[];
-	browserEvent?: UIEvent;
+	readonly elements: readonly T[];
+	readonly indexes: readonly number[];
+	readonly browserEvent?: UIEvent;
 }
 
 export interface IListMouseEvent<T> {
-	browserEvent: MouseEvent;
-	element: T | undefined;
-	index: number | undefined;
+	readonly browserEvent: MouseEvent;
+	readonly element: T | undefined;
+	readonly index: number | undefined;
 }
 
 export interface IListTouchEvent<T> {
-	browserEvent: TouchEvent;
-	element: T | undefined;
-	index: number | undefined;
+	readonly browserEvent: TouchEvent;
+	readonly element: T | undefined;
+	readonly index: number | undefined;
 }
 
 export interface IListGestureEvent<T> {
-	browserEvent: GestureEvent;
-	element: T | undefined;
-	index: number | undefined;
+	readonly browserEvent: GestureEvent;
+	readonly element: T | undefined;
+	readonly index: number | undefined;
 }
 
 export interface IListDragEvent<T> {
-	browserEvent: DragEvent;
-	element: T | undefined;
-	index: number | undefined;
+	readonly browserEvent: DragEvent;
+	readonly element: T | undefined;
+	readonly index: number | undefined;
 }
 
 export interface IListContextMenuEvent<T> {
-	browserEvent: UIEvent;
-	element: T | undefined;
-	index: number | undefined;
-	anchor: HTMLElement | { x: number; y: number };
+	readonly browserEvent: UIEvent;
+	readonly element: T | undefined;
+	readonly index: number | undefined;
+	readonly anchor: HTMLElement | { readonly x: number; readonly y: number };
 }
 
 export interface IIdentityProvider<T> {

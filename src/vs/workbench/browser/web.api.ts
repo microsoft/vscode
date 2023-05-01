@@ -15,8 +15,6 @@ import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import type { IObservableValue } from 'vs/base/common/observableValue';
-import type { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -77,11 +75,6 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
-
-		/**
-		 * Current workbench telemetry level.
-		 */
-		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
 	};
 
 	window: {
@@ -154,6 +147,8 @@ export interface IWorkbenchConstructionOptions {
 
 	/**
 	 * A provider for resource URIs.
+	 *
+	 * *Note*: This will only be invoked after the `connectionToken` is resolved.
 	 */
 	readonly resourceUriProvider?: IResourceUriProvider;
 
@@ -177,12 +172,6 @@ export interface IWorkbenchConstructionOptions {
 	 * The identifier of an edit session associated with the current workspace.
 	 */
 	readonly editSessionId?: string;
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Endpoints to be used for proxying repository tarball download calls in the browser.
-	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string };
 
 	//#endregion
 
@@ -268,6 +257,20 @@ export interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
+	//#region Profile options
+
+	/**
+	 * Profile to use for the workbench.
+	 */
+	readonly profile?: { readonly name: string; readonly contents?: string | UriComponents };
+
+	/**
+	 * URI of the profile to preview.
+	 */
+	readonly profileToPreview?: UriComponents;
+
+	//#endregion
+
 
 	//#region Update/Quality related
 
@@ -315,6 +318,11 @@ export interface IWorkbenchConstructionOptions {
 	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
+
+	/**
+	 *  Welcome view dialog on first launch. Can be dismissed by the user.
+	 */
+	readonly welcomeDialog?: IWelcomeDialog;
 
 	//#endregion
 
@@ -398,11 +406,6 @@ export interface ITunnelOptions {
 
 	label?: string;
 
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
-
 	privacy?: string;
 
 	protocol?: string;
@@ -424,11 +427,6 @@ export interface ITunnel {
 	 * The complete local address(ex. localhost:1234)
 	 */
 	localAddress: string;
-
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
 
 	privacy?: string;
 
@@ -522,10 +520,10 @@ export interface IWelcomeBanner {
 	/**
 	 * Optional actions to appear as links after the welcome banner message.
 	 */
-	actions?: IWelcomeBannerAction[];
+	actions?: IWelcomeLinkAction[];
 }
 
-export interface IWelcomeBannerAction {
+export interface IWelcomeLinkAction {
 
 	/**
 	 * The link to open when clicking. Supports command invocation when
@@ -588,6 +586,35 @@ export interface IInitialColorTheme {
 	 * A list of workbench colors to apply initially.
 	 */
 	readonly colors?: { [colorId: string]: string };
+}
+
+export interface IWelcomeDialog {
+
+	/**
+	 * Unique identifier of the welcome dialog. The identifier will be used to determine
+	 * if the dialog has been previously displayed.
+	 */
+	id: string;
+
+	/**
+	 * Title of the welcome dialog.
+	 */
+	title: string;
+
+	/**
+	 * Button text of the welcome dialog.
+	 */
+	buttonText: string;
+
+	/**
+	 * Message text and icon for the welcome dialog.
+	 */
+	messages: { message: string; icon: string }[];
+
+	/**
+	 * Optional action to appear as links at the bottom of the welcome dialog.
+	 */
+	action?: IWelcomeLinkAction;
 }
 
 export interface IDefaultView {
@@ -687,7 +714,23 @@ export interface ISettingsSyncOptions {
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
-	enablementHandler?(enablement: boolean): void;
+	enablementHandler?(enablement: boolean, authenticationProvider: string): void;
+
+	/**
+	 * Authentication provider
+	 */
+	readonly authenticationProvider?: {
+		/**
+		 * Unique identifier of the authentication provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * Called when the user wants to signin to Settings Sync using the given authentication provider.
+		 * The returned promise should resolve to the authentication session id.
+		 */
+		signIn(): Promise<string>;
+	};
 }
 
 export interface IDevelopmentOptions {
@@ -696,6 +739,11 @@ export interface IDevelopmentOptions {
 	 * Current logging level. Default is `LogLevel.Info`.
 	 */
 	readonly logLevel?: LogLevel;
+
+	/**
+	 * Extension log level.
+	 */
+	readonly extensionLogLevel?: [string, LogLevel][];
 
 	/**
 	 * Location of a module containing extension tests to run once the workbench is open.

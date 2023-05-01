@@ -12,6 +12,10 @@ export class TextEditInfo {
 		public readonly newLength: Length
 	) {
 	}
+
+	toString(): string {
+		return `[${lengthToObj(this.startOffset)}...${lengthToObj(this.endOffset)}) -> ${lengthToObj(this.newLength)}`;
+	}
 }
 
 export class BeforeEditPositionMapper {
@@ -26,7 +30,6 @@ export class BeforeEditPositionMapper {
 	*/
 	constructor(
 		edits: readonly TextEditInfo[],
-		private readonly documentLength: Length,
 	) {
 		this.edits = edits.map(edit => TextEditInfoCache.from(edit));
 	}
@@ -41,12 +44,16 @@ export class BeforeEditPositionMapper {
 
 	/**
 	 * @param offset Must be equal to or greater than the last offset this method has been called with.
+	 * Returns null if there is no edit anymore.
 	*/
-	getDistanceToNextChange(offset: Length): Length {
+	getDistanceToNextChange(offset: Length): Length | null {
 		this.adjustNextEdit(offset);
 
 		const nextEdit = this.edits[this.nextEditIdx];
-		const nextChangeOffset = nextEdit ? this.translateOldToCur(nextEdit.offsetObj) : this.documentLength;
+		const nextChangeOffset = nextEdit ? this.translateOldToCur(nextEdit.offsetObj) : null;
+		if (nextChangeOffset === null) {
+			return null;
+		}
 
 		return lengthDiffNonNegative(offset, nextChangeOffset);
 	}

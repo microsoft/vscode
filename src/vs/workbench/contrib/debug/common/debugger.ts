@@ -99,20 +99,23 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		}
 	}
 
-	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
-		return this.adapterManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
-			const da = this.adapterManager.createDebugAdapter(session);
-			if (da) {
-				return Promise.resolve(da);
-			}
-			throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
-		});
+	async startDebugging(configuration: IConfig, parentSessionId: string): Promise<boolean> {
+		const parentSession = this.debugService.getModel().getSession(parentSessionId);
+		return await this.debugService.startDebugging(undefined, configuration, { parentSession }, undefined);
 	}
 
-	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		return this.adapterManager.substituteVariables(this.type, folder, config).then(config => {
-			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables, config.__configurationTarget);
-		});
+	async createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
+		await this.adapterManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type);
+		const da = this.adapterManager.createDebugAdapter(session);
+		if (da) {
+			return Promise.resolve(da);
+		}
+		throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
+	}
+
+	async substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
+		const substitutedConfig = await this.adapterManager.substituteVariables(this.type, folder, config);
+		return await this.configurationResolverService.resolveWithInteractionReplace(folder, substitutedConfig, 'launch', this.variables, substitutedConfig.__configurationTarget);
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {

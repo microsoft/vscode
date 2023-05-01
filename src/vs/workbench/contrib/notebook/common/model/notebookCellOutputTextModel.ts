@@ -24,19 +24,28 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		return this._rawOutput.outputId;
 	}
 
+	private _versionId = 0;
+
+	get versionId() {
+		return this._versionId;
+	}
+
 	constructor(
-		readonly _rawOutput: IOutputDto
+		private _rawOutput: IOutputDto
 	) {
 		super();
 	}
 
-	replaceData(items: IOutputItemDto[]) {
-		this._rawOutput.outputs = items;
+	replaceData(rawData: IOutputDto) {
+		this._rawOutput = rawData;
+		this._versionId = this._versionId + 1;
+
 		this._onDidChangeData.fire();
 	}
 
 	appendData(items: IOutputItemDto[]) {
 		this._rawOutput.outputs.push(...items);
+		this._versionId = this._versionId + 1;
 		this._onDidChangeData.fire();
 	}
 

@@ -10,6 +10,7 @@ import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { extname as pathExtname } from 'vs/base/common/path';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
@@ -19,7 +20,7 @@ import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/model';
 import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
-import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer, VSBufferReadable, bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -43,6 +44,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -425,7 +427,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Revert the source
-		await this.revert(source);
+		try {
+			await this.revert(source);
+		} catch (error) {
+
+			// It is possible that reverting the source fails, for example
+			// when a remote is disconnected and we cannot read it anymore.
+			// However, this should not interrupt the "Save As" flow, so
+			// we gracefully catch the error and just log it.
+
+			this.logService.error(error);
+		}
 
 		return target;
 	}
@@ -519,7 +531,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			const sourceLanguageId = sourceTextModel.getLanguageId();
 			const targetLanguageId = targetTextModel.getLanguageId();
 			if (sourceLanguageId !== PLAINTEXT_LANGUAGE_ID && targetLanguageId === PLAINTEXT_LANGUAGE_ID) {
-				targetTextModel.setMode(sourceLanguageId); // only use if more specific than plain/text
+				targetTextModel.setLanguage(sourceLanguageId); // only use if more specific than plain/text
 			}
 
 			// transient properties
@@ -544,14 +556,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
-		const confirm: IConfirmation = {
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
 			detail: localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
 			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-			type: 'warning'
-		};
+		});
 
-		return (await this.dialogService.confirm(confirm)).confirmed;
+		return confirmed;
 	}
 
 	private async suggestSavePath(resource: URI): Promise<URI> {
@@ -576,19 +588,21 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				}
 
 				// Untitled without associated file path: use name
-				// of untitled model if it is a valid path name,
-				// otherwise fallback to `basename`.
-				let untitledName = model.name;
-				if (!(await this.pathService.hasValidBasename(joinPath(defaultFilePath, untitledName), untitledName))) {
-					untitledName = basename(resource);
+				// of untitled model if it is a valid path name and
+				// figure out the file extension from the mode if any.
+
+				let nameCandidate: string;
+				if (await this.pathService.hasValidBasename(joinPath(defaultFilePath, model.name), model.name)) {
+					nameCandidate = model.name;
+				} else {
+					nameCandidate = basename(resource);
 				}
 
-				// Add language file extension if specified
 				const languageId = model.getLanguageId();
 				if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
-					suggestedFilename = this.suggestFilename(languageId, untitledName);
+					suggestedFilename = this.suggestFilename(languageId, nameCandidate);
 				} else {
-					suggestedFilename = untitledName;
+					suggestedFilename = nameCandidate;
 				}
 			}
 		}
@@ -606,18 +620,31 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	suggestFilename(languageId: string, untitledName: string) {
 		const languageName = this.languageService.getLanguageName(languageId);
 		if (!languageName) {
-			return untitledName;
+			return untitledName; // unknown language, so we cannot suggest a better name
 		}
 
-		const extension = this.languageService.getExtensions(languageId)[0];
-		if (extension) {
-			if (!untitledName.endsWith(extension)) {
-				return untitledName + extension;
+		const untitledExtension = pathExtname(untitledName);
+
+		const extensions = this.languageService.getExtensions(languageId);
+		if (extensions.includes(untitledExtension)) {
+			return untitledName; // preserve extension if it is compatible with the mode
+		}
+
+		const primaryExtension = firstOrDefault(extensions);
+		if (primaryExtension) {
+			if (untitledExtension) {
+				return `${untitledName.substring(0, untitledName.indexOf(untitledExtension))}${primaryExtension}`;
 			}
+
+			return `${untitledName}${primaryExtension}`;
 		}
 
-		const filename = this.languageService.getFilenames(languageId)[0];
-		return filename || untitledName;
+		const filenames = this.languageService.getFilenames(languageId);
+		if (filenames.includes(untitledName)) {
+			return untitledName; // preserve name if it is compatible with the mode
+		}
+
+		return firstOrDefault(filenames) ?? untitledName;
 	}
 
 	//#endregion

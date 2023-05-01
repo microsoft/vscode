@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotes } from 'vs/workbench/contrib/update/browser/update';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotesInEditor, DOWNLOAD_URL } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
@@ -18,9 +18,11 @@ import { isWindows } from 'vs/base/common/platform';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -37,7 +39,7 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 			id: ShowCurrentReleaseNotesActionId,
 			title: {
 				value: localize('showReleaseNotes', "Show Release Notes"),
-				mnemonicTitle: localize('mshowReleaseNotes', "Show &&Release Notes"),
+				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
 				original: 'Show Release Notes'
 			},
 			category: { value: product.nameShort, original: product.nameShort },
@@ -58,7 +60,7 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 
 		try {
-			await showReleaseNotes(instantiationService, productService.version);
+			await showReleaseNotesInEditor(instantiationService, productService.version);
 		} catch (err) {
 			if (productService.releaseNotesUrl) {
 				await openerService.open(URI.parse(productService.releaseNotesUrl));
@@ -139,6 +141,37 @@ class RestartToUpdateAction extends Action2 {
 	}
 }
 
+class DownloadAction extends Action2 {
+
+	static readonly ID = 'workbench.action.download';
+
+	constructor() {
+		super({
+			id: DownloadAction.ID,
+			title: {
+				value: localize('openDownloadPage', "Download {0}", product.nameLong),
+				original: `Download ${product.downloadUrl}`
+			},
+			precondition: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL), // Only show when running in a web browser and a download url is available
+			f1: true,
+			menu: [{
+				id: MenuId.StatusBarWindowIndicatorMenu,
+				when: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL)
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+
+		if (productService.downloadUrl) {
+			openerService.open(URI.parse(productService.downloadUrl));
+		}
+	}
+}
+
+registerAction2(DownloadAction);
 registerAction2(CheckForUpdateAction);
 registerAction2(DownloadUpdateAction);
 registerAction2(InstallUpdateAction);

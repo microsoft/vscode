@@ -92,11 +92,33 @@ registerListeners();
  */
 let nlsConfigurationPromise = undefined;
 
+/**
+ * @type {String}
+ **/
+// Use the most preferred OS language for language recommendation.
+// The API might return an empty array on Linux, such as when
+// the 'C' locale is the user's only configured locale.
+// No matter the OS, if the array is empty, default back to 'en'.
+const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+const osLocale = processZhLocale(resolved.toLowerCase());
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale, osLocale);
+}
+
+// Pass in the locale to Electron so that the
+// Windows Control Overlay is rendered correctly on Windows.
+// For now, don't pass in the locale on macOS due to
+// https://github.com/microsoft/vscode/issues/167543.
+// If the locale is `qps-ploc`, the Microsoft
+// Pseudo Language Language Pack is being used.
+// In that case, use `en` as the Electron locale.
+
+if (process.platform === 'win32' || process.platform === 'linux') {
+	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
+	app.commandLine.appendSwitch('lang', electronLocale);
 }
 
 // Load our code once ready
@@ -170,7 +192,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
 		'log-level'
 	];
 
@@ -214,16 +236,18 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
+					} else if (Array.isArray(argvValue)) {
+						for (const value of argvValue) {
+							process.argv.push('--log', value);
+						}
 					}
 					break;
 			}
 		}
 	});
 
-	/* Following features are disabled from the runtime.
-	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
-	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
-	 */
+	// Following features are disabled from the runtime:
+	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 	// Support JS Flags
@@ -304,6 +328,7 @@ function getArgvConfigPath() {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
+	// @ts-ignore
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
@@ -414,11 +439,6 @@ function getJSFlags(cliArgs) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'] ?? '')) {
-		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
-	}
-
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
@@ -433,7 +453,6 @@ function parseCLIArgs() {
 			'user-data-dir',
 			'locale',
 			'js-flags',
-			'max-memory',
 			'crash-reporter-directory'
 		]
 	});
@@ -537,6 +556,30 @@ async function mkdirpIgnoreError(dir) {
 //#region NLS Support
 
 /**
+ * @param {string} appLocale
+ * @returns string
+ */
+function processZhLocale(appLocale) {
+	if (appLocale.startsWith('zh')) {
+		const region = appLocale.split('-')[1];
+		// On Windows and macOS, Chinese languages returned by
+		// app.getPreferredSystemLanguages() start with zh-hans
+		// for Simplified Chinese or zh-hant for Traditional Chinese,
+		// so we can easily determine whether to use Simplified or Traditional.
+		// However, on Linux, Chinese languages returned by that same API
+		// are of the form zh-XY, where XY is a country code.
+		// For China (CN), Singapore (SG), and Malaysia (MY)
+		// country codes, assume they use Simplified Chinese.
+		// For other cases, assume they use Traditional.
+		if (['hans', 'cn', 'sg', 'my'].includes(region)) {
+			return 'zh-cn';
+		}
+		return 'zh-tw';
+	}
+	return appLocale;
+}
+
+/**
  * Resolve the NLS configuration
  *
  * @return {Promise<NLSConfiguration>}
@@ -546,30 +589,28 @@ async function resolveNlsConfiguration() {
 	// First, we need to test a user defined locale. If it fails we try the app locale.
 	// If that fails we fall back to English.
 	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
-	if (!nlsConfiguration) {
-
-		// Try to use the app locale. Please note that the app locale is only
-		// valid after we have received the app ready event. This is why the
-		// code is here.
-		let appLocale = app.getLocale();
-		if (!appLocale) {
-			nlsConfiguration = { locale: 'en', availableLanguages: {} };
-		} else {
-
-			// See above the comment about the loader and case sensitiveness
-			appLocale = appLocale.toLowerCase();
-
-			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
-			if (!nlsConfiguration) {
-				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
-			}
-		}
-	} else {
-		// We received a valid nlsConfig from a user defined locale
+	if (nlsConfiguration) {
+		return nlsConfiguration;
 	}
 
-	return nlsConfiguration;
+	// Try to use the app locale. Please note that the app locale is only
+	// valid after we have received the app ready event. This is why the
+	// code is here.
+
+	/**
+	 * @type string
+	 */
+	let appLocale = app.getLocale();
+	if (!appLocale) {
+		return { locale: 'en', osLocale, availableLanguages: {} };
+	}
+
+	// See above the comment about the loader and case sensitiveness
+	appLocale = processZhLocale(appLocale.toLowerCase());
+
+	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+	nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale, osLocale);
+	return nlsConfiguration ?? { locale: 'en', osLocale, availableLanguages: {} };
 }
 
 /**

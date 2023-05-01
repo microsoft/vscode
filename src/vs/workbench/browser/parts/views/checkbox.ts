@@ -9,8 +9,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { attachToggleStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ITreeItem, ITreeItemCheckboxState } from 'vs/workbench/common/views';
 
 export class CheckboxStateHandler extends Disposable {
@@ -32,7 +31,7 @@ export class TreeItemCheckbox extends Disposable {
 	private readonly _onDidChangeState = new Emitter<boolean>();
 	readonly onDidChangeState: Event<boolean> = this._onDidChangeState.event;
 
-	constructor(container: HTMLElement, private checkboxStateHandler: CheckboxStateHandler, private themeService: IThemeService) {
+	constructor(container: HTMLElement, private checkboxStateHandler: CheckboxStateHandler) {
 		super();
 		this.checkboxContainer = <HTMLDivElement>container;
 	}
@@ -54,7 +53,8 @@ export class TreeItemCheckbox extends Disposable {
 			this.toggle = new Toggle({
 				isChecked: node.checkbox.isChecked,
 				title: this.createCheckboxTitle(node.checkbox),
-				icon: node.checkbox.isChecked ? Codicon.check : undefined
+				icon: node.checkbox.isChecked ? Codicon.check : undefined,
+				...defaultToggleStyles
 			});
 
 			this.toggle.domNode.classList.add(TreeItemCheckbox.checkboxClass);
@@ -70,7 +70,6 @@ export class TreeItemCheckbox extends Disposable {
 			this._register(this.toggle.onChange(() => {
 				this.setCheckbox(node);
 			}));
-			this._register(attachToggleStyler(this.toggle, this.themeService));
 		}
 	}
 

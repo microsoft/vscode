@@ -79,7 +79,7 @@ export interface IPowerShellExeDetails {
 	readonly exePath: string;
 }
 
-export interface IPossiblePowerShellExe extends IPowerShellExeDetails {
+interface IPossiblePowerShellExe extends IPowerShellExeDetails {
 	exists(): Promise<boolean>;
 }
 

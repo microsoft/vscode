@@ -18,6 +18,7 @@
 	"include": [
 		"typings/require.d.ts",
 		"typings/thenable.d.ts",
+		"typings/vscode-globals-product.d.ts",
 		"vs/loader.d.ts",
 		"vs/monaco.d.ts",
 		"vs/editor/*",

@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IExpression, IRelativePattern } from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { sep } from 'vs/base/common/path';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -16,6 +16,8 @@ import { isNumber } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { isWeb } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 //#region file service & providers
 
@@ -284,6 +286,15 @@ export interface IFileAtomicReadOptions {
 	readonly atomic: true;
 }
 
+export interface IFileReadLimits {
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_TOO_LARGE` will be thrown.
+	 */
+	size?: number;
+}
+
 export interface IFileReadStreamOptions {
 
 	/**
@@ -299,12 +310,10 @@ export interface IFileReadStreamOptions {
 	readonly length?: number;
 
 	/**
-	 * If provided, the size of the file will be checked against the limits.
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
 	 */
-	limits?: {
-		readonly size?: number;
-		readonly memory?: number;
-	};
+	readonly limits?: IFileReadLimits;
 }
 
 export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions {
@@ -428,6 +437,9 @@ export interface IWatchOptions {
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
+	 * Paths can be relative or absolute and when relative are
+	 * resolved against the watched folder. Glob patterns are
+	 * always matched relative to the watched folder.
 	 */
 	excludes: string[];
 
@@ -435,11 +447,19 @@ export interface IWatchOptions {
 	 * An optional set of glob patterns or paths to include for
 	 * watching. If not provided, all paths are considered for
 	 * events.
+	 * Paths can be relative or absolute and when relative are
+	 * resolved against the watched folder. Glob patterns are
+	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
 }
 
 export const enum FileSystemProviderCapabilities {
+
+	/**
+	 * No capabilities.
+	 */
+	None = 0,
 
 	/**
 	 * Provider supports unbuffered read/write.
@@ -584,7 +604,7 @@ export enum FileSystemProviderErrorCode {
 	FileNotFound = 'EntryNotFound',
 	FileNotADirectory = 'EntryNotADirectory',
 	FileIsADirectory = 'EntryIsADirectory',
-	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
+	FileExceedsStorageQuota = 'EntryExceedsStorageQuota',
 	FileTooLarge = 'EntryTooLarge',
 	FileWriteLocked = 'EntryWriteLocked',
 	NoPermissions = 'NoPermissions',
@@ -592,18 +612,27 @@ export enum FileSystemProviderErrorCode {
 	Unknown = 'Unknown'
 }
 
-export class FileSystemProviderError extends Error {
+export interface IFileSystemProviderError extends Error {
+	readonly name: string;
+	readonly code: FileSystemProviderErrorCode;
+}
 
-	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
+export class FileSystemProviderError extends Error implements IFileSystemProviderError {
+
+	static create(error: Error | string, code: FileSystemProviderErrorCode): FileSystemProviderError {
+		const providerError = new FileSystemProviderError(error.toString(), code);
+		markAsFileSystemProviderError(providerError, code);
+
+		return providerError;
+	}
+
+	private constructor(message: string, readonly code: FileSystemProviderErrorCode) {
 		super(message);
 	}
 }
 
 export function createFileSystemProviderError(error: Error | string, code: FileSystemProviderErrorCode): FileSystemProviderError {
-	const providerError = new FileSystemProviderError(error.toString(), code);
-	markAsFileSystemProviderError(providerError, code);
-
-	return providerError;
+	return FileSystemProviderError.create(error, code);
 }
 
 export function ensureFileSystemProviderError(error?: Error): Error {
@@ -644,7 +673,6 @@ export function toFileSystemProviderErrorCode(error: Error | undefined | null): 
 		case FileSystemProviderErrorCode.FileIsADirectory: return FileSystemProviderErrorCode.FileIsADirectory;
 		case FileSystemProviderErrorCode.FileNotADirectory: return FileSystemProviderErrorCode.FileNotADirectory;
 		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit: return FileSystemProviderErrorCode.FileExceedsMemoryLimit;
 		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
 		case FileSystemProviderErrorCode.FileWriteLocked: return FileSystemProviderErrorCode.FileWriteLocked;
 		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
@@ -675,8 +703,6 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
 			return FileOperationResult.FILE_MOVE_CONFLICT;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit:
-			return FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
 		case FileSystemProviderErrorCode.FileTooLarge:
 			return FileOperationResult.FILE_TOO_LARGE;
 		default:
@@ -766,7 +792,6 @@ export class FileChangesEvent {
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
 	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
-		this.rawChanges = changes;
 
 		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
 
@@ -890,14 +915,6 @@ export class FileChangesEvent {
 	gotUpdated(): boolean {
 		return !!this.updated;
 	}
-
-	/**
-	 * @deprecated use the `contains` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	readonly rawChanges: readonly IFileChange[] = [];
 
 	/**
 	 * @deprecated use the `contains` or `affects` method to efficiently find
@@ -1157,6 +1174,17 @@ export class FileOperationError extends Error {
 	}
 }
 
+export class TooLargeFileOperationError extends FileOperationError {
+	constructor(
+		message: string,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE,
+		readonly size: number,
+		options?: IReadFileOptions
+	) {
+		super(message, fileOperationResult, options);
+	}
+}
+
 export class NotModifiedSinceFileOperationError extends FileOperationError {
 
 	constructor(
@@ -1178,7 +1206,6 @@ export const enum FileOperationResult {
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
-	FILE_EXCEEDS_MEMORY_LIMIT,
 	FILE_NOT_DIRECTORY,
 	FILE_OTHER_ERROR
 }
@@ -1263,12 +1290,6 @@ export async function whenProviderRegistered(file: URI, fileService: IFileServic
 }
 
 /**
- * Native only: limits for memory sizes
- */
-export const MIN_MAX_MEMORY_SIZE_MB = 2048;
-export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
-
-/**
  * Helper to format a raw byte size into a human readable label.
  */
 export class ByteSize {
@@ -1303,23 +1324,34 @@ export class ByteSize {
 	}
 }
 
-// Native only: Arch limits
+// File limits
 
-export interface IArchLimits {
-	readonly maxFileSize: number;
-	readonly maxHeapSize: number;
-}
+export function getLargeFileConfirmationLimit(remoteAuthority?: string): number;
+export function getLargeFileConfirmationLimit(uri?: URI): number;
+export function getLargeFileConfirmationLimit(arg?: string | URI): number {
+	const isRemote = typeof arg === 'string' || arg?.scheme === Schemas.vscodeRemote;
+	const isLocal = typeof arg !== 'string' && arg?.scheme === Schemas.file;
 
-export const enum Arch {
-	IA32,
-	OTHER
-}
+	if (isLocal) {
+		// Local almost has no limit in file size
+		return 1024 * ByteSize.MB;
+	}
 
-export function getPlatformLimits(arch: Arch): IArchLimits {
-	return {
-		maxFileSize: arch === Arch.IA32 ? 300 * ByteSize.MB : 16 * ByteSize.GB,  // https://github.com/microsoft/vscode/issues/30180
-		maxHeapSize: arch === Arch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
-	};
+	if (isRemote) {
+		// With a remote, pick a low limit to avoid
+		// potentially costly file transfers
+		return 10 * ByteSize.MB;
+	}
+
+	if (isWeb) {
+		// Web: we cannot know for sure if a cost
+		// is associated with the file transfer
+		// so we pick a reasonably small limit
+		return 50 * ByteSize.MB;
+	}
+
+	// Local desktop: almost no limit in file size
+	return 1024 * ByteSize.MB;
 }
 
 //#endregion

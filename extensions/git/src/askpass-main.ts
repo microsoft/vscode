@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as nls from 'vscode-nls';
 import { IPCClient } from './ipc/ipcClient';
 
-const localize = nls.loadMessageBundle();
-
 function fatal(err: any): void {
-	console.error(localize('missOrInvalid', "Missing or invalid credentials."));
+	console.error('Missing or invalid credentials.');
 	console.error(err);
 	process.exit(1);
 }

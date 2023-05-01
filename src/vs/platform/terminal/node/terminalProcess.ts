@@ -122,7 +122,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
-	get shellType(): TerminalShellType { return isWindows ? this._windowsShellHelper?.shellType : posixShellTypeMap.get(this._currentTitle); }
+	get shellType(): TerminalShellType | undefined { return isWindows ? this._windowsShellHelper?.shellType : posixShellTypeMap.get(this._currentTitle); }
+	get hasChildProcesses(): boolean { return this._childProcessMonitor?.hasChildProcesses || false; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
@@ -192,7 +193,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
+	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
 		const firstError = results.find(r => r !== undefined);
 		if (firstError) {
@@ -201,7 +202,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		let injection: IShellIntegrationConfigInjection | undefined;
 		if (this._options.shellIntegration.enabled) {
-			injection = getShellIntegrationInjection(this.shellLaunchConfig, { shellIntegration: this._options.shellIntegration, windowsEnableConpty: this._options.windowsEnableConpty }, this._ptyOptions.env, this._logService, this._productService);
+			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
 			if (injection) {
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
 				if (injection.envMixin) {
@@ -230,6 +231,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		try {
 			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
+			if (injection?.newArgs) {
+				return { injectedArgs: injection.newArgs };
+			}
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -371,7 +375,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
 				this._logService.trace('IPty#kill');
-				this._ptyProcess.kill();
+				this._ptyProcess.kill(!isWindows ? 'SIGKILL' : undefined);
 			}
 		} catch (ex) {
 			// Swallow, the pty has already been killed

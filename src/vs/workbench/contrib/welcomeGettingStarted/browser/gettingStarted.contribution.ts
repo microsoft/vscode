@@ -32,14 +32,13 @@ import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingSta
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
-
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: { value: localize('miGetStarted', "Get Started"), original: 'Get Started' },
+			title: { value: localize('miWelcome', "Welcome"), original: 'Welcome' },
 			category: Categories.Help,
 			f1: true,
 			menu: {
@@ -117,14 +116,14 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
-		localize('getStarted', "Get Started")
+		localize('welcome', "Welcome")
 	),
 	[
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
 
-const category = localize('getStarted', "Get Started");
+const category = { value: localize('welcome', "Welcome"), original: 'Welcome' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -232,7 +231,7 @@ registerAction2(class extends Action2 {
 		quickPick.canSelectMany = false;
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
-		quickPick.title = localize('pickWalkthroughs', "Open Walkthrough...");
+		quickPick.placeholder = localize('pickWalkthroughs', 'Select a walkthrough to open');
 		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
 		quickPick.busy = true;
 		quickPick.onDidAccept(() => {
@@ -299,18 +298,6 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install of the extension.")
 		},
-		'workbench.welcomePage.experimental.videoTutorials': {
-			scope: ConfigurationScope.MACHINE,
-			type: 'string',
-			enum: [
-				'off',
-				'on',
-				'experimental'
-			],
-			tags: ['experimental'],
-			default: 'off',
-			description: localize('workbench.welcomePage.videoTutorials', "When enabled, the get started page has additional links to video tutorials.")
-		},
 		'workbench.startupEditor': {
 			'scope': ConfigurationScope.RESOURCE,
 			'type': 'string',
@@ -319,7 +306,7 @@ configurationRegistry.registerConfiguration({
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled text file (only applies when opening an empty window)."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
 			],
 			'default': 'welcomePage',

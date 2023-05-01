@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
+import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { SerializableObjectWithBuffers, Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { Dto, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { ExtHostCommandsShape, ExtHostContext, MainContext, MainThreadCommandsShape } from '../common/extHost.protocol';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
 
-	private readonly _commandRegistrations = new Map<string, IDisposable>();
+	private readonly _commandRegistrations = new DisposableMap<string>();
 	private readonly _generateCommandsDocumentationRegistration: IDisposable;
 	private readonly _proxy: ExtHostCommandsShape;
 
@@ -30,9 +31,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	dispose() {
-		dispose(this._commandRegistrations.values());
-		this._commandRegistrations.clear();
-
+		this._commandRegistrations.dispose();
 		this._generateCommandsDocumentationRegistration.dispose();
 	}
 
@@ -61,17 +60,13 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 			CommandsRegistry.registerCommand(id, (accessor, ...args) => {
 				return this._proxy.$executeContributedCommand(id, ...args).then(result => {
 					return revive(result);
-				});
+				}, onUnexpectedExternalError);
 			})
 		);
 	}
 
 	$unregisterCommand(id: string): void {
-		const command = this._commandRegistrations.get(id);
-		if (command) {
-			command.dispose();
-			this._commandRegistrations.delete(id);
-		}
+		this._commandRegistrations.deleteAndDispose(id);
 	}
 
 	$fireCommandActivationEvent(id: string): void {

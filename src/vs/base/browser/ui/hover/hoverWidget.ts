@@ -72,9 +72,9 @@ export class HoverAction extends Disposable {
 			actionOptions.run(this.actionContainer);
 		}));
 
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.KEY_UP, e => {
+		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter)) {
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				e.stopPropagation();
 				e.preventDefault();
 				actionOptions.run(this.actionContainer);

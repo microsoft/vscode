@@ -351,7 +351,7 @@ suite('Untitled text editors', () => {
 		await input.resolve();
 
 		assert.ok(!input.model.hasLanguageSetExplicitly);
-		accessor.modelService.setMode(model.textEditorModel!, accessor.languageService.createById(language));
+		model.textEditorModel!.setLanguage(accessor.languageService.createById(language));
 		assert.ok(input.model.hasLanguageSetExplicitly);
 
 		assert.strictEqual(model.getLanguageId(), language);
@@ -373,8 +373,7 @@ suite('Untitled text editors', () => {
 		await input.resolve();
 
 		assert.ok(!input.model.hasLanguageSetExplicitly);
-		accessor.modelService.setMode(
-			model.textEditorModel!,
+		model.textEditorModel!.setLanguage(
 			accessor.languageService.createById(language),
 			// This is really what this is testing
 			LanguageDetectionLanguageEventSource);
@@ -615,36 +614,4 @@ suite('Untitled text editors', () => {
 		input.dispose();
 		model.dispose();
 	});
-
-	test('backup and restore (simple)', async function () {
-		return testBackupAndRestore('Some very small file text content.');
-	});
-
-	test('backup and restore (large, #121347)', async function () {
-		const largeContent = '국어한\n'.repeat(100000);
-		return testBackupAndRestore(largeContent);
-	});
-
-	async function testBackupAndRestore(content: string) {
-		const service = accessor.untitledTextEditorService;
-		const originalInput = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-		const restoredInput = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-
-		const originalModel = await originalInput.resolve();
-		originalModel.textEditorModel?.setValue(content);
-
-		const backup = await originalModel.backup(CancellationToken.None);
-		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: restoredInput.resource };
-		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
-
-		const restoredModel = await restoredInput.resolve();
-
-		assert.strictEqual(restoredModel.textEditorModel?.getValue(), content);
-		assert.strictEqual(restoredModel.isDirty(), true);
-
-		originalInput.dispose();
-		originalModel.dispose();
-		restoredInput.dispose();
-		restoredModel.dispose();
-	}
 });

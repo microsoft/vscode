@@ -12,6 +12,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
 
@@ -20,11 +22,14 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@IOpenerService private openerService: IOpenerService,
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
 		if (tunnelFactory) {
+			// At this point we clearly want the ports view/features since we have a tunnel factory
+			contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
 			let privacyOptions = environmentService.options?.tunnelProvider?.features?.privacyOptions ?? [];
 			if (environmentService.options?.tunnelProvider?.features?.public
 				&& (privacyOptions.length === 0)) {

@@ -25,6 +25,7 @@ import { nullExtensionDescription } from 'vs/workbench/services/extensions/commo
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 suite('NotebookKernel', function () {
 
@@ -83,12 +84,16 @@ suite('NotebookKernel', function () {
 
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
-			override async $registerNotebookProvider() { }
-			override async $unregisterNotebookProvider() { }
+			override async $registerNotebookSerializer() { }
+			override async $unregisterNotebookSerializer() { }
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		extHostCommands = new ExtHostCommands(rpcProtocol, new NullLogService());
+		extHostCommands = new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
+			override onExtensionError(): boolean {
+				return true;
+			}
+		});
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments);
 
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);

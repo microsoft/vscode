@@ -5,13 +5,15 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export interface AuthenticationSessionAccount {
+	label: string;
+	id: string;
+}
+
 export interface AuthenticationSession {
 	id: string;
 	accessToken: string;
-	account: {
-		label: string;
-		id: string;
-	};
+	account: AuthenticationSessionAccount;
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
 }
@@ -37,7 +39,10 @@ export interface IAuthenticationService {
 	registerAuthenticationProvider(id: string, provider: IAuthenticationProvider): void;
 	unregisterAuthenticationProvider(id: string): void;
 	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined;
-	updatedAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): Promise<void>;
+	updateAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): void;
+	updateSessionPreference(providerId: string, extensionId: string, session: AuthenticationSession): void;
+	getSessionPreference(providerId: string, extensionId: string, scopes: string[]): string | undefined;
+	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
 	showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean>;
 	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;

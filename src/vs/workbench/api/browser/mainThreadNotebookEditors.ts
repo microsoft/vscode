@@ -114,7 +114,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		if (notebookEditor) {
 			return notebookEditor.getId();
 		} else {
-			throw new Error(`Notebook Editor creation failure for document ${resource}`);
+			throw new Error(`Notebook Editor creation failure for document ${JSON.stringify(resource)}`);
 		}
 	}
 

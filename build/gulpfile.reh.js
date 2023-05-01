@@ -9,14 +9,15 @@ const gulp = require('gulp');
 const path = require('path');
 const es = require('event-stream');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
-const _ = require('underscore');
 const { getProductionDependencies } = require('./lib/dependencies');
+const { assetFromGithub } = require('./lib/github');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -30,7 +31,7 @@ const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createVSCodeWebFileCont
 const cp = require('child_process');
 
 const REPO_ROOT = path.dirname(__dirname);
-const commit = util.getVersion(REPO_ROOT);
+const commit = getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 
@@ -154,7 +155,7 @@ if (defaultNodeTask) {
 }
 
 function nodejs(platform, arch) {
-	const remote = require('gulp-remote-retry-src');
+	const { remote } = require('./lib/gulpRemoteSource');
 	const untar = require('gulp-untar');
 
 	if (arch === 'ia32') {
@@ -162,6 +163,11 @@ function nodejs(platform, arch) {
 	}
 
 	if (platform === 'win32') {
+		if (product.nodejsRepository) {
+			return assetFromGithub(product.nodejsRepository, nodeVersion, name => name === `win-${arch}-node.exe`)
+				.pipe(rename('node.exe'));
+		}
+
 		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' })
 			.pipe(rename('node.exe'));
 	}
@@ -256,7 +262,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 
 		const productionDependencies = getProductionDependencies(REMOTE_FOLDER);
-		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
 		const deps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
@@ -357,7 +363,7 @@ function tweakProductForServerWeb(product) {
 				out: `out-vscode-${type}`,
 				amd: {
 					src: 'out-build',
-					entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
+					entryPoints: (type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints).flat(),
 					otherSources: [],
 					resources: type === 'reh' ? serverResources : serverWithWebResources,
 					loaderConfig: optimize.loaderConfig(),
@@ -377,7 +383,8 @@ function tweakProductForServerWeb(product) {
 						// TODO: we cannot inline `product.json` because
 						// it is being changed during build time at a later
 						// point in time (such as `checksums`)
-						'../product.json'
+						'../product.json',
+						'../package.json'
 					]
 				}
 			}

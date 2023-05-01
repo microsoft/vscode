@@ -24,7 +24,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { isObject } from 'vs/base/common/types';
+import { isEmptyObject, isObject } from 'vs/base/common/types';
 import { DefaultConfiguration as BaseDefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 
@@ -62,6 +62,10 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 		this.cachedConfigurationDefaultsOverrides = {};
 		this.updateCachedConfigurationDefaultsOverrides();
 		return super.reload();
+	}
+
+	hasCachedConfigurationDefaultsOverrides(): boolean {
+		return !isEmptyObject(this.cachedConfigurationDefaultsOverrides);
 	}
 
 	private initiaizeCachedConfigurationDefaultsOverridesPromise: Promise<void> | undefined;

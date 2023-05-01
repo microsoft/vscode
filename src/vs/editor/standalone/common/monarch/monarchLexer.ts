@@ -16,7 +16,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
+import { LanguageId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 
 const CACHE_STACK_DEPTH = 5;
 
@@ -315,7 +315,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 
 	public emit(startOffset: number, type: string): void {
-		const metadata = this._theme.match(this._currentLanguageId, type);
+		const metadata = this._theme.match(this._currentLanguageId, type) | MetadataConsts.BALANCED_BRACKETS_MASK;
 		if (this._lastTokenMetadata === metadata) {
 			return;
 		}
@@ -387,7 +387,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 
 export type ILoadStatus = { loaded: true } | { loaded: false; promise: Promise<void> };
 
-export class MonarchTokenizer implements languages.ITokenizationSupport {
+export class MonarchTokenizer implements languages.ITokenizationSupport, IDisposable {
 
 	private readonly _languageService: ILanguageService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
@@ -422,7 +422,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 			}
 			if (isOneOfMyEmbeddedModes) {
 				emitting = true;
-				languages.TokenizationRegistry.fire([this._languageId]);
+				languages.TokenizationRegistry.handleChange([this._languageId]);
 				emitting = false;
 			}
 		});
@@ -883,6 +883,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 
 		if (languageId !== this._languageId) {
 			// Fire language loading event
+			this._languageService.requestBasicLanguageFeatures(languageId);
 			languages.TokenizationRegistry.getOrCreate(languageId);
 			this._embeddedLanguages[languageId] = true;
 		}

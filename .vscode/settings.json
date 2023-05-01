@@ -12,22 +12,27 @@
 		}
 	},
 	"files.associations": {
-		"cglicenses.json": "jsonc"
+		"cglicenses.json": "jsonc",
+		"*.tst": "typescript"
 	},
 	"search.exclude": {
 		"**/node_modules": true,
 		"**/bower_components": true,
+		"cli/target/**": true,
 		".build/**": true,
 		"out/**": true,
 		"out-build/**": true,
 		"out-vscode/**": true,
 		"i18n/**": true,
+		"extensions/**/dist/**": true,
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
+		"src/vs/base/test/common/filters.perf.data.js": true,
 		"src/vs/base/test/node/uri.test.data.txt": true,
-		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true
+		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
+		"src/vs/editor/test/node/diffing/fixtures/**": true,
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -91,8 +96,10 @@
 	"[rust]": {
 		"editor.defaultFormatter": "rust-lang.rust-analyzer",
 		"editor.formatOnSave": true,
-		"editor.insertSpaces": true
 	},
+	"rust-analyzer.linkedProjects": [
+		"cli/Cargo.toml"
+	],
 	"typescript.tsc.autoDetect": "off",
 	"testing.autoRun.mode": "rerun",
 	"conventionalCommits.scopes": [
@@ -105,6 +112,18 @@
 		"git",
 		"sash"
 	],
+	"debug.javascript.terminalOptions": {
+		"outFiles": [
+			"${workspaceFolder}/out/**/*.js",
+			"${workspaceFolder}/build/**/*.js"
+		]
+	},
 	"githubPullRequests.assignCreated": "${user}",
-	"githubPullRequests.defaultMergeMethod": "squash"
+	"githubPullRequests.defaultMergeMethod": "squash",
+	"githubPullRequests.ignoredPullRequestBranches": [
+		"main"
+	],
+	"application.experimental.rendererProfiling": true,
+	"editor.experimental.asyncTokenization": true,
+	"editor.experimental.asyncTokenizationVerification": true
 }

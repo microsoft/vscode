@@ -10,8 +10,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import * as languages from 'vs/editor/common/languages';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionItem, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { CodeActionItem, CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Progress } from 'vs/platform/progress/common/progress';
@@ -80,13 +80,13 @@ suite('CodeAction', () => {
 		},
 		tsLint: {
 			abc: {
-				$ident: 57,
+				$ident: 'funny' + 57,
 				arguments: <IMarkerData[]>[],
 				id: '_internal_command_delegation',
 				title: 'abc'
 			},
 			bcd: {
-				$ident: 47,
+				$ident: 'funny' + 47,
 				arguments: <IMarkerData[]>[],
 				id: '_internal_command_delegation',
 				title: 'bcd'
