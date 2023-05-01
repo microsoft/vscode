@@ -2926,7 +2926,9 @@ export class StackFrameFocus {
 			return false;
 		}
 
-		return !!(<StackFrameFocus>thing).session;
+		const typeofId = typeof<StackFrameFocus>thing.threadId;
+		return !!(<StackFrameFocus>thing).session &&
+			(typeofId === 'number' || typeofId === 'undefined');
 	}
 
 	constructor(
@@ -2945,7 +2947,9 @@ export class ThreadFocus {
 			return false;
 		}
 
-		return !!(<StackFrameFocus>thing).session && !('frameId' in thing);
+		const typeofId = typeof<StackFrameFocus>thing.threadId;
+		return !!(<StackFrameFocus>thing).session &&
+			(typeofId === 'number' || typeofId === 'undefined') && !('frameId' in thing);
 	}
 
 	constructor(
