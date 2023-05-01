@@ -50,7 +50,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { StandaloneServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
+import { AbstractLoggerService, ConsoleLogger, ILogService, ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -984,6 +984,14 @@ class StandaloneLogService extends LogService {
 	}
 }
 
+class StandaloneLoggerService extends AbstractLoggerService {
+	constructor() {
+		super(LogLevel.Info, URI.from({ scheme: 'monaco', authority: 'logs', path: '/' }));
+	}
+	protected doCreateLogger(): ILogger { return new ConsoleLogger(); }
+}
+
+
 class StandaloneContextMenuService extends ContextMenuService {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1034,6 +1042,7 @@ registerSingleton(IMarkerService, MarkerService, InstantiationType.Eager);
 registerSingleton(ILanguageService, StandaloneLanguageService, InstantiationType.Eager);
 registerSingleton(IStandaloneThemeService, StandaloneThemeService, InstantiationType.Eager);
 registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
+registerSingleton(ILoggerService, StandaloneLoggerService, InstantiationType.Eager);
 registerSingleton(IModelService, ModelService, InstantiationType.Eager);
 registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Eager);
 registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager);
