@@ -44,7 +44,8 @@ import { BrandedService, IInstantiationService, ServiceIdentifier } from 'vs/pla
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService, NullLogService } from 'vs/platform/log/common/log';
+import { TestLoggerService } from 'vs/platform/log/test/common/testLoggerService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -186,6 +187,7 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
 	define(IThemeService, TestThemeService);
 	define(ILogService, NullLogService);
+	define(ILoggerService, TestLoggerService);
 	define(IModelService, ModelService);
 	define(ICodeEditorService, TestCodeEditorService);
 	define(IContextKeyService, MockContextKeyService);
