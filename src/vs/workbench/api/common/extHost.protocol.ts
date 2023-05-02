@@ -1817,6 +1817,7 @@ export interface IInlineValueContextDto {
 export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
 
 export interface IPasteEditDto {
+	label: string;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
 }

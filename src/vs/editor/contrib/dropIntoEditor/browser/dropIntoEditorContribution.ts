@@ -12,27 +12,29 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { DocumentOnDropEdit, WorkspaceEdit } from 'vs/editor/common/languages';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
-import { PostDropWidgetManager, changeDropTypeCommandId, dropWidgetVisibleCtx } from 'vs/editor/contrib/dropIntoEditor/browser/postDropWidget';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
+import { PostEditWidgetManager } from 'vs/editor/contrib/postEditWidget/browser/postEditWidget';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { registerDefaultDropProviders } from './defaultOnDropProviders';
 
+const changeDropTypeCommandId = 'editor.changeDropType';
+
+const dropWidgetVisibleCtx = new RawContextKey<boolean>('dropWidgetVisible', false, localize('dropWidgetVisible', "Whether the drop widget is showing"));
 
 export class DropIntoEditorController extends Disposable implements IEditorContribution {
 
@@ -46,7 +48,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	private _currentOperation?: { readonly id: number; readonly promise: CancelablePromise<void> };
 
 	private readonly _dropProgressManager: InlineProgressManager;
-	private readonly _postDropWidgetManager: PostDropWidgetManager;
+	private readonly _postDropWidgetManager: PostEditWidgetManager;
 
 	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
@@ -54,14 +56,13 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITreeViewsDnDService private readonly _treeViewsDragAndDropService: ITreeViewsDnDService,
 	) {
 		super();
 
 		this._dropProgressManager = this._register(instantiationService.createInstance(InlineProgressManager, 'dropIntoEditor', editor));
-		this._postDropWidgetManager = this._register(instantiationService.createInstance(PostDropWidgetManager, editor));
+		this._postDropWidgetManager = this._register(instantiationService.createInstance(PostEditWidgetManager, 'dropIntoEditor', editor, dropWidgetVisibleCtx, { id: changeDropTypeCommandId, label: localize('postDropWidgetTitle', "Show drop options...") }));
 
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 
@@ -73,7 +74,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	}
 
 	public changeDropType() {
-		this._postDropWidgetManager.changeExistingDropType();
+		this._postDropWidgetManager.tryShowSelector();
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
@@ -166,13 +167,13 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		return dataTransfer;
 	}
 
-	private async applyDropResult(editor: ICodeEditor, position: IPosition, selectedEditIndex: number, allEdits: readonly DocumentOnDropEdit[], token: CancellationToken): Promise<void> {
+	private async applyDropResult(editor: ICodeEditor, position: IPosition, activeEditIndex: number, allEdits: readonly DocumentOnDropEdit[], token: CancellationToken): Promise<void> {
 		const model = editor.getModel();
 		if (!model) {
 			return;
 		}
 
-		const edit = allEdits[selectedEditIndex];
+		const edit = allEdits[activeEditIndex];
 		if (!edit) {
 			return;
 		}
@@ -189,29 +190,10 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			]
 		};
 
-		// Use a decoration to track edits around the cursor
-		const editTrackingDecoration = model.deltaDecorations([], [{
-			range: Range.fromPositions(position),
-			options: { description: 'drop-line-suffix', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }
-		}]);
-
-		const editResult = await this._bulkEditService.apply(combinedWorkspaceEdit, { editor, token });
-
-		const editRange = model.getDecorationRange(editTrackingDecoration[0]);
-		model.deltaDecorations(editTrackingDecoration, []);
-
-		if (editResult.isApplied && allEdits.length > 1) {
-			const options = editor.getOptions().get(EditorOption.dropIntoEditor);
-			if (options.showDropSelector === 'afterDrop') {
-				this._postDropWidgetManager.show(editRange ?? Range.fromPositions(position), {
-					activeEditIndex: selectedEditIndex,
-					allEdits: allEdits,
-				}, async (newEditIndex) => {
-					await model.undo();
-					this.applyDropResult(editor, position, newEditIndex, allEdits, token);
-				});
-			}
-		}
+		await this._postDropWidgetManager.applyEditAndShowIfNeeded(Range.fromPositions(position), combinedWorkspaceEdit, { activeEditIndex, allEdits }, async (newEditIndex) => {
+			await model.undo();
+			this.applyDropResult(editor, position, newEditIndex, allEdits, token);
+		}, token);
 	}
 }
 

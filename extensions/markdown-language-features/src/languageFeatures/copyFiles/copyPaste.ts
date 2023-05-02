@@ -46,7 +46,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet) : undefined;
+		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet, snippet.label) : undefined;
 	}
 
 	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
@@ -55,7 +55,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
 			if (workspaceFolder) {
 				const snippet = createUriListSnippet(document, [file.uri]);
-				return snippet ? new vscode.DocumentPasteEdit(snippet.snippet) : undefined;
+				return snippet ? new vscode.DocumentPasteEdit(snippet.snippet, snippet.label) : undefined;
 			}
 		}
 
@@ -73,7 +73,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		workspaceEdit.createFile(uri, { contents: file });
 
-		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet);
+		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, snippet.label);
 		pasteEdit.additionalEdit = workspaceEdit;
 		return pasteEdit;
 	}

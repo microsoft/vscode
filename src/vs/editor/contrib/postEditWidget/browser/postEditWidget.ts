@@ -6,29 +6,35 @@
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { toAction } from 'vs/base/common/actions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./postDropWidget';
+import 'vs/css!./postEditWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
-import { DocumentOnDropEdit } from 'vs/editor/common/languages';
-import { localize } from 'vs/nls';
+import { WorkspaceEdit } from 'vs/editor/common/languages';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export const changeDropTypeCommandId = 'editor.changeDropType';
 
-export const dropWidgetVisibleCtx = new RawContextKey<boolean>('dropWidgetVisible', false, localize('dropWidgetVisible', "Whether the drop widget is showing"));
-
-interface DropEditSet {
+interface EditSet {
 	readonly activeEditIndex: number;
-	readonly allEdits: readonly DocumentOnDropEdit[];
+	readonly allEdits: ReadonlyArray<{
+		readonly label: string;
+	}>;
 }
 
-class PostDropWidget extends Disposable implements IContentWidget {
-	private static readonly ID = 'editor.widget.postDropWidget';
+interface ShowCommand {
+	readonly id: string;
+	readonly label: string;
+}
+
+class PostEditWidget extends Disposable implements IContentWidget {
+	private static readonly baseId = 'editor.widget.inlineProgressWidget';
 
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = true;
@@ -36,12 +42,15 @@ class PostDropWidget extends Disposable implements IContentWidget {
 	private domNode!: HTMLElement;
 	private button!: Button;
 
-	private readonly dropWidgetVisible: IContextKey<boolean>;
+	private readonly visibleContext: IContextKey<boolean>;
 
 	constructor(
+		private readonly typeId: string,
 		private readonly editor: ICodeEditor,
+		visibleContext: RawContextKey<boolean>,
+		private readonly showCommand: ShowCommand,
 		private readonly range: Range,
-		private readonly edits: DropEditSet,
+		private readonly edits: EditSet,
 		private readonly onSelectNewEdit: (editIndex: number) => void,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -51,9 +60,9 @@ class PostDropWidget extends Disposable implements IContentWidget {
 
 		this.create();
 
-		this.dropWidgetVisible = dropWidgetVisibleCtx.bindTo(contextKeyService);
-		this.dropWidgetVisible.set(true);
-		this._register(toDisposable(() => this.dropWidgetVisible.reset()));
+		this.visibleContext = visibleContext.bindTo(contextKeyService);
+		this.visibleContext.set(true);
+		this._register(toDisposable(() => this.visibleContext.reset()));
 
 		this.editor.addContentWidget(this);
 		this.editor.layoutContentWidget(this);
@@ -72,25 +81,23 @@ class PostDropWidget extends Disposable implements IContentWidget {
 	}
 
 	private _updateButtonTitle() {
-		const binding = this._keybindingService.lookupKeybinding(changeDropTypeCommandId)?.getLabel();
-		this.button.element.title = binding
-			? localize('postDropWidgetTitleWithBinding', "Show drop options... ({0})", binding)
-			: localize('postDropWidgetTitle', "Show drop options...");
+		const binding = this._keybindingService.lookupKeybinding(this.showCommand.id)?.getLabel();
+		this.button.element.title = this.showCommand.label + (binding ? ` (${binding})` : '');
 	}
 
 	private create(): void {
-		this.domNode = dom.$('.post-drop-widget');
+		this.domNode = dom.$('.post-edit-widget');
 
 		this.button = this._register(new Button(this.domNode, {
 			supportIcons: true,
 		}));
 		this.button.label = '$(insert)';
 
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, () => this.showDropSelector()));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, () => this.showSelector()));
 	}
 
 	getId(): string {
-		return PostDropWidget.ID;
+		return PostEditWidget.baseId + '.' + this.typeId;
 	}
 
 	getDomNode(): HTMLElement {
@@ -104,7 +111,7 @@ class PostDropWidget extends Disposable implements IContentWidget {
 		};
 	}
 
-	showDropSelector() {
+	showSelector() {
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => {
 				const pos = dom.getDomNodePagePosition(this.button.element);
@@ -126,13 +133,17 @@ class PostDropWidget extends Disposable implements IContentWidget {
 	}
 }
 
-export class PostDropWidgetManager extends Disposable {
+export class PostEditWidgetManager extends Disposable {
 
-	private readonly _currentWidget = this._register(new MutableDisposable<PostDropWidget>());
+	private readonly _currentWidget = this._register(new MutableDisposable<PostEditWidget>());
 
 	constructor(
+		private readonly _id: string,
 		private readonly _editor: ICodeEditor,
+		private readonly _visibleContext: RawContextKey<boolean>,
+		private readonly _showCommand: ShowCommand,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
 
@@ -142,11 +153,37 @@ export class PostDropWidgetManager extends Disposable {
 		)(() => this.clear()));
 	}
 
-	public show(range: Range, edits: DropEditSet, onDidSelectEdit: (newIndex: number) => void) {
+	public async applyEditAndShowIfNeeded(triggerRange: Range, workspaceEdit: WorkspaceEdit, allEdits: EditSet, onDidSelectEdit: (newIndex: number) => void, token: CancellationToken) {
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		// Use a decoration to track edits around the trigger range
+		const editTrackingDecoration = model.deltaDecorations([], [{
+			range: triggerRange,
+			options: { description: 'paste-line-suffix', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }
+		}]);
+
+		let editResult: IBulkEditResult;
+		let editRange: Range | null;
+		try {
+			editResult = await this._bulkEditService.apply(workspaceEdit, { editor: this._editor, token });
+			editRange = model.getDecorationRange(editTrackingDecoration[0]);
+		} finally {
+			model.deltaDecorations(editTrackingDecoration, []);
+		}
+
+		if (editResult.isApplied && allEdits.allEdits.length > 1) {
+			this.show(editRange ?? triggerRange, allEdits, onDidSelectEdit);
+		}
+	}
+
+	public show(range: Range, edits: EditSet, onDidSelectEdit: (newIndex: number) => void) {
 		this.clear();
 
 		if (this._editor.hasModel()) {
-			this._currentWidget.value = this._instantiationService.createInstance(PostDropWidget, this._editor, range, edits, onDidSelectEdit);
+			this._currentWidget.value = this._instantiationService.createInstance(PostEditWidget, this._id, this._editor, this._visibleContext, this._showCommand, range, edits, onDidSelectEdit);
 		}
 	}
 
@@ -154,7 +191,7 @@ export class PostDropWidgetManager extends Disposable {
 		this._currentWidget.clear();
 	}
 
-	public changeExistingDropType() {
-		this._currentWidget.value?.showDropSelector();
+	public tryShowSelector() {
+		this._currentWidget.value?.showSelector();
 	}
 }
