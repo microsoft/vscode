@@ -140,6 +140,7 @@ class DecorationRule {
 			color: ${icon.color ? getColor(icon.color.id) : getColor(color)};
 			font-family: ${asCSSPropertyValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
+			font-style: normal;
 			margin-right: 14px;
 			font-weight: normal;
 			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
