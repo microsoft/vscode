@@ -40,8 +40,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		return editor.getContribution<DropIntoEditorController>(DropIntoEditorController.ID);
 	}
 
-	private operationIdPool = 0;
-	private _currentOperation?: { readonly id: number; readonly promise: CancelablePromise<void> };
+	private _currentOperation?: CancelablePromise<void>;
 
 	private readonly _dropProgressManager: InlineProgressManager;
 	private readonly _postDropWidgetManager: PostEditWidgetManager;
@@ -78,20 +77,13 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			return;
 		}
 
-		this._currentOperation?.promise.cancel();
-		this._dropProgressManager.clear();
+		this._currentOperation?.cancel();
 
 		editor.focus();
 		editor.setPosition(position);
 
-		const operationId = this.operationIdPool++;
-
 		const p = createCancelablePromise(async (token) => {
 			const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value, undefined, token);
-
-			this._dropProgressManager.setAtPosition(position, localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel"), {
-				cancel: () => tokenSource.cancel()
-			});
 
 			try {
 				const ourDataTransfer = await this.extractDataTransferData(dragEvent);
@@ -128,15 +120,14 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				}
 			} finally {
 				tokenSource.dispose();
-
-				if (this._currentOperation?.id === operationId) {
-					this._dropProgressManager.clear();
+				if (this._currentOperation === p) {
 					this._currentOperation = undefined;
 				}
 			}
 		});
 
-		this._currentOperation = { id: operationId, promise: p };
+		this._dropProgressManager.showWhile(position, localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel"), p);
+		this._currentOperation = p;
 	}
 
 	private async extractDataTransferData(dragEvent: DragEvent): Promise<VSDataTransfer> {

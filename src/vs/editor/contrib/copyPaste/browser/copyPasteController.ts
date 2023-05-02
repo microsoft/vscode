@@ -57,8 +57,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		readonly dataTransferPromise: CancelablePromise<VSDataTransfer>;
 	};
 
-	private operationIdPool = 0;
-	private _currentOperation?: { readonly id: number; readonly promise: CancelablePromise<void> };
+	private _currentOperation?: CancelablePromise<void>;
 
 	private readonly _pasteProgressManager: InlineProgressManager;
 	private readonly _postPasteWidgetManager: PostEditWidgetManager;
@@ -170,9 +169,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const operationId = this.operationIdPool++;
-		this._currentOperation?.promise.cancel();
-		this._pasteProgressManager.clear();
+		this._currentOperation?.cancel();
 
 		const selections = this._editor.getSelections();
 		if (!selections?.length || !this._editor.hasModel()) {
@@ -198,7 +195,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		e.preventDefault();
 		e.stopImmediatePropagation();
 
-
 		const p = createCancelablePromise(async (token) => {
 			const editor = this._editor;
 			if (!editor.hasModel()) {
@@ -207,10 +203,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 			const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined, token);
 			try {
-				this._pasteProgressManager.setAtPosition(selections[0].getEndPosition(), localize('pasteIntoEditorProgress', "Running paste handlers. Click to cancel"), {
-					cancel: () => tokenSource.cancel()
-				});
-
 				const dataTransfer = toVSDataTransfer(e.clipboardData!);
 
 				if (metadata?.id && this._currentClipboardItem?.handle === metadata.id) {
@@ -249,14 +241,14 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
 			} finally {
 				tokenSource.dispose();
-				if (this._currentOperation?.id === operationId) {
-					this._pasteProgressManager.clear();
+				if (this._currentOperation === p) {
 					this._currentOperation = undefined;
 				}
 			}
 		});
 
-		this._currentOperation = { id: operationId, promise: p };
+		this._pasteProgressManager.showWhile(selections[0].getEndPosition(), localize('pasteIntoEditorProgress', "Running paste handlers. Click to cancel"), p);
+		this._currentOperation = p;
 	}
 
 	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: Selection[], token: CancellationToken): Promise<DocumentPasteEdit[]> {
