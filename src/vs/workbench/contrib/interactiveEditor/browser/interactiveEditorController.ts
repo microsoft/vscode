@@ -5,7 +5,7 @@
 
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { raceCancellationError } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
@@ -15,7 +15,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./interactiveEditor';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -23,12 +23,10 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
+import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
@@ -41,7 +39,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, IInteractiveEditorMessageResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, IInteractiveEditorMessageResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -422,10 +420,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		let value = options?.message ?? '';
 		let autoSend = options?.autoSend ?? false;
 
-		if (session.slashCommands) {
-			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
-		}
-
+		this._zone.widget.updateSlashCommands(session.slashCommands ?? []);
 		this._zone.widget.updateStatus(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
 
 		// CANCEL when input changes
@@ -524,7 +519,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
-			const typeListener = this._zone.widget.inputEditor.onDidChangeModelContent(() => {
+			const typeListener = this._zone.widget.onDidChangeInput(() => {
 				this.cancelCurrentRequest();
 				_requestCancelledOnModelContentChanged = true;
 			});
@@ -789,7 +784,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 		const pos = (len + this._historyOffset + (up ? 1 : -1)) % len;
 		const entry = InteractiveEditorController._promptHistory[pos];
-		this._zone.widget.populateInputField(entry);
+
+		this._zone.widget.input = entry;
+		this._zone.widget.selectAll();
 		this._historyOffset = pos;
 	}
 
@@ -946,81 +943,6 @@ class LivePreviewStrategy extends LiveStrategy {
 			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
 		}
 	}
-}
-
-function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveCodeEditor, commands: IInteractiveEditorSlashCommand[]) {
-
-	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-
-	const store = new DisposableStore();
-	const selector: LanguageSelector = { scheme: editor.getModel().uri.scheme, pattern: editor.getModel().uri.path, language: editor.getModel().getLanguageId() };
-	store.add(languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {
-
-		_debugDisplayName?: string = 'InteractiveEditorSlashCommandProvider';
-
-		readonly triggerCharacters?: string[] = ['/'];
-
-		provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext, token: CancellationToken): ProviderResult<CompletionList> {
-			if (position.lineNumber !== 1 && position.column !== 1) {
-				return undefined;
-			}
-
-			const suggestions: CompletionItem[] = commands.map(command => {
-
-				const withSlash = `/${command.command}`;
-
-				return {
-					label: { label: withSlash, description: command.detail },
-					insertText: `${withSlash} $0`,
-					insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
-					kind: CompletionItemKind.Text,
-					range: new Range(1, 1, 1, 1),
-				};
-			});
-
-			return { suggestions };
-		}
-	}));
-
-	const decorations = editor.createDecorationsCollection();
-
-	const updateSlashDecorations = () => {
-		const newDecorations: IModelDeltaDecoration[] = [];
-		for (const command of commands) {
-			const withSlash = `/${command.command}`;
-			const firstLine = editor.getModel().getLineContent(1);
-			if (firstLine.startsWith(withSlash)) {
-				newDecorations.push({
-					range: new Range(1, 1, 1, withSlash.length + 1),
-					options: {
-						description: 'interactive-editor-slash-command',
-						inlineClassName: 'interactive-editor-slash-command',
-					}
-				});
-
-				// inject detail when otherwise empty
-				if (firstLine === `/${command.command} `) {
-					newDecorations.push({
-						range: new Range(1, withSlash.length + 1, 1, withSlash.length + 2),
-						options: {
-							description: 'interactive-editor-slash-command-detail',
-							after: {
-								content: `${command.detail}`,
-								inlineClassName: 'interactive-editor-slash-command-detail'
-							}
-						}
-					});
-				}
-				break;
-			}
-		}
-		decorations.set(newDecorations);
-	};
-
-	store.add(editor.onDidChangeModelContent(updateSlashDecorations));
-	updateSlashDecorations();
-
-	return store;
 }
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
