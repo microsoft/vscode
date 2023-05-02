@@ -535,14 +535,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			alreadyResolved = alreadyResolved ?? new Map<string, string>();
 			const promises: Promise<ITaskSummary>[] = [];
 			if (task.configurationProperties.dependsOn) {
-				liveDependencies = new Set(liveDependencies).add(task.getCommonTaskId());
+				const nextLiveDependencies = new Set(liveDependencies).add(task.getCommonTaskId());
 				for (const dependency of task.configurationProperties.dependsOn) {
 					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 					if (dependencyTask) {
 						this._adoptConfigurationForDependencyTask(dependencyTask, task);
 						let taskResult;
 						const commonKey = dependencyTask.getCommonTaskId();
-						if (liveDependencies.has(commonKey)) {
+						if (nextLiveDependencies.has(commonKey)) {
 							this._showDependencyCycleMessage(dependencyTask);
 							taskResult = Promise.resolve<ITaskSummary>({});
 						} else {
@@ -554,7 +554,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						}
 						if (!taskResult) {
 							this._fireTaskEvent(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
-							taskResult = this._executeDependencyTask(dependencyTask, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
+							taskResult = this._executeDependencyTask(dependencyTask, resolver, trigger, nextLiveDependencies, encounteredTasks, alreadyResolved);
 						}
 						encounteredTasks.set(commonKey, taskResult);
 						promises.push(taskResult);
@@ -600,7 +600,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			}
 		}).finally(() => {
-			liveDependencies.delete(task.getCommonTaskId());
 			if (this._activeTasks[mapKey] === activeTask) {
 				delete this._activeTasks[mapKey];
 			}
