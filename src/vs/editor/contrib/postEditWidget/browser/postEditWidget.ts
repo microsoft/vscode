@@ -36,7 +36,7 @@ interface ShowCommand {
 }
 
 class PostEditWidget extends Disposable implements IContentWidget {
-	private static readonly baseId = 'editor.widget.inlineProgressWidget';
+	private static readonly baseId = 'editor.widget.postEditWidget';
 
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = true;
