@@ -101,11 +101,16 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 	}
 
 	private async initializeBranchProtection(): Promise<void> {
-		// Branch protection (HEAD)
-		await this.updateHEADBranchProtection();
+		try {
+			// Branch protection (HEAD)
+			await this.updateHEADBranchProtection();
 
-		// Branch protection (remotes)
-		await this.updateRepositoryBranchProtection();
+			// Branch protection (remotes)
+			await this.updateRepositoryBranchProtection();
+		} catch (err) {
+			// noop
+			this.logger.warn(`Failed to initialize branch protection: ${this.formatErrorMessage(err)}`);
+		}
 	}
 
 	private async hasPushPermission(repository: { owner: string; repo: string }): Promise<boolean> {
@@ -115,8 +120,8 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 			return response.data.permissions?.push === true;
 		} catch (err) {
-			this.logger.warn(`Failed to get repository permissions for repository (${repository.owner}/${repository.repo}): ${err.message} (${err.status})`);
-			return false;
+			this.logger.warn(`Failed to get repository permissions for repository (${repository.owner}/${repository.repo}): ${this.formatErrorMessage(err)}`);
+			throw err;
 		}
 	}
 
@@ -132,8 +137,8 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			});
 			return response.data as RepositoryRule[];
 		} catch (err) {
-			this.logger.warn(`Failed to get branch rules for repository (${repository.owner}/${repository.repo}), branch (${branch}): ${err.message} (${err.status})`);
-			return [];
+			this.logger.warn(`Failed to get branch rules for repository (${repository.owner}/${repository.repo}), branch (${branch}): ${this.formatErrorMessage(err)}`);
+			throw err;
 		}
 	}
 
@@ -170,8 +175,8 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			return rulesets;
 		}
 		catch (err) {
-			this.logger.warn(`Failed to get repository rulesets for repository (${repository.owner}/${repository.repo}): ${err.message} (${err.status})`);
-			return [];
+			this.logger.warn(`Failed to get repository rulesets for repository (${repository.owner}/${repository.repo}): ${this.formatErrorMessage(err)}`);
+			throw err;
 		}
 	}
 
@@ -208,8 +213,8 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			this.branchProtection = [{ remote: remote.name, rules: [{ include: [HEAD.name] }] }];
 			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 		} catch (err) {
-			// noop
-			this.logger.warn(`Failed to update HEAD branch protection: ${err.message} (${err.status})`);
+			this.logger.warn(`Failed to update HEAD branch protection: ${this.formatErrorMessage(err)}`);
+			throw err;
 		}
 	}
 
@@ -264,9 +269,12 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			// Save branch protection to global state
 			await this.globalState.update(this.globalStateKey, branchProtection);
 		} catch (err) {
-			// noop
-			this.logger.warn(`Failed to update repository branch protection: ${err.message} (${err.status})`);
+			this.logger.warn(`Failed to update repository branch protection: ${this.formatErrorMessage(err)}`);
+			throw err;
 		}
 	}
 
+	private formatErrorMessage(err: any): string {
+		return `${err.message ?? ''}${err.status ? ` (${err.status})` : ''}`;
+	}
 }

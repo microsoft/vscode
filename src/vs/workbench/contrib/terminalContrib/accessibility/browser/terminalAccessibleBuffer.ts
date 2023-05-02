@@ -96,7 +96,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 			return;
 		}
 		line = this._bufferTracker.bufferToEditorLineMapping.get(line);
-		if (!line) {
+		if (line === undefined) {
 			return;
 		}
 		return line + 1;
@@ -164,6 +164,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 			} else {
 				this._cursorPosition = { lineNumber: item.lineNumber, column: 1 };
 			}
+			quickPick.dispose();
 			this.editorWidget.focus();
 			return;
 		});

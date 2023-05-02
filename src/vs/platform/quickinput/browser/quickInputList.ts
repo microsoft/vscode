@@ -804,6 +804,13 @@ export class QuickInputList {
 					element.hidden = element.item ? !element.item.alwaysShow : true;
 				}
 
+				// Ensure separators are filtered out first before deciding if we need to bring them back
+				if (element.item) {
+					element.separator = undefined;
+				} else if (element.separator) {
+					element.hidden = true;
+				}
+
 				// we can show the separator unless the list gets sorted by match
 				if (!this.sortByLabel) {
 					const previous = element.index && this.inputElements[element.index - 1];

@@ -973,6 +973,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 			}
 
 			return {
+				label: result.label,
 				insertText: result.insertText,
 				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
 			};

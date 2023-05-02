@@ -21,9 +21,10 @@ import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveS
 import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface IInteractiveSessionEditorOptions extends IEditorOptions {
-	providerId: string;
+	target: { sessionId: string } | { providerId: string };
 }
 
 export class InteractiveSessionEditor extends EditorPane {
@@ -38,6 +39,8 @@ export class InteractiveSessionEditor extends EditorPane {
 
 	private _memento: Memento | undefined;
 	private _viewState: IViewState | undefined;
+
+	private _modelDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -89,22 +92,23 @@ export class InteractiveSessionEditor extends EditorPane {
 			throw new Error('InteractiveSessionEditor lifecycle issue: no editor widget');
 		}
 
-		this.updateModel(editorModel.model, options);
+		this.updateModel(editorModel.model);
 	}
 
-	private updateModel(model: IInteractiveSessionModel, options: IInteractiveSessionEditorOptions): void {
+	private updateModel(model: IInteractiveSessionModel): void {
+		this._modelDisposables.clear();
+
 		this._memento = new Memento('interactive-session-editor-' + model.sessionId, this.storageService);
 		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
 		this.widget.setModel(model, { ...this._viewState });
-		const listener = model.onDidDispose(() => {
+		this._modelDisposables.add(model.onDidDispose(() => {
 			// TODO go back to swapping out the EditorInput when the session is restarted instead of this listener
-			listener.dispose();
-			const newModel = this.interactiveSessionService.startSession(options.providerId, false, CancellationToken.None);
+			const newModel = this.interactiveSessionService.startSession(model.providerId, CancellationToken.None);
 			if (newModel) {
 				(this.input as InteractiveSessionEditorInput).sessionId = newModel.sessionId;
-				this.updateModel(newModel, options);
+				this.updateModel(newModel);
 			}
-		});
+		}));
 	}
 
 	protected override saveState(): void {
