@@ -26,7 +26,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -54,6 +54,7 @@ interface IBreakpointDecoration {
 const breakpointHelperDecoration: IModelDecorationOptions = {
 	description: 'breakpoint-helper-decoration',
 	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
+	glyphMargin: { position: GlyphMarginLane.Right },
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -133,6 +134,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 	const renderInline = breakpoint.column && (hasOtherBreakpointsOnLine || breakpoint.column > model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber));
 	return {
 		description: 'breakpoint-decoration',
+		glyphMargin: { position: GlyphMarginLane.Right },
 		glyphMarginClassName: ThemeIcon.asClassName(icon),
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -141,7 +143,8 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 			inlineClassName: `debug-breakpoint-placeholder`,
 			inlineClassNameAffectsLetterSpacing: true
 		} : undefined,
-		overviewRuler: overviewRulerDecoration
+		overviewRuler: overviewRulerDecoration,
+		zIndex: 9999
 	};
 }
 
@@ -255,7 +258,14 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			}
 
 			const model = this.editor.getModel();
-			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.detail.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
+			if (!e.target.position
+				|| !model
+				|| e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+				|| e.target.detail.isAfterLines
+				|| !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)
+				// don't return early if there's a breakpoint
+				&& !e.target.element?.className.includes('breakpoint')
+			) {
 				return;
 			}
 			const canSetBreakpoints = this.debugService.canSetBreakpointsIn(model);
@@ -465,7 +475,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (decorations) {
 			for (const { options } of decorations) {
 				const clz = options.glyphMarginClassName;
-				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-'))) {
+				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading'))) {
 					return false;
 				}
 			}

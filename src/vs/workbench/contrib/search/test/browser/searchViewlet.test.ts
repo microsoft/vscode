@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -29,6 +28,7 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
+import { createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -212,26 +212,5 @@ suite('Search - Viewlet', () => {
 	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
 		return instantiationService.createInstance(NotebookEditorWidgetService);
-	}
-
-	function createFileUriFromPathFromRoot(path?: string): URI {
-		const rootName = getRootName();
-		if (path) {
-			return URI.file(`${rootName}${path}`);
-		} else {
-			if (isWindows) {
-				return URI.file(`${rootName}/`);
-			} else {
-				return URI.file(rootName);
-			}
-		}
-	}
-
-	function getRootName(): string {
-		if (isWindows) {
-			return 'c:';
-		} else {
-			return '';
-		}
 	}
 });

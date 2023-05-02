@@ -45,6 +45,11 @@ declare module 'vscode' {
 	 */
 	class DocumentPasteEdit {
 		/**
+		 * Human readable label that describes the edit.
+		 */
+		label: string;
+
+		/**
 		 * The text or snippet to insert at the pasted locations.
 		 */
 		insertText: string | SnippetString;
@@ -56,15 +61,23 @@ declare module 'vscode' {
 
 		/**
 		 * @param insertText The text or snippet to insert at the pasted locations.
+		 *
+		 * TODO: Reverse args, but this will break existing consumers :(
 		 */
-		constructor(insertText: string | SnippetString);
+		constructor(insertText: string | SnippetString, label: string);
 	}
 
 	interface DocumentPasteProviderMetadata {
 		/**
-		 * Mime types that `provideDocumentPasteEdits` should be invoked for.
+		 * Mime types that {@link DocumentPasteEditProvider.provideDocumentPasteEdits provideDocumentPasteEdits} should be invoked for.
 		 *
-		 * Use the special `files` mimetype to indicate the provider should be invoked if any files are present in the `DataTransfer`.
+		 * This can either be an exact mime type such as `image/png`, or a wildcard pattern such as `image/*`.
+		 *
+		 * Use `text/uri-list` for resources dropped from the explorer or other tree views in the workbench.
+		 *
+		 * Use `files` to indicate that the provider should be invoked if any {@link DataTransferFile files} are present in the {@link DataTransfer}.
+		 * Note that {@link DataTransferFile} entries are only created when dropping content from outside the editor, such as
+		 * from the operating system.
 		 */
 		readonly pasteMimeTypes: readonly string[];
 	}

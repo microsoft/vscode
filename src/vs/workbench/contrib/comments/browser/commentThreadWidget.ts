@@ -34,7 +34,7 @@ export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
-	private _body!: CommentThreadBody<T>;
+	private _body: CommentThreadBody<T>;
 	private _commentReply?: CommentReply<T>;
 	private _additionalActions?: CommentThreadAdditionalActions<T>;
 	private _commentMenus: CommentMenus;
@@ -274,7 +274,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	getDimensions() {
-		return this._body?.getDimensions();
+		return this._body.getDimensions();
 	}
 
 	layout(widthInPixel?: number) {

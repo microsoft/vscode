@@ -95,6 +95,11 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 			if (oldPrimary !== newPrimary) {
 				this._onDidChangePrimaryStatus.fire(newPrimary);
 			}
+		} else {
+			this._statuses.set(status.id, status);
+			// It maybe the case that status hasn't changed, there isn't a good way to check this based on
+			// `ITerminalStatus`, so just fire the event anyway.
+			this._onDidAddStatus.fire(status);
 		}
 	}
 

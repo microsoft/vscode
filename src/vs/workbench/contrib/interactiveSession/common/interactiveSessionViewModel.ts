@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionWelcomeMessageModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveResponseErrorDetails, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
@@ -27,13 +27,13 @@ export function isWelcomeVM(item: unknown): item is IInteractiveWelcomeMessageVi
 }
 
 export interface IInteractiveSessionViewModel {
-	readonly sessionId: number;
+	readonly providerId: string;
+	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<void>;
-	readonly welcomeMessage: IInteractiveWelcomeMessageViewModel | undefined;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
-	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
+	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel | IInteractiveWelcomeMessageViewModel)[];
 }
 
 export interface IInteractiveRequestViewModel {
@@ -92,16 +92,16 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 		return this._model.inputPlaceholder;
 	}
 
-	get welcomeMessage() {
-		return this._model.welcomeMessage;
-	}
-
 	get sessionId() {
 		return this._model.sessionId;
 	}
 
 	get requestInProgress(): boolean {
 		return this._model.requestInProgress;
+	}
+
+	get providerId() {
+		return this._model.providerId;
 	}
 
 	constructor(
@@ -119,10 +119,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 
 		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
 		this._register(_model.onDidChange(e => {
-			if (e.kind === 'clear') {
-				this._items.length = 0;
-				this._onDidChange.fire();
-			} else if (e.kind === 'addRequest') {
+			if (e.kind === 'addRequest') {
 				this._items.push(new InteractiveRequestViewModel(e.request));
 				if (e.request.response) {
 					this.onAddResponse(e.request.response);
@@ -142,7 +139,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	}
 
 	getItems() {
-		return [...this._items];
+		return [...(this._model.welcomeMessage ? [this._model.welcomeMessage] : []), ...this._items];
 	}
 
 	override dispose() {
@@ -320,24 +317,4 @@ export interface IInteractiveWelcomeMessageViewModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly content: IInteractiveWelcomeMessageContent[];
-}
-
-export class InteractiveWelcomeMessageViewModel implements IInteractiveWelcomeMessageViewModel {
-	get id() {
-		return this._model.id;
-	}
-
-	get username() {
-		return this._model.username;
-	}
-
-	get avatarIconUri() {
-		return this._model.avatarIconUri;
-	}
-
-	get content() {
-		return this._model.content;
-	}
-
-	constructor(readonly _model: IInteractiveSessionWelcomeMessageModel) { }
 }

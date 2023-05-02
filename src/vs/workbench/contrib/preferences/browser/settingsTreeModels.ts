@@ -808,6 +808,7 @@ export class SearchResultModel extends SettingsTreeModel {
 	private rawSearchResults: ISearchResult[] | null = null;
 	private cachedUniqueSearchResults: ISearchResult[] | null = null;
 	private newExtensionSearchResults: ISearchResult | null = null;
+	private searchResultCount: number | null = null;
 
 	readonly id = 'searchResultModel';
 
@@ -853,13 +854,6 @@ export class SearchResultModel extends SettingsTreeModel {
 		return this.rawSearchResults || [];
 	}
 
-	getUniqueResultsCount(): number {
-		const uniqueResults = this.getUniqueResults();
-		const localResultsCount = uniqueResults[0]?.filterMatches.length ?? 0;
-		const remoteResultsCount = uniqueResults[1]?.filterMatches.length ?? 0;
-		return localResultsCount + remoteResultsCount;
-	}
-
 	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
 		this.cachedUniqueSearchResults = null;
 		this.newExtensionSearchResults = null;
@@ -890,6 +884,7 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		this.root.children = this.root.children
 			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && child.matchesAnyFeature(this._viewState.featureFilters) && child.matchesAllLanguages(this._viewState.languageFilter));
+		this.searchResultCount = this.root.children.length;
 
 		if (this.newExtensionSearchResults?.filterMatches.length) {
 			let resultExtensionIds = this.newExtensionSearchResults.filterMatches
@@ -904,6 +899,10 @@ export class SearchResultModel extends SettingsTreeModel {
 				this._root.children.push(newExtElement);
 			}
 		}
+	}
+
+	getUniqueResultsCount(): number {
+		return this.searchResultCount ?? 0;
 	}
 
 	private getFlatSettings(): ISetting[] {

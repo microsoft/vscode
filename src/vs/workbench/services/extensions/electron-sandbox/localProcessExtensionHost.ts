@@ -250,10 +250,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			opts.execArgv.unshift('--prof');
 		}
 
-		if (this._environmentService.args['max-memory']) {
-			opts.execArgv.unshift(`--max-old-space-size=${this._environmentService.args['max-memory']}`);
-		}
-
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
 		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);

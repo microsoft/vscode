@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, Disposable, ExtensionContext, extensions } from 'vscode';
+import { commands, Disposable, ExtensionContext, extensions, l10n, LogLevel, LogOutputChannel, window } from 'vscode';
 import { GithubRemoteSourceProvider } from './remoteSourceProvider';
 import { API, GitExtension } from './typings/git';
 import { registerCommands } from './commands';
@@ -15,8 +15,20 @@ import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
 import { GithubBranchProtectionProviderManager } from './branchProtection';
 
 export function activate(context: ExtensionContext): void {
-	context.subscriptions.push(initializeGitBaseExtension());
-	context.subscriptions.push(initializeGitExtension(context));
+	const disposables: Disposable[] = [];
+	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
+
+	const logger = window.createOutputChannel('GitHub', { log: true });
+	disposables.push(logger);
+
+	const onDidChangeLogLevel = (logLevel: LogLevel) => {
+		logger.appendLine(l10n.t('Log level: {0}', LogLevel[logLevel]));
+	};
+	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
+	onDidChangeLogLevel(logger.logLevel);
+
+	disposables.push(initializeGitBaseExtension());
+	disposables.push(initializeGitExtension(context, logger));
 }
 
 function initializeGitBaseExtension(): Disposable {
@@ -64,7 +76,7 @@ function setGitHubContext(gitAPI: API, disposables: DisposableStore) {
 	}
 }
 
-function initializeGitExtension(context: ExtensionContext): Disposable {
+function initializeGitExtension(context: ExtensionContext, logger: LogOutputChannel): Disposable {
 	const disposables = new DisposableStore();
 
 	let gitExtension = extensions.getExtension<GitExtension>('vscode.git');
@@ -78,7 +90,7 @@ function initializeGitExtension(context: ExtensionContext): Disposable {
 
 						disposables.add(registerCommands(gitAPI));
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
-						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState));
+						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState, logger));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
 						setGitHubContext(gitAPI, disposables);

@@ -47,6 +47,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	private _viewLineCount: number = 1;
 	private _lineNumbersDigitCount: number = 1;
 	private _reservedHeight: number = 0;
+	private _glyphMarginDecorationLaneCount: number = 1;
 
 	private readonly _computeOptionsMemory: ComputeOptionsMemory = new ComputeOptionsMemory();
 	/**
@@ -117,7 +118,8 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode(TabFocusContext.Editor),
-			accessibilitySupport: partialEnv.accessibilitySupport
+			accessibilitySupport: partialEnv.accessibilitySupport,
+			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
 		};
 		return EditorOptionsUtil.computeOptions(this._validatedOptions, env);
 	}
@@ -191,6 +193,14 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			return;
 		}
 		this._reservedHeight = reservedHeight;
+		this._recomputeOptions();
+	}
+
+	public setGlyphMarginDecorationLaneCount(decorationLaneCount: number): void {
+		if (this._glyphMarginDecorationLaneCount === decorationLaneCount) {
+			return;
+		}
+		this._glyphMarginDecorationLaneCount = decorationLaneCount;
 		this._recomputeOptions();
 	}
 }

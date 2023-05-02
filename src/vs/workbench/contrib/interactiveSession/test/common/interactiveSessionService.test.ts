@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Emitter } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -19,12 +20,18 @@ import { InteractiveSessionService } from 'vs/workbench/contrib/interactiveSessi
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
-class SimpleTestProvider implements IInteractiveProvider {
+class SimpleTestProvider extends Disposable implements IInteractiveProvider {
 	private static sessionId = 0;
 
 	lastInitialState = undefined;
 
-	constructor(readonly id: string) { }
+	readonly displayName = 'Test';
+
+	private _onDidChangeState = this._register(new Emitter());
+
+	constructor(readonly id: string) {
+		super();
+	}
 
 	prepareSession(initialState: any) {
 		this.lastInitialState = initialState;
@@ -32,8 +39,13 @@ class SimpleTestProvider implements IInteractiveProvider {
 			id: SimpleTestProvider.sessionId++,
 			username: 'test',
 			responderUsername: 'test',
-			requesterUsername: 'test'
+			requesterUsername: 'test',
+			onDidChangeState: this._onDidChangeState.event
 		});
+	}
+
+	changeState(state: any) {
+		this._onDidChangeState.fire(state);
 	}
 
 	async provideReply(request: IInteractiveRequest) {
@@ -61,34 +73,34 @@ suite('InteractiveSession', () => {
 		testDisposables.clear();
 	});
 
-	test('Restores state for the correct provider', async () => {
+	test('retrieveSession', async () => {
 		const testService = instantiationService.createInstance(InteractiveSessionService);
 		const provider1 = new SimpleTestProvider('provider1');
 		const provider2 = new SimpleTestProvider('provider2');
 		testService.registerProvider(provider1);
 		testService.registerProvider(provider2);
 
-		let session1 = testService.startSession('provider1', true, CancellationToken.None);
+		const session1 = testService.startSession('provider1', CancellationToken.None);
 		await session1.waitForInitialization();
 		session1!.addRequest('request 1');
 
-		let session2 = testService.startSession('provider2', true, CancellationToken.None);
+		const session2 = testService.startSession('provider2', CancellationToken.None);
 		await session2.waitForInitialization();
 		session2!.addRequest('request 2');
 
 		assert.strictEqual(provider1.lastInitialState, undefined);
 		assert.strictEqual(provider2.lastInitialState, undefined);
-		testService.acceptNewSessionState(session1!.sessionId, { state: 'provider1_state' });
-		testService.acceptNewSessionState(session2!.sessionId, { state: 'provider2_state' });
+		provider1.changeState({ state: 'provider1_state' });
+		provider2.changeState({ state: 'provider2_state' });
 		storageService.flush();
 
 		const testService2 = instantiationService.createInstance(InteractiveSessionService);
 		testService2.registerProvider(provider1);
 		testService2.registerProvider(provider2);
-		session1 = testService2.startSession('provider1', true, CancellationToken.None);
-		await session1.waitForInitialization();
-		session2 = testService2.startSession('provider2', true, CancellationToken.None);
-		await session2.waitForInitialization();
+		const retrieved1 = testService2.retrieveSession(session1.sessionId);
+		await retrieved1!.waitForInitialization();
+		const retrieved2 = testService2.retrieveSession(session2.sessionId);
+		await retrieved2!.waitForInitialization();
 		assert.deepStrictEqual(provider1.lastInitialState, { state: 'provider1_state' });
 		assert.deepStrictEqual(provider2.lastInitialState, { state: 'provider2_state' });
 	});
@@ -97,6 +109,7 @@ suite('InteractiveSession', () => {
 		function getFailProvider(providerId: string) {
 			return new class implements IInteractiveProvider {
 				readonly id = providerId;
+				readonly displayName = 'Test';
 
 				lastInitialState = undefined;
 
@@ -114,7 +127,7 @@ suite('InteractiveSession', () => {
 		const provider1 = getFailProvider('provider1');
 		testService.registerProvider(provider1);
 
-		const session1 = testService.startSession('provider1', true, CancellationToken.None);
+		const session1 = testService.startSession('provider1', CancellationToken.None);
 		await assert.rejects(() => session1.waitForInitialization());
 	});
 
@@ -123,6 +136,7 @@ suite('InteractiveSession', () => {
 		const id = 'testProvider';
 		testService.registerProvider({
 			id,
+			displayName: 'Test',
 			prepareSession: function (initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined> {
 				throw new Error('Function not implemented.');
 			},
@@ -134,6 +148,7 @@ suite('InteractiveSession', () => {
 		assert.throws(() => {
 			testService.registerProvider({
 				id,
+				displayName: 'Test',
 				prepareSession: function (initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined> {
 					throw new Error('Function not implemented.');
 				},
@@ -164,7 +179,7 @@ suite('InteractiveSession', () => {
 
 		testService.registerProvider(provider);
 
-		const model = testService.startSession('testProvider', true, CancellationToken.None);
+		const model = testService.startSession('testProvider', CancellationToken.None);
 		const commands = await testService.getSlashCommands(model.sessionId, CancellationToken.None);
 
 		assert.strictEqual(commands?.length, 1);
@@ -177,10 +192,10 @@ suite('InteractiveSession', () => {
 		const testService = instantiationService.createInstance(InteractiveSessionService);
 		testService.registerProvider(new SimpleTestProvider('testProvider'));
 
-		const model = testService.startSession('testProvider', true, CancellationToken.None);
+		const model = testService.startSession('testProvider', CancellationToken.None);
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.sendInteractiveRequestToProvider('testProvider', { message: 'test request' });
+		await testService.sendInteractiveRequestToProvider(model.sessionId, { message: 'test request' });
 		assert.strictEqual(model.getRequests().length, 1);
 	});
 
@@ -188,10 +203,10 @@ suite('InteractiveSession', () => {
 		const testService = instantiationService.createInstance(InteractiveSessionService);
 		testService.registerProvider(new SimpleTestProvider('testProvider'));
 
-		const model = testService.startSession('testProvider', true, CancellationToken.None);
+		const model = testService.startSession('testProvider', CancellationToken.None);
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.addCompleteRequest('testProvider', 'test request', { message: 'test response' });
+		await testService.addCompleteRequest(model.sessionId, 'test request', { message: 'test response' });
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
 		assert.strictEqual(model.getRequests()[0].response?.response.value, 'test response');

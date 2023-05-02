@@ -126,7 +126,8 @@ type DisposableStore = ReturnType<typeof createDisposableStore>;
 function renderError(
 	outputInfo: OutputItem,
 	outputElement: HTMLElement,
-	ctx: IRichRenderContext
+	ctx: IRichRenderContext,
+	trustHTML: boolean
 ): IDisposable {
 	const disposableStore = createDisposableStore();
 
@@ -146,7 +147,7 @@ function renderError(
 		outputElement.classList.add('traceback');
 
 		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, true);
+		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, trustHTML);
 		const contentParent = document.createElement('div');
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
@@ -205,11 +206,13 @@ function initializeScroll(scrollableElement: HTMLElement, disposables: Disposabl
 		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
 		scrollableElement.addEventListener('scroll', onScrollHandler);
 		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
+		scrollableElement.tabIndex = 0;
 	}
 }
 
 // Find the scrollTop of the existing scrollable output, return undefined if at the bottom or element doesn't exist
-function findScrolledHeight(scrollableElement: HTMLElement): number | undefined {
+function findScrolledHeight(container: HTMLElement): number | undefined {
+	const scrollableElement = container.querySelector('.' + scrollableClass);
 	if (scrollableElement && scrollableElement.scrollHeight - scrollableElement.scrollTop - scrollableElement.clientHeight > 2) {
 		// not scrolled to the bottom
 		return scrollableElement.scrollTop;
@@ -351,6 +354,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	#container div.output .scrollable.scrollbar-visible {
 		border-color: var(--vscode-editorWidget-border);
 	}
+	#container div.output .scrollable.scrollbar-visible:focus{
+		outline: 0;
+		border-color: var(--theme-input-focus-border-color);
+	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
 	.traceback .code-bold {
@@ -407,7 +414,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'application/vnd.code.notebook.error':
 					{
 						disposables.get(outputInfo.id)?.dispose();
-						const disposable = renderError(outputInfo, element, latestContext);
+						const disposable = renderError(outputInfo, element, latestContext, ctx.workspace.isTrusted);
 						disposables.set(outputInfo.id, disposable);
 					}
 					break;

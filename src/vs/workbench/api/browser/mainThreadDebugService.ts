@@ -8,7 +8,7 @@ import { URI as uri, UriComponents } from 'vs/base/common/uri';
 import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration
+	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto
 } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import severity from 'vs/base/common/severity';
@@ -56,6 +56,29 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._debugConfigurationProviders = new Map();
 		this._debugAdapterDescriptorFactories = new Map();
 		this._sessions = new Set();
+
+		this._toDispose.add(this.debugService.getViewModel().onDidFocusThread(({ thread, explicit, session }) => {
+			if (session) {
+				const dto: IThreadFocusDto = {
+					kind: 'thread',
+					threadId: thread?.threadId,
+					sessionId: session!.getId(),
+				};
+				this._proxy.$acceptStackFrameFocus(dto);
+			}
+		}));
+
+		this._toDispose.add(this.debugService.getViewModel().onDidFocusStackFrame(({ stackFrame, explicit, session }) => {
+			if (session) {
+				const dto: IStackFrameFocusDto = {
+					kind: 'stackFrame',
+					threadId: stackFrame?.thread.threadId,
+					frameId: stackFrame?.frameId,
+					sessionId: session.getId(),
+				};
+				this._proxy.$acceptStackFrameFocus(dto);
+			}
+		}));
 	}
 
 	public dispose(): void {

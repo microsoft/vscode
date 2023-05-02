@@ -413,15 +413,39 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		// * Extension id: The extension that has a preference
 		// * Provider id: The provider that the preference is for
 		// * The scopes: The subset of sessions that the preference applies to
-		this.storageService.store(`${extensionId}-${providerId}-${session.scopes.join(' ')}`, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const key = `${extensionId}-${providerId}-${session.scopes.join(' ')}`;
+
+		// Store the preference in the workspace and application storage. This allows new workspaces to
+		// have a preference set already to limit the number of prompts that are shown... but also allows
+		// a specific workspace to override the global preference.
+		this.storageService.store(key, session.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(key, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	getSessionPreference(providerId: string, extensionId: string, scopes: string[]): string | undefined {
-		return this.storageService.get(`${extensionId}-${providerId}-${scopes.join(' ')}`, StorageScope.APPLICATION, undefined);
+		// The 3 parts of this key are important:
+		// * Extension id: The extension that has a preference
+		// * Provider id: The provider that the preference is for
+		// * The scopes: The subset of sessions that the preference applies to
+		const key = `${extensionId}-${providerId}-${scopes.join(' ')}`;
+
+		// If a preference is set in the workspace, use that. Otherwise, use the global preference.
+		return this.storageService.get(key, StorageScope.WORKSPACE) ?? this.storageService.get(key, StorageScope.APPLICATION);
 	}
 
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void {
-		this.storageService.remove(`${extensionId}-${providerId}-${scopes.join(' ')}`, StorageScope.APPLICATION);
+		// The 3 parts of this key are important:
+		// * Extension id: The extension that has a preference
+		// * Provider id: The provider that the preference is for
+		// * The scopes: The subset of sessions that the preference applies to
+		const key = `${extensionId}-${providerId}-${scopes.join(' ')}`;
+
+		// This won't affect any other workspaces that have a preference set, but it will remove the preference
+		// for this workspace and the global preference. This is only paired with a call to updateSessionPreference...
+		// so we really don't _need_ to remove them as they are about to be overridden anyway... but it's more correct
+		// to remove them first... and in case this gets called from somewhere else in the future.
+		this.storageService.remove(key, StorageScope.WORKSPACE);
+		this.storageService.remove(key, StorageScope.APPLICATION);
 	}
 
 	//#endregion
