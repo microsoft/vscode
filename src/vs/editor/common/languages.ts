@@ -783,7 +783,7 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	label: string;
+	readonly label: string;
 	insertText: string | { snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }

@@ -315,7 +315,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			]
 		};
 
-		await this._postPasteWidgetManager.applyEditAndShowIfNeeded(selection, combinedWorkspaceEdit, { activeEditIndex, allEdits }, async (newEditIndex) => {
+		const editSet = { activeEditIndex, allEdits: allEdits.map(edit => ({ label: edit.label })) };
+		await this._postPasteWidgetManager.applyEditAndShowIfNeeded(selection, combinedWorkspaceEdit, editSet, async (newEditIndex) => {
 			await model.undo();
 			this.applyPasteEdit(editor, selection, newEditIndex, allEdits, token);
 		}, token);
