@@ -12,7 +12,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 
-class DefaultTextDropProvider implements DocumentPasteEditProvider {
+class DefaultTextPasteProvider implements DocumentPasteEditProvider {
 
 	readonly id = 'text';
 	readonly pasteMimeTypes = [Mimes.text, 'text'];
@@ -40,6 +40,6 @@ export function registerDefaultPasteProviders(
 	if (!registeredDefaultProviders) {
 		registeredDefaultProviders = true;
 
-		languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextDropProvider());
+		languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextPasteProvider());
 	}
 }
