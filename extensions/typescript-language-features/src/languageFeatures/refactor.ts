@@ -190,27 +190,33 @@ class MoveToFileRefactorCommand implements Command {
 
 		const quickPick = vscode.window.createQuickPick();
 		const body = response.body;
+		// true so we don't skip computing in the first call
+		let quickPickInRelativeMode = true;
 		const updateItems = () => {
+			const relativeQuery = ['./', '../'].find(str => quickPick.value.startsWith(str));
+			if (quickPickInRelativeMode === false && !!relativeQuery === false) {
+				return;
+			}
+			quickPickInRelativeMode = !!relativeQuery;
 			const destinationItems = body.files.map((file): DestinationItem | undefined => {
 				const uri = this.client.toResource(file);
 				const parentDir = Utils.dirname(uri);
 				const filename = Utils.basename(uri);
 
 				let description;
-				const filterQuery = ['./', '../'].find(str => quickPick.value.startsWith(str));
 				if (workspaceFolder) {
 					if (uri.scheme === Schemes.file) {
 						description = path.relative(workspaceFolder.uri.fsPath, parentDir.fsPath);
 					} else {
 						description = path.posix.relative(workspaceFolder.uri.path, parentDir.path);
 					}
-					if (filterQuery) {
+					if (relativeQuery) {
 						const convertRelativePath = (str: string) => {
 							return !str.startsWith('../') ? `./${str}` : str;
 						};
 
 						const relativePath = convertRelativePath(path.relative(path.dirname(document.uri.fsPath), uri.fsPath));
-						if (!relativePath.startsWith(filterQuery)) {
+						if (!relativePath.startsWith(relativeQuery)) {
 							return;
 						}
 						description = relativePath;
@@ -222,14 +228,14 @@ class MoveToFileRefactorCommand implements Command {
 				return {
 					file,
 					label: filename,
-					description: description && (filterQuery ? description : path.join(description, filename)),
+					description: description && (relativeQuery ? description : path.join(description, filename)),
 				};
 			});
 			quickPick.items = [
 				selectExistingFileItem,
 				selectNewFileItem,
 				{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
-				...destinationItems.filter(Boolean) as DestinationItem[]
+				...coalesce(destinationItems)
 			];
 		};
 		updateItems();
