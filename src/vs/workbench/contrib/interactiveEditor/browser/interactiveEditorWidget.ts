@@ -96,7 +96,7 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	readOnly: true,
 };
 
-class InteractiveEditorWidget {
+export class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
 
