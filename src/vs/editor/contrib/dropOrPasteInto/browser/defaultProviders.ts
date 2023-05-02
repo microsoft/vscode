@@ -19,21 +19,32 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-class DefaultTextProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvider {
+abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvider {
+
+	abstract readonly id: string;
+	abstract readonly dropMimeTypes: readonly string[] | undefined;
+	abstract readonly pasteMimeTypes: readonly string[];
+
+	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
+		const edit = await this.getEdit(dataTransfer, token);
+		return edit ? { insertText: edit.insertText, label: edit.label } : undefined;
+	}
+
+	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
+		const edit = await this.getEdit(dataTransfer, token);
+		return edit ? { insertText: edit.insertText, label: edit.label } : undefined;
+	}
+
+	protected abstract getEdit(dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
+}
+
+class DefaultTextProvider extends SimplePasteAndDropProvider {
 
 	readonly id = 'text';
 	readonly dropMimeTypes = [Mimes.text];
 	readonly pasteMimeTypes = [Mimes.text];
 
-	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
-		return this.getEdit(dataTransfer);
-	}
-
-	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
-		return this.getEdit(dataTransfer);
-	}
-
-	private async getEdit(dataTransfer: VSDataTransfer) {
+	protected async getEdit(dataTransfer: VSDataTransfer, _token: CancellationToken) {
 		const textEntry = dataTransfer.get(Mimes.text);
 		if (!textEntry) {
 			return;
@@ -53,21 +64,13 @@ class DefaultTextProvider implements DocumentOnDropEditProvider, DocumentPasteEd
 	}
 }
 
-class PathProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvider {
+class PathProvider extends SimplePasteAndDropProvider {
 
 	readonly id = 'uri';
 	readonly dropMimeTypes = [Mimes.uriList];
 	readonly pasteMimeTypes = [Mimes.uriList];
 
-	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
-		return this.getEdit(dataTransfer, token);
-	}
-
-	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
-		return this.getEdit(dataTransfer, token);
-	}
-
-	private async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken) {
+	protected async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken) {
 		const entries = await extractUriList(dataTransfer);
 		if (!entries.length || token.isCancellationRequested) {
 			return;
@@ -102,7 +105,7 @@ class PathProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvi
 	}
 }
 
-class RelativePathProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvider {
+class RelativePathProvider extends SimplePasteAndDropProvider {
 
 	readonly id = 'relativePath';
 	readonly dropMimeTypes = [Mimes.uriList];
@@ -110,17 +113,11 @@ class RelativePathProvider implements DocumentOnDropEditProvider, DocumentPasteE
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
-	) { }
-
-	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
-		return this.getEdit(dataTransfer, token);
+	) {
+		super();
 	}
 
-	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
-		return this.getEdit(dataTransfer, token);
-	}
-
-	private async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken) {
+	protected async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken) {
 		const entries = await extractUriList(dataTransfer);
 		if (!entries.length || token.isCancellationRequested) {
 			return;
