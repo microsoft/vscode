@@ -600,9 +600,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			}
 		}).finally(() => {
-			const commonKey = task.getCommonTaskId();
-			liveDependencies.delete(commonKey);
-			encounteredTasks.delete(commonKey);
+			liveDependencies.delete(task.getCommonTaskId());
 			if (this._activeTasks[mapKey] === activeTask) {
 				delete this._activeTasks[mapKey];
 			}
