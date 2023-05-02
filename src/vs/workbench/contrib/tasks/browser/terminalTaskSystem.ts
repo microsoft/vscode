@@ -294,7 +294,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		const lastTaskInstance = this.getLastInstance(task);
 		const terminalData = lastTaskInstance ? this._activeTasks[lastTaskInstance.getMapKey()] : undefined;
-		if (terminalData && terminalData.promise && !validInstance) {
+		if (terminalData && terminalData.promise && !validInstance && !task.configurationProperties.dependsOn?.length) {
 			this._lastTask = this._currentTask;
 			return { kind: TaskExecuteKind.Active, task: terminalData.task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
 		}
@@ -540,26 +540,26 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task!);
 					if (dependencyTask) {
 						this._adoptConfigurationForDependencyTask(dependencyTask, task);
-						let promise;
+						let taskResult;
 						const commonKey = dependencyTask.getCommonTaskId();
 						if (liveDependencies.has(commonKey)) {
 							this._showDependencyCycleMessage(dependencyTask);
-							promise = Promise.resolve<ITaskSummary>({});
+							taskResult = Promise.resolve<ITaskSummary>({});
 						} else {
-							promise = encounteredTasks.get(commonKey);
-							if (!promise) {
+							taskResult = encounteredTasks.get(commonKey);
+							if (!taskResult) {
 								const key = dependencyTask.getMapKey();
-								promise = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
+								taskResult = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
 							}
 						}
-						if (!promise) {
+						if (!taskResult) {
 							this._fireTaskEvent(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
-							promise = this._executeDependencyTask(dependencyTask, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
+							taskResult = this._executeDependencyTask(dependencyTask, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
 						}
-						encounteredTasks.set(commonKey, promise);
-						promises.push(promise);
+						encounteredTasks.set(commonKey, taskResult);
+						promises.push(taskResult);
 						if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
-							const promiseResult = await promise;
+							const promiseResult = await taskResult;
 							if (promiseResult.exitCode !== 0) {
 								break;
 							}
@@ -600,6 +600,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			}
 		}).finally(() => {
+			const commonKey = task.getCommonTaskId();
+			liveDependencies.delete(commonKey);
+			encounteredTasks.delete(commonKey);
 			if (this._activeTasks[mapKey] === activeTask) {
 				delete this._activeTasks[mapKey];
 			}

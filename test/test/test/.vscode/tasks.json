@@ -1,0 +1,68 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "command": "sleep 2",
+      "label": "sleeper",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "group": "sleepers",
+        "close": false
+      }
+    },
+    {
+      "type": "shell",
+      "command": "echo task1",
+      "dependsOn": ["sleeper"],
+      "label": "task1",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "group": "sleepers",
+        "close": false
+      }
+    },
+    {
+      "type": "shell",
+      "command": "echo task2",
+      "dependsOn": ["task1"],
+      "label": "task2",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "group": "sleepers",
+        "close": false
+      }
+    },
+    {
+      "type": "shell",
+      "command": "echo task3",
+      "dependsOn": ["task1"],
+      "label": "task3",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "group": "sleepers",
+        "close": false
+      }
+    },
+    {
+      "type": "shell",
+      "command": "echo task4... && sleep 3 && echo ...done",
+      "dependsOn": ["task2", "task3"],
+      "label": "task4",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "group": "sleepers",
+        "close": false
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}
