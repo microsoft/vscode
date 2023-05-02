@@ -923,6 +923,7 @@ export interface ExtHostCustomEditorsShape {
 			title: string;
 			contentOptions: IWebviewContentOptions;
 			options: IWebviewPanelOptions;
+			active: boolean;
 		},
 		position: EditorGroupColumn,
 		cancellation: CancellationToken
