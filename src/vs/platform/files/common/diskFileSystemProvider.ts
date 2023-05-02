@@ -13,7 +13,7 @@ import { normalize } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileChange, IFileSystemProvider, IWatchOptions } from 'vs/platform/files/common/files';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, toFileChanges } from 'vs/platform/files/common/watcher';
-import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
+import { CONTEXT_LOG_LEVEL, ILogService, ILoggerService, LogLevel, LogLevelToString } from 'vs/platform/log/common/log';
 
 export interface IDiskFileSystemProviderOptions {
 	watcher?: {
@@ -42,7 +42,10 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	Pick<IFileSystemProvider, 'onDidChangeFile'>,
 	Pick<IFileSystemProvider, 'onDidWatchError'> {
 
-	private readonly watcherLogger = this._register(this.loggerService.createLogger('fileWatcher', { name: localize('fileWatcher', "File Watcher") }));
+	private readonly watcherTraceLogger = this._register(this.loggerService.createLogger('fileWatcher', {
+		name: localize('fileWatcher', "File Watcher"),
+		when: CONTEXT_LOG_LEVEL.isEqualTo(LogLevelToString(LogLevel.Trace)).serialize()
+	}));
 
 	constructor(
 		protected readonly logService: ILogService,
@@ -215,7 +218,11 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			this._onDidWatchError.fire(msg.message);
 		}
 
-		this.watcherLogger[msg.type](msg.message);
+		this.watcherTraceLogger[msg.type](msg.message);
+
+		if (msg.type === 'error') {
+			this.logService.error(msg.message);
+		}
 	}
 
 	protected toFilePath(resource: URI): string {
