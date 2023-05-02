@@ -1299,6 +1299,11 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\bin"; Tasks: addtopath; Check: NeedsAddPath(ExpandConstant('{app}\bin'))
 
 [Code]
+function IsBackgroundUpdate(): Boolean;
+begin
+  Result := ExpandConstant('{param:update|false}') <> 'false';
+end;
+
 // Don't allow installing conflicting architectures
 function InitializeSetup(): Boolean;
 var
@@ -1352,7 +1357,7 @@ begin
     end;
   end;
 
-	if not IsBackgroundUpdate() then
+	if not IsBackgroundUpdate() then begin
 		while CheckForMutexes('{#TunnelMutex}') do
 		begin
 			MsgBox('Tunnel is still running', mbError, MB_OK);
@@ -1367,10 +1372,7 @@ begin
 end;
 
 // Updates
-function IsBackgroundUpdate(): Boolean;
-begin
-  Result := ExpandConstant('{param:update|false}') <> 'false';
-end;
+
 
 function IsNotUpdate(): Boolean;
 begin
