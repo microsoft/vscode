@@ -306,8 +306,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
 
-	private _requestCancelledOnModelContentChanged: boolean = false;
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -329,13 +327,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND.bindTo(contextKeyService);
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
-		this._zone.widget.inputEditor.onDidChangeModelContent(() => {
-			if (this._ctxHasActiveRequest.get()) {
-				this.cancelCurrentRequest();
-				this._ctxHasActiveRequest.set(false);
-				this._requestCancelledOnModelContentChanged = true;
-			}
-		});
+
 	}
 
 	dispose(): void {
@@ -483,6 +475,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		const diffZone = this._instaService.createInstance(InteractiveEditorDiffWidget, this._editor, textModel0);
 
+		let _requestCancelledOnModelContentChanged = false;
+
 		do {
 
 			const wholeRange = wholeRangeDecoration.getRange(0);
@@ -503,8 +497,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token, this._requestCancelledOnModelContentChanged);
-			this._requestCancelledOnModelContentChanged = false;
+			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token, _requestCancelledOnModelContentChanged);
+			_requestCancelledOnModelContentChanged = false;
 
 			if (textModel0Changes && editMode === EditMode.LivePreview) {
 
@@ -538,6 +532,11 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
+			const typeListener = this._zone.widget.inputEditor.onDidChangeModelContent(() => {
+				this.cancelCurrentRequest();
+				_requestCancelledOnModelContentChanged = true;
+			});
+
 			const sw = StopWatch.create();
 			const request: IInteractiveEditorRequest = {
 				prompt: input,
@@ -567,6 +566,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._ctxLastResponseType.set(reply?.type);
 				this._zone.widget.updateProgress(false);
 				this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
+
+				typeListener.dispose();
 			}
 
 			if (this._ctsRequest.token.isCancellationRequested) {
