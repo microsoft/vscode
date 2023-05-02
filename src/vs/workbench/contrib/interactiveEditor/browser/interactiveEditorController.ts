@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { raceCancellationError } from 'vs/base/common/async';
+import { DeferredPromise, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -299,6 +299,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _inlineDiffEnabled: boolean = false;
 
 	private _currentSession?: Session;
+	private _currentInputPromise?: DeferredPromise<void>;
 	private _recordings: Recording[] = [];
 
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
@@ -374,7 +375,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			return;
 		}
 
-		const thisSession = this._ctsSession = new CancellationTokenSource();
+		this._ctsSession = new CancellationTokenSource();
 		const textModel = this._editor.getModel();
 		const selection = this._editor.getSelection();
 		const session = await provider.prepareInteractiveEditorSession(textModel, selection, this._ctsSession.token);
@@ -416,8 +417,6 @@ export class InteractiveEditorController implements IEditorContribution {
 			options: InteractiveEditorController._decoWholeRange
 		}]);
 
-		let placeholder = session.placeholder ?? '';
-		let value = options?.message ?? '';
 		let autoSend = options?.autoSend ?? false;
 
 		this._zone.widget.updateSlashCommands(session.slashCommands ?? []);
@@ -484,7 +483,18 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token, _requestCancelledOnModelContentChanged);
+			this._zone.widget.placeholder = session.placeholder ?? '';
+			this._zone.widget.input = options?.message ?? '';
+			if (!_requestCancelledOnModelContentChanged) {
+				this._zone.widget.selectAll();
+			}
+
+			this._zone.show(wholeRange.getEndPosition());
+
+			this._currentInputPromise = new DeferredPromise();
+			this._ctsSession.token.onCancellationRequested(() => { this._currentInputPromise?.complete(); });
+
+			// const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token, _requestCancelledOnModelContentChanged);
 			_requestCancelledOnModelContentChanged = false;
 
 			if (textModel0Changes && editMode === EditMode.LivePreview) {
@@ -501,7 +511,12 @@ export class InteractiveEditorController implements IEditorContribution {
 				autoSend = false;
 				this.accept();
 			}
-			const input = await inputPromise;
+
+			await this._currentInputPromise.p;
+			if (this._ctsSession.token.isCancellationRequested) {
+				break;
+			}
+			const input = this._zone.widget.input;
 
 			if (!input) {
 				continue;
@@ -532,7 +547,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			};
 			const task = provider.provideResponse(session, request, this._ctsRequest.token);
 			this._logService.trace('[IE] request started', provider.debugName, session, request);
-			value = input;
+			// this._zone.widget.input = input;
 
 			let reply: IInteractiveEditorResponse | null | undefined;
 			try {
@@ -577,12 +592,12 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._zone.widget.updateStatus('');
 				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
 				const markdownResponse = new MarkdownResponse(textModel.uri, reply);
-				this._currentSession.addExchange(new SessionExchange(value, markdownResponse));
+				this._currentSession.addExchange(new SessionExchange(input, markdownResponse));
 				continue;
 			}
 
 			const editResponse = new EditResponse(textModel.uri, reply);
-			this._currentSession.addExchange(new SessionExchange(value, editResponse));
+			this._currentSession.addExchange(new SessionExchange(input, editResponse));
 
 			const canContinue = this._strategy.update(editResponse);
 			if (!canContinue) {
@@ -677,9 +692,9 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._zone.widget.hideCreatePreview();
 			}
 
-			placeholder = reply.placeholder ?? session.placeholder ?? '';
+			this._zone.widget.placeholder = reply.placeholder ?? session.placeholder ?? '';
 
-		} while (!thisSession.token.isCancellationRequested);
+		} while (!this._ctsSession.token.isCancellationRequested);
 
 		this._inlineDiffEnabled = inlineDiffDecorations.visible;
 		this._storageService.store(InteractiveEditorController._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
@@ -747,7 +762,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	accept(): void {
-		this._zone.widget.acceptInput();
+		this._currentInputPromise?.complete();
 	}
 
 	cancelCurrentRequest(): void {

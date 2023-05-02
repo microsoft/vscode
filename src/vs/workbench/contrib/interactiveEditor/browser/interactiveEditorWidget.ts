@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./interactiveEditor';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { assertType } from 'vs/base/common/types';
 import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
@@ -102,8 +100,6 @@ class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
 
-	private static _noop = () => { };
-
 	private readonly _elements = h(
 		'div.interactive-editor@root',
 		[
@@ -134,7 +130,7 @@ class InteractiveEditorWidget {
 	private readonly _store = new DisposableStore();
 	private readonly _slashCommands = this._store.add(new DisposableStore());
 
-	readonly _inputEditor: ICodeEditor;
+	readonly _inputEditor: IActiveCodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
 	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
@@ -157,8 +153,6 @@ class InteractiveEditorWidget {
 	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
 
-	public acceptInput: () => void = InteractiveEditorWidget._noop;
-	private _cancelInput: () => void = InteractiveEditorWidget._noop;
 	constructor(
 		parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
@@ -176,23 +170,55 @@ class InteractiveEditorWidget {
 			])
 		};
 
-		this._inputEditor = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, parentEditor);
+		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, parentEditor);
 		this._store.add(this._inputEditor);
+		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
+		this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
+		this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
 
 		const uri = URI.from({ scheme: 'vscode', authority: 'interactive-editor', path: `/interactive-editor/model${InteractiveEditorWidget._modelPool++}.txt` });
 		this._inputModel = this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri);
 		this._inputEditor.setModel(this._inputModel);
 
+		// --- context keys
 
-		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
+		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
+		this._ctxInputEmpty = CTX_INTERACTIVE_EDITOR_EMPTY.bindTo(this._contextKeyService);
+
+		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
+		const ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
+		const ctxInputEditorFocused = CTX_INTERACTIVE_EDITOR_FOCUSED.bindTo(this._contextKeyService);
+
+		// (1) inner cursor position (last/first line selected)
+		const updateInnerCursorFirstLast = () => {
+			const { lineNumber } = this._inputEditor.getPosition();
+			ctxInnerCursorFirst.set(lineNumber === 1);
+			ctxInnerCursorLast.set(lineNumber === this._inputModel.getLineCount());
+		};
+		this._store.add(this._inputEditor.onDidChangeCursorPosition(updateInnerCursorFirstLast));
+		updateInnerCursorFirstLast();
+
+		// (2) input editor focused or not
+		const updateFocused = () => {
+			const hasFocus = this._inputEditor.hasWidgetFocus();
+			ctxInputEditorFocused.set(hasFocus);
+			this._elements.content.classList.toggle('synthetic-focus', hasFocus);
+		};
+		this._store.add(this._inputEditor.onDidFocusEditorWidget(updateFocused));
+		this._store.add(this._inputEditor.onDidBlurEditorWidget(updateFocused));
+		updateFocused();
+
+		// placeholder
+
+		this._elements.placeholder.style.fontSize = `${this._inputEditor.getOption(EditorOption.fontSize)}px`;
+		this._elements.placeholder.style.lineHeight = `${this._inputEditor.getOption(EditorOption.lineHeight)}px`;
+		this._store.add(addDisposableListener(this._elements.placeholder, 'click', () => this._inputEditor.focus()));
 
 		// show/hide placeholder depending on text model being empty
 		// content height
 
 		const currentContentHeight = 0;
 
-		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
-		this._ctxInputEmpty = CTX_INTERACTIVE_EDITOR_EMPTY.bindTo(this._contextKeyService);
 		const togglePlaceholder = () => {
 			const hasText = this._inputModel.getValueLength() > 0;
 			this._elements.placeholder.classList.toggle('hidden', hasText);
@@ -208,7 +234,7 @@ class InteractiveEditorWidget {
 		this._store.add(this._inputModel.onDidChangeContent(togglePlaceholder));
 		togglePlaceholder();
 
-		this._store.add(addDisposableListener(this._elements.placeholder, 'click', () => this._inputEditor.focus()));
+		// toolbars
 
 		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, MENU_INTERACTIVE_EDITOR_WIDGET, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
@@ -299,97 +325,15 @@ class InteractiveEditorWidget {
 
 	set input(value: string) {
 		this._inputModel.setValue(value);
+		this._inputEditor.setPosition(this._inputModel.getFullModelRange().getEndPosition());
 	}
 
 	selectAll() {
 		this._inputEditor.setSelection(this._inputModel.getFullModelRange());
 	}
 
-	getInput(placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean): Promise<string | undefined> {
-
-		const currentInputEditorPosition = this._inputEditor.getPosition();
-		const currentInputEditorValue = this._inputEditor.getValue();
-
-		this._elements.placeholder.innerText = placeholder;
-		this._elements.placeholder.style.fontSize = `${this._inputEditor.getOption(EditorOption.fontSize)}px`;
-		this._elements.placeholder.style.lineHeight = `${this._inputEditor.getOption(EditorOption.lineHeight)}px`;
-
-		this._inputModel.setValue(requestCancelledOnModelContentChanged ? currentInputEditorValue : value);
-		const fullInputModelRange = this._inputModel.getFullModelRange();
-
-		if (requestCancelledOnModelContentChanged) {
-			this._inputEditor.setPosition(currentInputEditorPosition ?? new Position(fullInputModelRange.endLineNumber, fullInputModelRange.endColumn));
-		} else {
-			this._inputEditor.setSelection(fullInputModelRange);
-		}
-		this._inputEditor.updateOptions({ ariaLabel: localize('aria-label.N', "Interactive Editor Input: {0}", placeholder) });
-
-		const disposeOnDone = new DisposableStore();
-
-		disposeOnDone.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
-		disposeOnDone.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
-
-		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
-		const ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
-		const ctxInputEditorFocused = CTX_INTERACTIVE_EDITOR_FOCUSED.bindTo(this._contextKeyService);
-
-		return new Promise<string | undefined>(resolve => {
-
-			this._cancelInput = () => {
-				this.acceptInput = InteractiveEditorWidget._noop;
-				this._cancelInput = InteractiveEditorWidget._noop;
-				resolve(undefined);
-				return true;
-			};
-
-			this.acceptInput = () => {
-				const newValue = this._inputEditor.getModel()!.getValue();
-				if (newValue.trim().length === 0) {
-					// empty or whitespace only
-					this._cancelInput();
-					return;
-				}
-
-				this.acceptInput = InteractiveEditorWidget._noop;
-				this._cancelInput = InteractiveEditorWidget._noop;
-				resolve(newValue);
-			};
-
-			disposeOnDone.add(token.onCancellationRequested(() => this._cancelInput()));
-
-			// CONTEXT KEYS
-
-			// (1) inner cursor position (last/first line selected)
-			const updateInnerCursorFirstLast = () => {
-				if (!this._inputEditor.hasModel()) {
-					return;
-				}
-				const { lineNumber } = this._inputEditor.getPosition();
-				ctxInnerCursorFirst.set(lineNumber === 1);
-				ctxInnerCursorLast.set(lineNumber === this._inputEditor.getModel().getLineCount());
-			};
-			disposeOnDone.add(this._inputEditor.onDidChangeCursorPosition(updateInnerCursorFirstLast));
-			updateInnerCursorFirstLast();
-
-			// (2) input editor focused or not
-			const updateFocused = () => {
-				const hasFocus = this._inputEditor.hasWidgetFocus();
-				ctxInputEditorFocused.set(hasFocus);
-				this._elements.content.classList.toggle('synthetic-focus', hasFocus);
-			};
-			disposeOnDone.add(this._inputEditor.onDidFocusEditorWidget(updateFocused));
-			disposeOnDone.add(this._inputEditor.onDidBlurEditorWidget(updateFocused));
-			updateFocused();
-
-			this.focus();
-
-		}).finally(() => {
-			disposeOnDone.dispose();
-
-			ctxInnerCursorFirst.reset();
-			ctxInnerCursorLast.reset();
-			ctxInputEditorFocused.reset();
-		});
+	set placeholder(value: string) {
+		this._elements.placeholder.innerText = value;
 	}
 
 	updateToolbar(show: boolean) {
@@ -676,14 +620,10 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean): Promise<string | undefined> {
-		assertType(this.editor.hasModel());
+	override show(where: IPosition): void {
 		super.show(where, this._computeHeightInLines());
+		this.widget.focus();
 		this._ctxVisible.set(true);
-
-		const task = this.widget.getInput(placeholder, value, token, requestCancelledOnModelContentChanged);
-		const result = await task;
-		return result;
 	}
 
 	updatePosition(where: IPosition) {
