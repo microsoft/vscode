@@ -14,19 +14,17 @@ import { Schemas } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler, IEditorContribution, PastePayload } from 'vs/editor/common/editorCommon';
-import { DocumentPasteEdit, DocumentPasteEditProvider, WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerDefaultPasteProviders } from 'vs/editor/contrib/copyPaste/browser/defaultPasteProviders';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
 import { PostEditWidgetManager } from 'vs/editor/contrib/postEditWidget/browser/postEditWidget';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -245,8 +243,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				if (providerEdits.length) {
-					const selection = editor.getSelection();
-					return this.applyPasteEdit(editor, selection, 0, providerEdits, tokenSource.token);
+					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections[0], { activeEditIndex: 0, allEdits: providerEdits }, tokenSource.token);
 				}
 
 				await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
@@ -289,37 +286,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			pasteOnNewLine: metadata?.wasFromEmptySelection,
 			multicursorText: null
 		});
-	}
-
-	private async applyPasteEdit(editor: ICodeEditor, selection: Selection, activeEditIndex: number, allEdits: readonly DocumentPasteEdit[], token: CancellationToken): Promise<void> {
-		const model = editor.getModel();
-		if (!model) {
-			return;
-		}
-
-		const edit = allEdits[activeEditIndex];
-		if (!edit) {
-			return;
-		}
-
-		const snippet = typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet;
-
-		const combinedWorkspaceEdit: WorkspaceEdit = {
-			edits: [
-				new ResourceTextEdit(model.uri, {
-					range: selection,
-					text: snippet,
-					insertAsSnippet: true,
-				}),
-				...(edit.additionalEdit?.edits ?? [])
-			]
-		};
-
-		const editSet = { activeEditIndex, allEdits: allEdits.map(edit => ({ label: edit.label })) };
-		await this._postPasteWidgetManager.applyEditAndShowIfNeeded(selection, combinedWorkspaceEdit, editSet, async (newEditIndex) => {
-			await model.undo();
-			this.applyPasteEdit(editor, selection, newEditIndex, allEdits, token);
-		}, token);
 	}
 }
 

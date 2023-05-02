@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Mimes } from 'vs/base/common/mime';
 import { IRange } from 'vs/editor/common/core/range';
-import { DocumentOnDropEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
+import { DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
@@ -17,7 +17,7 @@ class DefaultTextDropProvider implements DocumentPasteEditProvider {
 	readonly id = 'text';
 	readonly pasteMimeTypes = [Mimes.text, 'text'];
 
-	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
+	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const textEntry = dataTransfer.get('text') ?? dataTransfer.get(Mimes.text);
 		if (!textEntry) {
 			return;

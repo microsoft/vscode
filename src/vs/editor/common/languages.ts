@@ -784,7 +784,7 @@ export interface CodeActionProvider {
  */
 export interface DocumentPasteEdit {
 	readonly label: string;
-	insertText: string | { snippet: string };
+	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 

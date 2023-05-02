@@ -11,7 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./postEditWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditResult, IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -25,6 +25,8 @@ interface EditSet {
 	readonly activeEditIndex: number;
 	readonly allEdits: ReadonlyArray<{
 		readonly label: string;
+		readonly insertText: string | { readonly snippet: string };
+		readonly additionalEdit?: WorkspaceEdit;
 	}>;
 }
 
@@ -153,29 +155,53 @@ export class PostEditWidgetManager extends Disposable {
 		)(() => this.clear()));
 	}
 
-	public async applyEditAndShowIfNeeded(triggerRange: Range, workspaceEdit: WorkspaceEdit, allEdits: EditSet, onDidSelectEdit: (newIndex: number) => void, token: CancellationToken) {
+	public async applyEditAndShowIfNeeded(range: Range, edits: EditSet, token: CancellationToken) {
 		const model = this._editor.getModel();
 		if (!model) {
 			return;
 		}
 
+		const edit = edits.allEdits[edits.activeEditIndex];
+		if (!edit) {
+			return;
+		}
+
+		const combinedWorkspaceEdit: WorkspaceEdit = {
+			edits: [
+				new ResourceTextEdit(model.uri,
+					typeof edit.insertText === 'string'
+						? { range, text: edit.insertText, insertAsSnippet: false }
+						: { range, text: edit.insertText.snippet, insertAsSnippet: true }
+				),
+				...(edit.additionalEdit?.edits ?? [])
+			]
+		};
+
 		// Use a decoration to track edits around the trigger range
 		const editTrackingDecoration = model.deltaDecorations([], [{
-			range: triggerRange,
+			range,
 			options: { description: 'paste-line-suffix', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }
 		}]);
 
 		let editResult: IBulkEditResult;
 		let editRange: Range | null;
 		try {
-			editResult = await this._bulkEditService.apply(workspaceEdit, { editor: this._editor, token });
+			editResult = await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor, token });
 			editRange = model.getDecorationRange(editTrackingDecoration[0]);
 		} finally {
 			model.deltaDecorations(editTrackingDecoration, []);
 		}
 
-		if (editResult.isApplied && allEdits.allEdits.length > 1) {
-			this.show(editRange ?? triggerRange, allEdits, onDidSelectEdit);
+		if (editResult.isApplied && edits.allEdits.length > 1) {
+			this.show(editRange ?? range, edits, async (newEditIndex) => {
+				const model = this._editor.getModel();
+				if (!model) {
+					return;
+				}
+
+				await model.undo();
+				this.applyEditAndShowIfNeeded(range, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, token);
+			});
 		}
 	}
 

@@ -5,25 +5,21 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DocumentOnDropEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
 import { PostEditWidgetManager } from 'vs/editor/contrib/postEditWidget/browser/postEditWidget';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
@@ -126,8 +122,9 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				}
 
 				if (possibleDropEdits) {
+					const allEdits = coalesce(possibleDropEdits);
 					// Pass in the parent token here as it tracks cancelling the entire drop operation.
-					await this.applyDropResult(editor, position, 0, coalesce(possibleDropEdits), token);
+					await this._postDropWidgetManager.applyEditAndShowIfNeeded(Range.fromPositions(position), { activeEditIndex: 0, allEdits }, token);
 				}
 			} finally {
 				tokenSource.dispose();
@@ -165,35 +162,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		}
 
 		return dataTransfer;
-	}
-
-	private async applyDropResult(editor: ICodeEditor, position: IPosition, activeEditIndex: number, allEdits: readonly DocumentOnDropEdit[], token: CancellationToken): Promise<void> {
-		const model = editor.getModel();
-		if (!model) {
-			return;
-		}
-
-		const edit = allEdits[activeEditIndex];
-		if (!edit) {
-			return;
-		}
-
-		const snippet = typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet;
-		const combinedWorkspaceEdit: WorkspaceEdit = {
-			edits: [
-				new ResourceTextEdit(model.uri, {
-					range: Range.fromPositions(position),
-					text: snippet,
-					insertAsSnippet: true,
-				}),
-				...(edit.additionalEdit?.edits ?? [])
-			]
-		};
-
-		await this._postDropWidgetManager.applyEditAndShowIfNeeded(Range.fromPositions(position), combinedWorkspaceEdit, { activeEditIndex, allEdits }, async (newEditIndex) => {
-			await model.undo();
-			this.applyDropResult(editor, position, newEditIndex, allEdits, token);
-		}, token);
 	}
 }
 
