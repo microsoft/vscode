@@ -33,7 +33,7 @@ class DefaultTextProvider implements DocumentOnDropEditProvider, DocumentPasteEd
 		return this.getEdit(dataTransfer);
 	}
 
-	private async getEdit(dataTransfer: VSDataTransfer): Promise<DocumentPasteEdit | DocumentOnDropEdit | undefined> {
+	private async getEdit(dataTransfer: VSDataTransfer) {
 		const textEntry = dataTransfer.get(Mimes.text);
 		if (!textEntry) {
 			return;
@@ -67,7 +67,7 @@ class PathProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvi
 		return this.getEdit(dataTransfer, token);
 	}
 
-	private async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | DocumentOnDropEdit | undefined> {
+	private async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken) {
 		const entries = await extractUriList(dataTransfer);
 		if (!entries.length || token.isCancellationRequested) {
 			return;
@@ -120,7 +120,7 @@ class RelativePathProvider implements DocumentOnDropEditProvider, DocumentPasteE
 		return this.getEdit(dataTransfer, token);
 	}
 
-	private async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | DocumentOnDropEdit | undefined> {
+	private async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken) {
 		const entries = await extractUriList(dataTransfer);
 		if (!entries.length || token.isCancellationRequested) {
 			return;

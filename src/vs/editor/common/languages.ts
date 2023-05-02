@@ -1943,7 +1943,7 @@ export enum ExternalUriOpenerPriority {
 export interface DocumentOnDropEdit {
 	readonly label: string;
 
-	insertText: string | { snippet: string };
+	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 
