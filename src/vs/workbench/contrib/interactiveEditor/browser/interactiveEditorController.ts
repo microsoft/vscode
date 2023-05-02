@@ -321,12 +321,13 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 
 	) {
-		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxInlineDiff = CTX_INTERACTIVE_EDITOR_INLNE_DIFF.bindTo(contextKeyService);
 		this._ctxLastEditKind = CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND.bindTo(contextKeyService);
+		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
+
 	}
 
 	dispose(): void {
@@ -466,6 +467,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		const diffZone = this._instaService.createInstance(InteractiveEditorDiffWidget, this._editor, textModel0);
 
+		let _requestCancelledOnModelContentChanged = false;
+
 		do {
 
 			const wholeRange = wholeRangeDecoration.getRange(0);
@@ -486,7 +489,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
+			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token, _requestCancelledOnModelContentChanged);
+			_requestCancelledOnModelContentChanged = false;
 
 			if (textModel0Changes && editMode === EditMode.LivePreview) {
 
@@ -520,6 +524,11 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
+			const typeListener = this._zone.widget.inputEditor.onDidChangeModelContent(() => {
+				this.cancelCurrentRequest();
+				_requestCancelledOnModelContentChanged = true;
+			});
+
 			const sw = StopWatch.create();
 			const request: IInteractiveEditorRequest = {
 				prompt: input,
@@ -549,6 +558,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._ctxLastResponseType.set(reply?.type);
 				this._zone.widget.updateProgress(false);
 				this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
+
+				typeListener.dispose();
 			}
 
 			if (this._ctsRequest.token.isCancellationRequested) {

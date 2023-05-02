@@ -28,7 +28,7 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TextEdit } from 'vs/editor/common/languages';
@@ -286,14 +286,23 @@ class InteractiveEditorWidget {
 		}
 	}
 
-	getInput(placeholder: string, value: string, token: CancellationToken): Promise<string | undefined> {
+	getInput(placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean): Promise<string | undefined> {
+
+		const currentInputEditorPosition = this.inputEditor.getPosition();
+		const currentInputEditorValue = this.inputEditor.getValue();
 
 		this._elements.placeholder.innerText = placeholder;
 		this._elements.placeholder.style.fontSize = `${this.inputEditor.getOption(EditorOption.fontSize)}px`;
 		this._elements.placeholder.style.lineHeight = `${this.inputEditor.getOption(EditorOption.lineHeight)}px`;
 
-		this._inputModel.setValue(value);
-		this.inputEditor.setSelection(this._inputModel.getFullModelRange());
+		this._inputModel.setValue(requestCancelledOnModelContentChanged ? currentInputEditorValue : value);
+		const fullInputModelRange = this._inputModel.getFullModelRange();
+
+		if (requestCancelledOnModelContentChanged) {
+			this.inputEditor.setPosition(currentInputEditorPosition ?? new Position(fullInputModelRange.endLineNumber, fullInputModelRange.endColumn));
+		} else {
+			this.inputEditor.setSelection(fullInputModelRange);
+		}
 		this.inputEditor.updateOptions({ ariaLabel: localize('aria-label.N', "Interactive Editor Input: {0}", placeholder) });
 
 		const disposeOnDone = new DisposableStore();
@@ -575,12 +584,12 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken): Promise<string | undefined> {
+	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken, requestCancelledOnModelContentChanged: boolean): Promise<string | undefined> {
 		assertType(this.editor.hasModel());
 		super.show(where, this._computeHeightInLines());
 		this._ctxVisible.set(true);
 
-		const task = this.widget.getInput(placeholder, value, token);
+		const task = this.widget.getInput(placeholder, value, token, requestCancelledOnModelContentChanged);
 		const result = await task;
 		return result;
 	}
