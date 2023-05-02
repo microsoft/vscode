@@ -1357,6 +1357,18 @@ begin
     end;
   end;
 
+  if CheckForMutexes('{#TunnelMutex}') then begin
+    Log('Tunnel mutex found');
+  end else begin
+    Log('No tunnel mutex found');
+  end;
+
+  if CheckForMutexes('{#TunnelServiceMutex}') then begin
+    Log('Tunnel service mutex found');
+  end else begin
+    Log('No tunnel service mutex found');
+  end;
+
 	if not IsBackgroundUpdate() then begin
 		while CheckForMutexes('{#TunnelMutex}') do
 		begin
