@@ -460,14 +460,6 @@ export class InteractiveEditorController implements IEditorContribution {
 					this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
 					return;
 				}
-				// for (const change of e.changes) {
-				// 	if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
-				// 		this._ctsSession.cancel();
-				// 		this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
-				// 		this._currentSession!.teldata.terminalEdits = true;
-				// 		break;
-				// 	}
-				// }
 			}
 
 		}, undefined, store);
@@ -574,7 +566,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.widget.updateToolbar(true);
 
 			if (reply.type === 'message') {
-				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
+				this._logService.info('[IE] received a MESSAGE, showing inline first', provider.debugName);
 				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
 				this._zone.widget.updateStatus('');
 				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
@@ -623,7 +615,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModel.createSnapshot()), null, undefined, true);
 				textModelNplus1.applyEdits(editOperations);
 				const diff = await this._editorWorkerService.computeDiff(textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000 }, 'advanced');
-				textModel0Changes = diff?.changes ?? undefined;
+				textModel0Changes = diff?.changes ?? [];
 				textModelNplus1.dispose();
 
 				try {
