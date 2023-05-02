@@ -42,7 +42,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		@IThemeService themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
+		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, allowUnlimitedHeight: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
 		super.create();
 
 		this._inlineDiffDecorations = editor.createDecorationsCollection();
