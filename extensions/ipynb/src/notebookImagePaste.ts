@@ -53,7 +53,7 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText);
+		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, vscode.l10n.t('Insert image as attachment'));
 		pasteEdit.additionalEdit = insert.additionalEdit;
 		return pasteEdit;
 	}
