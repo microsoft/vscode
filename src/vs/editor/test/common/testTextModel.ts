@@ -17,7 +17,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -32,6 +32,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { TestLoggerService } from 'vs/platform/log/test/common/testLoggerService';
 
 class TestTextModel extends TextModel {
 	public registerDisposable(disposable: IDisposable): void {
@@ -96,6 +97,7 @@ export function createModelServices(disposables: DisposableStore, services: Serv
 		[ITextResourcePropertiesService, TestTextResourcePropertiesService],
 		[IThemeService, TestThemeService],
 		[ILogService, NullLogService],
+		[ILoggerService, TestLoggerService],
 		[ILanguageFeatureDebounceService, LanguageFeatureDebounceService],
 		[ILanguageFeaturesService, LanguageFeaturesService],
 		[IModelService, ModelService],
