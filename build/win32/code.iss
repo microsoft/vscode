@@ -1304,6 +1304,25 @@ begin
   Result := ExpandConstant('{param:update|false}') <> 'false';
 end;
 
+var
+	StartTunnelService: Boolean;
+
+procedure StopTunnelService();
+var
+  UpdateResultCode: Integer;
+begin
+  // stop the tunnel service
+  Log('Stopping the tunnel service...');
+  Exec(ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"'), 'tunnel service uninstall', '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+
+  while (CheckForMutexes('{#TunnelServiceMutex}')) do
+  begin
+    Log('Tunnel service is still running, waiting');
+    Sleep(500);
+  end;
+  StartTunnelService := True
+end;
+
 // Don't allow installing conflicting architectures
 function InitializeSetup(): Boolean;
 var
@@ -1369,12 +1388,16 @@ begin
     Log('No tunnel service mutex found');
   end;
 
-	if not IsBackgroundUpdate() then begin
+  if not IsBackgroundUpdate() then
+  begin
+    StopTunnelService();
+
 		while CheckForMutexes('{#TunnelMutex}') do
 		begin
 			MsgBox('Tunnel is still running', mbError, MB_OK);
 		end;
-	end;
+
+  end;
 
 end;
 
@@ -1469,27 +1492,10 @@ begin
 end;
 #endif
 
-var
-	StartTunnelService: Boolean;
-
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
 begin
-  if (CurStep = ssInstall) and CheckForMutexes('{#TunnelServiceMutex}') then
-  begin
-    // stop the tunnel service
-		Log('Stopping the tunnel service...');
-    Exec(ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"'), 'tunnel service uninstall', '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
-
-    while (CheckForMutexes('{#TunnelServiceMutex}')) do
-    begin
-      Log('Tunnel service is still running, waiting');
-      Sleep(500);
-    end;
-		StartTunnelService := True
-  end;
-
   if IsBackgroundUpdate() and (CurStep = ssPostInstall) then
   begin
     CreateMutex('{#AppMutex}-ready');
@@ -1500,11 +1506,7 @@ begin
       Sleep(1000);
     end;
 
-		while (CheckForMutexes('{#TunnelMutex}')) do
-    begin
-      Log('Tunnel is still running, waiting');
-      Sleep(1000);
-    end;
+    StopTunnelService();
 
     Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
   end;
