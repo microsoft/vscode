@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, isUriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -109,13 +109,4 @@ export function terminalIconsEqual(a?: TerminalIcon, b?: TerminalIcon): boolean 
 	}
 
 	return false;
-}
-
-
-export function isUriComponents(thing: unknown): thing is UriComponents {
-	if (!thing) {
-		return false;
-	}
-	return typeof (<any>thing).path === 'string' &&
-		typeof (<any>thing).scheme === 'string';
 }

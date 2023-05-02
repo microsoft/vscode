@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 
 
 suite('URI', () => {
@@ -601,5 +601,16 @@ suite('URI', () => {
 
 		assert.strictEqual(URI.parse('http://user@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://user@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
 		assert.strictEqual(URI.parse('http://us[er@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://us%5Ber@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
+	});
+
+	test('isUriComponents', function () {
+		assert.strictEqual(isUriComponents(URI.parse('file:///c:/bazz')), true);
+		assert.strictEqual(isUriComponents({ scheme: 'file', authority: 'server', path: '/shares/c#f', query: 'q', fragment: 'f' }), true);
+		assert.strictEqual(isUriComponents({ scheme: '', authority: '', path: '', query: '', fragment: '' }), true);
+		assert.strictEqual(isUriComponents({ scheme: '', authority: '', path: '' }), false);
+		assert.strictEqual(isUriComponents('file://foo'), false);
+		assert.strictEqual(isUriComponents(undefined), false);
+		assert.strictEqual(isUriComponents(null), false);
+		assert.strictEqual(isUriComponents({}), false);
 	});
 });

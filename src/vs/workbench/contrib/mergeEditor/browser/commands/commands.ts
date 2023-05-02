@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { basename } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
@@ -144,18 +144,6 @@ namespace IRelaxedOpenArgs {
 			return URI.revive(<UriComponents>obj);
 		}
 		throw new TypeError('invalid argument');
-	}
-
-	function isUriComponents(obj: unknown): obj is UriComponents {
-		if (!obj || typeof obj !== 'object') {
-			return false;
-		}
-		const o = obj as UriComponents;
-		return typeof o.scheme === 'string'
-			&& typeof o.authority === 'string'
-			&& typeof o.path === 'string'
-			&& typeof o.query === 'string'
-			&& typeof o.fragment === 'string';
 	}
 }
 

@@ -406,6 +406,19 @@ export interface UriComponents {
 	fragment: string;
 }
 
+export function isUriComponents(obj: unknown): obj is UriComponents {
+	if (!obj || typeof obj !== 'object') {
+		return false;
+	}
+
+	const candidate = obj as UriComponents;
+	return typeof candidate.scheme === 'string'
+		&& typeof candidate.authority === 'string'
+		&& typeof candidate.path === 'string'
+		&& typeof candidate.query === 'string'
+		&& typeof candidate.fragment === 'string';
+}
+
 interface UriState extends UriComponents {
 	$mid: MarshalledId.Uri;
 	external: string;

@@ -15,7 +15,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IListService, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -518,6 +518,10 @@ function registerOpenEditorAPICommands(): void {
 		const pathService = accessor.get(IPathService);
 		const configurationService = accessor.get(IConfigurationService);
 
+		if (typeof resourceArg !== 'string' && !isUriComponents(resourceArg)) {
+			return;
+		}
+
 		const resourceOrString = typeof resourceArg === 'string' ? resourceArg : URI.revive(resourceArg);
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
@@ -577,6 +581,10 @@ function registerOpenEditorAPICommands(): void {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
+		if (!isUriComponents(originalResource) || !isUriComponents(modifiedResource)) {
+			return;
+		}
+
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 		const [options, column] = mixinContext(context, optionsArg, columnArg);
 
@@ -602,6 +610,10 @@ function registerOpenEditorAPICommands(): void {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
+
+		if (!isUriComponents(resource)) {
+			return;
+		}
 
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 

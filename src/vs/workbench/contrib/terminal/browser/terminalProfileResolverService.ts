@@ -20,14 +20,14 @@ import { getIconRegistry, IIconRegistry } from 'vs/platform/theme/common/iconReg
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
+import { URI, isUriComponents } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/arrays';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, IPromptChoice, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
-import { terminalProfileArgsMatch, isUriComponents } from 'vs/platform/terminal/common/terminalProfiles';
+import { terminalProfileArgsMatch } from 'vs/platform/terminal/common/terminalProfiles';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface IProfileContextProvider {

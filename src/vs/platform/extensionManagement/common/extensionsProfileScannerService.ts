@@ -8,7 +8,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 import { Metadata, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -399,12 +399,4 @@ function isStoredProfileExtension(candidate: any): candidate is IStoredProfileEx
 		&& (isUriComponents(candidate.location) || (isString(candidate.location) && candidate.location))
 		&& (isUndefined(candidate.relativeLocation) || isString(candidate.relativeLocation))
 		&& candidate.version && isString(candidate.version);
-}
-
-function isUriComponents(thing: unknown): thing is UriComponents {
-	if (!thing) {
-		return false;
-	}
-	return isString((<any>thing).path) &&
-		isString((<any>thing).scheme);
 }
