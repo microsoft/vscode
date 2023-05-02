@@ -968,6 +968,7 @@ class LivePreviewStrategy extends LiveStrategy {
 	override dispose(): void {
 		this._diffZone.hide();
 		this._diffZone.dispose();
+		super.dispose();
 	}
 
 	override checkChanges(response: EditResponse): boolean {
