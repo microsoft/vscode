@@ -28,6 +28,9 @@ export interface IOptions {
 	frameColor?: Color;
 	arrowColor?: Color;
 	keepEditorSelection?: boolean;
+
+	ordinal?: number;
+	showInHiddenAreas?: boolean;
 }
 
 export interface IStyles {
@@ -48,25 +51,31 @@ const defaultOptions: IOptions = {
 
 const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
-export class ViewZoneDelegate implements IViewZone {
+class ViewZoneDelegate implements IViewZone {
 
 	domNode: HTMLElement;
 	id: string = ''; // A valid zone id should be greater than 0
 	afterLineNumber: number;
 	afterColumn: number;
 	heightInLines: number;
+	readonly showInHiddenAreas: boolean | undefined;
+	readonly ordinal: number | undefined;
 
 	private readonly _onDomNodeTop: (top: number) => void;
 	private readonly _onComputedHeight: (height: number) => void;
 
 	constructor(domNode: HTMLElement, afterLineNumber: number, afterColumn: number, heightInLines: number,
 		onDomNodeTop: (top: number) => void,
-		onComputedHeight: (height: number) => void
+		onComputedHeight: (height: number) => void,
+		showInHiddenAreas: boolean | undefined,
+		ordinal: number | undefined
 	) {
 		this.domNode = domNode;
 		this.afterLineNumber = afterLineNumber;
 		this.afterColumn = afterColumn;
 		this.heightInLines = heightInLines;
+		this.showInHiddenAreas = showInHiddenAreas;
+		this.ordinal = ordinal;
 		this._onDomNodeTop = onDomNodeTop;
 		this._onComputedHeight = onComputedHeight;
 	}
@@ -388,7 +397,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 				position.column,
 				heightInLines,
 				(top: number) => this._onViewZoneTop(top),
-				(height: number) => this._onViewZoneHeight(height)
+				(height: number) => this._onViewZoneHeight(height),
+				this.options.showInHiddenAreas,
+				this.options.ordinal
 			);
 			this._viewZone.id = accessor.addZone(this._viewZone);
 			this._overlayWidget = new OverlayWidgetDelegate(WIDGET_ID + this._viewZone.id, this.domNode);

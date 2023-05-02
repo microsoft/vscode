@@ -24,6 +24,7 @@ import { IStoredFileWorkingCopySaveParticipant, IWorkingCopyFileService } from '
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -92,10 +93,16 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 	}
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
+		const isTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
+		if (!isTrusted) {
+			return;
+		}
+
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
 			return;
 		}

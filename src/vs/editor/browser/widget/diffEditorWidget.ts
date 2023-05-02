@@ -286,7 +286,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			renderOverviewRuler: true,
 			diffWordWrap: 'inherit',
 			diffAlgorithm: 'advanced',
-			accessibilityVerbose: true
+			accessibilityVerbose: false
 		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
@@ -623,7 +623,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}));
 
 		// Revert change when an arrow is clicked.
-		this._register(editor.onMouseUp(event => {
+		this._register(editor.onMouseDown(event => {
 			if (!event.event.rightButton && event.target.position && event.target.element?.className.includes('arrow-revert-change')) {
 				const lineNumber = event.target.position.lineNumber;
 				const viewZone = event.target as editorBrowser.IMouseTargetViewZone | undefined;
@@ -1289,7 +1289,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _updateAriaLabel(options: IEditorConstructionOptions): void {
-		let ariaLabel = options.ariaLabel;
+		let ariaLabel = options.ariaLabel ?? '';
 		if (this._options.accessibilityVerbose) {
 			ariaLabel += ariaNavigationTip;
 		} else if (ariaLabel) {
@@ -2796,6 +2796,7 @@ function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEdi
 		renderOverviewRuler: (a.renderOverviewRuler !== b.renderOverviewRuler),
 		diffWordWrap: (a.diffWordWrap !== b.diffWordWrap),
 		diffAlgorithm: (a.diffAlgorithm !== b.diffAlgorithm),
+		accessibilityVerbose: (a.accessibilityVerbose !== b.accessibilityVerbose),
 	};
 }
 

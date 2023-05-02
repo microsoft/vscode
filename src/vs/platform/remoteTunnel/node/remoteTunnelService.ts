@@ -10,7 +10,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogger, ILoggerService, LogLevelToString } from 'vs/platform/log/common/log';
 import { dirname, join } from 'vs/base/common/path';
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, StdioOptions, spawn } from 'child_process';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
@@ -322,6 +322,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 					resolve(-1);
 				}
 				let tunnelProcess: ChildProcess | undefined;
+				const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
+
 				token.onCancellationRequested(() => {
 					if (tunnelProcess) {
 						this._logger.info(`${logLabel} terminating(${tunnelProcess.pid})`);
@@ -331,12 +333,12 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				if (!this.environmentService.isBuilt) {
 					onOutput('Building tunnel CLI from sources and run', false);
 					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}`, false);
-					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli') });
+					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), stdio });
 				} else {
 					onOutput('Running tunnel CLI', false);
 					const tunnelCommand = this.getTunnelCommandLocation();
 					onOutput(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}`, false);
-					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir() });
+					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir(), stdio });
 				}
 
 				tunnelProcess.stdout!.on('data', data => {
