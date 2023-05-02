@@ -54,7 +54,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
 			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
 			scrollBeyondLastLine: false,
-			renderMarginRevertIcon: false,
+			renderMarginRevertIcon: true,
 			renderOverviewRuler: false,
 			rulers: undefined,
 			overviewRulerBorder: undefined,
