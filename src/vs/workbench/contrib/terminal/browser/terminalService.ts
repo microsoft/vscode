@@ -566,11 +566,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _onBeforeShutdownAsync(reason: ShutdownReason): Promise<boolean> {
-		if (this._backgroundedTerminalInstances.length) {
-			for (const terminal of this._backgroundedTerminalInstances.filter(b => !b.shouldPersist)) {
-				terminal.dispose();
-			}
-		}
 		if (this.instances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
@@ -656,20 +651,17 @@ export class TerminalService implements ITerminalService {
 	private _onWillShutdown(e: WillShutdownEvent): void {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
-		if (shouldPersistTerminals) {
-			for (const instance of this._terminalGroupService.instances) {
-				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
-			}
-			return;
-		}
 
-		// Force dispose of all pane terminal instances
-		for (const instance of this._terminalGroupService.instances) {
-			instance.dispose(TerminalExitReason.Shutdown);
+		for (const instance of [...this._terminalGroupService.instances, ...this._backgroundedTerminalInstances]) {
+			if (shouldPersistTerminals && instance.shouldPersist) {
+				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
+			} else {
+				instance.dispose(TerminalExitReason.Shutdown);
+			}
 		}
 
 		// Clear terminal layout info only when not persisting
-		if (!this._shouldReviveProcesses(e.reason)) {
+		if (!shouldPersistTerminals && !this._shouldReviveProcesses(e.reason)) {
 			this._primaryBackend?.setTerminalLayoutInfo(undefined);
 		}
 	}
