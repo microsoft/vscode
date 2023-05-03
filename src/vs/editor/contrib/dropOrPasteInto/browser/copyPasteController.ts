@@ -10,7 +10,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { UriList, VSDataTransfer, createStringDataTransferItem } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -23,12 +22,11 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
-import { PostEditWidgetManager } from './postEditWidget';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { PostEditWidgetManager } from './postEditWidget';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 
@@ -65,7 +63,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
@@ -90,13 +87,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._postPasteWidgetManager.clear();
 	}
 
-	private arePasteActionsEnabled(model: ITextModel): boolean {
-		if (this._configurationService.getValue('editor.experimental.pasteActions.enabled', { resource: model.uri })) {
-			return true;
-		}
-
-		// TODO: This check is only here to support enabling `ipynb.pasteImagesAsAttachments.enabled` by default
-		return model.uri.scheme === Schemas.vscodeNotebookCell;
+	private isPasteAsEnabled(): boolean {
+		return this._editor.getOption(EditorOption.pasteAs).enabled;
 	}
 
 	private handleCopy(e: ClipboardEvent) {
@@ -110,7 +102,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		if (!this.arePasteActionsEnabled(model)) {
+		if (!this.isPasteAsEnabled()) {
 			return;
 		}
 
@@ -174,7 +166,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 
 		const model = this._editor.getModel();
-		if (!this.arePasteActionsEnabled(model)) {
+		if (!this.isPasteAsEnabled()) {
 			return;
 		}
 
@@ -232,7 +224,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				if (providerEdits.length) {
-					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections[0], { activeEditIndex: 0, allEdits: providerEdits }, tokenSource.token);
+					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
+					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections[0], { activeEditIndex: 0, allEdits: providerEdits }, canShowWidget, tokenSource.token);
 				}
 
 				await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
