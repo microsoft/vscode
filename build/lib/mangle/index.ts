@@ -23,20 +23,17 @@ class ShortIdent {
 	private static _alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890$_'.split('');
 
 	private _value = 0;
-	private readonly _isNameTaken: (name: string) => boolean;
-	private readonly prefix: string;
 
-	constructor(prefix: string, isNameTaken: (name: string) => boolean) {
-		this.prefix = prefix;
-		this._isNameTaken = name => ShortIdent._keywords.has(name) || /^[_0-9]/.test(name) || isNameTaken(name);
-	}
+	constructor(
+		private readonly prefix: string
+	) { }
 
-	next(localIsNameTaken?: (name: string) => boolean): string {
+	next(isNameTaken: (name: string) => boolean): string {
 		const candidate = this.prefix + ShortIdent.convert(this._value);
 		this._value++;
-		if (this._isNameTaken(candidate) || localIsNameTaken?.(candidate)) {
+		if (ShortIdent._keywords.has(candidate) || /^[_0-9]/.test(candidate) || isNameTaken?.(candidate)) {
 			// try again
-			return this.next(localIsNameTaken);
+			return this.next(isNameTaken);
 		}
 		return candidate;
 	}
@@ -186,8 +183,7 @@ class ClassData {
 
 		data.replacements = new Map();
 
-		const identPool = new ShortIdent('', name => {
-
+		const isNameTaken = (name: string) => {
 			// locally taken
 			if (data._isNameTaken(name)) {
 				return true;
@@ -217,11 +213,12 @@ class ClassData {
 			}
 
 			return false;
-		});
+		};
+		const identPool = new ShortIdent('');
 
 		for (const [name, info] of data.fields) {
 			if (ClassData._shouldMangle(info.type)) {
-				const shortName = identPool.next();
+				const shortName = identPool.next(isNameTaken);
 				data.replacements.set(name, shortName);
 			}
 		}
@@ -282,14 +279,14 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 }
 
 const fileIdents = new class {
-	private readonly idents = new ShortIdent('$', () => false);
+	private readonly idents = new ShortIdent('$');
 
 	next(file: ts.SourceFile) {
 		return this.idents.next(name => isNameTakenInFile(file, name));
 	}
 };
 
-const skippedFiles = [
+const skippedExportMangledFiles = [
 	// Build
 	'css.build',
 	'nls.build',
@@ -320,6 +317,11 @@ const skippedFiles = [
 		buildfile.workbenchWeb,
 		buildfile.code
 	].flat().map(x => x.name),
+];
+
+const skippedExportMangledProjects = [
+	// This uses webpack to dynamically rewrite imports, which messes up our mangling
+	'microsoft-authentication',
 ];
 
 class DeclarationData {
@@ -410,7 +412,7 @@ export interface MangleOutput {
 export class Mangler {
 
 	private readonly allClassDataByKey = new Map<string, ClassData>();
-	private readonly allExportedDeclarationsByKey = new Map<string, DeclarationData | ConstData>();
+	private readonly allExportsByKey = new Map<string, DeclarationData | ConstData>();
 
 	private readonly service: ts.LanguageService;
 	private readonly renameWorkerPool: workerpool.WorkerPool;
@@ -429,7 +431,7 @@ export class Mangler {
 
 	async computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Promise<Map<string, MangleOutput>> {
 
-		// STEP find all classes and their field info. Find all exported consts and functions.
+		// STEP: Find all classes and their field info. Find exported symbols.
 
 		const visit = (node: ts.Node): void => {
 			if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
@@ -441,41 +443,39 @@ export class Mangler {
 				this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 			}
 
-			if (ts.isClassDeclaration(node) && hasModifier(node, ts.SyntaxKind.ExportKeyword)) {
-				if (node.name) {
-					const anchor = node.name;
-					const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
-					if (this.allExportedDeclarationsByKey.has(key)) {
-						throw new Error('DUPE?');
-					}
-					this.allExportedDeclarationsByKey.set(key, new DeclarationData(node.getSourceFile().fileName, node));
-				}
-			}
-
-			if (ts.isFunctionDeclaration(node)
-				&& ts.isSourceFile(node.parent)
-				&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+			if (
+				(
+					// Exported class
+					ts.isClassDeclaration(node)
+					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+					&& node.name
+				) || (
+					// Or exported function
+					ts.isFunctionDeclaration(node)
+					&& ts.isSourceFile(node.parent)
+					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+					&& node.name && node.body // On named function and not on the overload
+				)
 			) {
-				if (node.name && node.body) { // On named function and not on the overload
-					const anchor = node.name;
-					const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
-					if (this.allExportedDeclarationsByKey.has(key)) {
-						throw new Error('DUPE?');
-					}
-					this.allExportedDeclarationsByKey.set(key, new DeclarationData(node.getSourceFile().fileName, node));
+				const anchor = node.name;
+				const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
+				if (this.allExportsByKey.has(key)) {
+					throw new Error('DUPE?');
 				}
+				this.allExportsByKey.set(key, new DeclarationData(node.getSourceFile().fileName, node));
 			}
 
+			// Exported variable
 			if (ts.isVariableStatement(node)
 				&& ts.isSourceFile(node.parent)
 				&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
 			) {
 				for (const decl of node.declarationList.declarations) {
 					const key = `${decl.getSourceFile().fileName}|${decl.name.getStart()}`;
-					if (this.allExportedDeclarationsByKey.has(key)) {
+					if (this.allExportsByKey.has(key)) {
 						throw new Error('DUPE?');
 					}
-					this.allExportedDeclarationsByKey.set(key, new ConstData(node.getSourceFile().fileName, node, decl, this.service));
+					this.allExportsByKey.set(key, new ConstData(node.getSourceFile().fileName, node, decl, this.service));
 				}
 			}
 
@@ -487,7 +487,7 @@ export class Mangler {
 				ts.forEachChild(file, visit);
 			}
 		}
-		this.log(`Done collecting. Classes: ${this.allClassDataByKey.size}. Exported const/fn: ${this.allExportedDeclarationsByKey.size}`);
+		this.log(`Done collecting. Classes: ${this.allClassDataByKey.size}. Exported const/fn: ${this.allExportsByKey.size}`);
 
 
 		//  STEP: connect sub and super-types
@@ -611,8 +611,11 @@ export class Mangler {
 			}
 		}
 
-		for (const data of this.allExportedDeclarationsByKey.values()) {
-			if (data.fileName.endsWith('.d.ts') || skippedFiles.some(file => data.fileName.endsWith(file + '.ts'))) {
+		for (const data of this.allExportsByKey.values()) {
+			if (data.fileName.endsWith('.d.ts')
+				|| skippedExportMangledProjects.some(proj => data.fileName.includes(proj))
+				|| skippedExportMangledFiles.some(file => data.fileName.endsWith(file + '.ts'))
+			) {
 				continue;
 			}
 
