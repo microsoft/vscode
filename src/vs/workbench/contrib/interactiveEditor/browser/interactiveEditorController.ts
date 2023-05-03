@@ -847,7 +847,7 @@ class PreviewStrategy extends EditModeStrategy {
 	override renderChanges(edits: ISingleEditOperation[], changes: LineRangeMapping[]): void {
 		const response = this._session.lastExchange?.response;
 		if (response instanceof EditResponse && response.localEdits.length > 0) {
-			this._widget.showEditsPreview(this._session.modelN, response.localEdits);
+			this._widget.showEditsPreview(this._session.modelN, edits, changes);
 		} else {
 			this._widget.hideEditsPreview();
 		}

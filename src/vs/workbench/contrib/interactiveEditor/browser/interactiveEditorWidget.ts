@@ -7,7 +7,7 @@ import 'vs/css!./interactiveEditor';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,7 +30,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -38,6 +38,11 @@ import { IAction } from 'vs/base/common/actions';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -397,36 +402,37 @@ export class InteractiveEditorWidget {
 
 	// --- preview
 
-	showEditsPreview(actualModel: ITextModel, edits: TextEdit[]) {
+	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: LineRangeMapping[]) {
 		this._elements.previewDiff.classList.remove('hidden');
 
+		const languageSelection: ILanguageSelection = { languageId: textModelv0.getLanguageId(), onDidChange: Event.None };
+		const modified = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModelv0.createSnapshot()), languageSelection, undefined, true);
+		modified.applyEdits(edits, false);
+		this._previewDiffEditor.setModel({ original: textModelv0, modified });
+
+		// joined ranges
+		let originalLineRange = changes[0].originalRange;
+		let modifiedLineRange = changes[0].modifiedRange;
+		for (let i = 1; i < changes.length; i++) {
+			originalLineRange = originalLineRange.join(changes[i].originalRange);
+			modifiedLineRange = modifiedLineRange.join(changes[i].modifiedRange);
+		}
+
+		// apply extra padding
 		const pad = 3;
-		const unionRange = (ranges: IRange[]) => ranges.reduce((p, c) => Range.plusRange(p, c));
+		const newStartLine = Math.max(1, originalLineRange.startLineNumber - pad);
+		modifiedLineRange = new LineRange(newStartLine, modifiedLineRange.endLineNumberExclusive);
+		originalLineRange = new LineRange(newStartLine, originalLineRange.endLineNumberExclusive);
 
-		const languageSelection: ILanguageSelection = { languageId: actualModel.getLanguageId(), onDidChange: Event.None };
-		const baseModel = this._modelService.createModel(actualModel.getValue(), languageSelection, undefined, true);
+		modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber, modifiedLineRange.endLineNumberExclusive + pad);
+		originalLineRange = new LineRange(originalLineRange.startLineNumber, originalLineRange.endLineNumberExclusive + pad);
 
-		const originalRange = unionRange(edits.map(edit => edit.range));
-		const originalRangePadded = baseModel.validateRange(new Range(originalRange.startLineNumber - pad, 1, originalRange.endLineNumber + pad, 1));
-		const originalValue = baseModel.getValueInRange(originalRangePadded);
+		const hiddenOriginal = invertLineRange(originalLineRange, textModelv0);
+		const hiddenModified = invertLineRange(modifiedLineRange, modified);
+		this._previewDiffEditor.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lineRangeAsRange), 'diff-hidden');
+		this._previewDiffEditor.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');
+		this._previewDiffEditor.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
 
-		const undos = baseModel.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)), true);
-		const modifiedRange = unionRange(undos.map(undo => undo.range));
-		const modifiedRangePadded = baseModel.validateRange(new Range(modifiedRange.startLineNumber - pad, 1, modifiedRange.endLineNumber + pad, 1));
-		const modifiedValue = baseModel.getValueInRange(modifiedRangePadded);
-
-
-		baseModel.dispose();
-
-		const original = this._modelService.createModel(originalValue, languageSelection, baseModel.uri.with({ scheme: 'vscode', query: 'original' }), true);
-		const modified = this._modelService.createModel(modifiedValue, languageSelection, baseModel.uri.with({ scheme: 'vscode', query: 'modified' }), true);
-
-		this._previewDiffModel.value = toDisposable(() => {
-			original.dispose();
-			modified.dispose();
-		});
-
-		this._previewDiffEditor.setModel({ original, modified });
 		this._onDidChangeHeight.fire();
 	}
 
