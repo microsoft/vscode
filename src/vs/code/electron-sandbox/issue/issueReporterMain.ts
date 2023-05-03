@@ -20,9 +20,6 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 
-/**
- * @skipMangle
- */
 export function startup(configuration: IssueReporterWindowConfiguration) {
 	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 	document.body.classList.add(platformClass); // used by our fonts

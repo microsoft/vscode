@@ -10,7 +10,5 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
  * - respect portable mode
  * - respect VSCODE_APPDATA environment variable
  * - respect --user-data-dir CLI argument
- *
- * @skipMangle
  */
 export function getUserDataPath(args: NativeParsedArgs, productName: string): string;

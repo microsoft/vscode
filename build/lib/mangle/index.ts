@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
 import { argv } from 'process';
 import { Mapping, SourceMapGenerator } from 'source-map';
+import * as ts from 'typescript';
 import { pathToFileURL } from 'url';
-import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
 import * as workerpool from 'workerpool';
+import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
+const buildfile = require('../../../src/buildfile');
 
 class ShortIdent {
 
@@ -290,21 +291,35 @@ const fileIdents = new class {
 
 const skippedFiles = [
 	// Build
-	'css.build.ts',
-	'nls.build.ts',
+	'css.build',
+	'nls.build',
 
 	// Monaco
-	'editorCommon.ts',
-	'editorOptions.ts',
-	'editorZoom.ts',
-	'standaloneEditor.ts',
-	'standaloneLanguages.ts',
+	'editorCommon',
+	'editorOptions',
+	'editorZoom',
+	'standaloneEditor',
+	'standaloneLanguages',
 
 	// Generated
-	'extensionsApiProposals.ts',
+	'extensionsApiProposals',
 
 	// Module passed around as type
-	'pfs.ts',
+	'pfs',
+
+	// entry points
+	...[
+		buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
+		buildfile.base,
+		buildfile.workerExtensionHost,
+		buildfile.workerNotebook,
+		buildfile.workerLanguageDetection,
+		buildfile.workerLocalFileSearch,
+		buildfile.workerProfileAnalysis,
+		buildfile.workbenchDesktop,
+		buildfile.workbenchWeb,
+		buildfile.code
+	].flat().map(x => x.name),
 ];
 
 class DeclarationData {
@@ -333,11 +348,6 @@ class DeclarationData {
 
 		// Don't mangle functions we've explicitly opted out
 		if (this.node.getFullText().includes('@skipMangle')) {
-			return false;
-		}
-
-		// Don't mangle functions in the monaco editor API.
-		if (skippedFiles.some(file => this.node.getSourceFile().fileName.endsWith(file))) {
 			return false;
 		}
 
@@ -379,11 +389,6 @@ class ConstData {
 			return false;
 		}
 
-		// Don't mangle functions in some files
-		if (skippedFiles.some(file => this.decl.getSourceFile().fileName.endsWith(file))) {
-			return false;
-		}
-
 		return true;
 	}
 }
@@ -410,7 +415,10 @@ export class Mangler {
 	private readonly service: ts.LanguageService;
 	private readonly renameWorkerPool: workerpool.WorkerPool;
 
-	constructor(readonly projectPath: string, readonly log: typeof console.log = () => { }) {
+	constructor(
+		private readonly projectPath: string,
+		private readonly log: typeof console.log = () => { }
+	) {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 
 		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
@@ -604,6 +612,10 @@ export class Mangler {
 		}
 
 		for (const data of this.allExportedDeclarationsByKey.values()) {
+			if (data.fileName.endsWith('.d.ts') || skippedFiles.some(file => data.fileName.endsWith(file + '.ts'))) {
+				continue;
+			}
+
 			if (!data.shouldMangle(data.replacementName)) {
 				continue;
 			}

@@ -14,7 +14,6 @@ type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>, s
 /**
  * Called on the worker side
  * @internal
- * @skipMangle
  */
 export function create(host: IEditorWorkerHost): IRequestHandler {
 	return new LanguageDetectionSimpleWorker(host, null);

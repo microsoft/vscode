@@ -147,9 +147,6 @@ export interface IRawModelData {
 	maxTokenizationLineLength: number;
 }
 
-/**
- * @skipMangle
- */
 export function create(ctx: IWorkerContext<TextMateWorkerHost>, createData: ICreateData): TextMateTokenizationWorker {
 	return new TextMateTokenizationWorker(ctx, createData);
 }

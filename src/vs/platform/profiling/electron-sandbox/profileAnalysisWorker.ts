@@ -11,9 +11,6 @@ import { IV8Profile, Utils } from 'vs/platform/profiling/common/profiling';
 import { IProfileModel, BottomUpSample, buildModel, BottomUpNode, processNode, CdpCallFrame } from 'vs/platform/profiling/common/profilingModel';
 import { BottomUpAnalysis, IProfileAnalysisWorker, ProfilingOutput } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
 
-/**
- * @skipMangle
- */
 export function create(): IRequestHandler {
 	return new ProfileAnalysisWorker();
 }

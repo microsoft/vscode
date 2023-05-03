@@ -818,7 +818,6 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 /**
  * Called on the worker side
  * @internal
- * @skipMangle
  */
 export function create(host: IEditorWorkerHost): IRequestHandler {
 	return new EditorSimpleWorker(host, null);
