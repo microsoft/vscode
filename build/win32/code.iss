@@ -1381,20 +1381,26 @@ end;
 var
 	StartTunnelService: Boolean;
 
-procedure StopTunnelService();
+procedure StopTunnelServiceIfNeeded();
 var
-  UpdateResultCode: Integer;
+	StopServiceResultCode: Integer;
 begin
-  // stop the tunnel service
-  Log('Stopping the tunnel service...');
-  Exec(ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"'), 'tunnel service uninstall', '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+ 	if CheckForMutexes('{#TunnelServiceMutex}') then begin
+		// stop the tunnel service
+		Log('Stopping the tunnel service using ' + ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'));
+		ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel service uninstall', '', SW_HIDE, ewWaitUntilTerminated, StopServiceResultCode);
+		Log('Stopping the tunnel service completed with result code ' + IntToStr(StopServiceResultCode));
 
-  while (CheckForMutexes('{#TunnelServiceMutex}')) do
-  begin
-    Log('Tunnel service is still running, waiting');
-    Sleep(500);
-  end;
-  StartTunnelService := True
+		while (CheckForMutexes('{#TunnelServiceMutex}')) do
+		begin
+			Log('Tunnel service is still running, waiting');
+			Sleep(500);
+		end;
+		StartTunnelService := True
+	end else begin
+		Log('No tunnel service running...');
+		StartTunnelService := False
+	end
 end;
 
 function IsNotUpdate(): Boolean;
@@ -1483,11 +1489,12 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
+	StartServiceResultCode: Integer;
 begin
 
   if (not IsBackgroundUpdate()) and (CurStep = ssInstall) then
   begin
-    StopTunnelService();
+    StopTunnelServiceIfNeeded();
 
 		while CheckForMutexes('{#TunnelMutex}') do
 		begin
@@ -1506,7 +1513,7 @@ begin
       Sleep(1000);
     end;
 
-    StopTunnelService();
+    StopTunnelServiceIfNeeded();
 
     Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
   end;
@@ -1515,7 +1522,8 @@ begin
 	begin
 		// start the tunnel service
 		Log('Restarting the tunnel service...');
-    Exec(ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"'), 'tunnel service install', '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+    ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel service install', '', SW_HIDE, ewWaitUntilTerminated, StartServiceResultCode);
+		Log('Starting the tunnel service completed with result code ' + IntToStr(StartServiceResultCode));
 		StartTunnelService := False
 	end;
 
