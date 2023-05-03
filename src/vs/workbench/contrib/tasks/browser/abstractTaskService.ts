@@ -326,8 +326,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 		this._lifecycleService.onBeforeShutdown(async e => {
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
-			const tasks = (await this.getActiveTasks()).filter(t => t.configurationProperties.isBackground);
-			await Promise.all(tasks.map(t => this.terminate(t)));
 		});
 		this._register(this.onDidStateChange(e => {
 			if ((this._willRestart || e.exitReason === TerminalExitReason.User) && e.taskId) {
