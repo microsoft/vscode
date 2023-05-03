@@ -9,7 +9,7 @@ import { Command, commands, Disposable, LineChange, MessageOptions, Position, Pr
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
-import { Git, Stash } from './git';
+import { Git, Stash, sanitizeBranchName } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
@@ -2179,9 +2179,6 @@ export class CommandCenter {
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
-		const sanitize = (name: string) => name ?
-			name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
-			: name;
 
 		let rawBranchName = defaultName;
 
@@ -2206,7 +2203,7 @@ export class CommandCenter {
 				ignoreFocusOut: true,
 				validateInput: (name: string) => {
 					const validateName = new RegExp(branchValidationRegex);
-					const sanitizedName = sanitize(name);
+					const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
 					if (validateName.test(sanitizedName)) {
 						// If the sanitized name that we will use is different than what is
 						// in the input box, show an info message to the user informing them
@@ -2224,7 +2221,7 @@ export class CommandCenter {
 			});
 		}
 
-		return sanitize(rawBranchName || '');
+		return sanitizeBranchName(rawBranchName || '', branchWhitespaceChar);
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {

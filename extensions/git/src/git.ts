@@ -348,6 +348,10 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
+export function sanitizeBranchName(name: string, whitespaceChar: string): string {
+	return name ? name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, whitespaceChar) : name;
+}
+
 // https://github.com/microsoft/vscode/issues/89373
 // https://github.com/git-for-windows/git/issues/2478
 function sanitizePath(path: string): string {
@@ -402,7 +406,18 @@ export class Git {
 	}
 
 	async init(repository: string): Promise<void> {
-		await this.exec(repository, ['init']);
+		const args = ['init'];
+
+		const config = workspace.getConfiguration('git');
+		const branchDefaultName = config.get<string>('branchDefaultName', 'main');
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
+		const branchName = sanitizeBranchName(branchDefaultName, branchWhitespaceChar);
+
+		if (branchName !== '') {
+			args.push('-b', branchName);
+		}
+
+		await this.exec(repository, args);
 		return;
 	}
 
