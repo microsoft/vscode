@@ -3771,6 +3771,10 @@ declare namespace monaco.editor {
 		 */
 		dropIntoEditor?: IDropIntoEditorOptions;
 		/**
+		 * Controls support for changing how content is pasted into the editor.
+		 */
+		pasteAs?: IPasteAsOptions;
+		/**
 		 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
 		 */
 		tabFocusMode?: boolean;
@@ -4709,6 +4713,22 @@ declare namespace monaco.editor {
 		showDropSelector?: 'afterDrop' | 'never';
 	}
 
+	/**
+	 * Configuration options for editor pasting as into behavior
+	 */
+	export interface IPasteAsOptions {
+		/**
+		 * Enable paste as functionality in editors.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+		/**
+		 * Controls if a widget is shown after a drop.
+		 * Defaults to 'afterPaste'.
+		 */
+		showPasteSelector?: 'afterPaste' | 'never';
+	}
+
 	export enum EditorOption {
 		acceptSuggestionOnCommitCharacter = 0,
 		acceptSuggestionOnEnter = 1,
@@ -4792,66 +4812,67 @@ declare namespace monaco.editor {
 		overviewRulerBorder = 79,
 		overviewRulerLanes = 80,
 		padding = 81,
-		parameterHints = 82,
-		peekWidgetDefaultFocus = 83,
-		definitionLinkOpensInPeek = 84,
-		quickSuggestions = 85,
-		quickSuggestionsDelay = 86,
-		readOnly = 87,
-		renameOnType = 88,
-		renderControlCharacters = 89,
-		renderFinalNewline = 90,
-		renderLineHighlight = 91,
-		renderLineHighlightOnlyWhenFocus = 92,
-		renderValidationDecorations = 93,
-		renderWhitespace = 94,
-		revealHorizontalRightPadding = 95,
-		roundedSelection = 96,
-		rulers = 97,
-		scrollbar = 98,
-		scrollBeyondLastColumn = 99,
-		scrollBeyondLastLine = 100,
-		scrollPredominantAxis = 101,
-		selectionClipboard = 102,
-		selectionHighlight = 103,
-		selectOnLineNumbers = 104,
-		showFoldingControls = 105,
-		showUnused = 106,
-		snippetSuggestions = 107,
-		smartSelect = 108,
-		smoothScrolling = 109,
-		stickyScroll = 110,
-		stickyTabStops = 111,
-		stopRenderingLineAfter = 112,
-		suggest = 113,
-		suggestFontSize = 114,
-		suggestLineHeight = 115,
-		suggestOnTriggerCharacters = 116,
-		suggestSelection = 117,
-		tabCompletion = 118,
-		tabIndex = 119,
-		unicodeHighlighting = 120,
-		unusualLineTerminators = 121,
-		useShadowDOM = 122,
-		useTabStops = 123,
-		wordBreak = 124,
-		wordSeparators = 125,
-		wordWrap = 126,
-		wordWrapBreakAfterCharacters = 127,
-		wordWrapBreakBeforeCharacters = 128,
-		wordWrapColumn = 129,
-		wordWrapOverride1 = 130,
-		wordWrapOverride2 = 131,
-		wrappingIndent = 132,
-		wrappingStrategy = 133,
-		showDeprecated = 134,
-		inlayHints = 135,
-		editorClassName = 136,
-		pixelRatio = 137,
-		tabFocusMode = 138,
-		layoutInfo = 139,
-		wrappingInfo = 140,
-		defaultColorDecorators = 141
+		pasteAs = 82,
+		parameterHints = 83,
+		peekWidgetDefaultFocus = 84,
+		definitionLinkOpensInPeek = 85,
+		quickSuggestions = 86,
+		quickSuggestionsDelay = 87,
+		readOnly = 88,
+		renameOnType = 89,
+		renderControlCharacters = 90,
+		renderFinalNewline = 91,
+		renderLineHighlight = 92,
+		renderLineHighlightOnlyWhenFocus = 93,
+		renderValidationDecorations = 94,
+		renderWhitespace = 95,
+		revealHorizontalRightPadding = 96,
+		roundedSelection = 97,
+		rulers = 98,
+		scrollbar = 99,
+		scrollBeyondLastColumn = 100,
+		scrollBeyondLastLine = 101,
+		scrollPredominantAxis = 102,
+		selectionClipboard = 103,
+		selectionHighlight = 104,
+		selectOnLineNumbers = 105,
+		showFoldingControls = 106,
+		showUnused = 107,
+		snippetSuggestions = 108,
+		smartSelect = 109,
+		smoothScrolling = 110,
+		stickyScroll = 111,
+		stickyTabStops = 112,
+		stopRenderingLineAfter = 113,
+		suggest = 114,
+		suggestFontSize = 115,
+		suggestLineHeight = 116,
+		suggestOnTriggerCharacters = 117,
+		suggestSelection = 118,
+		tabCompletion = 119,
+		tabIndex = 120,
+		unicodeHighlighting = 121,
+		unusualLineTerminators = 122,
+		useShadowDOM = 123,
+		useTabStops = 124,
+		wordBreak = 125,
+		wordSeparators = 126,
+		wordWrap = 127,
+		wordWrapBreakAfterCharacters = 128,
+		wordWrapBreakBeforeCharacters = 129,
+		wordWrapColumn = 130,
+		wordWrapOverride1 = 131,
+		wordWrapOverride2 = 132,
+		wrappingIndent = 133,
+		wrappingStrategy = 134,
+		showDeprecated = 135,
+		inlayHints = 136,
+		editorClassName = 137,
+		pixelRatio = 138,
+		tabFocusMode = 139,
+		layoutInfo = 140,
+		wrappingInfo = 141,
+		defaultColorDecorators = 142
 	}
 
 	export const EditorOptions: {
@@ -4938,6 +4959,7 @@ declare namespace monaco.editor {
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		padding: IEditorOption<EditorOption.padding, Readonly<Required<IEditorPaddingOptions>>>;
+		pasteAs: IEditorOption<EditorOption.pasteAs, Readonly<Required<IPasteAsOptions>>>;
 		parameterHints: IEditorOption<EditorOption.parameterHints, Readonly<Required<IEditorParameterHintOptions>>>;
 		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
 		definitionLinkOpensInPeek: IEditorOption<EditorOption.definitionLinkOpensInPeek, boolean>;

@@ -9,6 +9,7 @@ import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { toExternalVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -110,7 +111,9 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				if (possibleDropEdits) {
 					const allEdits = coalesce(possibleDropEdits);
 					// Pass in the parent token here as it tracks cancelling the entire drop operation.
-					await this._postDropWidgetManager.applyEditAndShowIfNeeded(Range.fromPositions(position), { activeEditIndex: 0, allEdits }, token);
+
+					const canShowWidget = editor.getOption(EditorOption.dropIntoEditor).showDropSelector === 'afterDrop';
+					await this._postDropWidgetManager.applyEditAndShowIfNeeded(Range.fromPositions(position), { activeEditIndex: 0, allEdits }, canShowWidget, token);
 				}
 			} finally {
 				tokenSource.dispose();

@@ -155,7 +155,7 @@ export class PostEditWidgetManager extends Disposable {
 		)(() => this.clear()));
 	}
 
-	public async applyEditAndShowIfNeeded(range: Range, edits: EditSet, token: CancellationToken) {
+	public async applyEditAndShowIfNeeded(range: Range, edits: EditSet, canShowWidget: boolean, token: CancellationToken) {
 		const model = this._editor.getModel();
 		if (!model) {
 			return;
@@ -192,7 +192,7 @@ export class PostEditWidgetManager extends Disposable {
 			model.deltaDecorations(editTrackingDecoration, []);
 		}
 
-		if (editResult.isApplied && edits.allEdits.length > 1) {
+		if (canShowWidget && editResult.isApplied && edits.allEdits.length > 1) {
 			this.show(editRange ?? range, edits, async (newEditIndex) => {
 				const model = this._editor.getModel();
 				if (!model) {
@@ -200,7 +200,7 @@ export class PostEditWidgetManager extends Disposable {
 				}
 
 				await model.undo();
-				this.applyEditAndShowIfNeeded(range, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, token);
+				this.applyEditAndShowIfNeeded(range, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, token);
 			});
 		}
 	}
