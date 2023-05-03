@@ -6,7 +6,7 @@
 import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages';
 import { FontStyle, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
+import { CONTEXT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, LogLevelToString } from 'vs/platform/log/common/log';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 
@@ -31,7 +31,7 @@ export class SemanticTokensProviderStyling {
 		@ILoggerService loggerService: ILoggerService
 	) {
 		this._hashTable = new HashTable();
-		this._logger = loggerService.createLogger('semanticTokensProviderStyling', { name: nls.localize('semanticTokensLogName', 'Semantic Tokens') });
+		this._logger = loggerService.createLogger('semanticTokensProviderStyling', { name: nls.localize('semanticTokensLogName', 'Semantic Tokens'), when: CONTEXT_LOG_LEVEL.isEqualTo(LogLevelToString(LogLevel.Trace)).serialize() });
 	}
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
