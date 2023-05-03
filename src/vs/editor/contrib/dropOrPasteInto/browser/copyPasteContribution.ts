@@ -7,7 +7,9 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
-import { CopyPasteController, changePasteTypeCommandId, pasteWidgetVisibleCtx } from 'vs/editor/contrib/copyPaste/browser/copyPasteController';
+import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
+import { CopyPasteController, changePasteTypeCommandId, pasteWidgetVisibleCtx } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
+import { DefaultPasteProvidersFeature } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
 import * as nls from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -43,3 +45,5 @@ registerEditorCommand(new class extends EditorCommand {
 		CopyPasteController.get(editor)?.changePasteType();
 	}
 });
+
+registerEditorFeature(DefaultPasteProvidersFeature);

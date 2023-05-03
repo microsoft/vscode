@@ -21,10 +21,9 @@ import { Handler, IEditorContribution, PastePayload } from 'vs/editor/common/edi
 import { DocumentPasteEdit, DocumentPasteEditProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { registerDefaultPasteProviders } from 'vs/editor/contrib/copyPaste/browser/defaultPasteProviders';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
-import { PostEditWidgetManager } from 'vs/editor/contrib/postEditWidget/browser/postEditWidget';
+import { PostEditWidgetManager } from './postEditWidget';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -81,8 +80,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._pasteProgressManager = this._register(new InlineProgressManager('pasteIntoEditor', editor, instantiationService));
 
 		this._postPasteWidgetManager = this._register(instantiationService.createInstance(PostEditWidgetManager, 'pasteIntoEditor', editor, pasteWidgetVisibleCtx, { id: changePasteTypeCommandId, label: localize('postPasteWidgetTitle', "Show paste options...") }));
-
-		registerDefaultPasteProviders(_languageFeaturesService);
 	}
 
 	public changePasteType() {
