@@ -61,6 +61,8 @@ export interface IInteractiveSessionLiveUpdateData {
 export interface IInteractiveResponseViewModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
+	/** This ID updates every time the underlying data changes */
+	readonly dataId: string;
 	readonly providerId: string;
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
@@ -183,6 +185,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	readonly onDidChange = this._onDidChange.event;
 
 	get id() {
+		return this._model.id;
+	}
+
+	get dataId() {
 		return this._model.id + `_${this._modelChangeCount}`;
 	}
 
