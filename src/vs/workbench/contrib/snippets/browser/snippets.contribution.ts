@@ -48,6 +48,11 @@ Registry
 				'description': nls.localize('editor.snippets.codeActions.enabled', 'Controls if surround-with-snippets or file template snippets show as Code Actions.'),
 				'type': 'boolean',
 				'default': true
+			},
+			'editor.snippets.fillDescriptions.enabled': {
+				'description': nls.localize('editor.snippets.fillDescriptions.enabled', 'Controls whether empty descriptions in snippets are replaced with the body of the snippet.'),
+				'type': 'boolean',
+				'default': false
 			}
 		}
 	});
