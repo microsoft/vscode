@@ -69,7 +69,10 @@ export interface IStorage extends IDisposable {
 	getNumber(key: string, fallbackValue: number): number;
 	getNumber(key: string, fallbackValue?: number): number | undefined;
 
-	set(key: string, value: string | boolean | number | undefined | null): Promise<void>;
+	getObject(key: string, fallbackValue: object): object;
+	getObject(key: string, fallbackValue?: object): object | undefined;
+
+	set(key: string, value: string | boolean | number | undefined | null | object): Promise<void>;
 	delete(key: string): Promise<void>;
 
 	flush(delay?: number): Promise<void>;
@@ -213,7 +216,19 @@ export class Storage extends Disposable implements IStorage {
 		return parseInt(value, 10);
 	}
 
-	async set(key: string, value: string | boolean | number | null | undefined): Promise<void> {
+	getObject(key: string, fallbackValue: object): object;
+	getObject(key: string, fallbackValue?: object | undefined): object | undefined;
+	getObject(key: string, fallbackValue?: object): object | undefined {
+		const value = this.get(key);
+
+		if (isUndefinedOrNull(value)) {
+			return fallbackValue;
+		}
+
+		return JSON.parse(value);
+	}
+
+	async set(key: string, value: string | boolean | number | null | undefined | object): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -224,7 +239,7 @@ export class Storage extends Disposable implements IStorage {
 		}
 
 		// Otherwise, convert to String and store
-		const valueStr = String(value);
+		const valueStr = typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
 
 		// Return early if value already set
 		const currentValue = this.cache.get(key);
