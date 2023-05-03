@@ -10,7 +10,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
@@ -39,7 +39,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
 import { InteractiveEditorWidget, InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, IInteractiveEditorMessageResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, IInteractiveEditorMessageResponse, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -786,12 +786,27 @@ abstract class EditModeStrategy {
 
 class PreviewStrategy extends EditModeStrategy {
 
+	private readonly _ctxDocumentChanged: IContextKey<boolean>;
+	private readonly _listener: IDisposable;
+
 	constructor(
 		private readonly _session: Session,
 		private readonly _widget: InteractiveEditorWidget,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
+
+		this._ctxDocumentChanged = CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED.bindTo(contextKeyService);
+		this._listener = Event.debounce(_session.modelN.onDidChangeContent.bind(_session.modelN), () => { }, 350)(_ => {
+			this._ctxDocumentChanged.set(!_session.modelN.equalsTextBuffer(_session.model0.getTextBuffer()));
+		});
+	}
+
+	override dispose(): void {
+		this._listener.dispose();
+		this._ctxDocumentChanged.reset();
+		super.dispose();
 	}
 
 	checkChanges(response: EditResponse): boolean {
