@@ -129,14 +129,14 @@ export class GitHubServer implements IGitHubServer {
 		let userCancelled: boolean | undefined;
 		const yes = vscode.l10n.t('Yes');
 		const no = vscode.l10n.t('No');
-		const promptToContinue = async () => {
+		const promptToContinue = async (mode: string) => {
 			if (userCancelled === undefined) {
 				// We haven't had a failure yet so wait to prompt
 				return;
 			}
 			const message = userCancelled
-				? vscode.l10n.t('Having trouble logging in? Would you like to try a different way?')
-				: vscode.l10n.t('You have not yet finished authorizing this extension to use GitHub. Would you like to keep trying?');
+				? vscode.l10n.t('Having trouble logging in? Would you like to try a different way? ({0})', mode)
+				: vscode.l10n.t('You have not yet finished authorizing this extension to use GitHub. Would you like to try a different way? ({0})', mode);
 			const result = await vscode.window.showWarningMessage(message, yes, no);
 			if (result !== yes) {
 				throw new Error(CANCELLATION_ERROR);
@@ -167,7 +167,7 @@ export class GitHubServer implements IGitHubServer {
 			supportedTarget
 		) {
 			try {
-				await promptToContinue();
+				await promptToContinue(vscode.l10n.t('local server'));
 				return await this.doLoginWithLocalServer(scopes);
 			} catch (e) {
 				userCancelled = this.processLoginError(e);
@@ -177,7 +177,7 @@ export class GitHubServer implements IGitHubServer {
 		// We only can use the Device Code flow when we have a full node environment because of CORS.
 		if (typeof navigator === 'undefined') {
 			try {
-				await promptToContinue();
+				await promptToContinue(vscode.l10n.t('device code'));
 				return await this.doLoginDeviceCodeFlow(scopes);
 			} catch (e) {
 				userCancelled = this.processLoginError(e);
@@ -188,7 +188,7 @@ export class GitHubServer implements IGitHubServer {
 		// With that said, GitHub Enterprise isn't used by Settings Sync so we can use PATs for that.
 		if (!supportedClient || this._type === AuthProviderType.githubEnterprise) {
 			try {
-				await promptToContinue();
+				await promptToContinue(vscode.l10n.t('personal access token'));
 				return await this.doLoginWithPat(scopes);
 			} catch (e) {
 				userCancelled = this.processLoginError(e);

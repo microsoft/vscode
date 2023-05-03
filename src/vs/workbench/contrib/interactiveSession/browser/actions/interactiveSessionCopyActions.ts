@@ -76,5 +76,5 @@ export function registerInteractiveSessionCopyActions() {
 
 function stringifyItem(item: IInteractiveRequestViewModel | IInteractiveResponseViewModel): string {
 	return isRequestVM(item) ?
-		`${item.username}: ${item.message}` : `${item.username}: ${item.response.value}`;
+		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.value}`;
 }

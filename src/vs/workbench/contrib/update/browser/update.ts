@@ -17,7 +17,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ReleaseNotesManager } from 'vs/workbench/contrib/update/browser/releaseNotesEditor';
-import { isWindows } from 'vs/base/common/platform';
+import { isWeb, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -115,6 +115,10 @@ export class ProductContribution implements IWorkbenchContribution {
 		if (productService.downloadUrl) {
 			const downloadUrlKey = DOWNLOAD_URL.bindTo(contextKeyService);
 			downloadUrlKey.set(productService.downloadUrl);
+		}
+
+		if (isWeb) {
+			return;
 		}
 
 		hostService.hadLastFocus().then(async hadLastFocus => {

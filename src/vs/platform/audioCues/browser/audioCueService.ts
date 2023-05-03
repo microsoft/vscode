@@ -74,6 +74,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			const sound = this.sounds.get(url);
 			if (sound) {
 				sound.volume = this.getVolumeInPercent() / 100;
+				sound.currentTime = 0;
 				await sound.play();
 			} else {
 				const playedSound = await playAudio(url, this.getVolumeInPercent() / 100);

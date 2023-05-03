@@ -1749,6 +1749,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.ariaLabel = value;
 	}
 
+	get selectionSize() {
+		return this.selection.getNodes().length;
+	}
+
 	domFocus(): void {
 		this.view.domFocus();
 	}

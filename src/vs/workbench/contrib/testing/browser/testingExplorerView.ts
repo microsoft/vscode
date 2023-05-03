@@ -645,6 +645,10 @@ class TestingExplorerViewModel extends Disposable {
 				return;
 			}
 
+			if (this.tree.selectionSize > 1) {
+				return; // don't change a multi-selection #180950
+			}
+
 			// follow running tests, or tests whose state changed. Tests that
 			// complete very fast may not enter the running state at all.
 			if (evt.item.ownComputedState !== TestResultState.Running && !(evt.previousState === TestResultState.Queued && isStateWithResult(evt.item.ownComputedState))) {

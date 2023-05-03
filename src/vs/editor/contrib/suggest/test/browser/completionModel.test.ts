@@ -35,7 +35,6 @@ suite('CompletionModel', function () {
 
 	const defaultOptions = <InternalSuggestOptions>{
 		insertMode: 'insert',
-		snippetsPreventQuickSuggestions: true,
 		filterGraceful: true,
 		localityBonus: false,
 		shareSuggestSelections: false,

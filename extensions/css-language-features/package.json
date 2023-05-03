@@ -6,7 +6,7 @@
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.29.0"
+    "vscode": "^1.77.0"
   },
   "icon": "icons/css.png",
   "activationEvents": [
@@ -994,7 +994,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^8.1.0",
+    "vscode-languageclient": "^8.2.0-next.0",
     "vscode-uri": "^3.0.7"
   },
   "devDependencies": {

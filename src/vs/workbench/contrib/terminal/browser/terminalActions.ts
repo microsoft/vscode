@@ -502,11 +502,11 @@ export function registerTerminalActions() {
 		title: { value: localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal"), original: 'Run Selected Text In Active Terminal' },
 		run: async (c, accessor) => {
 			const codeEditorService = accessor.get(ICodeEditorService);
-			let instance = await c.service.getActiveOrCreateInstance();
 			const editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
 			}
+			const instance = await c.service.getActiveOrCreateInstance({ acceptsInput: true });
 			const selection = editor.getSelection();
 			let text: string;
 			if (selection.isEmpty()) {
@@ -515,14 +515,8 @@ export function registerTerminalActions() {
 				const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
-			// Don't use task terminals or other terminals that don't accept input
-			if (instance?.xterm?.isStdinDisabled || instance?.shellLaunchConfig.type === 'Task') {
-				instance = await c.service.createTerminal();
-				c.service.setActiveInstance(instance);
-				await revealActiveTerminal(instance, c);
-			}
 			instance.sendText(text, true, true);
-			await revealActiveTerminal(instance, c);
+			await c.service.revealActiveTerminal();
 		}
 	});
 
@@ -540,24 +534,12 @@ export function registerTerminalActions() {
 				return;
 			}
 
-			let instance = c.service.activeInstance;
-
-			// Don't use task terminals or other terminals that don't accept input
-			if (instance?.xterm?.isStdinDisabled || instance?.shellLaunchConfig.type === 'Task') {
-				instance = await c.service.createTerminal();
-				c.service.setActiveInstance(instance);
-				await revealActiveTerminal(instance, c);
-			}
-
+			const instance = await c.service.getActiveOrCreateInstance({ acceptsInput: true });
 			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
 			const uri = editor.getModel().uri;
 			if ((!isRemote && uri.scheme !== Schemas.file && uri.scheme !== Schemas.vscodeUserData) || (isRemote && uri.scheme !== Schemas.vscodeRemote)) {
 				notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 				return;
-			}
-
-			if (!instance) {
-				instance = await c.service.getActiveOrCreateInstance();
 			}
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
@@ -1788,14 +1770,6 @@ async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServ
 		await instance.focusWhenReady(true);
 	} else {
 		await c.groupService.showPanel(true);
-	}
-}
-
-export async function revealActiveTerminal(instance: ITerminalInstance, c: ITerminalServicesCollection): Promise<void> {
-	if (instance.target === TerminalLocation.Editor) {
-		await c.editorService.revealActiveEditor();
-	} else {
-		await c.groupService.showPanel();
 	}
 }
 
