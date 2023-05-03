@@ -5,9 +5,11 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { ITextModel } from 'vs/editor/common/model';
 import { DiffAlgorithmName, IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, IDisposable {
 	private onDidChangeEventEmitter = new Emitter<void>();
@@ -19,6 +21,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 	constructor(
 		options: IWorkerBasedDocumentDiffProviderOptions,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this.setOptions(options);
 	}
@@ -32,7 +35,25 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			return this.diffAlgorithm.computeDiff(original, modified, options);
 		}
 
+		const sw = StopWatch.create(true);
 		const result = await this.editorWorkerService.computeDiff(original.uri, modified.uri, options, this.diffAlgorithm);
+		const timeMs = sw.elapsed();
+
+		this.telemetryService.publicLog2<{
+			timeMs: number;
+			timedOut: boolean;
+		}, {
+			owner: 'hediet';
+
+			timeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand if the new diff algorithm is slower/faster than the old one' };
+			timedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand how often the new diff algorithm times out' };
+
+			comment: 'This event gives insight about the performance of the new diff algorithm.';
+		}>('diffEditor.computeDiff', {
+			timeMs,
+			timedOut: result?.quitEarly ?? true,
+		});
+
 		if (!result) {
 			throw new Error('no diff result available');
 		}

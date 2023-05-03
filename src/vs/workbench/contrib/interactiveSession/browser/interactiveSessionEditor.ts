@@ -99,7 +99,7 @@ export class InteractiveSessionEditor extends EditorPane {
 		this._modelDisposables.clear();
 
 		this._memento = new Memento('interactive-session-editor-' + model.sessionId, this.storageService);
-		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
+		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewState;
 		this.widget.setModel(model, { ...this._viewState });
 		this._modelDisposables.add(model.onDidDispose(() => {
 			// TODO go back to swapping out the EditorInput when the session is restarted instead of this listener

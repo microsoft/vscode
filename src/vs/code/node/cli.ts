@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, ChildProcessWithoutNullStreams, spawn, SpawnOptions } from 'child_process';
+import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
@@ -56,20 +56,21 @@ export async function main(argv: string[]): Promise<any> {
 		}
 		const tunnelArgs = argv.slice(argv.indexOf('tunnel') + 1); // all arguments behind `tunnel`
 		return new Promise((resolve, reject) => {
-			let tunnelProcess: ChildProcessWithoutNullStreams;
+			let tunnelProcess: ChildProcess;
+			const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
 			if (process.env['VSCODE_DEV']) {
-				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...tunnelArgs], { cwd: join(getAppRoot(), 'cli') });
+				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio });
 			} else {
 				const appPath = process.platform === 'darwin'
 					// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
 					? join(dirname(dirname(process.execPath)), 'Resources', 'app')
 					: dirname(process.execPath);
 				const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
-				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs], { cwd: cwd() });
+				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs], { cwd: cwd(), stdio });
 			}
 
-			tunnelProcess.stdout.pipe(process.stdout);
-			tunnelProcess.stderr.pipe(process.stderr);
+			tunnelProcess.stdout!.pipe(process.stdout);
+			tunnelProcess.stderr!.pipe(process.stderr);
 			tunnelProcess.on('exit', resolve);
 			tunnelProcess.on('error', reject);
 		});

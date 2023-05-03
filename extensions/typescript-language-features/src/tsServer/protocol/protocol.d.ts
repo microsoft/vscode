@@ -19,14 +19,5 @@ declare module 'typescript/lib/tsserverlibrary' {
 		interface Response {
 			readonly _serverType?: ServerType;
 		}
-
-		interface LinkedEditingRangesBody {
-			ranges: TextSpan[];
-			wordPattern?: string;
-		}
-
-		interface LinkedEditingRangeResponse extends Response {
-			readonly body: LinkedEditingRangesBody;
-		}
 	}
 }

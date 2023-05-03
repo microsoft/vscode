@@ -481,7 +481,7 @@ class TestingExplorerViewModel extends Disposable {
 
 		this._viewMode.set(newMode);
 		this.updatePreferredProjection();
-		this.storageService.store('testing.viewMode', newMode, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store('testing.viewMode', newMode, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 
@@ -496,7 +496,7 @@ class TestingExplorerViewModel extends Disposable {
 
 		this._viewSorting.set(newSorting);
 		this.tree.resort(null);
-		this.storageService.store('testing.viewSorting', newSorting, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store('testing.viewSorting', newSorting, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	constructor(
@@ -643,6 +643,10 @@ class TestingExplorerViewModel extends Disposable {
 
 			if (evt.reason !== TestResultItemChangeReason.OwnStateChange) {
 				return;
+			}
+
+			if (this.tree.selectionSize > 1) {
+				return; // don't change a multi-selection #180950
 			}
 
 			// follow running tests, or tests whose state changed. Tests that

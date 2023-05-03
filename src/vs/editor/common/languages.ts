@@ -783,7 +783,8 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	insertText: string | { snippet: string };
+	readonly label: string;
+	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 
@@ -1942,7 +1943,7 @@ export enum ExternalUriOpenerPriority {
 export interface DocumentOnDropEdit {
 	readonly label: string;
 
-	insertText: string | { snippet: string };
+	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
@@ -124,11 +123,11 @@ export interface IIssueMainService {
 
 	// Used by the issue reporter
 
-	getSystemInfo(): Promise<SystemInfo>;
-	getPerformanceInfo(): Promise<PerformanceInfo>;
-	reloadWithExtensionsDisabled(): Promise<void>;
-	showConfirmCloseDialog(): Promise<void>;
-	showClipboardDialog(): Promise<boolean>;
-	getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI>;
-	closeReporter(): Promise<void>;
+	$getSystemInfo(): Promise<SystemInfo>;
+	$getPerformanceInfo(): Promise<PerformanceInfo>;
+	$reloadWithExtensionsDisabled(): Promise<void>;
+	$showConfirmCloseDialog(): Promise<void>;
+	$showClipboardDialog(): Promise<boolean>;
+	$getIssueReporterUri(extensionId: string): Promise<URI>;
+	$closeReporter(): Promise<void>;
 }

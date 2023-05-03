@@ -64,7 +64,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					version: manifest.version,
 					repositoryUrl: manifest.repository && manifest.repository.url,
 					bugsUrl: manifest.bugs && manifest.bugs.url,
-					hasIssueUriRequestHandler: this._handlers.has(extension.identifier.id),
+					hasIssueUriRequestHandler: this._handlers.has(extension.identifier.id.toLowerCase()),
 					displayName: manifest.displayName,
 					id: extension.identifier.id,
 					isTheme,
@@ -145,7 +145,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	}
 
 	registerIssueUriRequestHandler(extensionId: string, handler: IIssueUriRequestHandler): IDisposable {
-		this._handlers.set(extensionId, handler);
+		this._handlers.set(extensionId.toLowerCase(), handler);
 		return {
 			dispose: () => this._handlers.delete(extensionId)
 		};
