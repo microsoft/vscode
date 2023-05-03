@@ -374,7 +374,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	}
 
 	private update(lastAction: MenuItemAction): void {
-		this._storageService.store(this._storageKey, lastAction.id, StorageScope.WORKSPACE, StorageTarget.USER);
+		this._storageService.store(this._storageKey, lastAction.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		this._defaultAction.dispose();
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction) });
