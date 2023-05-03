@@ -152,6 +152,11 @@ export interface IInteractiveSessionCompleteResponse {
 	errorDetails?: IInteractiveResponseErrorDetails;
 }
 
+export interface IInteractiveSessionDetail {
+	sessionId: string;
+	title: string;
+}
+
 export interface IInteractiveProviderInfo {
 	id: string;
 	displayName: string;
@@ -163,7 +168,7 @@ export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
 	getProviderInfos(): IInteractiveProviderInfo[];
-	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): InteractiveSessionModel | undefined;
+	startSession(providerId: string, token: CancellationToken): InteractiveSessionModel | undefined;
 	retrieveSession(sessionId: string): IInteractiveSessionModel | undefined;
 
 	/**
@@ -176,7 +181,7 @@ export interface IInteractiveSessionService {
 	addInteractiveRequest(context: any): void;
 	addCompleteRequest(sessionId: string, message: string, response: IInteractiveSessionCompleteResponse): void;
 	sendInteractiveRequestToProvider(sessionId: string, message: IInteractiveSessionDynamicRequest): void;
-	releaseSession(sessionId: string): void;
+	getHistory(): IInteractiveSessionDetail[];
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
 	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;

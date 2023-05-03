@@ -499,8 +499,34 @@ export class TerminalService implements ITerminalService {
 		this.onDidChangeInstances(() => updateTerminalContextKeys());
 	}
 
-	async getActiveOrCreateInstance(): Promise<ITerminalInstance> {
-		return this.activeInstance || this.createTerminal();
+	async getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance> {
+		const activeInstance = this.activeInstance;
+		// No instance, create
+		if (!activeInstance) {
+			return this.createTerminal();
+		}
+		// Active instance, ensure accepts input
+		// Don't use task terminals or other terminals that don't accept input
+		if (!options?.acceptsInput || activeInstance?.shellLaunchConfig.type !== 'Task' && activeInstance.xterm?.isStdinDisabled !== true) {
+			return activeInstance;
+		}
+		// Active instance doesn't accept input, create and focus
+		const instance = await this.createTerminal();
+		this.setActiveInstance(instance);
+		await this.revealActiveTerminal();
+		return instance;
+	}
+
+	async revealActiveTerminal(): Promise<void> {
+		const instance = this.activeInstance;
+		if (!instance) {
+			return;
+		}
+		if (instance.target === TerminalLocation.Editor) {
+			await this._terminalEditorService.revealActiveEditor();
+		} else {
+			await this._terminalGroupService.showPanel();
+		}
 	}
 
 	setEditable(instance: ITerminalInstance, data?: IEditableData | null): void {
@@ -625,20 +651,17 @@ export class TerminalService implements ITerminalService {
 	private _onWillShutdown(e: WillShutdownEvent): void {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
-		if (shouldPersistTerminals) {
-			for (const instance of this._terminalGroupService.instances) {
-				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
-			}
-			return;
-		}
 
-		// Force dispose of all pane terminal instances
-		for (const instance of this._terminalGroupService.instances) {
-			instance.dispose(TerminalExitReason.Shutdown);
+		for (const instance of [...this._terminalGroupService.instances, ...this._backgroundedTerminalInstances]) {
+			if (shouldPersistTerminals && instance.shouldPersist) {
+				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
+			} else {
+				instance.dispose(TerminalExitReason.Shutdown);
+			}
 		}
 
 		// Clear terminal layout info only when not persisting
-		if (!this._shouldReviveProcesses(e.reason)) {
+		if (!shouldPersistTerminals && !this._shouldReviveProcesses(e.reason)) {
 			this._primaryBackend?.setTerminalLayoutInfo(undefined);
 		}
 	}

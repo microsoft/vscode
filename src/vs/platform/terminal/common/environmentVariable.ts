@@ -24,19 +24,30 @@ export interface IEnvironmentVariableMutator {
 	// readonly timing?: EnvironmentVariableMutatorTiming;
 }
 
+export interface IEnvironmentDescriptionMutator {
+	readonly description: string | undefined;
+	readonly scope?: EnvironmentVariableScope;
+}
+
 export type EnvironmentVariableScope = {
 	workspaceFolder?: IWorkspaceFolderData;
 };
 
 export interface IEnvironmentVariableCollection {
 	readonly map: ReadonlyMap<string, IEnvironmentVariableMutator>;
+	readonly descriptionMap?: ReadonlyMap<string, IEnvironmentDescriptionMutator>;
 }
 
 /** [variable, mutator] */
 export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
 
-/** [extension, collection] */
-export type ISerializableEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
+export type ISerializableEnvironmentDescriptionMap = [string, IEnvironmentDescriptionMutator][];
+export interface IExtensionOwnedEnvironmentDescriptionMutator extends IEnvironmentDescriptionMutator {
+	readonly extensionIdentifier: string;
+}
+
+/** [extension, collection, description] */
+export type ISerializableEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection, ISerializableEnvironmentDescriptionMap][];
 
 export interface IExtensionOwnedEnvironmentVariableMutator extends IEnvironmentVariableMutator {
 	readonly extensionIdentifier: string;
@@ -61,6 +72,11 @@ export interface IMergedEnvironmentVariableCollection {
 	 * @param scope The scope to get the variable map for. If undefined, the global scope is used.
 	 */
 	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]>;
+	/**
+	 * Gets the description map for a given scope.
+	 * @param scope The scope to get the description map for. If undefined, the global scope is used.
+	 */
+	getDescriptionMap(scope: EnvironmentVariableScope | undefined): Map<string, string | undefined>;
 	/**
 	 * Applies this collection to a process environment.
 	 * @param variableResolver An optional function to use to resolve variables within the

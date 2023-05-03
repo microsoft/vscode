@@ -154,6 +154,11 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
+		const stopped = await this.extensionService.stopExtensionHosts();
+		if (!stopped) {
+			return;
+		}
+
 		const result = await this.doEnterWorkspace(workspaceUri);
 		if (result) {
 
@@ -175,7 +180,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		// Restart the extension host: entering a workspace means a new location for
 		// storage and potentially a change in the workspace.rootPath property.
 		else {
-			this.extensionService.restartExtensionHost();
+			this.extensionService.startExtensionHosts();
 		}
 	}
 }

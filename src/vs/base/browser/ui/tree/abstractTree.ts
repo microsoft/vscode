@@ -1318,7 +1318,7 @@ class Trait<T> {
 			} else {
 				const insertedNode = insertedNodesMap.get(id);
 
-				if (insertedNode) {
+				if (insertedNode && insertedNode.visible) {
 					nodes.push(insertedNode);
 				}
 			}
@@ -1747,6 +1747,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	set ariaLabel(value: string) {
 		this.view.ariaLabel = value;
+	}
+
+	get selectionSize() {
+		return this.selection.getNodes().length;
 	}
 
 	domFocus(): void {

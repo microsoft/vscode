@@ -493,10 +493,10 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
 				const quickPickItems: QuickPickItem[] = [{
 					id: CREATE_EMPTY_PROFILE_ACTION_ID,
-					label: CREATE_EMPTY_PROFILE_ACTION_TITLE.value,
+					label: localize('empty', "Empty Profile"),
 				}, {
 					id: CREATE_FROM_CURRENT_PROFILE_ACTION_ID,
-					label: CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE.value,
+					label: localize('using current', "Using Current Profile"),
 				}];
 				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
 				if (profileTemplateQuickPickItems.length) {
@@ -509,13 +509,22 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					{
 						hideInput: true,
 						canPickMany: false,
-						title: localize('create profile title', "{0}: Create...", PROFILES_CATEGORY.value)
+						title: localize('create profile title', "Create Profile...")
 					});
 				if (pick) {
 					if (pick.id) {
 						return commandService.executeCommand(pick.id);
 					}
 					if ((<IProfileTemplateQuickPickItem>pick).url) {
+						type ProfileCreationFromTemplateActionClassification = {
+							owner: 'sandy081';
+							comment: 'Report profile creation from template action';
+							profileName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the profile created from template' };
+						};
+						type ProfileCreationFromTemplateActionEvent = {
+							profileName: string;
+						};
+						that.telemetryService.publicLog2<ProfileCreationFromTemplateActionEvent, ProfileCreationFromTemplateActionClassification>('profileCreationAction:builtinTemplate', { profileName: (<IProfileTemplateQuickPickItem>pick).name });
 						const uri = URI.parse((<IProfileTemplateQuickPickItem>pick).url);
 						return userDataProfileImportExportService.importProfile(uri);
 					}
@@ -604,7 +613,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							hideInput: true,
 							canPickMany: false,
-							title: localize('create profile title', "{0}: Create...", PROFILES_CATEGORY.value)
+							title: localize('create profile from template title', "{0}: Create...", PROFILES_CATEGORY.value)
 						});
 					if ((<IProfileTemplateQuickPickItem>pick)?.url) {
 						const uri = URI.parse((<IProfileTemplateQuickPickItem>pick).url);
@@ -640,7 +649,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const profileTemplates = await this.getProfileTemplatesFromProduct();
 		for (const template of profileTemplates) {
 			quickPickItems.push({
-				label: localize('create from template', "Create {0} Profile...", template.name),
+				label: template.name,
 				...template
 			});
 		}

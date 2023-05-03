@@ -1421,11 +1421,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			renderer = content.renderer;
 			const first = output.outputs.find(op => op.mime === content.mimeType)!;
 
-
-			// Copy the underlying buffer so we only send over the data we need
-			const valueBytes = new Uint8Array(first.data.buffer);
-			transfer.push(valueBytes.buffer);
-
+			const valueBytes = copyBufferIfNeeded(first.data.buffer, transfer);
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -1436,7 +1432,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					metadata: output.metadata,
 					output: {
 						mime: first.mime,
-						valueBytes: valueBytes,
+						valueBytes,
 					},
 					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
 				},
@@ -1474,16 +1470,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const outputCache = this.insetMapping.get(content.source)!;
 		this.hiddenInsetMapping.delete(content.source);
 		let updatedContent: ICreationContent | undefined = undefined;
+
+		const transfer: ArrayBuffer[] = [];
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!;
+
+			const valueBytes = copyBufferIfNeeded(firstBuffer.data.buffer, transfer);
 			updatedContent = {
 				type: RenderOutputType.Extension,
 				outputId: outputCache.outputId,
 				metadata: output.metadata,
 				output: {
 					mime: content.mimeType,
-					valueBytes: firstBuffer.data.buffer,
+					valueBytes,
 				},
 				allOutputs: output.outputs.map(output => ({ mime: output.mime }))
 			};
@@ -1496,7 +1496,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			cellTop: cellTop,
 			outputOffset: offset,
 			content: updatedContent
-		});
+		}, transfer);
 
 		outputCache.versionId = content.source.model.versionId;
 		return;
@@ -1727,6 +1727,19 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.insetMapping.clear();
 		this.pendingWebviewIdleCreationRequest.clear();
 		super.dispose();
+	}
+}
+
+function copyBufferIfNeeded(buffer: Uint8Array, transfer: ArrayBuffer[]): Uint8Array {
+	if (buffer.byteLength === buffer.buffer.byteLength) {
+		// No copy needed but we can't transfer either
+		return buffer;
+	} else {
+		// The buffer is smaller than its backing array buffer.
+		// Create a copy to avoid sending the entire array buffer.
+		const valueBytes = new Uint8Array(buffer);
+		transfer.push(valueBytes.buffer);
+		return valueBytes;
 	}
 }
 

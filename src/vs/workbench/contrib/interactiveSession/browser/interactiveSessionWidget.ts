@@ -19,9 +19,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { Memento } from 'vs/workbench/common/memento';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
@@ -59,12 +57,12 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
 
-interface IViewState {
-	inputValue: string;
+export interface IViewState {
+	inputValue?: string;
 	// renderData
 }
 
-export type IInteractiveSessionWidgetViewContext = { viewId: string } | { resource: URI };
+export type IInteractiveSessionWidgetViewContext = { viewId: string } | { resource: boolean };
 
 export class InteractiveSessionWidget extends Disposable implements IInteractiveSessionWidget {
 	public static readonly CONTRIBS: { new(...args: [IInteractiveSessionWidget, ...any]): any }[] = [];
@@ -121,16 +119,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private lastSlashCommands: IInteractiveSlashCommand[] | undefined;
 	private slashCommandsPromise: Promise<IInteractiveSlashCommand[] | undefined> | undefined;
 
-	private viewState: IViewState;
-
 	constructor(
-		readonly providerId: string,
-		initialModel: IInteractiveSessionModel | undefined,
 		readonly viewContext: IInteractiveSessionWidgetViewContext,
 		private readonly listBackgroundColorDelegate: () => string,
 		private readonly inputEditorBackgroundColorDelegate: () => string,
 		private readonly resultEditorBackgroundColorDelegate: () => string,
-		private readonly memento: Memento,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
@@ -142,9 +135,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
-		this.initializeSessionModel(true, initialModel);
+	}
 
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
+	get providerId(): string {
+		return this.viewModel?.providerId || '';
 	}
 
 	get inputEditor(): ICodeEditor {
@@ -182,23 +176,19 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private onDidChangeItems() {
 		if (this.tree && this.visible) {
-			const items: InteractiveTreeItem[] = this.viewModel?.getItems() ?? [];
-			if (this.viewModel?.welcomeMessage) {
-				items.unshift(this.viewModel.welcomeMessage);
-			}
-
-			const treeItems = items.map(item => {
-				return <ITreeElement<InteractiveTreeItem>>{
-					element: item,
-					collapsed: false,
-					collapsible: false
-				};
-			});
+			const treeItems = (this.viewModel?.getItems() ?? [])
+				.map(item => {
+					return <ITreeElement<InteractiveTreeItem>>{
+						element: item,
+						collapsed: false,
+						collapsible: false
+					};
+				});
 
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId: (element) => {
-						return element.id +
+						return ((isResponseVM(element) || isRequestVM(element)) ? element.dataId : element.id) +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
 							`${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}` +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
@@ -208,7 +198,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				}
 			});
 
-			const lastItem = items[items.length - 1];
+			const lastItem = treeItems[treeItems.length - 1]?.element;
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 				this.renderFollowups(lastItem.replyFollowups);
 			} else {
@@ -344,8 +334,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private createInput(container: HTMLElement): void {
-		this.inputPart = this.instantiationService.createInstance(InteractiveSessionInputPart, this.providerId);
-		this.inputPart.render(container, this.viewState.inputValue, this);
+		this.inputPart = this.instantiationService.createInstance(InteractiveSessionInputPart);
+		this.inputPart.render(container, '', this);
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(this.inputPart.onDidAcceptFollowup(followup => this.acceptInput(followup)));
@@ -356,10 +346,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 	}
 
-	private initializeSessionModel(initial = false, initialModel?: IInteractiveSessionModel | undefined) {
-		const model = initialModel ?? this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
-		if (!model) {
-			throw new Error('Failed to start session');
+	setModel(model: IInteractiveSessionModel, viewState: IViewState): void {
+		if (!this.container) {
+			throw new Error('Call render() before setModel()');
 		}
 
 		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
@@ -369,9 +358,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.onDidChangeItems();
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
+			// Disposes the viewmodel and listeners
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
+		this.inputPart.setState(model.providerId, viewState.inputValue ?? '');
 
 		if (this.tree) {
 			this.onDidChangeItems();
@@ -386,7 +377,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			// Shortcut for /clear command
 			if (!query && editorValue.trim() === '/clear') {
 				// If this becomes a repeated pattern, we should have a real internal slash command provider system
-				this.clear();
+				this.interactiveSessionService.clearSession(this.viewModel.sessionId);
 				this.inputPart.inputEditor.setValue('');
 				return;
 			}
@@ -415,14 +406,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.tree.domFocus();
 	}
 
-	async clear(): Promise<void> {
-		if (this.viewModel) {
-			this.interactiveSessionService.clearSession(this.viewModel.sessionId);
-			this.initializeSessionModel();
-			this.focusInput();
-		}
-	}
-
 	layout(height: number, width: number): void {
 		this.bodyDimension = new dom.Dimension(width, height);
 
@@ -443,18 +426,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	saveState(): void {
 		this.inputPart.saveState();
-
-		this.viewState.inputValue = this.inputPart.inputEditor.getValue();
-		this.memento.saveMemento();
 	}
 
-	public override dispose(): void {
-		this.saveState();
-		super.dispose();
-
-		if (this.viewModel) {
-			this.interactiveSessionService.releaseSession(this.viewModel.sessionId);
-		}
+	getViewState(): IViewState {
+		this.inputPart.saveState();
+		return { inputValue: this.inputPart.inputEditor.getValue() };
 	}
 }
 

@@ -20,12 +20,13 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	constructor(
 		private readonly _diff: IMergedEnvironmentVariableCollectionDiff,
 		private readonly _terminalId: number,
+		private readonly _collection: IMergedEnvironmentVariableCollection,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 	}
 
-	private _getInfo(): string {
+	private _getInfo(scope: EnvironmentVariableScope | undefined): string {
 		const extSet: Set<string> = new Set();
 		addExtensionIdentifiers(extSet, this._diff.added.values());
 		addExtensionIdentifiers(extSet, this._diff.removed.values());
@@ -33,8 +34,13 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 
 		let message = localize('extensionEnvironmentContributionInfoStale', "The following extensions want to relaunch the terminal to contribute to its environment:");
 		message += '\n';
+		const descriptionMap = this._collection.getDescriptionMap(scope);
 		for (const ext of extSet) {
 			message += `\n- \`${getExtensionName(ext, this._extensionService)}\``;
+			const description = descriptionMap.get(ext);
+			if (description) {
+				message += `: ${description}`;
+			}
 		}
 		return message;
 	}
@@ -47,12 +53,12 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		}];
 	}
 
-	getStatus(): ITerminalStatus {
+	getStatus(scope: EnvironmentVariableScope | undefined): ITerminalStatus {
 		return {
 			id: TerminalStatus.RelaunchNeeded,
 			severity: Severity.Warning,
 			icon: Codicon.warning,
-			tooltip: this._getInfo(),
+			tooltip: this._getInfo(scope),
 			hoverActions: this._getActions()
 		};
 	}
@@ -74,8 +80,13 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 
 		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
 		message += '\n';
+		const descriptionMap = this._collection.getDescriptionMap(scope);
 		for (const ext of extSet) {
 			message += `\n- \`${getExtensionName(ext, this._extensionService)}\``;
+			const description = descriptionMap.get(ext);
+			if (description) {
+				message += `: ${description}`;
+			}
 		}
 		return message;
 	}

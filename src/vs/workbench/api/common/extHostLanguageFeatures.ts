@@ -505,6 +505,7 @@ class DocumentPasteEditProvider {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.DocumentPasteEditProvider,
 		private readonly _handle: number,
+		private readonly _extension: IExtensionDescription,
 	) { }
 
 	async prepareDocumentPaste(resource: URI, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.DataTransferDTO | undefined> {
@@ -537,6 +538,7 @@ class DocumentPasteEditProvider {
 		}
 
 		return {
+			label: edit.label ?? localize('defaultPasteLabel', "Paste using '{0}' extension", this._extension.displayName || this._extension.name),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
@@ -1100,7 +1102,7 @@ class InlineCompletionAdapterBase {
 
 	disposeCompletions(pid: number): void { }
 
-	handleDidShowCompletionItem(pid: number, idx: number): void { }
+	handleDidShowCompletionItem(pid: number, idx: number, updatedInsertText: string): void { }
 
 	handlePartialAccept(pid: number, idx: number, acceptedCharacters: number): void { }
 }
@@ -1209,11 +1211,11 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		data?.dispose();
 	}
 
-	override handleDidShowCompletionItem(pid: number, idx: number): void {
+	override handleDidShowCompletionItem(pid: number, idx: number, updatedInsertText: string): void {
 		const completionItem = this._references.get(pid)?.items[idx];
 		if (completionItem) {
 			if (this._provider.handleDidShowCompletionItem && this._isAdditionsProposedApiEnabled) {
-				this._provider.handleDidShowCompletionItem(completionItem);
+				this._provider.handleDidShowCompletionItem(completionItem, updatedInsertText);
 			}
 		}
 	}
@@ -2207,9 +2209,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, InlineCompletionAdapterBase, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined, token);
 	}
 
-	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number): void {
+	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void {
 		this._withAdapter(handle, InlineCompletionAdapterBase, async adapter => {
-			adapter.handleDidShowCompletionItem(pid, idx);
+			adapter.handleDidShowCompletionItem(pid, idx, updatedInsertText);
 		}, undefined, undefined);
 	}
 
@@ -2405,7 +2407,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerDocumentPasteEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentPasteEditProvider, metadata: vscode.DocumentPasteProviderMetadata): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new AdapterData(new DocumentPasteEditProvider(this._proxy, this._documents, provider, handle), extension));
+		this._adapter.set(handle, new AdapterData(new DocumentPasteEditProvider(this._proxy, this._documents, provider, handle, extension), extension));
 		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector, extension), !!provider.prepareDocumentPaste, metadata.pasteMimeTypes);
 		return this._createDisposable(handle);
 	}

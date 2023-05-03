@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
+import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentDescriptionMutator, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
 
 type VariableResolver = (str: string) => Promise<string>;
 
@@ -16,11 +16,13 @@ type VariableResolver = (str: string) => Promise<string>;
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
 	private readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
+	private readonly descriptionMap: Map<string, IExtensionOwnedEnvironmentDescriptionMutator[]> = new Map();
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
 	) {
 		collections.forEach((collection, extensionIdentifier) => {
+			this.populateDescriptionMap(collection, extensionIdentifier);
 			const it = collection.map.entries();
 			let next = it.next();
 			while (!next.done) {
@@ -137,10 +139,51 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 		return result;
 	}
+
+	getDescriptionMap(scope: EnvironmentVariableScope | undefined): Map<string, string | undefined> {
+		const result = new Map<string, string | undefined>();
+		this.descriptionMap.forEach((mutators, _key) => {
+			const filteredMutators = mutators.filter(m => filterScope(m, scope));
+			if (filteredMutators.length > 0) {
+				// There should be exactly one description per extension per scope.
+				result.set(filteredMutators[0].extensionIdentifier, filteredMutators[0].description);
+			}
+		});
+		return result;
+	}
+
+	private populateDescriptionMap(collection: IEnvironmentVariableCollection, extensionIdentifier: string): void {
+		if (!collection.descriptionMap) {
+			return;
+		}
+		const it = collection.descriptionMap.entries();
+		let next = it.next();
+		while (!next.done) {
+			const mutator = next.value[1];
+			const key = next.value[0];
+			let entry = this.descriptionMap.get(key);
+			if (!entry) {
+				entry = [];
+				this.descriptionMap.set(key, entry);
+			}
+			const extensionMutator = {
+				extensionIdentifier,
+				scope: mutator.scope,
+				description: mutator.description
+			};
+			if (!extensionMutator.scope) {
+				delete extensionMutator.scope; // Convenient for tests
+			}
+			entry.push(extensionMutator);
+
+			next = it.next();
+		}
+
+	}
 }
 
 function filterScope(
-	mutator: IExtensionOwnedEnvironmentVariableMutator,
+	mutator: IExtensionOwnedEnvironmentVariableMutator | IExtensionOwnedEnvironmentDescriptionMutator,
 	scope: EnvironmentVariableScope | undefined
 ): boolean {
 	if (!mutator.scope) {

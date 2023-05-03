@@ -1391,7 +1391,13 @@ export class QuickInputController extends Disposable {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const selectors = ['.action-label.codicon'];
+						// detect only visible actions
+						const selectors = [
+							'.quick-input-list .monaco-action-bar .always-visible',
+							'.quick-input-list-entry:hover .monaco-action-bar',
+							'.monaco-list-row.focused .monaco-action-bar'
+						];
+
 						if (container.classList.contains('show-checkboxes')) {
 							selectors.push('input');
 						} else {
@@ -1410,7 +1416,7 @@ export class QuickInputController extends Disposable {
 							// screen readers to read operations in the input box.
 							dom.EventHelper.stop(e, true);
 							list.clearFocus();
-						} else if (!event.shiftKey && event.target === stops[stops.length - 1]) {
+						} else if (!event.shiftKey && dom.isAncestor(event.target, stops[stops.length - 1])) {
 							dom.EventHelper.stop(e, true);
 							stops[0].focus();
 						}

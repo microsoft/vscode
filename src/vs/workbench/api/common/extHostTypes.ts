@@ -2686,11 +2686,14 @@ export class DocumentDropEdit {
 
 @es5ClassCompat
 export class DocumentPasteEdit {
+	label: string;
+
 	insertText: string | SnippetString;
 
 	additionalEdit?: WorkspaceEdit;
 
-	constructor(insertText: string | SnippetString) {
+	constructor(insertText: string | SnippetString, label: string) {
+		this.label = label;
 		this.insertText = insertText;
 	}
 }

@@ -30,9 +30,7 @@ const environmentService = new NativeEnvironmentService(parseArgs(process.argv, 
 // Logging
 const loggerService = new LoggerService(LogLevel.Info, environmentService.logsHome);
 server.registerChannel(TerminalIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
-const isRemote = process.env.VSCODE_PTY_REMOTE === 'true';
-delete process.env.VSCODE_PTY_REMOTE;
-const logger = loggerService.createLogger(isRemote ? 'remoteptyhost' : 'ptyhost', { name: isRemote ? localize('remotePtyHost', "Pty Host (Remote)") : localize('ptyHost', "Pty Host") });
+const logger = loggerService.createLogger('ptyhost', { name: localize('ptyHost', "Pty Host") });
 const logService = new LogService(logger, [new ConsoleLogger()]);
 
 const heartbeatService = new HeartbeatService();

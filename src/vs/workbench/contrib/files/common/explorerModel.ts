@@ -376,7 +376,8 @@ export class ExplorerItem {
 				.map(([parentPattern, childrenPatterns]) =>
 					[
 						this.getPlatformAwareName(parentPattern.trim()),
-						childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))
+						childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '').trim()))
+							.filter(p => p !== '')
 					] as [string, string[]]);
 
 			this.root._fileNester = new ExplorerFileNestingTrie(patterns);

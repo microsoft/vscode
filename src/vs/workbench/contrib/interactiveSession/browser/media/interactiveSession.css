@@ -64,11 +64,16 @@
 	color: var(--vscode-badge-foreground) !important;
 }
 
-.interactive-item-container .header .monaco-toolbar {
+.interactive-item-container .header .monaco-toolbar,
+.interactive-item-container .header .monaco-toolbar .action-label {
+	/* Also apply this rule to the .action-label directly to work around a strange issue- when the
+	toolbar is hidden without that second rule, tabbing from the list container into a list item doesn't work
+	and the tab key doesn't do anything. */
 	display: none;
 }
 
-.interactive-item-container.interactive-response:hover .header .monaco-toolbar {
+.interactive-item-container.interactive-response:hover .header .monaco-toolbar,
+.interactive-item-container.interactive-response:hover .header .monaco-toolbar .action-label {
 	display: initial;
 }
 
