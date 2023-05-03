@@ -30,17 +30,8 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 
 	if (Array.isArray(selector)) {
 		// array -> take max individual value
-		let ret = 0;
-		for (const filter of selector) {
-			const value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized, candidateNotebookUri, candidateNotebookType);
-			if (value === 10) {
-				return value; // already at the highest
-			}
-			if (value > ret) {
-				ret = value;
-			}
-		}
-		return ret;
+		return Math.max(...selector.map(filter =>
+			score(filter, candidateUri, candidateLanguage, candidateIsSynchronized, candidateNotebookUri, candidateNotebookType)));
 
 	} else if (typeof selector === 'string') {
 
@@ -97,7 +88,7 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 
 		if (notebookType) {
 			if (notebookType === candidateNotebookType) {
-				ret = 10;
+				ret += 10;
 			} else if (notebookType === '*' && candidateNotebookType !== undefined) {
 				ret = Math.max(ret, 5);
 			} else {
