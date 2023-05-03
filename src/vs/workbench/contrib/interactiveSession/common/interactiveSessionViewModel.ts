@@ -38,6 +38,8 @@ export interface IInteractiveSessionViewModel {
 
 export interface IInteractiveRequestViewModel {
 	readonly id: string;
+	/** This ID updates every time the underlying data changes */
+	readonly dataId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly message: string | IInteractiveSessionReplyFollowup;
@@ -157,6 +159,10 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 		return this._model.id;
 	}
 
+	get dataId() {
+		return this.id + (this._model.session.isInitialized ? '' : '_initializing');
+	}
+
 	get username() {
 		return this._model.username;
 	}
@@ -189,7 +195,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	get dataId() {
-		return this._model.id + `_${this._modelChangeCount}`;
+		return this._model.id + `_${this._modelChangeCount}` + (this._model.session.isInitialized ? '' : '_initializing');
 	}
 
 	get providerId() {

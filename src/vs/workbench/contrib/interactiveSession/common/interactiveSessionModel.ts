@@ -16,6 +16,7 @@ export interface IInteractiveRequestModel {
 	readonly id: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
+	readonly session: IInteractiveSessionModel;
 	readonly message: string | IInteractiveSessionReplyFollowup;
 	readonly response: IInteractiveResponseModel | undefined;
 }
@@ -27,6 +28,7 @@ export interface IInteractiveResponseModel {
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
+	readonly session: IInteractiveSessionModel;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
@@ -55,15 +57,15 @@ export class InteractiveRequestModel implements IInteractiveRequestModel {
 	}
 
 	public get username(): string {
-		return this._session.requesterUsername;
+		return this.session.requesterUsername;
 	}
 
 	public get avatarIconUri(): URI | undefined {
-		return this._session.requesterAvatarIconUri;
+		return this.session.requesterAvatarIconUri;
 	}
 
 	constructor(
-		private readonly _session: InteractiveSessionModel,
+		public readonly session: InteractiveSessionModel,
 		public readonly message: string | IInteractiveSessionReplyFollowup) {
 		this._id = 'request_' + InteractiveRequestModel.nextId++;
 	}
@@ -109,20 +111,20 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 	}
 
 	public get providerId(): string {
-		return this._session.providerId;
+		return this.session.providerId;
 	}
 
 	public get username(): string {
-		return this._session.responderUsername;
+		return this.session.responderUsername;
 	}
 
 	public get avatarIconUri(): URI | undefined {
-		return this._session.responderAvatarIconUri;
+		return this.session.responderAvatarIconUri;
 	}
 
 	constructor(
 		private _response: IMarkdownString,
-		private readonly _session: InteractiveSessionModel,
+		public readonly session: InteractiveSessionModel,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
 		private _vote?: InteractiveSessionVoteDirection,
@@ -171,6 +173,7 @@ export interface IInteractiveSessionModel {
 	readonly onDidChange: Event<IInteractiveSessionChangeEvent>;
 	readonly sessionId: string;
 	readonly providerId: string;
+	readonly isInitialized: boolean;
 	// readonly title: string;
 	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
 	readonly requestInProgress: boolean;
@@ -284,6 +287,10 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	private readonly _initialResponderAvatarIconUri: URI | undefined;
 	get responderAvatarIconUri(): URI | undefined {
 		return this._session?.responderAvatarIconUri ?? this._initialResponderAvatarIconUri;
+	}
+
+	get isInitialized(): boolean {
+		return this._isInitializedDeferred.isSettled;
 	}
 
 	constructor(
