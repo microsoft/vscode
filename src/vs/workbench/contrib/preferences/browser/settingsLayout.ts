@@ -210,8 +210,8 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/interactiveSession',
 					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['interactiveSession.*']
-				},
+					settings: ['interactiveSession.*', 'interactiveEditor.*']
+				}
 			]
 		},
 		{
