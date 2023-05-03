@@ -1145,8 +1145,8 @@
 			// propagate vscode-context-menu-visible class
 			hostMessaging.onMessage('set-context-menu-visible', (_event, data) => {
 				const target = getActiveFrame();
-				if (target) {
-					assertIsDefined(target.contentDocument).body.classList.toggle('vscode-context-menu-visible', data.visible);
+				if (target && target.contentDocument) {
+					target.contentDocument.body.classList.toggle('vscode-context-menu-visible', data.visible);
 				}
 			});
 
