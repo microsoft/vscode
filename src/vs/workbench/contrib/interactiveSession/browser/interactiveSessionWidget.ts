@@ -188,7 +188,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId: (element) => {
-						return element.id +
+						return ((isResponseVM(element) || isRequestVM(element)) ? element.dataId : element.id) +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
 							`${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}` +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
