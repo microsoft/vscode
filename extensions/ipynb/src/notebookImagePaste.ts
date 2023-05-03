@@ -53,7 +53,7 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, vscode.l10n.t('Insert image as attachment'));
+		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, vscode.l10n.t('Insert Image as Attachment'));
 		pasteEdit.additionalEdit = insert.additionalEdit;
 		return pasteEdit;
 	}
@@ -74,7 +74,7 @@ class DropEditProvider implements vscode.DocumentDropEditProvider {
 
 		const dropEdit = new vscode.DocumentDropEdit(insert.insertText);
 		dropEdit.additionalEdit = insert.additionalEdit;
-		dropEdit.label = vscode.l10n.t('Insert image as attachment');
+		dropEdit.label = vscode.l10n.t('Insert Image as Attachment');
 		return dropEdit;
 	}
 }

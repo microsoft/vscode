@@ -84,7 +84,7 @@ import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/brows
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
-import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
+import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
