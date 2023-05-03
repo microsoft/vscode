@@ -434,17 +434,21 @@ export class OpenEditorsView extends ViewPane {
 
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
 		if (workingCopy) {
+			if (workingCopy.capabilities | WorkingCopyCapabilities.Scratchpad) {
+				return; // scratchpad working copies are never marked dirty
+			}
+
 			const gotDirty = workingCopy.isDirty();
 			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 		}
 
-		const dirty = this.workingCopyService.dirtyCount;
-		if (dirty === 0) {
+		const unsaved = this.workingCopyService.dirtyWorkingCopies.filter(workingCopy => !(workingCopy.capabilities | WorkingCopyCapabilities.Scratchpad)).length;
+		if (unsaved === 0) {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {
-			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
+			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", unsaved);
 			this.dirtyCountElement.classList.remove('hidden');
 		}
 	}
