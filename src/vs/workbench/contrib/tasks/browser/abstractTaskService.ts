@@ -1095,7 +1095,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of keys) {
 			keyValues.push([key, this._recentlyUsedTasks.get(key, Touch.None)!]);
 		}
-		this._storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
+		this._storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
@@ -1133,7 +1133,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of keys) {
 			keyValues.push([key, this._persistentTasks.get(key, Touch.None)!]);
 		}
-		this._storageService.store(AbstractTaskService.PersistentTasks_Key, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
+		this._storageService.store(AbstractTaskService.PersistentTasks_Key, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private _openDocumentation(): void {
@@ -2764,7 +2764,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				label: nls.localize('TaskService.notAgain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
-					this._storageService.store(AbstractTaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE, StorageTarget.USER);
+					this._storageService.store(AbstractTaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 					this._showIgnoreMessage = false;
 				}
 			}]
