@@ -28,7 +28,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { isESM } from 'vs/base/common/amd';
 import { IStateService } from 'vs/platform/state/node/state';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { Promises, timeout } from 'vs/base/common/async';
@@ -303,13 +303,13 @@ export class IssueMainService implements IIssueMainService {
 
 	//#region used by issue reporter window
 
-	async getSystemInfo(): Promise<SystemInfo> {
+	async $getSystemInfo(): Promise<SystemInfo> {
 		const [info, remoteData] = await Promise.all([this.diagnosticsMainService.getMainDiagnostics(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
 		const msg = await this.diagnosticsService.getSystemInfo(info, remoteData);
 		return msg;
 	}
 
-	async getPerformanceInfo(): Promise<PerformanceInfo> {
+	async $getPerformanceInfo(): Promise<PerformanceInfo> {
 		try {
 			const [info, remoteData] = await Promise.all([this.diagnosticsMainService.getMainDiagnostics(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })]);
 			return await this.diagnosticsService.getPerformanceInfo(info, remoteData);
@@ -320,7 +320,7 @@ export class IssueMainService implements IIssueMainService {
 		}
 	}
 
-	async reloadWithExtensionsDisabled(): Promise<void> {
+	async $reloadWithExtensionsDisabled(): Promise<void> {
 		if (this.issueReporterParentWindow) {
 			try {
 				await this.nativeHostMainService.reload(this.issueReporterParentWindow.id, { disableExtensions: true });
@@ -330,7 +330,7 @@ export class IssueMainService implements IIssueMainService {
 		}
 	}
 
-	async showConfirmCloseDialog(): Promise<void> {
+	async $showConfirmCloseDialog(): Promise<void> {
 		if (this.issueReporterWindow) {
 			const { response } = await this.dialogMainService.showMessageBox({
 				type: 'warning',
@@ -350,7 +350,7 @@ export class IssueMainService implements IIssueMainService {
 		}
 	}
 
-	async showClipboardDialog(): Promise<boolean> {
+	async $showClipboardDialog(): Promise<boolean> {
 		if (this.issueReporterWindow) {
 			const { response } = await this.dialogMainService.showMessageBox({
 				type: 'warning',
@@ -367,7 +367,7 @@ export class IssueMainService implements IIssueMainService {
 		return false;
 	}
 
-	async getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI> {
+	async $getIssueReporterUri(extensionId: string): Promise<URI> {
 		if (!this.issueReporterParentWindow) {
 			throw new Error('Issue reporter window not available');
 		}
@@ -377,14 +377,17 @@ export class IssueMainService implements IIssueMainService {
 		}
 		const replyChannel = `vscode:triggerIssueUriRequestHandlerResponse${window.id}`;
 		return Promises.withAsyncBody<URI>(async (resolve, reject) => {
-			window.sendWhenReady('vscode:triggerIssueUriRequestHandler', token, { replyChannel, extensionId });
+
+			const cts = new CancellationTokenSource();
+			window.sendWhenReady('vscode:triggerIssueUriRequestHandler', cts.token, { replyChannel, extensionId });
 
 			validatedIpcMain.once(replyChannel, (_: unknown, data: string) => {
 				resolve(URI.parse(data));
 			});
 
 			try {
-				await timeout(5000, token);
+				await timeout(5000);
+				cts.cancel();
 				reject(new Error('Timed out waiting for issue reporter URI'));
 			} finally {
 				validatedIpcMain.removeHandler(replyChannel);
@@ -392,7 +395,7 @@ export class IssueMainService implements IIssueMainService {
 		});
 	}
 
-	async closeReporter(): Promise<void> {
+	async $closeReporter(): Promise<void> {
 		this.issueReporterWindow?.close();
 	}
 

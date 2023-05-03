@@ -106,6 +106,10 @@
 	margin-left: auto;
 }
 
+.monaco-editor .interactive-editor .status .label.hidden {
+	display: none;
+}
+
 .monaco-editor .interactive-editor .markdownMessage {
 	padding-top: 10px;
 }
@@ -124,6 +128,8 @@
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 	display: -webkit-box;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .monaco-editor .interactive-editor .markdownMessage .messageActions {

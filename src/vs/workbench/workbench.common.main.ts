@@ -362,4 +362,7 @@ import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExten
 import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution';
 import { WorkbenchEditorWorkerService } from 'vs/workbench/contrib/codeEditor/browser/workbenchEditorWorkerService';
 
+// Accessibility
+import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
+
 //#endregion

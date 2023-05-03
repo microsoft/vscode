@@ -920,9 +920,9 @@
             "js"
           ],
           "enumItemLabels": [
-            "%typescript.preferences.importModuleSpecifierEnding.label.auto%",
-            "%typescript.preferences.importModuleSpecifierEnding.label.minimal%",
-            "%typescript.preferences.importModuleSpecifierEnding.label.index%",
+            null,
+            null,
+            null,
             "%typescript.preferences.importModuleSpecifierEnding.label.js%"
           ],
           "markdownEnumDescriptions": [

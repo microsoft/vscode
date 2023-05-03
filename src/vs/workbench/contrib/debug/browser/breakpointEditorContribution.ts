@@ -258,7 +258,14 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			}
 
 			const model = this.editor.getModel();
-			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.detail.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
+			if (!e.target.position
+				|| !model
+				|| e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+				|| e.target.detail.isAfterLines
+				|| !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)
+				// don't return early if there's a breakpoint
+				&& !e.target.element?.className.includes('breakpoint')
+			) {
 				return;
 			}
 			const canSetBreakpoints = this.debugService.canSetBreakpointsIn(model);
@@ -468,7 +475,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (decorations) {
 			for (const { options } of decorations) {
 				const clz = options.glyphMarginClassName;
-				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-'))) {
+				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading'))) {
 					return false;
 				}
 			}

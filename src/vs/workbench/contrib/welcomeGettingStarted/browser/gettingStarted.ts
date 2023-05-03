@@ -242,7 +242,28 @@ export class GettingStartedPage extends EditorPane {
 			}
 		}));
 
-		this._register(this.gettingStartedService.onDidAddBuiltInWalkthrough(rerender));
+		this._register(this.gettingStartedService.onDidAddBuiltInWalkthrough(() => {
+			rerender();
+			const someStepsComplete = this.gettingStartedCategories.some(category => category.steps.find(s => s.done));
+			if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
+				const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
+				const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
+				const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
+
+				if (fistContentBehaviour === 'openToFirstCategory') {
+					const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
+					this.hasScrolledToFirstCategory = true;
+					if (first) {
+						this.currentWalkthrough = first;
+						this.editorInput.selectedCategory = this.currentWalkthrough?.id;
+						this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+						this.setSlide('details');
+						return;
+					}
+				}
+			}
+		}));
+
 		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
 		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
 
@@ -872,29 +893,11 @@ export class GettingStartedPage extends EditorPane {
 			}
 		}
 
-		const someStepsComplete = this.gettingStartedCategories.some(category => category.steps.find(s => s.done));
 		if (this.editorInput.showTelemetryNotice && this.productService.openToWelcomeMainPage) {
 			const telemetryNotice = $('p.telemetry-notice');
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
-		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
-			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
-			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
-			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
-
-			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
-				this.hasScrolledToFirstCategory = true;
-				if (first) {
-					this.currentWalkthrough = first;
-					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
-					this.setSlide('details');
-					return;
-				}
-			}
 		}
-
 		this.setSlide('categories');
 	}
 

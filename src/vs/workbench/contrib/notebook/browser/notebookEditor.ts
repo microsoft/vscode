@@ -243,10 +243,16 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 					throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
 				}
 
+				await this._extensionsWorkbenchService.whenInitialized;
+				const extensionInfo = this._extensionsWorkbenchService.local.find(e => e.identifier.id === knownProvider);
 
 				throw createEditorOpenError(new Error(localize('fail.noEditor.extensionMissing', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType)), [
 					toAction({
-						id: 'workbench.notebook.action.installOrEnableMissing', label: localize('notebookOpenInstallOrEnableMissingViewType', "Install and enable extension for '{0}'", input.viewType), run: async () => {
+						id: 'workbench.notebook.action.installOrEnableMissing', label:
+							extensionInfo
+								? localize('notebookOpenEnableMissingViewType', "Enable extension for '{0}'", input.viewType)
+								: localize('notebookOpenInstallMissingViewType', "Install extension for '{0}'", input.viewType)
+						, run: async () => {
 							const d = this._notebookService.onAddViewType(viewType => {
 								if (viewType === input.viewType) {
 									// serializer is registered, try to open again

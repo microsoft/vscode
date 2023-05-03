@@ -274,47 +274,14 @@ impl DevTunnels {
 
 	/// Renames the current tunnel to the new name.
 	pub async fn rename_tunnel(&mut self, name: &str) -> Result<(), AnyError> {
-		is_valid_name(name)?;
-
-		self.check_is_name_free(name).await?;
-
-		let mut tunnel = match self.launcher_tunnel.load() {
-			Some(t) => t,
-			None => {
-				debug!(self.log, "No code server tunnel found, creating new one");
-				let (persisted, _) = self.create_tunnel(name, NO_REQUEST_OPTIONS).await?;
-				self.launcher_tunnel.save(Some(persisted))?;
-				return Ok(());
-			}
-		};
-
-		let locator = tunnel.locator();
-
-		let mut full_tunnel = spanf!(
-			self.log,
-			self.log.span("dev-tunnel.tag.get"),
-			self.client.get_tunnel(&locator, NO_REQUEST_OPTIONS)
-		)
-		.map_err(|e| wrap(e, "failed to lookup original tunnel"))?;
-
-		full_tunnel.tags = vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()];
-		spanf!(
-			self.log,
-			self.log.span("dev-tunnel.tag.update"),
-			self.client.update_tunnel(&full_tunnel, NO_REQUEST_OPTIONS)
-		)
-		.map_err(|e| wrap(e, "failed to update tunnel tags"))?;
-
-		tunnel.name = name.to_string();
-		self.launcher_tunnel.save(Some(tunnel.clone()))?;
-		Ok(())
+		self.update_tunnel_name(None, name).await.map(|_| ())
 	}
 
 	/// Updates the name of the existing persisted tunnel to the new name.
 	/// Gracefully creates a new tunnel if the previous one was deleted.
 	async fn update_tunnel_name(
 		&mut self,
-		persisted: PersistedTunnel,
+		persisted: Option<PersistedTunnel>,
 		name: &str,
 	) -> Result<(Tunnel, PersistedTunnel), AnyError> {
 		let name = name.to_ascii_lowercase();
@@ -322,9 +289,17 @@ impl DevTunnels {
 
 		debug!(self.log, "Tunnel name changed, applying updates...");
 
-		let (mut full_tunnel, mut persisted, is_new) = self
-			.get_or_create_tunnel(persisted, Some(&name), NO_REQUEST_OPTIONS)
-			.await?;
+		let (mut full_tunnel, mut persisted, is_new) = match persisted {
+			Some(persisted) => {
+				self.get_or_create_tunnel(persisted, Some(&name), NO_REQUEST_OPTIONS)
+					.await
+			}
+			None => self
+				.create_tunnel(&name, NO_REQUEST_OPTIONS)
+				.await
+				.map(|(pt, t)| (t, pt, true)),
+		}?;
+
 		if is_new {
 			return Ok((full_tunnel, persisted));
 		}
@@ -368,7 +343,6 @@ impl DevTunnels {
 				let (persisted, tunnel) = self
 					.create_tunnel(create_with_new_name.unwrap_or(&persisted.name), options)
 					.await?;
-				self.launcher_tunnel.save(Some(persisted.clone()))?;
 				Ok((tunnel, persisted, true))
 			}
 			Err(e) => Err(wrap(e, "failed to lookup tunnel").into()),
@@ -384,10 +358,12 @@ impl DevTunnels {
 	) -> Result<ActiveTunnel, AnyError> {
 		let (mut tunnel, persisted) = match self.launcher_tunnel.load() {
 			Some(mut persisted) => {
-				let as_lowercase = persisted.name.to_ascii_lowercase();
-				let preferred_name = preferred_name.unwrap_or(&as_lowercase);
-				if persisted.name != preferred_name {
-					(_, persisted) = self.update_tunnel_name(persisted, preferred_name).await?;
+				if let Some(preferred_name) = preferred_name.map(|n| n.to_ascii_lowercase()) {
+					if persisted.name.to_ascii_lowercase() != preferred_name {
+						(_, persisted) = self
+							.update_tunnel_name(Some(persisted), &preferred_name)
+							.await?;
+					}
 				}
 
 				let (tunnel, persisted, _) = self
@@ -403,7 +379,6 @@ impl DevTunnels {
 				let (persisted, full_tunnel) = self
 					.create_tunnel(&name, &HOST_TUNNEL_REQUEST_OPTIONS)
 					.await?;
-				self.launcher_tunnel.save(Some(persisted.clone()))?;
 				(full_tunnel, persisted)
 			}
 		};
@@ -508,14 +483,14 @@ impl DevTunnels {
 					)))
 				}
 				Ok(t) => {
-					return Ok((
-						PersistedTunnel {
-							cluster: t.cluster_id.clone().unwrap(),
-							id: t.tunnel_id.clone().unwrap(),
-							name: name.to_string(),
-						},
-						t,
-					))
+					let pt = PersistedTunnel {
+						cluster: t.cluster_id.clone().unwrap(),
+						id: t.tunnel_id.clone().unwrap(),
+						name: name.to_string(),
+					};
+
+					self.launcher_tunnel.save(Some(pt.clone()))?;
+					return Ok((pt, t));
 				}
 			}
 		}
