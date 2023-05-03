@@ -566,6 +566,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _onBeforeShutdownAsync(reason: ShutdownReason): Promise<boolean> {
+		if (this._backgroundedTerminalInstances.length) {
+			for (const terminal of this._backgroundedTerminalInstances.filter(b => !b.shouldPersist)) {
+				terminal.dispose();
+			}
+		}
 		if (this.instances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
