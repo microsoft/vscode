@@ -301,19 +301,18 @@ class ToggleScreencastModeAction extends Action2 {
 				}
 			}
 
-			const onlyKeyboardShortcuts = configurationService.getValue('screencastMode.onlyKeyboardShortcuts');
+			const keyboardShortcutsShow = configurationService.getValue<'commandsOnly' | 'keyboardShortcutsOnly' | 'commandsAndKeyboardShortcuts'>('screencastMode.keyboardShortcutsShow');
 
-			if (format !== 'keys' && titleLabel && !onlyKeyboardShortcuts) {
+			if (format !== 'keys' && titleLabel && (keyboardShortcutsShow === 'commandsOnly' || keyboardShortcutsShow === 'commandsAndKeyboardShortcuts')) {
 				append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
 			}
 
-			if (onlyKeyboardShortcuts || !titleLabel || (this._isKbFound(shortcut) && shortcut.commandId) && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
+			if ((keyboardShortcutsShow === 'keyboardShortcutsOnly' || keyboardShortcutsShow === 'commandsAndKeyboardShortcuts') && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
 				// Fix label for arrow keys
 				keyLabel = keyLabel?.replace('UpArrow', '↑')
 					?.replace('DownArrow', '↓')
 					?.replace('LeftArrow', '←')
 					?.replace('RightArrow', '→');
-
 				append(keyboardMarker, $('span.key', {}, keyLabel ?? ''));
 			}
 
@@ -422,10 +421,14 @@ configurationRegistry.registerConfiguration({
 			description: localize('screencastMode.keyboardShortcutsFormat', "Controls what is displayed in the keyboard overlay when showing shortcuts."),
 			default: 'commandAndKeys'
 		},
-		'screencastMode.onlyKeyboardShortcuts': {
-			type: 'boolean',
-			description: localize('screencastMode.onlyKeyboardShortcuts', "Show only keyboard shortcuts in screencast mode (do not include action names)."),
-			default: false
+		'screencastMode.keyboardShortcutsShow': {
+			enum: ['commandsOnly', 'keyboardShortcutsOnly', 'commandsAndKeyboardShortcuts'],
+			enumDescriptions: [
+				localize('keyboardShortcutsShow.commandsOnly', "Show only command in screencast mode"),
+				localize('keyboardShortcutsShow.keyboardShortcutsOnly', "Show only keyboard shortcuts in screencast mode"),
+				localize('keyboardShortcutsShow.commandsAndKeyboardShortcuts', "Show command and keyboard shortcuts in screencast mode"),
+			],
+			default: 'commandsAndKeyboardShortcuts'
 		},
 		'screencastMode.hideSingleEditorCursorMoves': {
 			type: 'boolean',
