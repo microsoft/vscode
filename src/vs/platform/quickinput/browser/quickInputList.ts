@@ -195,12 +195,13 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Meta
 		if (element.saneDetail) {
+			data.detail.element.style.display = '';
 			data.detail.setLabel(element.saneDetail, undefined, {
 				matches: detailHighlights,
 				title: element.saneDetail
 			});
 		} else {
-			data.detail.setLabel('');
+			data.detail.element.style.display = 'none';
 		}
 
 		// Separator
