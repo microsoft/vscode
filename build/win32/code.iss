@@ -1384,19 +1384,30 @@ var
 procedure StopTunnelServiceIfNeeded();
 var
 	StopServiceResultCode: Integer;
+	KillServiceResultCode: Integer;
+	WaitCounter: Integer;
 begin
  	if CheckForMutexes('{#TunnelServiceMutex}') then begin
 		// stop the tunnel service
 		Log('Stopping the tunnel service using ' + ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'));
 		ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel service uninstall', '', SW_HIDE, ewWaitUntilTerminated, StopServiceResultCode);
-		Log('Stopping the tunnel service completed with result code ' + IntToStr(StopServiceResultCode));
 
-		while (CheckForMutexes('{#TunnelServiceMutex}')) do
+		// issue 175268
+		ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel kill', '', SW_HIDE, ewWaitUntilTerminated, KillServiceResultCode);
+
+		Log('Stopping the tunnel service completed with result codes ' + IntToStr(StopServiceResultCode) + ' (uninstall) ' + IntToStr(KillServiceResultCode) + ' (kill) ');
+
+		WaitCounter := 10
+		while (WaitCounter > 0) and CheckForMutexes('{#TunnelServiceMutex}') do
 		begin
 			Log('Tunnel service is still running, waiting');
 			Sleep(500);
+			WaitCounter := WaitCounter - 1
 		end;
-		StartTunnelService := True
+		if (WaitCounter = 0) then
+			Log('Unable to stop tunnel service')
+		else
+			StartTunnelService := True;
 	end else begin
 		Log('No tunnel service running...');
 		StartTunnelService := False
