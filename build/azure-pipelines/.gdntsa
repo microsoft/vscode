@@ -6,7 +6,7 @@
     ],
     "codebaseAdmins": [
         "REDMOND\\stbatt",
-        "REDMOND\\monacotools",
+        "REDMOND\\monacotools"
     ],
     "instanceUrl": "https://msazure.visualstudio.com/defaultcollection",
     "projectName": "One",
