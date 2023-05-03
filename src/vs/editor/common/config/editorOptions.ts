@@ -4843,8 +4843,8 @@ class EditorPasteAs extends BaseEditorOption<EditorOption.pasteAs, IPasteAsOptio
 						'never'
 					],
 					enumDescriptions: [
-						nls.localize('pasteAs.showPasteSelector.afterPaste', "Show the drop selector widget after content is pasted into the editor."),
-						nls.localize('pasteAs.showPasteSelector.never', "Never show the drop selector widget. Instead the default drop provider is always used."),
+						nls.localize('pasteAs.showPasteSelector.afterPaste', "Show the paste selector widget after content is pasted into the editor."),
+						nls.localize('pasteAs.showPasteSelector.never', "Never show the paste selector widget. Instead the default pasting behavior is always used."),
 					],
 					default: 'afterPaste',
 				},
