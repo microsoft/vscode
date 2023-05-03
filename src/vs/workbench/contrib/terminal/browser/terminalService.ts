@@ -661,7 +661,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		// Clear terminal layout info only when not persisting
-		if (!this._shouldReviveProcesses(e.reason)) {
+		if (!shouldPersistTerminals && !this._shouldReviveProcesses(e.reason)) {
 			this._primaryBackend?.setTerminalLayoutInfo(undefined);
 		}
 	}
