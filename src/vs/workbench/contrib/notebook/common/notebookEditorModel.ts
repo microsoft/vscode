@@ -10,6 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
+import { extname } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
@@ -283,7 +284,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 			metadata: {},
 			cells: []
 		};
-		if (resource.scheme !== Schemas.vscodeInteractive) {
+		if (extname(resource) !== '.interactive') {
 			const bytes = await streamToBuffer(stream);
 			data = await info.serializer.dataToNotebook(bytes);
 		}

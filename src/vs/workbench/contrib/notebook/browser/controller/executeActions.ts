@@ -26,7 +26,6 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebo
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Schemas } from 'vs/base/common/network';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IInteractiveEditorRequest, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -577,7 +576,7 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
+						ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
 					),
 					group: 'navigation/execute'
 				}
@@ -620,7 +619,7 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 					id: MenuId.InteractiveToolbar,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_RUNNING_CELL,
-						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
+						ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
 					),
 					group: 'navigation',
 					order: 10
