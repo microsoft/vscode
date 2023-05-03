@@ -202,18 +202,28 @@ declare namespace monaco {
 		 */
 		toString(skipEncoding?: boolean): string;
 		toJSON(): UriComponents;
-		static revive(data: UriComponents | Uri): Uri;
-		static revive(data: UriComponents | Uri | undefined): Uri | undefined;
-		static revive(data: UriComponents | Uri | null): Uri | null;
-		static revive(data: UriComponents | Uri | undefined | null): Uri | undefined | null;
+		/**
+		 * Revives a Uri from its serialized representation. This is the counterpart of `toJSON`.
+		 *
+		 * Note that the `strict` argument should be used when reviving persisted Uri data (such as
+		 * loaded from storage) or from other sources that might have tempered with its format.
+		 *
+		 * @param data The serialized representation of a Uri.
+		 * @param strict Whether to validate the serialized Uri before reviving it.
+		 * @returns The revived Uri or the input when it is falsy (undefined or null)
+		 */
+		static revive(data: UriComponents | Uri, strict?: boolean): Uri;
+		static revive(data: UriComponents | Uri | undefined, strict?: boolean): Uri | undefined;
+		static revive(data: UriComponents | Uri | null, strict?: boolean): Uri | null;
+		static revive(data: UriComponents | Uri | undefined | null, strict?: boolean): Uri | undefined | null;
 	}
 
 	export interface UriComponents {
 		scheme: string;
-		authority: string;
-		path: string;
-		query: string;
-		fragment: string;
+		authority?: string;
+		path?: string;
+		query?: string;
+		fragment?: string;
 	}
 	/**
 	 * Virtual Key Codes, the value does not hold any inherent meaning.

@@ -380,37 +380,52 @@ export class URI implements UriComponents {
 		return this;
 	}
 
-	static revive(data: UriComponents | URI): URI;
-	static revive(data: UriComponents | URI | undefined): URI | undefined;
-	static revive(data: UriComponents | URI | null): URI | null;
-	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null;
-	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null {
+	/**
+	 * Revives a URI from its serialized representation. This is the counterpart of `toJSON`.
+	 *
+	 * Note that the `strict` argument should be used when reviving persisted URI data (such as
+	 * loaded from storage) or from other sources that might have tempered with its format.
+	 *
+	 * @param data The serialized representation of a URI.
+	 * @param strict Whether to validate the serialized URI before reviving it.
+	 * @returns The revived URI or the input when it is falsy (undefined or null)
+	 */
+	static revive(data: UriComponents | URI, strict?: boolean): URI;
+	static revive(data: UriComponents | URI | undefined, strict?: boolean): URI | undefined;
+	static revive(data: UriComponents | URI | null, strict?: boolean): URI | null;
+	static revive(data: UriComponents | URI | undefined | null, strict?: boolean): URI | undefined | null;
+	static revive(data: UriComponents | URI | undefined | null, strict?: boolean): URI | undefined | null {
 		if (!data) {
 			return data;
-		} else if (data instanceof URI) {
-			return data;
-		} else {
-			const result = new Uri(data);
-			result._formatted = (<UriState>data).external;
-			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath : null;
-			return result;
 		}
+		let ret: URI;
+		if (data instanceof URI) {
+			ret = data;
+		} else {
+			ret = new Uri(data);
+			(<Uri>ret)._formatted = (<UriState>data).external ?? null;
+			(<Uri>ret)._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath ?? null : null;
+		}
+		if (strict) {
+			_validateUri(ret, true);
+		}
+		return ret;
 	}
 }
 
 export interface UriComponents {
 	scheme: string;
-	authority: string;
-	path: string;
-	query: string;
-	fragment: string;
+	authority?: string;
+	path?: string;
+	query?: string;
+	fragment?: string;
 }
 
 interface UriState extends UriComponents {
 	$mid: MarshalledId.Uri;
-	external: string;
-	fsPath: string;
-	_sep: 1 | undefined;
+	external?: string;
+	fsPath?: string;
+	_sep?: 1;
 }
 
 const _pathSepMarker = isWindows ? 1 : undefined;
@@ -441,8 +456,9 @@ class Uri extends URI {
 	}
 
 	override toJSON(): UriComponents {
-		const res = <UriState>{
-			$mid: MarshalledId.Uri
+		const res: UriState = {
+			$mid: MarshalledId.Uri,
+			scheme: this.scheme
 		};
 		// cached state
 		if (this._fsPath) {
@@ -453,11 +469,11 @@ class Uri extends URI {
 			res.external = this._formatted;
 		}
 		// uri components
+		// if (this.scheme) {
+		// 	res.scheme = this.scheme;
+		// }
 		if (this.path) {
 			res.path = this.path;
-		}
-		if (this.scheme) {
-			res.scheme = this.scheme;
 		}
 		if (this.authority) {
 			res.authority = this.authority;

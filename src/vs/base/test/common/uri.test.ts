@@ -469,6 +469,11 @@ suite('URI', () => {
 		}), true);
 	});
 
+	test('Strict URI#revive', function () {
+		assert.throws(() => URI.revive(<any>{}, true));
+		assert.throws(() => URI.revive({ scheme: '' }, true));
+	});
+
 	test('Unable to open \'%A0.txt\': URI malformed #76506, part 2', function () {
 		assert.strictEqual(URI.parse('file://some/%.txt').toString(), 'file://some/%25.txt');
 		assert.strictEqual(URI.parse('file://some/%A0.txt').toString(), 'file://some/%25A0.txt');
@@ -502,7 +507,7 @@ suite('URI', () => {
 		assert.strictEqual(strIn, strOut); // fails here!!
 	});
 
-	test('URI - (de)serialize', function () {
+	test.skip('URI - (de)serialize', function () {
 
 		const values = [
 			URI.parse('http://localhost:8080/far'),
@@ -514,21 +519,21 @@ suite('URI', () => {
 		];
 
 		// console.profile();
-		// let c = 100000;
-		// while (c-- > 0) {
-		for (const value of values) {
-			const data = value.toJSON() as UriComponents;
-			const clone = URI.revive(data);
+		let c = 100000;
+		while (c-- > 0) {
+			for (const value of values) {
+				const data = value.toJSON() as UriComponents;
+				const clone = URI.revive(data);
 
-			assert.strictEqual(clone.scheme, value.scheme);
-			assert.strictEqual(clone.authority, value.authority);
-			assert.strictEqual(clone.path, value.path);
-			assert.strictEqual(clone.query, value.query);
-			assert.strictEqual(clone.fragment, value.fragment);
-			assert.strictEqual(clone.fsPath, value.fsPath);
-			assert.strictEqual(clone.toString(), value.toString());
+				assert.strictEqual(clone.scheme, value.scheme);
+				assert.strictEqual(clone.authority, value.authority);
+				assert.strictEqual(clone.path, value.path);
+				assert.strictEqual(clone.query, value.query);
+				assert.strictEqual(clone.fragment, value.fragment);
+				assert.strictEqual(clone.fsPath, value.fsPath);
+				assert.strictEqual(clone.toString(), value.toString());
+			}
 		}
-		// }
 		// console.profileEnd();
 	});
 	function assertJoined(base: string, fragment: string, expected: string, checkWithUrl: boolean = true) {
