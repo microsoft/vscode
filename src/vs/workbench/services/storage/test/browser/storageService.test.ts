@@ -98,7 +98,7 @@ flakySuite('StorageService (browser specific)', () => {
 			storageService.store('bar', 'foo', StorageScope.PROFILE, StorageTarget.MACHINE);
 			storageService.store('bar', 3, StorageScope.PROFILE, StorageTarget.USER);
 			storageService.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			storageService.store('bar', 3, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			storageService.store('bar', 3, StorageScope.WORKSPACE, StorageTarget.USER);
 
 			await storageService.clear();
 
