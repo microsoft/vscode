@@ -29,6 +29,18 @@
 		}
 	},
 	"contributes": {
+		"configuration": [
+			{
+				"properties": {
+					"ipynb.pasteImagesAsAttachments.enabled": {
+						"type": "boolean",
+						"scope": "resource",
+						"markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
+						"default": true
+					}
+				}
+			}
+		],
 		"commands": [
 			{
 				"command": "ipynb.newUntitledIpynb",
