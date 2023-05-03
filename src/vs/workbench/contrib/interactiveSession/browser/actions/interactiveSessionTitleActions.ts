@@ -189,7 +189,6 @@ type Content = MarkdownContent | CodeContent;
 
 function splitMarkdownAndCodeBlocks(markdown: string): Content[] {
 	const lexer = new marked.Lexer();
-	const parser = new marked.Parser();
 	const tokens = lexer.lex(markdown);
 
 	const splitContent: Content[] = [];
@@ -207,8 +206,7 @@ function splitMarkdownAndCodeBlocks(markdown: string): Content[] {
 				content: token.text,
 			});
 		} else {
-			const text = parser.parse([token]);
-			markdownPart += text;
+			markdownPart += token.raw;
 		}
 	});
 
