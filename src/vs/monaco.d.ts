@@ -181,13 +181,7 @@ declare namespace monaco {
 		 * validation and should be used for untrusted uri components retrieved from storage,
 		 * user input, command arguments etc
 		 */
-		static from(components: {
-			scheme: string;
-			authority?: string;
-			path?: string;
-			query?: string;
-			fragment?: string;
-		}, strict?: boolean): Uri;
+		static from(components: UriComponents, strict?: boolean): Uri;
 		/**
 		 * Join a Uri path with path fragments and normalizes the resulting path.
 		 *
