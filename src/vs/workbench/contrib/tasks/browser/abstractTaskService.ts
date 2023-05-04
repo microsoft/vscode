@@ -2752,27 +2752,28 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
-		const taskIdentifier = this._getKeyedTaskIdentifier(filter);
+		const type = typeof filter === 'string' ? undefined : filter.type;
 		const taskName = typeof filter === 'string' ? filter : filter.task;
-		const grouped = await this._getGroupedTasks(taskIdentifier);
+		const grouped = await this._getGroupedTasks({ type });
 		const tasks = grouped.all();
+		const exactMatchTask = tasks.find(t => t.configurationProperties.identifier === taskName);
+		if (!exactMatchTask) {
+			return this._doRunTaskCommand(tasks, type, taskName);
+		}
+
 		const resolver = this._createResolver(grouped);
 		const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 		if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			folderURIs.push(this._contextService.getWorkspace().configuration!);
 		}
 		folderURIs.push(USER_TASKS_GROUP_KEY);
-		const exactMatchTask = tasks.find(t => t.configurationProperties.identifier === taskName);
-		if (exactMatchTask) {
-			for (const uri of folderURIs) {
-				const task = await resolver.resolve(uri, taskName);
-				if (task) {
-					await this.run(task, { attachProblemMatcher: true }, TaskRunSource.User);
-					return;
-				}
+		for (const uri of folderURIs) {
+			const task = await resolver.resolve(uri, taskName);
+			if (task) {
+				await this.run(task, { attachProblemMatcher: true }, TaskRunSource.User);
+				return;
 			}
 		}
-		return this._doRunTaskCommand(tasks, taskIdentifier?.type, taskName);
 	}
 
 	private _tasksAndGroupedTasks(filter?: ITaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {
@@ -3130,16 +3131,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._restart(task);
 			});
 		}
-	}
-
-	private _getKeyedTaskIdentifier(filter?: string | ITaskIdentifier): KeyedTaskIdentifier | undefined {
-		let result: string | KeyedTaskIdentifier | undefined = undefined;
-		if (Types.isString(filter)) {
-			return undefined;
-		} else if (filter && Types.isString(filter.type)) {
-			result = TaskDefinition.createTaskIdentifier(filter, console);
-		}
-		return result;
 	}
 
 	private _getTaskIdentifier(filter?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {
