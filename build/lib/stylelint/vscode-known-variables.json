@@ -309,8 +309,6 @@
 		"--vscode-interactiveEditor-border",
 		"--vscode-interactiveEditor-regionHighlight",
 		"--vscode-interactiveEditor-shadow",
-		"--vscode-interactiveEditorDiff-inserted",
-		"--vscode-interactiveEditorDiff-removed",
 		"--vscode-interactiveEditorInput-background",
 		"--vscode-interactiveEditorInput-border",
 		"--vscode-interactiveEditorInput-focusBorder",
