@@ -225,7 +225,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				if (providerEdits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
-					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections[0], { activeEditIndex: 0, allEdits: providerEdits }, canShowWidget, tokenSource.token);
+					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: providerEdits }, canShowWidget, tokenSource.token);
 				}
 
 				await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
