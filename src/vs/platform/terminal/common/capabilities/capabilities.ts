@@ -242,7 +242,7 @@ export interface ITerminalCommand extends IBaseTerminalCommand {
 	hasOutput(): boolean;
 }
 
-export interface ISerializedCommand extends IBaseTerminalCommand {
+export interface ISerializedTerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable converted for serialization
 	startLine: number | undefined;
 	startX: number | undefined;
@@ -272,7 +272,7 @@ export interface IMarkProperties {
 }
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
-	commands: ISerializedCommand[];
+	commands: ISerializedTerminalCommand[];
 }
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];

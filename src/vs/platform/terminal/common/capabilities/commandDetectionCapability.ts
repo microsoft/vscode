@@ -7,7 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedTerminalCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 // Importing types is safe in any layer
@@ -556,7 +556,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
-		const commands: ISerializedCommand[] = this.commands.map(e => {
+		const commands: ISerializedTerminalCommand[] = this.commands.map(e => {
 			return {
 				startLine: e.marker?.line,
 				startX: undefined,
