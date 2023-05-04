@@ -2750,6 +2750,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
 		if (!filter) {
+			Promise.resolve();
 			return this._doRunTaskCommand();
 		}
 		const type = typeof filter === 'string' ? undefined : filter.type;
@@ -2758,6 +2759,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const tasks = grouped.all();
 		const exactMatchTask = tasks.find(t => t.configurationProperties.identifier === taskName || t.getDefinition(true)?.configurationProperties?.identifier === taskName);
 		if (!exactMatchTask) {
+			Promise.resolve();
 			return this._doRunTaskCommand(tasks, type, taskName);
 		}
 
@@ -2771,6 +2773,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const task = await resolver.resolve(uri, taskName);
 			if (task) {
 				await this.run(task, { attachProblemMatcher: true }, TaskRunSource.User);
+				Promise.resolve();
 				return;
 			}
 		}
