@@ -352,13 +352,24 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			actions.push({
 				class: undefined, tooltip: labelRun, id: 'terminal.rerunCommand', label: labelRun, enabled: true,
 				run: async () => {
-					this._notificationService.prompt(Severity.Info, localize('rerun', 'Do you want to run the command: {0}', command.command), [{
-						label: localize('yes', 'Yes'),
-						run: () => this._onDidRequestRunCommand.fire({ command })
-					}, {
-						label: localize('no', 'No'),
-						run: () => { }
-					}]);
+					if (command.command === '') {
+						return;
+					}
+					if (!command.isTrusted) {
+						const shouldRun = await new Promise<boolean>(r => {
+							this._notificationService.prompt(Severity.Info, localize('rerun', 'Do you want to run the command: {0}', command.command), [{
+								label: localize('yes', 'Yes'),
+								run: () => r(true)
+							}, {
+								label: localize('no', 'No'),
+								run: () => r(false)
+							}]);
+						});
+						if (!shouldRun) {
+							return;
+						}
+					}
+					this._onDidRequestRunCommand.fire({ command });
 				}
 			});
 			const labelCopy = localize("terminal.copyCommand", 'Copy Command');

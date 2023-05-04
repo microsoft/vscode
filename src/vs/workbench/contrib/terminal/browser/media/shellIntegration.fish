@@ -54,6 +54,12 @@ if test -n "$VSCODE_ENV_APPEND"
 	set -e VSCODE_ENV_APPEND
 end
 
+# Handle the shell integration nonce
+if set -q VSCODE_NONCE
+	set -l __vsc_nonce $VSCODE_NONCE
+	set -e VSCODE_NONCE
+end
+
 # Helper function
 function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
 	builtin printf "\e]633;%s\a" (string join ";" $argv)
@@ -63,7 +69,7 @@ end
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec
 	__vsc_esc C
-	__vsc_esc E (__vsc_escape_value "$argv")
+	__vsc_esc E (__vsc_escape_value "$argv") $__vsc_nonce
 
 	# Creates a marker to indicate a command was run.
 	set --global _vsc_has_cmd
