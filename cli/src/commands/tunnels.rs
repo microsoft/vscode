@@ -103,6 +103,7 @@ impl ServiceContainer for TunnelServiceContainer {
 				..Default::default()
 			},
 			csa,
+			TUNNEL_SERVICE_LOCK_NAME,
 		)
 		.await?;
 		Ok(())
@@ -149,7 +150,6 @@ pub async fn service(
 			manager.show_logs().await?;
 		}
 		TunnelServiceSubCommands::InternalRun => {
-			let _lock = TUNNEL_SERVICE_LOCK_NAME.map(AppMutex::new);
 			manager
 				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
 				.await?;
@@ -317,7 +317,7 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
 	let csa = (&args).into();
-	let result = serve_with_csa(paths, log, gateway_args, csa).await;
+	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
 	drop(no_sleep);
 
 	result
@@ -335,6 +335,7 @@ async fn serve_with_csa(
 	mut log: log::Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
+	app_mutex_name: Option<&'static str>,
 ) -> Result<i32, AnyError> {
 	let log_broadcast = BroadcastLogSink::new();
 	log = log.tee(log_broadcast.clone());
@@ -386,7 +387,7 @@ async fn serve_with_csa(
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
-	let _lock = TUNNEL_CLI_LOCK_NAME.map(AppMutex::new);
+	let _lock = app_mutex_name.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
