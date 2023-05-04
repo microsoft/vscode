@@ -411,7 +411,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			id: 'workbench.action.tasks.runTask',
 			handler: async (accessor, arg) => {
 				if (await this._trust()) {
-					this._runTaskCommand(arg);
+					await this._runTaskCommand(arg);
 				}
 			},
 			description: {
@@ -2642,7 +2642,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._instantiationService.createInstance(TaskQuickPick).show(placeHolder, defaultEntry, type, name);
 	}
 
-	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[], type?: string, name?: string): Promise<ITaskQuickPickEntry | undefined | null> {
+	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[], name?: string): Promise<ITaskQuickPickEntry | undefined | null> {
 		const resolvedTasks = await tasks;
 		const entries: (ITaskQuickPickEntry | IQuickPickSeparator)[] | undefined = await raceTimeout(this._createTaskQuickPickEntries(resolvedTasks, group, sort, selectedEntry), 200, () => undefined);
 		if (!entries) {
@@ -2748,58 +2748,31 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return true;
 	}
 
-	private _runTaskCommand(arg?: any): void {
-		const identifier = this._getTaskIdentifier(arg);
-		const type = arg && typeof arg !== 'string' && 'type' in arg ? arg.type : undefined;
-		const task = arg && typeof arg !== 'string' && 'task' in arg ? arg.task : arg === 'string' ? arg : undefined;
-		if (!identifier && !task && !type) {
+	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
+		if (!filter) {
 			return this._doRunTaskCommand();
 		}
-		this._getGroupedTasks().then(async (grouped) => {
-			const tasks = grouped.all();
-			const resolver = this._createResolver(grouped);
-			const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
-			if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-				folderURIs.push(this._contextService.getWorkspace().configuration!);
-			}
-			folderURIs.push(USER_TASKS_GROUP_KEY);
-			if (identifier) {
-				for (const uri of folderURIs) {
-					const task = await resolver.resolve(uri, identifier);
-					if (task) {
-						this.run(task).then(undefined, () => { });
-						return;
-					}
-				}
-			}
-			const exactMatchTask = tasks.find(t => task && (t.getDefinition(true)?.configurationProperties?.identifier === task || t.configurationProperties?.identifier === task || t._label === task));
-			if (exactMatchTask) {
-				const id = exactMatchTask.configurationProperties?.identifier || exactMatchTask.getDefinition(true)?.configurationProperties?.identifier;
-				if (id) {
-					for (const uri of folderURIs) {
-						const task = await resolver.resolve(uri, id);
-						if (task) {
-							this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, () => { });
-							return;
-						}
-					}
-				}
-			}
-			const atLeastOneMatch = tasks.some(t => {
+		const taskIdentifier = this._getKeyedTaskIdentifier(filter);
+		const taskName = typeof filter === 'string' ? filter : filter.task;
+		const grouped = await this._getGroupedTasks(taskIdentifier);
+		const tasks = grouped.all();
+		const resolver = this._createResolver(grouped);
+		const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
+		if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			folderURIs.push(this._contextService.getWorkspace().configuration!);
+		}
+		folderURIs.push(USER_TASKS_GROUP_KEY);
+		const exactMatchTask = tasks.find(t => t.configurationProperties.identifier === taskName);
+		if (exactMatchTask) {
+			for (const uri of folderURIs) {
+				const task = await resolver.resolve(uri, taskName);
 				if (task) {
-					if (t._label.includes(task)) {
-						if (!type || t.type === type) {
-							return true;
-						}
-					}
-				} else if (type && t.type === type || (CustomTask.is(t) && t.customizes()?.type === type)) {
-					return true;
-
+					await this.run(task, { attachProblemMatcher: true }, TaskRunSource.User);
+					return;
 				}
-				return false;
-			});
-			return atLeastOneMatch ? this._doRunTaskCommand(tasks, type, task) : this._doRunTaskCommand();
-		});
+			}
+		}
+		return this._doRunTaskCommand(tasks, taskIdentifier?.type, taskName);
 	}
 
 	private _tasksAndGroupedTasks(filter?: ITaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {
@@ -2860,7 +2833,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						label: '$(plus) ' + nls.localize('TaskService.noEntryToRun', 'Configure a Task'),
 						task: null
 					},
-					true, undefined, undefined, undefined, type, name).
+					true, undefined, undefined, undefined, name).
 					then((entry) => {
 						return pickThen(entry ? entry.task : undefined);
 					});
@@ -3159,12 +3132,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _getTaskIdentifier(arg?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {
+	private _getKeyedTaskIdentifier(filter?: string | ITaskIdentifier): KeyedTaskIdentifier | undefined {
 		let result: string | KeyedTaskIdentifier | undefined = undefined;
-		if (Types.isString(arg)) {
-			result = arg;
-		} else if (arg && Types.isString((arg as ITaskIdentifier).type)) {
-			result = TaskDefinition.createTaskIdentifier(arg as ITaskIdentifier, console);
+		if (Types.isString(filter)) {
+			return undefined;
+		} else if (filter && Types.isString(filter.type)) {
+			result = TaskDefinition.createTaskIdentifier(filter, console);
+		}
+		return result;
+	}
+
+	private _getTaskIdentifier(filter?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {
+		let result: string | KeyedTaskIdentifier | undefined = undefined;
+		if (Types.isString(filter)) {
+			result = filter;
+		} else if (filter && Types.isString(filter.type)) {
+			result = TaskDefinition.createTaskIdentifier(filter, console);
 		}
 		return result;
 	}
