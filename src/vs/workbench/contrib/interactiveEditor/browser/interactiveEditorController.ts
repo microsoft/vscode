@@ -13,18 +13,16 @@ import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
 import 'vs/css!./interactiveEditor';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
-import { TextEdit } from 'vs/editor/common/languages';
-import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
+import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, IValidEditOperation } from 'vs/editor/common/model';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -36,43 +34,14 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
+import { EditResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { InteractiveEditorWidget, InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, IInteractiveEditorMessageResponse, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-
-
-export type Recording = {
-	when: Date;
-	session: IInteractiveEditorSession;
-	exchanges: { prompt: string; res: IInteractiveEditorResponse }[];
-};
-
-type TelemetryData = {
-	extension: string;
-	rounds: string;
-	undos: string;
-	edits: boolean;
-	startTime: string;
-	endTime: string;
-	editMode: string;
-};
-
-type TelemetryDataClassification = {
-	owner: 'jrieken';
-	comment: 'Data about an interaction editor session';
-	extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension providing the data' };
-	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of request that were made' };
-	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Requests that have been undone' };
-	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits happen while the session was active' };
-	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
-	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
-	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
-};
 
 class InlineDiffDecorations {
 
@@ -141,121 +110,6 @@ class InlineDiffDecorations {
 	}
 }
 
-export class SessionExchange {
-	constructor(readonly prompt: string, readonly response: MarkdownResponse | EditResponse) { }
-}
-
-export class MarkdownResponse {
-	constructor(readonly localUri: URI, readonly raw: IInteractiveEditorMessageResponse) { }
-}
-
-export class EditResponse {
-
-	readonly localEdits: TextEdit[] = [];
-	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
-	readonly workspaceEdits: ResourceEdit[] | undefined;
-	readonly workspaceEditsIncludeLocalEdits: boolean = false;
-
-	constructor(localUri: URI, readonly raw: IInteractiveEditorBulkEditResponse | IInteractiveEditorEditResponse) {
-		if (raw.type === 'editorEdit') {
-			//
-			this.localEdits = raw.edits;
-			this.singleCreateFileEdit = undefined;
-			this.workspaceEdits = undefined;
-
-		} else {
-			//
-			const edits = ResourceEdit.convert(raw.edits);
-			this.workspaceEdits = edits;
-
-			let isComplexEdit = false;
-
-			for (const edit of edits) {
-				if (edit instanceof ResourceFileEdit) {
-					if (!isComplexEdit && edit.newResource && !edit.oldResource) {
-						// file create
-						if (this.singleCreateFileEdit) {
-							isComplexEdit = true;
-							this.singleCreateFileEdit = undefined;
-						} else {
-							this.singleCreateFileEdit = { uri: edit.newResource, edits: [] };
-							if (edit.options.contents) {
-								this.singleCreateFileEdit.edits.push(edit.options.contents.then(x => ({ range: new Range(1, 1, 1, 1), text: x.toString() })));
-							}
-						}
-					}
-				} else if (edit instanceof ResourceTextEdit) {
-					//
-					if (isEqual(edit.resource, localUri)) {
-						this.localEdits.push(edit.textEdit);
-						this.workspaceEditsIncludeLocalEdits = true;
-
-					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
-						this.singleCreateFileEdit!.edits.push(Promise.resolve(edit.textEdit));
-					} else {
-						isComplexEdit = true;
-					}
-				}
-			}
-
-			if (isComplexEdit) {
-				this.singleCreateFileEdit = undefined;
-			}
-		}
-	}
-}
-
-class Session {
-
-	private readonly _exchange: SessionExchange[] = [];
-	private readonly _startTime = new Date();
-	private readonly _teldata: Partial<TelemetryData>;
-
-	constructor(
-		readonly editMode: EditMode,
-		readonly model0: ITextModel,
-		readonly modelN: ITextModel,
-		readonly provider: IInteractiveEditorSessionProvider,
-		readonly session: IInteractiveEditorSession,
-	) {
-		this._teldata = {
-			extension: provider.debugName,
-			startTime: this._startTime.toISOString(),
-			edits: false,
-			rounds: '',
-			undos: '',
-			editMode
-		};
-	}
-
-	addExchange(exchange: SessionExchange): void {
-		const newLen = this._exchange.push(exchange);
-		this._teldata.rounds += `${newLen}|`;
-	}
-
-	get lastExchange(): SessionExchange | undefined {
-		return this._exchange[this._exchange.length - 1];
-	}
-
-	recordExternalEditOccurred() {
-		this._teldata.edits = true;
-	}
-
-	asTelemetryData(): TelemetryData {
-		return <TelemetryData>{
-			...this._teldata,
-			endTime: new Date().toISOString(),
-		};
-	}
-
-	asRecording(): Recording {
-		return {
-			session: this.session,
-			when: this._startTime,
-			exchanges: this._exchange.map(e => ({ prompt: e.prompt, res: e.response.raw }))
-		};
-	}
-}
 
 export interface InteractiveEditorRunOptions {
 	initialRange?: IRange;
@@ -265,11 +119,9 @@ export interface InteractiveEditorRunOptions {
 
 export class InteractiveEditorController implements IEditorContribution {
 
-
 	static get(editor: ICodeEditor) {
 		return editor.getContribution<InteractiveEditorController>(INTERACTIVE_EDITOR_ID);
 	}
-
 
 	private static _decoBlock = ModelDecorationOptions.register({
 		description: 'interactive-editor',
@@ -294,9 +146,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	private _strategy?: EditModeStrategy;
 
-	private _currentSession?: Session;
 	private _currentInputPromise?: DeferredPromise<void>;
-	private _recordings: Recording[] = [];
 
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
@@ -305,9 +155,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
+		@IInteractiveEditorSessionService private readonly _interactiveEditorSessionService: IInteractiveEditorSessionService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -325,7 +175,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	dispose(): void {
 		this._store.dispose();
 		this._ctsSession.dispose(true);
-		this._ctsSession.dispose();
 	}
 
 	getId(): string {
@@ -336,16 +185,11 @@ export class InteractiveEditorController implements IEditorContribution {
 		return this._configurationService.getValue('interactiveEditor.editMode');
 	}
 
-	viewInChat() {
-		if (this._currentSession?.lastExchange?.response instanceof MarkdownResponse) {
-
-			this._instaService.invokeFunction(showMessageResponse, this._currentSession.lastExchange.prompt, this._currentSession.lastExchange.response.raw.message.value);
-
+	private get _activeSession(): Session | undefined {
+		if (!this._editor.hasModel()) {
+			return undefined;
 		}
-	}
-
-	updateExpansionState(expand: boolean) {
-		this._zone.widget.updateToggleState(expand);
+		return this._interactiveEditorSessionService.retrieveSession(this._editor, this._editor.getModel().uri);
 	}
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
@@ -390,19 +234,20 @@ export class InteractiveEditorController implements IEditorContribution {
 		let textModel0Changes: LineRangeMapping[] | undefined;
 
 		const editMode = this._getMode();
-		this._currentSession = new Session(editMode, textModel0, textModel, provider, session);
+		const activeSession = new Session(editMode, textModel0, textModel, provider, session);
+		this._interactiveEditorSessionService.storeSession(this._editor, textModel.uri, activeSession);
 
 		switch (editMode) {
 			case EditMode.Live:
-				this._strategy = this._instaService.createInstance(LiveStrategy, this._currentSession, this._editor, this._zone.widget);
+				this._strategy = this._instaService.createInstance(LiveStrategy, activeSession, this._editor, this._zone.widget);
 				break;
 			case EditMode.LivePreview:
-				this._strategy = this._instaService.createInstance(LivePreviewStrategy, this._currentSession, this._editor, this._zone.widget,
+				this._strategy = this._instaService.createInstance(LivePreviewStrategy, activeSession, this._editor, this._zone.widget,
 					() => wholeRangeDecoration.getRange(0)!, // TODO@jrieken if it can be null it will be null
 				);
 				break;
 			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, this._currentSession, this._zone.widget);
+				this._strategy = this._instaService.createInstance(PreviewStrategy, activeSession, this._zone.widget);
 				break;
 		}
 
@@ -445,7 +290,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 
 				// note when "other" edits happen
-				this._currentSession?.recordExternalEditOccurred();
+				activeSession.recordExternalEditOccurred();
 
 				// CANCEL if the document has changed outside the current range
 				const wholeRange = wholeRangeDecoration.getRange(0);
@@ -575,29 +420,27 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
-
 			this._zone.widget.updateToolbar(true);
 
-			if (reply.type === 'message') {
+			const response = reply.type === 'message'
+				? new MarkdownResponse(textModel.uri, reply)
+				: new EditResponse(textModel.uri, reply);
+			activeSession.addExchange(new SessionExchange(input, response));
+
+			if (response instanceof MarkdownResponse) {
 				this._logService.info('[IE] received a MESSAGE, showing inline first', provider.debugName);
-				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
+				const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
 				this._zone.widget.updateStatus('');
 				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
-				const markdownResponse = new MarkdownResponse(textModel.uri, reply);
-				this._currentSession.addExchange(new SessionExchange(input, markdownResponse));
 				continue;
 			}
 
-			const editResponse = new EditResponse(textModel.uri, reply);
-			this._currentSession.addExchange(new SessionExchange(input, editResponse));
-
-			const canContinue = this._strategy.checkChanges(editResponse);
+			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
 				break;
 			}
 
-			this._ctxLastEditKind.set(editResponse.localEdits.length === 1 ? 'simple' : '');
-
+			this._ctxLastEditKind.set(response.localEdits.length === 1 ? 'simple' : '');
 
 			// use whole range from reply
 			if (reply.wholeRange) {
@@ -606,9 +449,9 @@ export class InteractiveEditorController implements IEditorContribution {
 					options: InteractiveEditorController._decoWholeRange
 				}]);
 			}
-			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, editResponse.localEdits));
-			const editOperations = (moreMinimalEdits ?? editResponse.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, editResponse.localEdits, moreMinimalEdits);
+			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, response.localEdits));
+			const editOperations = (moreMinimalEdits ?? response.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, response.localEdits, moreMinimalEdits);
 
 			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModel.createSnapshot()), null, undefined, true);
 			textModelNplus1.applyEdits(editOperations);
@@ -623,8 +466,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				ignoreModelChanges = false;
 			}
 
-			if (editResponse.singleCreateFileEdit) {
-				this._zone.widget.showCreatePreview(editResponse.singleCreateFileEdit.uri, await Promise.all(editResponse.singleCreateFileEdit.edits));
+			if (response.singleCreateFileEdit) {
+				this._zone.widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 			} else {
 				this._zone.widget.hideCreatePreview();
 			}
@@ -635,13 +478,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 
 		this._logService.trace('[IE] session DONE', provider.debugName);
-		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', this._currentSession.asTelemetryData());
-
-		// keep recording
-		const newLen = this._recordings.unshift(this._currentSession.asRecording());
-		if (newLen > 5) {
-			this._recordings.pop();
-		}
 
 		// done, cleanup
 		wholeRangeDecoration.clear();
@@ -653,7 +489,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxLastEditKind.reset();
 		this._ctxLastResponseType.reset();
 		this._ctxLastFeedbackKind.reset();
-		this._currentSession = undefined;
+		this._interactiveEditorSessionService.releaseSession(this._editor, textModel.uri, activeSession);
 
 		this._zone.hide();
 		this._editor.focus();
@@ -729,34 +565,40 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._historyOffset = pos;
 	}
 
-	recordings(): Recording[] {
-		return this._recordings;
+	viewInChat() {
+		if (this._activeSession?.lastExchange?.response instanceof MarkdownResponse) {
+			this._instaService.invokeFunction(showMessageResponse, this._activeSession.lastExchange.prompt, this._activeSession.lastExchange.response.raw.message.value);
+		}
+	}
+
+	updateExpansionState(expand: boolean) {
+		this._zone.widget.updateToggleState(expand);
 	}
 
 	undoLast(): string | void {
-		if (this._currentSession?.lastExchange?.response instanceof EditResponse) {
-			this._currentSession.modelN.undo();
-			return this._currentSession.lastExchange.response.localEdits[0].text;
+		if (this._activeSession?.lastExchange?.response instanceof EditResponse) {
+			this._activeSession.modelN.undo();
+			return this._activeSession.lastExchange.response.localEdits[0].text;
 		}
 	}
 
 	feedbackLast(helpful: boolean) {
-		if (this._currentSession?.lastExchange?.response) {
+		if (this._activeSession?.lastExchange?.response) {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
-			this._currentSession.provider.handleInteractiveEditorResponseFeedback?.(this._currentSession.session, this._currentSession.lastExchange.response.raw, kind);
+			this._activeSession.provider.handleInteractiveEditorResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
 			this._zone.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
 	async applyChanges(): Promise<EditResponse | void> {
-		if (this._currentSession?.lastExchange?.response instanceof EditResponse && this._strategy) {
+		if (this._activeSession?.lastExchange?.response instanceof EditResponse && this._strategy) {
 			const strategy = this._strategy;
 			this._strategy = undefined;
 			await strategy?.apply();
 			strategy?.dispose();
 			this._ctsSession.cancel();
-			return this._currentSession.lastExchange.response;
+			return this._activeSession.lastExchange.response;
 		}
 	}
 
