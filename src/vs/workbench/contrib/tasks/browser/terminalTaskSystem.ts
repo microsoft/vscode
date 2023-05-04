@@ -286,7 +286,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		task = task.clone(); // A small amount of task state is stored in the task (instance) and tasks passed in to run may have that set already.
 		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
-		const validInstance = task.runOptions && task.runOptions.instanceLimit && this._instances[recentTaskKey] && this._instances[recentTaskKey].instances < task.runOptions.instanceLimit;
+		const validInstance = !this._instances[recentTaskKey] || this._instances[recentTaskKey].instances < ((task.runOptions && task.runOptions.instanceLimit) ?? 0);
 		const instance = this._instances[recentTaskKey] ? this._instances[recentTaskKey].instances : 0;
 		this._currentTask = new VerifiedTask(task, resolver, trigger);
 		if (instance > 0) {
@@ -294,9 +294,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		const lastTaskInstance = this.getLastInstance(task);
 		const terminalData = lastTaskInstance ? this._activeTasks[lastTaskInstance.getMapKey()] : undefined;
-		if (terminalData && terminalData.promise && !validInstance && !task.configurationProperties.dependsOn?.length) {
-			this._lastTask = this._currentTask;
-			return { kind: TaskExecuteKind.Active, task: terminalData.task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
+		if (!validInstance) {
+			if (terminalData && terminalData.promise) {
+				this._lastTask = this._currentTask;
+				return { kind: TaskExecuteKind.Active, task: terminalData.task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
+			}
+			throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 		}
 
 		try {
