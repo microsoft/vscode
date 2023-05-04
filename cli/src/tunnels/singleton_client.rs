@@ -163,9 +163,9 @@ pub async fn do_single_rpc_call<
 		Ok(p) => p,
 		Err(CodeError::SingletonLockfileOpenFailed(_))
 		| Err(CodeError::SingletonLockedProcessExited(_)) => {
-			return Err(CodeError::NoRunningTunnel.into());
+			return Err(CodeError::NoRunningTunnel);
 		}
-		Err(e) => return Err(e.into()),
+		Err(e) => return Err(e),
 	};
 
 	let (msg_tx, msg_rx) = mpsc::unbounded_channel();
