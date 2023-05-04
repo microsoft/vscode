@@ -2224,7 +2224,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected async _computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
 		const promises: Promise<IWorkspaceFolderTaskResult | undefined>[] = [];
 		for (const folder of this.workspaceFolders) {
-			promises.push(this._computeWorkspaceFolderTasks(folder, runSource));
+			promises.push(this._computeWorkspaceFolderTasks(folder, runSource).then((value) => value, () => undefined));
 		}
 		const values = await Promise.all(promises);
 		const result = new Map<string, IWorkspaceFolderTaskResult>();
@@ -2236,13 +2236,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		const folder = await this._getAFolder();
 		if (this._contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			const workspaceFileTasks = await this._computeWorkspaceFileTasks(folder, runSource);
+			const workspaceFileTasks = await this._computeWorkspaceFileTasks(folder, runSource).then((value) => value, () => undefined);
 			if (workspaceFileTasks && this._workspace && this._workspace.configuration) {
 				result.set(this._workspace.configuration.toString(), workspaceFileTasks);
 			}
 		}
 
-		const userTasks = await this._computeUserTasks(folder, runSource);
+		const userTasks = await this._computeUserTasks(folder, runSource).then((value) => value, () => undefined);
 		if (userTasks) {
 			result.set(USER_TASKS_GROUP_KEY, userTasks);
 		}
