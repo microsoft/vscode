@@ -55,7 +55,7 @@ import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/com
 import * as TaskConfig from '../common/taskConfiguration';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 
-import { IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
@@ -2224,7 +2224,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected async _computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
 		const promises: Promise<IWorkspaceFolderTaskResult | undefined>[] = [];
 		for (const folder of this.workspaceFolders) {
-			promises.push(this._computeWorkspaceFolderTasks(folder, runSource).then((value) => value, () => undefined));
+			promises.push(this._computeWorkspaceFolderTasks(folder, runSource));
 		}
 		const values = await Promise.all(promises);
 		const result = new Map<string, IWorkspaceFolderTaskResult>();
@@ -2236,13 +2236,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		const folder = await this._getAFolder();
 		if (this._contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			const workspaceFileTasks = await this._computeWorkspaceFileTasks(folder, runSource).then((value) => value, () => undefined);
+			const workspaceFileTasks = await this._computeWorkspaceFileTasks(folder, runSource);
 			if (workspaceFileTasks && this._workspace && this._workspace.configuration) {
 				result.set(this._workspace.configuration.toString(), workspaceFileTasks);
 			}
 		}
 
-		const userTasks = await this._computeUserTasks(folder, runSource).then((value) => value, () => undefined);
+		const userTasks = await this._computeUserTasks(folder, runSource);
 		if (userTasks) {
 			result.set(USER_TASKS_GROUP_KEY, userTasks);
 		}
@@ -2643,40 +2643,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: ITaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: ITaskQuickPickEntry, additionalEntries?: ITaskQuickPickEntry[], type?: string, name?: string): Promise<ITaskQuickPickEntry | undefined | null> {
-		const tokenSource = new CancellationTokenSource();
-		const cancellationToken: CancellationToken = tokenSource.token;
-		const createEntries = new Promise<QuickPickInput<ITaskQuickPickEntry>[]>((resolve) => {
-			if (Array.isArray(tasks)) {
-				resolve(this._createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
-			} else {
-				resolve(tasks.then((tasks) => this._createTaskQuickPickEntries(tasks, group, sort, selectedEntry)));
-			}
-		});
-
-		const timeout: boolean = await Promise.race([new Promise<boolean>((resolve) => {
-			createEntries.then(() => resolve(false));
-		}), new Promise<boolean>((resolve) => {
-			const timer = setTimeout(() => {
-				clearTimeout(timer);
-				resolve(true);
-			}, 200);
-		})]);
-
-		if (!timeout && ((await createEntries).length === 1) && this._configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-			return (<ITaskQuickPickEntry>(await createEntries)[0]);
+		const resolvedTasks = await tasks;
+		const entries: (ITaskQuickPickEntry | IQuickPickSeparator)[] | undefined = await raceTimeout(this._createTaskQuickPickEntries(resolvedTasks, group, sort, selectedEntry), 200, () => undefined);
+		if (!entries) {
+			return undefined;
 		}
-
-		const pickEntries = createEntries.then((entries) => {
-			if ((entries.length === 1) && this._configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
-				tokenSource.cancel();
-			} else if ((entries.length === 0) && defaultEntry) {
-				entries.push(defaultEntry);
-			} else if (entries.length > 1 && additionalEntries && additionalEntries.length > 0) {
-				entries.push({ type: 'separator', label: '' });
-				entries.push(additionalEntries[0]);
-			}
-			return entries;
-		});
+		if (entries.length === 1 && this._configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
+			return (<ITaskQuickPickEntry>entries[0]);
+		} else if ((entries.length === 0) && defaultEntry) {
+			entries.push(defaultEntry);
+		} else if (entries.length > 1 && additionalEntries && additionalEntries.length > 0) {
+			entries.push({ type: 'separator', label: '' });
+			entries.push(additionalEntries[0]);
+		}
 
 		const picker: IQuickPick<ITaskQuickPickEntry> = this._quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
@@ -2693,28 +2672,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this.openConfig(task);
 			}
 		});
-		picker.busy = true;
-		pickEntries.then(entries => {
-			picker.busy = false;
-			picker.items = entries;
-			picker.show();
-		});
+		picker.items = entries;
+		picker.show();
 
 		return new Promise<ITaskQuickPickEntry | undefined | null>(resolve => {
 			this._register(picker.onDidAccept(async () => {
-				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
-				if (cancellationToken.isCancellationRequested) {
-					// canceled when there's only one task
-					const task = (await pickEntries)[0];
-					if ((<any>task).task) {
-						selection = <ITaskQuickPickEntry>task;
-					}
-				}
+				const selectedEntry = picker.selectedItems ? picker.selectedItems[0] : undefined;
 				picker.dispose();
-				if (!selection) {
+				if (!selectedEntry) {
 					resolve(undefined);
 				}
-				resolve(selection);
+				resolve(selectedEntry);
 			}));
 		});
 	}
