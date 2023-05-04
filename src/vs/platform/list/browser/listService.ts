@@ -26,7 +26,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStyleOverride, defaultFindWidgetStyles, defaultListStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 
@@ -810,7 +809,7 @@ function createKeyboardNavigationEventFilter(keybindingService: IKeybindingServi
 
 		const result = keybindingService.softDispatch(event, event.target);
 
-		if (result?.kind === ResultKind.MoreChordsNeeded) {
+		if (result?.enterMultiChord) {
 			inMultiChord = true;
 			return false;
 		}

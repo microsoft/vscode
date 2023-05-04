@@ -25,7 +25,6 @@ import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -557,7 +556,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					disableDefaultAction: options.sticky,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-						if (resolved && resolved.kind === ResultKind.KbFound && resolved.commandId) {
+						if (resolved?.commandId) {
 							if (!allowableCommands.includes(resolved.commandId)) {
 								EventHelper.stop(event, true);
 							}
