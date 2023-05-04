@@ -10,7 +10,7 @@ import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription }
 import { IFileService } from 'vs/platform/files/common/files';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IAutomatedWindow } from 'vs/platform/log/browser/log';
+import { IAutomatedWindow, getLogs } from 'vs/platform/log/browser/log';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -139,13 +139,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return new ResolvedExtensions(localExtensions, remoteExtensions, /*hasLocalProcess*/false, /*allowRemoteExtensionsInLocalWebWorker*/true);
 	}
 
-	protected _onExtensionHostExit(code: number): void {
+	protected async _onExtensionHostExit(code: number): Promise<void> {
 		// Dispose everything associated with the extension host
 		this._doStopExtensionHosts();
 
+		// If we are running extension tests, forward logs and exit code
 		const automatedWindow = window as unknown as IAutomatedWindow;
 		if (typeof automatedWindow.codeAutomationExit === 'function') {
-			automatedWindow.codeAutomationExit(code);
+			automatedWindow.codeAutomationExit(await getLogs(this._fileService, this._environmentService), code);
 		}
 	}
 }

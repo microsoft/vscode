@@ -3,11 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 import { AdapterLogger, DEFAULT_LOG_LEVEL, ILogger, LogLevel } from 'vs/platform/log/common/log';
 
 export interface IAutomatedWindow {
 	codeAutomationLog(type: string, args: any[]): void;
-	codeAutomationExit(code: number): void;
+	codeAutomationExit(logs: Array<ILogFile>, code: number): void;
+}
+
+export interface ILogFile {
+	readonly name: string;
+	readonly contents: string;
+}
+
+/**
+ * Only used in browser contexts where the log files are not stored on disk
+ * but in IndexedDB. A method to get all logs with their contents so that
+ * CI automation can persist them.
+ */
+export async function getLogs(fileService: IFileService, environmentService: IEnvironmentService): Promise<ILogFile[]> {
+	const result: ILogFile[] = [];
+
+	const logs = await fileService.resolve(environmentService.logsHome);
+
+	for (const { name, isDirectory, resource } of logs.children || []) {
+		if (isDirectory) {
+			continue;
+		}
+
+		const contents = (await fileService.readFile(resource)).value.toString();
+		if (contents) {
+			result.push({ name, contents });
+		}
+	}
+
+	return result;
 }
 
 function logLevelToString(level: LogLevel): string {

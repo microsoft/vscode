@@ -11,6 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import localizedStrings from 'vs/platform/languagePacks/common/localizedStrings';
+import { getLogs } from 'vs/platform/log/browser/log';
 
 export class BrowserWindowDriver implements IWindowDriver {
 
@@ -21,22 +22,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async getLogs(): Promise<ILogFile[]> {
-		const result: ILogFile[] = [];
-
-		const logs = await this.fileService.resolve(this.environmentService.logsHome);
-
-		for (const { name, isDirectory, resource } of logs.children || []) {
-			if (isDirectory) {
-				continue;
-			}
-
-			const contents = (await this.fileService.readFile(resource)).value.toString();
-			if (contents) {
-				result.push({ name, contents });
-			}
-		}
-
-		return result;
+		return getLogs(this.fileService, this.environmentService);
 	}
 
 	async setValue(selector: string, text: string): Promise<void> {
