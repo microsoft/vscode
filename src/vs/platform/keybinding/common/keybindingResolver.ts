@@ -283,22 +283,12 @@ export class KeybindingResolver {
 
 	public resolve(context: IContext, currentChords: string[] | null, keypress: string): IResolveResult | null {
 		this._log(`| Resolving ${keypress}${currentChords ? ` chorded from ${currentChords}` : ``}`);
-
 		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
-		if (currentChords === null) {
-			const candidates = this._map.get(keypress);
-			if (candidates === undefined) {
-				// No bindings with `keypress`
-				this._log(`\\ No keybinding entries.`);
-				return null;
-			}
-
-			lookupMap = candidates;
-		} else {
+		if (currentChords !== null) {
 			// Fetch all chord bindings for `currentChords`
 			const candidates = this._map.get(currentChords[0]);
-			if (candidates === undefined) {
+			if (typeof candidates === 'undefined') {
 				// No chords starting with `currentChords`
 				this._log(`\\ No keybinding entries.`);
 				return null;
@@ -322,6 +312,15 @@ export class KeybindingResolver {
 					lookupMap.push(candidate);
 				}
 			}
+		} else {
+			const candidates = this._map.get(keypress);
+			if (typeof candidates === 'undefined') {
+				// No bindings with `keypress`
+				this._log(`\\ No keybinding entries.`);
+				return null;
+			}
+
+			lookupMap = candidates;
 		}
 
 		const result = this._findCommand(context, lookupMap);
