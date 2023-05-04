@@ -19,7 +19,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
@@ -60,6 +59,13 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 export interface IViewState {
 	inputValue?: string;
 	// renderData
+}
+
+export interface IInteractiveSessionWidgetStyles {
+	listForeground: string;
+	listBackground: string;
+	inputEditorBackground: string;
+	resultEditorBackground: string;
 }
 
 export type IInteractiveSessionWidgetViewContext = { viewId: string } | { resource: boolean };
@@ -121,9 +127,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	constructor(
 		readonly viewContext: IInteractiveSessionWidgetViewContext,
-		private readonly listBackgroundColorDelegate: () => string,
-		private readonly inputEditorBackgroundColorDelegate: () => string,
-		private readonly resultEditorBackgroundColorDelegate: () => string,
+		private readonly styles: IInteractiveSessionWidgetStyles,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
@@ -154,8 +158,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
-		this.editorOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
+		this.editorOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		this.createList(this.listContainer);
+		this.setupColors(this.listContainer);
 		this.createInput(this.container);
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
@@ -250,6 +255,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		return this.slashCommandsPromise;
 	}
 
+	private setupColors(container: HTMLElement) {
+		container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
+	}
+
 	private createList(listContainer: HTMLElement): void {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const delegate = scopedInstantiationService.createInstance(InteractiveSessionListDelegate);
@@ -276,19 +285,19 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
 				overrideStyles: {
-					listFocusBackground: this.listBackgroundColorDelegate(),
-					listInactiveFocusBackground: this.listBackgroundColorDelegate(),
-					listActiveSelectionBackground: this.listBackgroundColorDelegate(),
-					listFocusAndSelectionBackground: this.listBackgroundColorDelegate(),
-					listInactiveSelectionBackground: this.listBackgroundColorDelegate(),
-					listHoverBackground: this.listBackgroundColorDelegate(),
-					listBackground: this.listBackgroundColorDelegate(),
-					listFocusForeground: foreground,
-					listHoverForeground: foreground,
-					listInactiveFocusForeground: foreground,
-					listInactiveSelectionForeground: foreground,
-					listActiveSelectionForeground: foreground,
-					listFocusAndSelectionForeground: foreground,
+					listFocusBackground: this.styles.listBackground,
+					listInactiveFocusBackground: this.styles.listBackground,
+					listActiveSelectionBackground: this.styles.listBackground,
+					listFocusAndSelectionBackground: this.styles.listBackground,
+					listInactiveSelectionBackground: this.styles.listBackground,
+					listHoverBackground: this.styles.listBackground,
+					listBackground: this.styles.listBackground,
+					listFocusForeground: this.styles.listForeground,
+					listHoverForeground: this.styles.listForeground,
+					listInactiveFocusForeground: this.styles.listForeground,
+					listInactiveSelectionForeground: this.styles.listForeground,
+					listActiveSelectionForeground: this.styles.listForeground,
+					listFocusAndSelectionForeground: this.styles.listForeground,
 				}
 			});
 		this.tree.onContextMenu(e => this.onContextMenu(e));

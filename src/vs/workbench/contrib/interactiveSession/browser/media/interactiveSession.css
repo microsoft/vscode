@@ -18,6 +18,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
+	color: var(--vscode-interactive-session-foreground);
 
 	cursor: default;
 	user-select: text;

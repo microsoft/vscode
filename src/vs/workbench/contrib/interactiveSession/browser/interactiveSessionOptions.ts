@@ -22,6 +22,7 @@ export interface IInteractiveSessionConfiguration {
 }
 
 export interface IInteractiveSessionEditorConfiguration {
+	readonly foreground: Color | undefined;
 	readonly inputEditor: IInteractiveSessionInputEditorOptions;
 	readonly resultEditor: IInteractiveSessionResultEditorOptions;
 }
@@ -73,8 +74,9 @@ export class InteractiveSessionEditorOptions extends Disposable {
 
 	constructor(
 		viewId: string | undefined,
-		private readonly inputEditorBackgroundColorDelegate: () => string,
-		private readonly resultEditorBackgroundColorDelegate: () => string,
+		private readonly foreground: string,
+		private readonly inputEditorBackgroundColor: string,
+		private readonly resultEditorBackgroundColor: string,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
@@ -102,12 +104,13 @@ export class InteractiveSessionEditorOptions extends Disposable {
 		const interactiveSessionEditorConfig = this.configurationService.getValue<IInteractiveSessionConfiguration>('interactiveSession').editor;
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		this._config = {
+			foreground: this.themeService.getColorTheme().getColor(this.foreground),
 			inputEditor: {
-				backgroundColor: this.themeService.getColorTheme().getColor(this.inputEditorBackgroundColorDelegate()),
+				backgroundColor: this.themeService.getColorTheme().getColor(this.inputEditorBackgroundColor),
 				accessibilitySupport,
 			},
 			resultEditor: {
-				backgroundColor: this.themeService.getColorTheme().getColor(this.resultEditorBackgroundColorDelegate()),
+				backgroundColor: this.themeService.getColorTheme().getColor(this.resultEditorBackgroundColor),
 				fontSize: interactiveSessionEditorConfig.fontSize,
 				fontFamily: interactiveSessionEditorConfig.fontFamily === 'default' ? editorConfig.fontFamily : interactiveSessionEditorConfig.fontFamily,
 				fontWeight: interactiveSessionEditorConfig.fontWeight,
