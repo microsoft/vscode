@@ -343,6 +343,7 @@ export interface IRemoteTerminalAttachTarget {
 
 export interface ITerminalCommand {
 	command: string;
+	isTrusted: boolean;
 	timestamp: number;
 	cwd?: string;
 	exitCode?: number;

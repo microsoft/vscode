@@ -39,6 +39,11 @@ export interface ICurrentPartialCommand {
 	command?: string;
 
 	/**
+	 * Whether the command line is trusted via a nonce.
+	 */
+	isTrusted?: boolean;
+
+	/**
 	 * Something invalidated the command before it finished, this will prevent the onCommandFinished
 	 * event from firing.
 	 */
@@ -482,6 +487,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const endMarker = this._currentCommand.commandFinishedMarker;
 			const newCommand: ITerminalCommand = {
 				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
+				isTrusted: !!this._currentCommand.isTrusted,
 				marker: this._currentCommand.commandStartMarker,
 				endMarker,
 				executedMarker,
@@ -543,9 +549,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
 	}
 
-	setCommandLine(commandLine: string) {
+	setCommandLine(commandLine: string, isTrusted: boolean) {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
 		this._currentCommand.command = commandLine;
+		this._currentCommand.isTrusted = isTrusted;
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
@@ -556,6 +563,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				endLine: e.endMarker?.line,
 				executedLine: e.executedMarker?.line,
 				command: this.__isCommandStorageDisabled ? '' : e.command,
+				isTrusted: e.isTrusted,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
@@ -571,6 +579,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				endLine: undefined,
 				executedLine: undefined,
 				command: '',
+				isTrusted: true,
 				cwd: this._cwd,
 				exitCode: undefined,
 				commandStartLineContent: undefined,
@@ -606,8 +615,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			// Full command
 			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			const newCommand = {
+			const newCommand: ITerminalCommand = {
 				command: this.__isCommandStorageDisabled ? '' : e.command,
+				isTrusted: e.isTrusted,
 				marker,
 				endMarker,
 				executedMarker,

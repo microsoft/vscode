@@ -176,8 +176,13 @@ export interface ICommandDetectionCapability {
 	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
 	/**
 	 * Set the command line explicitly.
+	 * @param commandLine The command line being set.
+	 * @param isTrusted Whether the command line is trusted via the optional nonce is send in order
+	 * to prevent spoofing. This is important as some interactions do not require verification
+	 * before re-running a command. Note that this is optional according to the spec, it should
+	 * always be present when running the _builtin_ SI scripts.
 	 */
-	setCommandLine(commandLine: string): void;
+	setCommandLine(commandLine: string, isTrusted: boolean): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
@@ -213,6 +218,7 @@ export interface IPartialCommandDetectionCapability {
 
 export interface ITerminalCommand {
 	command: string;
+	isTrusted: boolean;
 	timestamp: number;
 	cwd?: string;
 	exitCode?: number;
@@ -243,6 +249,7 @@ export interface IXtermMarker {
 
 export interface ISerializedCommand {
 	command: string;
+	isTrusted: boolean;
 	cwd: string | undefined;
 	startLine: number | undefined;
 	startX: number | undefined;

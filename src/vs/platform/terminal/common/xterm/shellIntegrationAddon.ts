@@ -333,16 +333,13 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.CommandLine: {
-				// Only trust the command line if the optional nonce (according to the spec) is
-				// send in order to prevent spoofing. This is important as some interactions do not
-				// require verification before re-running a command.
 				let commandLine: string;
-				if (args.length === 2 && args[1] === this._nonce) {
+				if (args.length === 2) {
 					commandLine = deserializeMessage(args[0]);
 				} else {
 					commandLine = '';
 				}
-				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
+				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, args[1] === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.ContinuationStart: {
