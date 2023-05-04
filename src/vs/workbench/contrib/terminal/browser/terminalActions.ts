@@ -34,7 +34,7 @@ import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/edito
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { Direction, ICreateTerminalOptions, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfiguration, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -72,8 +72,8 @@ export interface WorkspaceFolderCwdPair {
 	isOverridden: boolean;
 }
 
-export async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
-	switch (configHelper.config.splitCwd) {
+export async function getCwdForSplit(instance: ITerminalInstance, folders: IWorkspaceFolder[], commandService: ICommandService, configurationService: IConfigurationService): Promise<string | URI | undefined> {
+	switch (configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).splitCwd) {
 		case 'workspaceRoot':
 			if (folders !== undefined && commandService !== undefined) {
 				if (folders.length === 1) {
@@ -993,13 +993,14 @@ export function registerTerminalActions() {
 		run: async (c, accessor, args) => {
 			const optionsOrProfile = isObject(args) ? args as ICreateTerminalOptions | ITerminalProfile : undefined;
 			const commandService = accessor.get(ICommandService);
+			const configurationService = accessor.get(IConfigurationService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
 			const activeInstance = c.service.getInstanceHost(options?.location).activeInstance;
 			if (!activeInstance) {
 				return;
 			}
-			const cwd = await getCwdForSplit(c.service.configHelper, activeInstance, workspaceContextService.getWorkspace().folders, commandService);
+			const cwd = await getCwdForSplit(activeInstance, workspaceContextService.getWorkspace().folders, commandService, configurationService);
 			if (cwd === undefined) {
 				return;
 			}
