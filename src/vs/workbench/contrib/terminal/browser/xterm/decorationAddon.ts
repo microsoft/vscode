@@ -364,10 +364,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 								label: localize('no', 'No'),
 								run: () => r(false)
 							}]);
-							if (!shouldRun) {
-								return;
-							}
 						});
+						if (!shouldRun) {
+							return;
+						}
 					}
 					this._onDidRequestRunCommand.fire({ command });
 				}
