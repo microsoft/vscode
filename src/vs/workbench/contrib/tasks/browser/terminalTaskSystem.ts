@@ -295,8 +295,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const lastTaskInstance = this.getLastInstance(task);
 		const terminalData = lastTaskInstance ? this._activeTasks[lastTaskInstance.getMapKey()] : undefined;
 		if (!validInstance) {
-			this._lastTask = this._currentTask;
 			if (terminalData && terminalData.promise) {
+				this._lastTask = this._currentTask;
 				return { kind: TaskExecuteKind.Active, task: terminalData.task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
 			}
 			throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
