@@ -22,7 +22,6 @@ import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PostEditWidgetManager } from './postEditWidget';
 
 export const changeDropTypeCommandId = 'editor.changeDropType';
@@ -47,7 +46,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	constructor(
 		editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITreeViewsDnDService private readonly _treeViewsDragAndDropService: ITreeViewsDnDService
 	) {
