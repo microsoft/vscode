@@ -2756,7 +2756,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const taskName = typeof filter === 'string' ? filter : filter.task;
 		const grouped = await this._getGroupedTasks({ type });
 		const tasks = grouped.all();
-		const exactMatchTask = tasks.find(t => t.configurationProperties.identifier === taskName);
+		const exactMatchTask = tasks.find(t => t.configurationProperties.identifier === taskName || t.getDefinition(true)?.configurationProperties?.identifier === taskName);
 		if (!exactMatchTask) {
 			return this._doRunTaskCommand(tasks, type, taskName);
 		}
