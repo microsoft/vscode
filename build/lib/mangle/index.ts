@@ -320,7 +320,11 @@ const skippedExportMangledFiles = [
 ];
 
 const skippedExportMangledProjects = [
-	// This uses webpack to dynamically rewrite imports, which messes up our mangling
+	// Test projects
+	'vscode-api-tests',
+
+	// These projects use webpack to dynamically rewrite imports, which messes up our mangling
+	'configuration-editing',
 	'microsoft-authentication',
 ];
 
