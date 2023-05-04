@@ -324,7 +324,7 @@ export class NativeWindow extends Disposable {
 
 		// Document edited: indicate for dirty working copies
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
-			if (workingCopy.capabilities | WorkingCopyCapabilities.Scratchpad) {
+			if (workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad) {
 				return; // scratchpad working copies are never marked dirty
 			}
 

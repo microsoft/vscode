@@ -148,7 +148,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// the working copies that did not successfully backup
 
 		try {
-			const needToBeSaved = remainingDirtyWorkingCopies.filter(workingCopy => !(workingCopy.capabilities | WorkingCopyCapabilities.Scratchpad));
+			const needToBeSaved = remainingDirtyWorkingCopies.filter(workingCopy => !(workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad));
 			return await this.confirmBeforeShutdown(needToBeSaved);
 		} catch (error) {
 			if (this.environmentService.isExtensionDevelopment) {

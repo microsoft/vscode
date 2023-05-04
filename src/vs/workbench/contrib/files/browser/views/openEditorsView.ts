@@ -434,7 +434,7 @@ export class OpenEditorsView extends ViewPane {
 
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
 		if (workingCopy) {
-			if (workingCopy.capabilities | WorkingCopyCapabilities.Scratchpad) {
+			if (workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad) {
 				return; // scratchpad working copies are never marked dirty
 			}
 
@@ -444,7 +444,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}
 
-		const unsaved = this.workingCopyService.dirtyWorkingCopies.filter(workingCopy => !(workingCopy.capabilities | WorkingCopyCapabilities.Scratchpad)).length;
+		const unsaved = this.workingCopyService.dirtyWorkingCopies.filter(workingCopy => !(workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad)).length;
 		if (unsaved === 0) {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {

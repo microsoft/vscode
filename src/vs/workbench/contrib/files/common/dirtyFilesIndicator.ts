@@ -42,7 +42,7 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 
 	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {
 		const gotDirty = workingCopy.isDirty();
-		if (workingCopy.capabilities | WorkingCopyCapabilities.Scratchpad) {
+		if (workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad) {
 			return; // scratchpad working copies are never marked dirty
 		}
 

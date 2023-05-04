@@ -42,7 +42,7 @@ export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker im
 			return false; // no dirty: no veto
 		}
 
-		if (!this.filesConfigurationService.isHotExitEnabled && dirtyWorkingCopies.filter(workingCopy => !(workingCopy.capabilities | WorkingCopyCapabilities.Scratchpad)).length) {
+		if (!this.filesConfigurationService.isHotExitEnabled && dirtyWorkingCopies.filter(workingCopy => !(workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad)).length) {
 			return true; // dirty non-scratchPad without backup: veto
 		}
 
