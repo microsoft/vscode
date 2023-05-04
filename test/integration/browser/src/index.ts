@@ -157,8 +157,9 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		}
 	}
 
-	console.log(`Storing log files into '${logsPath}'`);
-	serverArgs.push('--logsPath', logsPath);
+	const serverLogsPath = path.join(logsPath, 'server');
+	console.log(`Storing log files into '${serverLogsPath}'`);
+	serverArgs.push('--logsPath', serverLogsPath);
 
 	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
 
