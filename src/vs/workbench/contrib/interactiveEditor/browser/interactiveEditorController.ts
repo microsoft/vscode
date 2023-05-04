@@ -305,9 +305,10 @@ export class InteractiveEditorController implements IEditorContribution {
 
 
 		let _requestCancelledOnModelContentChanged = false;
+		this._zone.widget.placeholder = session.placeholder ?? '';
+		this._zone.widget.input = options?.message ?? '';
 
 		do {
-
 			const wholeRange = wholeRangeDecoration.getRange(0);
 			if (!wholeRange) {
 				// nuked whole file contents?
@@ -326,8 +327,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			this._zone.widget.placeholder = session.placeholder ?? '';
-			this._zone.widget.input = options?.message ?? '';
+
 			if (!_requestCancelledOnModelContentChanged) {
 				this._zone.widget.selectAll();
 			}
@@ -393,13 +393,15 @@ export class InteractiveEditorController implements IEditorContribution {
 				reply = await raceCancellationError(Promise.resolve(task), this._ctsRequest.token);
 
 			} catch (e) {
-				if (!isCancellationError(e)) {
+				if (isCancellationError(e) || this._ctsRequest.token.isCancellationRequested) {
+					this._logService.trace('[IE] request CANCELED', provider.debugName);
+				} else {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
 					this._zone.widget.updateStatus(toErrorMessage(e), { classes: ['error'] });
-					// statusWidget
-					continue;
 				}
+				continue;
+
 			} finally {
 				this._ctxHasActiveRequest.set(false);
 				this._ctxLastResponseType.set(reply?.type);
@@ -407,11 +409,6 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
 
 				typeListener.dispose();
-			}
-
-			if (this._ctsRequest.token.isCancellationRequested) {
-				this._logService.trace('[IE] request CANCELED', provider.debugName);
-				continue;
 			}
 
 			if (!reply) {
