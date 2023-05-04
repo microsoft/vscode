@@ -105,8 +105,8 @@ export interface IStorageService {
 	 * @param scope allows to define the scope of the storage operation
 	 * to either the current workspace only, all workspaces or all profiles.
 	 */
-	getObject(key: string, scope: StorageScope, fallbackValue: object): object;
-	getObject(key: string, scope: StorageScope, fallbackValue?: object): object | undefined;
+	getObject<T extends object>(key: string, scope: StorageScope, fallbackValue: T): T;
+	getObject<T extends object>(key: string, scope: StorageScope, fallbackValue?: T): T | undefined;
 
 	/**
 	 * Store a value under the given key to storage. The value will be

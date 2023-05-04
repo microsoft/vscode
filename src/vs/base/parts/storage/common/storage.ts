@@ -6,7 +6,8 @@
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { revive } from 'vs/base/common/marshalling';
+import { isUndefinedOrNull, isObject } from 'vs/base/common/types';
 
 export enum StorageHint {
 
@@ -69,8 +70,8 @@ export interface IStorage extends IDisposable {
 	getNumber(key: string, fallbackValue: number): number;
 	getNumber(key: string, fallbackValue?: number): number | undefined;
 
-	getObject(key: string, fallbackValue: object): object;
-	getObject(key: string, fallbackValue?: object): object | undefined;
+	getObject<T extends object>(key: string, fallbackValue: T): T;
+	getObject<T extends object>(key: string, fallbackValue?: T): T | undefined;
 
 	set(key: string, value: string | boolean | number | undefined | null | object): Promise<void>;
 	delete(key: string): Promise<void>;
@@ -225,7 +226,7 @@ export class Storage extends Disposable implements IStorage {
 			return fallbackValue;
 		}
 
-		return JSON.parse(value);
+		return revive(value);
 	}
 
 	async set(key: string, value: string | boolean | number | null | undefined | object): Promise<void> {
@@ -239,7 +240,7 @@ export class Storage extends Disposable implements IStorage {
 		}
 
 		// Otherwise, convert to String and store
-		const valueStr = typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
+		const valueStr = isObject(value) ? JSON.stringify(value) : String(value);
 
 		// Return early if value already set
 		const currentValue = this.cache.get(key);
