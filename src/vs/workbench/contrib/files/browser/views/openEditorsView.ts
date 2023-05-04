@@ -444,7 +444,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}
 
-		const unsaved = this.workingCopyService.dirtyWorkingCopies.filter(workingCopy => !(workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad)).length;
+		const unsaved = this.workingCopyService.unsavedWorkingCopies.length;
 		if (unsaved === 0) {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {

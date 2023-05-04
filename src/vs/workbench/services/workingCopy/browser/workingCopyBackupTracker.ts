@@ -13,7 +13,6 @@ import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/comm
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 
@@ -37,13 +36,9 @@ export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker im
 		// copies that have not been backed up yet and then prevent the
 		// shutdown if that is the case.
 
-		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
+		const dirtyWorkingCopies = this.workingCopyService.unsavedWorkingCopies;
 		if (!dirtyWorkingCopies.length) {
 			return false; // no dirty: no veto
-		}
-
-		if (!this.filesConfigurationService.isHotExitEnabled && dirtyWorkingCopies.filter(workingCopy => !(workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad)).length) {
-			return true; // dirty non-scratchPad without backup: veto
 		}
 
 		for (const dirtyWorkingCopy of dirtyWorkingCopies) {
