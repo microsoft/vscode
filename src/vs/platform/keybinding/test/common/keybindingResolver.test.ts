@@ -51,11 +51,11 @@ suite('KeybindingResolver', () => {
 
 		const resolver = new KeybindingResolver([keybindingItem], [], () => { });
 
-		const r1 = resolver.resolve(createContext({ bar: 'baz' }), [], getDispatchStr(runtimeKeybinding));
+		const r1 = resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding));
 		assert.ok(r1.kind === ResultKind.KbFound);
 		assert.strictEqual(r1.commandId, 'yes');
 
-		const r2 = resolver.resolve(createContext({ bar: 'bz' }), [], getDispatchStr(runtimeKeybinding));
+		const r2 = resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(runtimeKeybinding));
 		assert.strictEqual(r2.kind, ResultKind.NoMatchingKb);
 	});
 
@@ -68,7 +68,7 @@ suite('KeybindingResolver', () => {
 
 		const resolver = new KeybindingResolver([keybindingItem], [], () => { });
 
-		const r = resolver.resolve(createContext({ bar: 'baz' }), [], getDispatchStr(runtimeKeybinding));
+		const r = resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding));
 		assert.ok(r.kind === ResultKind.KbFound);
 		assert.strictEqual(r.commandArgs, commandArgs);
 	});
@@ -415,7 +415,7 @@ suite('KeybindingResolver', () => {
 		const testResolve = (ctx: IContext, _expectedKey: number | number[], commandId: string) => {
 			const expectedKeybinding = decodeKeybinding(_expectedKey, OS)!;
 
-			const previousChord: string[] = [];
+			let previousChord: string[] | null = null;
 
 			for (let i = 0, len = expectedKeybinding.chords.length; i < len; i++) {
 
@@ -436,6 +436,9 @@ suite('KeybindingResolver', () => {
 					// if it's not the final chord and not an intermediate, then we should not
 					// find a valid command, and we should enter a chord.
 					assert.ok(result.kind === ResultKind.MoreChordsNeeded, `Enters multi chord for ${commandId} at chord ${i}`);
+				}
+				if (previousChord === null) {
+					previousChord = [];
 				}
 				previousChord.push(chord);
 			}
