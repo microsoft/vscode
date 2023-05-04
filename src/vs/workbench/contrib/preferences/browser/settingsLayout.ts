@@ -254,6 +254,7 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'security',
 			label: localize('security', "Security"),
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',

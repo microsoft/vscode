@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { setUNCHostAllowlist, toUNCHostAllowlist } from 'vs/base/node/unc';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -308,6 +309,14 @@ export class CodeApplication extends Disposable {
 			// invalidate caches that we know are invalid
 			// (https://github.com/microsoft/vscode/issues/120655)
 			defaultSession.setCodeCachePath(join(this.environmentMainService.codeCachePath, 'chrome'));
+		}
+
+		//#endregion
+
+		//#region UNC Host Allowlist (Windows)
+
+		if (isWindows) {
+			setUNCHostAllowlist(toUNCHostAllowlist(this.configurationService.getValue<unknown>('security.allowedUNCHosts')));
 		}
 
 		//#endregion

@@ -49,6 +49,7 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { localize } from 'vs/nls';
+import { setUNCHostAllowlist, toUNCHostAllowlist } from 'vs/base/node/unc';
 
 class CliMain extends Disposable {
 
@@ -66,7 +67,14 @@ class CliMain extends Disposable {
 	async run(): Promise<void> {
 		const instantiationService = await this.initServices();
 		await instantiationService.invokeFunction(async accessor => {
+			const configurationService = accessor.get(IConfigurationService);
 			const logService = accessor.get(ILogService);
+
+			// On Windows, configure the UNC allow list based on settings
+			if (process.platform === 'win32') {
+				setUNCHostAllowlist(toUNCHostAllowlist(configurationService.getValue<unknown>('security.allowedUNCHosts')));
+			}
+
 			try {
 				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(logService.getLevel(), false)));
 			} catch (error) {

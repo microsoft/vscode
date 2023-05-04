@@ -23,8 +23,10 @@ import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { findFreePort } from 'vs/base/node/ports';
+import { setUNCHostAllowlist, toUNCHostAllowlist } from 'vs/base/node/unc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -710,6 +712,15 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		unloggedErrors.length = 0;
 
 		initUnexpectedErrorHandler((error: any) => logService.error(error));
+	});
+
+	// On Windows, configure the UNC allow list based on settings
+	instantiationService.invokeFunction((accessor) => {
+		const configurationService = accessor.get(IConfigurationService);
+
+		if (process.platform === 'win32') {
+			setUNCHostAllowlist(toUNCHostAllowlist(configurationService.getValue<unknown>('security.allowedUNCHosts')));
+		}
 	});
 
 	//

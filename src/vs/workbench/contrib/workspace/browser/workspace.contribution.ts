@@ -47,6 +47,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { isWeb } from 'vs/base/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -690,11 +691,7 @@ registerAction2(class extends Action2 {
  */
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		id: 'security',
-		scope: ConfigurationScope.APPLICATION,
-		title: localize('securityConfigurationTitle', "Security"),
-		type: 'object',
-		order: 7,
+		...securityConfigurationNodeBase,
 		properties: {
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',
