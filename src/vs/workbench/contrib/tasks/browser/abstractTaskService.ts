@@ -411,7 +411,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			id: 'workbench.action.tasks.runTask',
 			handler: async (accessor, arg) => {
 				if (await this._trust()) {
-					await this._runTaskCommand(arg);
+					this._runTaskCommand(arg);
 				}
 			},
 			description: {
@@ -2748,32 +2748,33 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return true;
 	}
 
-	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
+	private _runTaskCommand(filter?: string | ITaskIdentifier): void {
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
 		const type = typeof filter === 'string' ? undefined : filter.type;
 		const taskName = typeof filter === 'string' ? filter : filter.task;
-		const grouped = await this._getGroupedTasks({ type });
-		const tasks = grouped.all();
-		const exactMatchTask = tasks.find(t => t.configurationProperties.identifier === taskName || t.getDefinition(true)?.configurationProperties?.identifier === taskName);
-		if (!exactMatchTask) {
-			return this._doRunTaskCommand(tasks, type, taskName);
-		}
-
-		const resolver = this._createResolver(grouped);
-		const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
-		if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			folderURIs.push(this._contextService.getWorkspace().configuration!);
-		}
-		folderURIs.push(USER_TASKS_GROUP_KEY);
-		for (const uri of folderURIs) {
-			const task = await resolver.resolve(uri, taskName);
-			if (task) {
-				await this.run(task, { attachProblemMatcher: true }, TaskRunSource.User);
-				return;
+		this._getGroupedTasks({ type }).then(async grouped => {
+			const tasks = grouped.all();
+			const exactMatchTask = tasks.find(t => t.configurationProperties.identifier === taskName || t.getDefinition(true)?.configurationProperties?.identifier === taskName);
+			if (!exactMatchTask) {
+				return this._doRunTaskCommand(tasks, type, taskName);
 			}
-		}
+
+			const resolver = this._createResolver(grouped);
+			const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
+			if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+				folderURIs.push(this._contextService.getWorkspace().configuration!);
+			}
+			folderURIs.push(USER_TASKS_GROUP_KEY);
+			for (const uri of folderURIs) {
+				const task = await resolver.resolve(uri, taskName);
+				if (task) {
+					await this.run(task, { attachProblemMatcher: true }, TaskRunSource.User);
+					return;
+				}
+			}
+		});
 	}
 
 	private _tasksAndGroupedTasks(filter?: ITaskFilter): { tasks: Promise<Task[]>; grouped: Promise<TaskMap> } {
