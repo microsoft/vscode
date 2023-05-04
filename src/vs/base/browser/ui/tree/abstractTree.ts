@@ -1359,6 +1359,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return;
 		}
 
+		if (e.browserEvent.isHandledByList) {
+			return;
+		}
+
 		const node = e.element;
 
 		if (!node) {
@@ -1390,6 +1394,8 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		if (node.collapsible) {
+			// Do not set this before calling a handler on the super class, because it will reject it as handled
+			e.browserEvent.isHandledByList = true;
 			const location = this.tree.getNodeLocation(node);
 			const recursive = e.browserEvent.altKey;
 			this.tree.setFocus([location]);
@@ -1407,6 +1413,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const onTwistie = (e.browserEvent.target as HTMLElement).classList.contains('monaco-tl-twistie');
 
 		if (onTwistie || !this.tree.expandOnDoubleClick) {
+			return;
+		}
+
+		if (e.browserEvent.isHandledByList) {
 			return;
 		}
 
