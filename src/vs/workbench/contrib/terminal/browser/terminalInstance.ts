@@ -61,7 +61,6 @@ import { getColorClass, getColorStyleElement, getStandardColors } from 'vs/workb
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { showRunRecentQuickPick } from 'vs/workbench/contrib/terminal/browser/terminalRunRecentQuickPick';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/xterm/terminalTypeAheadAddon';
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
@@ -152,7 +151,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// is added
 	private _xtermOnKey: IDisposable | undefined;
 	private _xtermReadyPromise: Promise<XtermTerminal>;
-	private _xtermTypeAheadAddon: TypeAheadAddon | undefined;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 	private _instanceId: number;
 	private _latestXtermWriteData: number = 0;
@@ -810,13 +808,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e));
 
-		this._loadTypeAheadAddon(xterm);
-
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.LocalEchoEnabled)) {
-				this._loadTypeAheadAddon(xterm);
-			}
-		}));
 		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
 				xterm.refresh();
@@ -851,22 +842,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		// Use bracketed paste mode only when not running the command
 		await this.sendText(commandLine, addNewLine, !addNewLine);
-	}
-
-
-	private _loadTypeAheadAddon(xterm: XtermTerminal): void {
-		const enabled = this._configHelper.config.localEchoEnabled;
-		const isRemote = !!this.remoteAuthority;
-		if (enabled === 'off' || enabled === 'auto' && !isRemote) {
-			return this._xtermTypeAheadAddon?.dispose();
-		}
-		if (this._xtermTypeAheadAddon) {
-			return;
-		}
-		if (enabled === 'on' || (enabled === 'auto' && isRemote)) {
-			this._xtermTypeAheadAddon = this._register(this._scopedInstantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
-			xterm.raw.loadAddon(this._xtermTypeAheadAddon);
-		}
 	}
 
 	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
@@ -1759,8 +1734,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		});
-
-		this._xtermTypeAheadAddon?.reset();
 	}
 
 	async setEscapeSequenceLogging(enable: boolean): Promise<void> {
