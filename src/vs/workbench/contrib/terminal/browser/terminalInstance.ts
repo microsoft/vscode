@@ -147,10 +147,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private readonly _processManager: ITerminalProcessManager;
 	private readonly _contributions: Map<string, ITerminalContribution> = new Map();
 	private readonly _resource: URI;
-	// Enables disposal of the xterm onKey
-	// event when the CwdDetection capability
-	// is added
-	private _xtermOnKey: IDisposable | undefined;
 	private _xtermReadyPromise: Promise<XtermTerminal>;
 	private _xtermTypeAheadAddon: TypeAheadAddon | undefined;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
@@ -442,7 +438,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e === TerminalCapability.CwdDetection) {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
 					this._cwd = e;
-					this._xtermOnKey?.dispose();
 					this._setTitle(this.title, TitleEventSource.Config);
 					this._scopedInstantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: this.remoteAuthority });
 				});
@@ -782,7 +777,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		}, 1000);
-		this._xtermOnKey = xterm.raw.onKey(e => this._onKey(e.key, e.domEvent));
 		xterm.raw.onSelectionChange(async () => this._onSelectionChange());
 		xterm.raw.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
 
@@ -816,6 +810,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				xterm.refresh();
 			}
 		}));
+
+		// Set up updating of the process cwd on key press, this is only needed when the cwd
+		// detection capability has not been registered
+		if (!this.capabilities.has(TerminalCapability.CwdDetection)) {
+			let onKeyListener: IDisposable | undefined = xterm.raw.onKey(e => {
+				const event = new StandardKeyboardEvent(e.domEvent);
+				if (event.equals(KeyCode.Enter)) {
+					this._updateProcessCwd();
+				}
+			});
+			this._register(this.capabilities.onDidAddCapability(e => {
+				if (e === TerminalCapability.CwdDetection) {
+					onKeyListener?.dispose();
+					onKeyListener = undefined;
+				}
+			}));
+		}
 
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;
@@ -1778,14 +1789,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			{
 				message: nls.localize('terminal.requestTrust', "Creating a terminal process requires executing code")
 			})) === true;
-	}
-
-	private _onKey(key: string, ev: KeyboardEvent): void {
-		const event = new StandardKeyboardEvent(ev);
-
-		if (event.equals(KeyCode.Enter)) {
-			this._updateProcessCwd();
-		}
 	}
 
 	private async _onSelectionChange(): Promise<void> {
