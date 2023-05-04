@@ -575,29 +575,27 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
-
 			this._zone.widget.updateToolbar(true);
 
-			if (reply.type === 'message') {
+			const response = reply.type === 'message'
+				? new MarkdownResponse(textModel.uri, reply)
+				: new EditResponse(textModel.uri, reply);
+			this._currentSession.addExchange(new SessionExchange(input, response));
+
+			if (response instanceof MarkdownResponse) {
 				this._logService.info('[IE] received a MESSAGE, showing inline first', provider.debugName);
-				const renderedMarkdown = renderMarkdown(reply.message, { inline: true });
+				const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
 				this._zone.widget.updateStatus('');
 				this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
-				const markdownResponse = new MarkdownResponse(textModel.uri, reply);
-				this._currentSession.addExchange(new SessionExchange(input, markdownResponse));
 				continue;
 			}
 
-			const editResponse = new EditResponse(textModel.uri, reply);
-			this._currentSession.addExchange(new SessionExchange(input, editResponse));
-
-			const canContinue = this._strategy.checkChanges(editResponse);
+			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
 				break;
 			}
 
-			this._ctxLastEditKind.set(editResponse.localEdits.length === 1 ? 'simple' : '');
-
+			this._ctxLastEditKind.set(response.localEdits.length === 1 ? 'simple' : '');
 
 			// use whole range from reply
 			if (reply.wholeRange) {
@@ -606,9 +604,9 @@ export class InteractiveEditorController implements IEditorContribution {
 					options: InteractiveEditorController._decoWholeRange
 				}]);
 			}
-			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, editResponse.localEdits));
-			const editOperations = (moreMinimalEdits ?? editResponse.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, editResponse.localEdits, moreMinimalEdits);
+			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, response.localEdits));
+			const editOperations = (moreMinimalEdits ?? response.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, response.localEdits, moreMinimalEdits);
 
 			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModel.createSnapshot()), null, undefined, true);
 			textModelNplus1.applyEdits(editOperations);
@@ -623,8 +621,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				ignoreModelChanges = false;
 			}
 
-			if (editResponse.singleCreateFileEdit) {
-				this._zone.widget.showCreatePreview(editResponse.singleCreateFileEdit.uri, await Promise.all(editResponse.singleCreateFileEdit.edits));
+			if (response.singleCreateFileEdit) {
+				this._zone.widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 			} else {
 				this._zone.widget.hideCreatePreview();
 			}
