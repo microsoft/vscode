@@ -5,6 +5,7 @@
 
 import { AuthenticationSession, authentication, window } from 'vscode';
 import { Agent, globalAgent } from 'https';
+import { graphql } from '@octokit/graphql/dist-types/types';
 import { Octokit } from '@octokit/rest';
 import { httpsOverHttp } from 'tunnel';
 import { URL } from 'url';
@@ -52,4 +53,30 @@ export function getOctokit(): Promise<Octokit> {
 	}
 
 	return _octokit;
+}
+
+let _octokitGraphql: Promise<graphql> | undefined;
+
+export function getOctokitGraphql(): Promise<graphql> {
+	if (!_octokitGraphql) {
+		_octokitGraphql = getSession()
+			.then(async session => {
+				const token = session.accessToken;
+				const { graphql } = await import('@octokit/graphql');
+
+				return graphql.defaults({
+					headers: {
+						authorization: `token ${token}`
+					},
+					request: {
+						agent: getAgent()
+					}
+				});
+			}).then(null, async err => {
+				_octokitGraphql = undefined;
+				throw err;
+			});
+	}
+
+	return _octokitGraphql;
 }
