@@ -707,6 +707,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			return error; // avoid double conversion
 		}
 
+		let resultError: Error | string = error;
 		let code: FileSystemProviderErrorCode;
 		switch (error.code) {
 			case 'ENOENT':
@@ -725,11 +726,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			case 'EACCES':
 				code = FileSystemProviderErrorCode.NoPermissions;
 				break;
+			case 'ERR_UNC_HOST_NOT_ALLOWED':
+				resultError = `${error.message}. Please update the 'security.allowedUNCHosts' setting if you want to allow this host.`;
+				code = FileSystemProviderErrorCode.Unknown;
+				break;
 			default:
 				code = FileSystemProviderErrorCode.Unknown;
 		}
 
-		return createFileSystemProviderError(error, code);
+		return createFileSystemProviderError(resultError, code);
 	}
 
 	private async toFileSystemProviderWriteError(resource: URI | undefined, error: NodeJS.ErrnoException): Promise<FileSystemProviderError> {
