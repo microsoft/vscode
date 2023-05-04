@@ -8,7 +8,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { TypeAheadAddon } from 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon';
@@ -61,8 +60,7 @@ class TerminalTypeAheadContribution extends DisposableStore implements ITerminal
 			return;
 		}
 		if (enabled === 'on' || (enabled === 'auto' && isRemote)) {
-			// TODO: Remove TypeAheadAddon's dependence on TerminalConfigHelper
-			this._addon = this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._instantiationService.createInstance(TerminalConfigHelper));
+			this._addon = this._instantiationService.createInstance(TypeAheadAddon, this._processManager);
 			xterm.loadAddon(this._addon);
 		}
 	}
