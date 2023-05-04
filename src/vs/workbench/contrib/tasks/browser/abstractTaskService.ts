@@ -2755,18 +2755,27 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const type = typeof filter === 'string' ? undefined : filter.type;
 		const taskName = typeof filter === 'string' ? filter : filter.task;
 		const grouped = await this._getGroupedTasks({ type });
+		const identifier = this._getTaskIdentifier(filter);
 		const tasks = grouped.all();
-		const exactMatchTask = tasks.find(t => t.configurationProperties.identifier === taskName || t.getDefinition(true)?.configurationProperties?.identifier === taskName);
-		if (!exactMatchTask) {
-			return this._doRunTaskCommand(tasks, type, taskName);
-		}
-
 		const resolver = this._createResolver(grouped);
 		const folderURIs: (URI | string)[] = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 		if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			folderURIs.push(this._contextService.getWorkspace().configuration!);
 		}
 		folderURIs.push(USER_TASKS_GROUP_KEY);
+		if (identifier) {
+			for (const uri of folderURIs) {
+				const task = await resolver.resolve(uri, identifier);
+				if (task) {
+					this.run(task);
+					return;
+				}
+			}
+		}
+		const exactMatchTask = !taskName ? undefined : tasks.find(t => t.configurationProperties.identifier === taskName || t.getDefinition(true)?.configurationProperties?.identifier === taskName);
+		if (!exactMatchTask) {
+			return this._doRunTaskCommand(tasks, type, taskName);
+		}
 		for (const uri of folderURIs) {
 			const task = await resolver.resolve(uri, taskName);
 			if (task) {
