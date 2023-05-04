@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { CallHierarchyProviderRegistry, CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyTreePeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
@@ -26,6 +26,7 @@ import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { isCancellationError } from 'vs/base/common/errors';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false, localize('editorHasCallHierarchyProvider', 'Whether a call hierarchy provider is available'));
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false, localize('callHierarchyVisible', 'Whether call hierarchy peek is currently showing'));
@@ -61,12 +62,13 @@ class CallHierarchyController implements IEditorContribution {
 		@IStorageService private readonly _storageService: IStorageService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this._ctxIsVisible = _ctxCallHierarchyVisible.bindTo(this._contextKeyService);
 		this._ctxHasProvider = _ctxHasCallHierarchyProvider.bindTo(this._contextKeyService);
 		this._ctxDirection = _ctxCallHierarchyDirection.bindTo(this._contextKeyService);
-		this._dispoables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
-			this._ctxHasProvider.set(_editor.hasModel() && CallHierarchyProviderRegistry.has(_editor.getModel()));
+		this._dispoables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, this.languageFeaturesService.callHierarchyProvider.onDidChange)(() => {
+			this._ctxHasProvider.set(_editor.hasModel() && this.languageFeaturesService.callHierarchyProvider.has(_editor.getModel()));
 		}));
 		this._dispoables.add(this._sessionDisposables);
 	}
@@ -86,12 +88,12 @@ class CallHierarchyController implements IEditorContribution {
 
 		const document = this._editor.getModel();
 		const position = this._editor.getPosition();
-		if (!CallHierarchyProviderRegistry.has(document)) {
+		if (!this.languageFeaturesService.callHierarchyProvider.has(document)) {
 			return;
 		}
 
 		const cts = new CancellationTokenSource();
-		const model = CallHierarchyModel.create(document, position, cts.token);
+		const model = CallHierarchyModel.create(this.languageFeaturesService.callHierarchyProvider, document, position, cts.token);
 		const direction = sanitizedDirection(this._storageService.get(CallHierarchyController._StorageDirection, StorageScope.PROFILE, CallHierarchyDirection.CallsTo));
 
 		this._showCallHierarchyWidget(position, direction, model, cts);

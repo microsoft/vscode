@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/languages';
+import { TypeHierarchyProvider, TypeHierarchyItem, SymbolKind, SymbolTag } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
@@ -17,13 +16,16 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export const enum TypeHierarchyDirection {
 	Subtypes = 'subtypes',
 	Supertypes = 'supertypes'
 }
 
-export interface TypeHierarchyItem {
+// XXX is this even vaguely right?
+export interface TypeHierarchyItemDto {
 	_sessionId: string;
 	_itemId: string;
 	kind: SymbolKind;
@@ -35,25 +37,12 @@ export interface TypeHierarchyItem {
 	tags?: SymbolTag[];
 }
 
-export interface TypeHierarchySession {
-	roots: TypeHierarchyItem[];
-	dispose(): void;
-}
-
-export interface TypeHierarchyProvider {
-	prepareTypeHierarchy(document: ITextModel, position: IPosition, token: CancellationToken): ProviderResult<TypeHierarchySession>;
-	provideSupertypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
-	provideSubtypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
-}
-
-export const TypeHierarchyProviderRegistry = new LanguageFeatureRegistry<TypeHierarchyProvider>();
-
 
 
 export class TypeHierarchyModel {
 
-	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<TypeHierarchyModel | undefined> {
-		const [provider] = TypeHierarchyProviderRegistry.ordered(model);
+	static async create(typeHierarchyProviderRegistry: LanguageFeatureRegistry<TypeHierarchyProvider>, model: ITextModel, position: IPosition, token: CancellationToken): Promise<TypeHierarchyModel | undefined> {
+		const [provider] = typeHierarchyProviderRegistry.ordered(model);
 		if (!provider) {
 			return undefined;
 		}
@@ -90,7 +79,7 @@ export class TypeHierarchyModel {
 
 	async provideSupertypes(item: TypeHierarchyItem, token: CancellationToken): Promise<TypeHierarchyItem[]> {
 		try {
-			const result = await this.provider.provideSupertypes(item, token);
+			const result = await this.provider.provideTypeHierarchySupertypes(item, token);
 			if (isNonEmptyArray(result)) {
 				return result;
 			}
@@ -102,7 +91,7 @@ export class TypeHierarchyModel {
 
 	async provideSubtypes(item: TypeHierarchyItem, token: CancellationToken): Promise<TypeHierarchyItem[]> {
 		try {
-			const result = await this.provider.provideSubtypes(item, token);
+			const result = await this.provider.provideTypeHierarchySubtypes(item, token);
 			if (isNonEmptyArray(result)) {
 				return result;
 			}
@@ -133,7 +122,8 @@ CommandsRegistry.registerCommand('_executePrepareTypeHierarchy', async (accessor
 	}
 
 	try {
-		const model = await TypeHierarchyModel.create(textModel, position, CancellationToken.None);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+		const model = await TypeHierarchyModel.create(languageFeaturesService.typeHierarchyProvider, textModel, position, CancellationToken.None);
 		if (!model) {
 			return [];
 		}
@@ -152,8 +142,8 @@ CommandsRegistry.registerCommand('_executePrepareTypeHierarchy', async (accessor
 	}
 });
 
-function isTypeHierarchyItemDto(obj: any): obj is TypeHierarchyItem {
-	const item = obj as TypeHierarchyItem;
+function isTypeHierarchyItemDto(obj: any): obj is TypeHierarchyItemDto {
+	const item = obj as TypeHierarchyItemDto;
 	return typeof obj === 'object'
 		&& typeof item.name === 'string'
 		&& typeof item.kind === 'number'

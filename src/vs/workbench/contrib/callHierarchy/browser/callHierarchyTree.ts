@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import { CallHierarchyDirection, CallHierarchyModel, } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { SymbolKinds, Location, SymbolTag } from 'vs/editor/common/languages';
+import { SymbolKinds, Location, SymbolTag, CallHierarchyItem } from 'vs/editor/common/languages';
 import { compare } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
