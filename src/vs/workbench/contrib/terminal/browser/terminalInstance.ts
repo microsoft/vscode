@@ -88,7 +88,6 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
 
 const enum Constants {
