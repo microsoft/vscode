@@ -174,6 +174,7 @@ export interface IPtyHostAttachTarget {
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
 	hasChildProcesses: boolean;
+	shellIntegrationNonce: string;
 }
 
 export interface IReconnectionProperties {
@@ -483,7 +484,23 @@ export interface IShellLaunchConfig {
 	 * This is a terminal that attaches to an already running terminal.
 	 */
 	attachPersistentProcess?: {
-		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionProperties?: IReconnectionProperties; type?: TerminalType; waitOnExit?: WaitOnExitValue; hideFromUser?: boolean; isFeatureTerminal?: boolean;
+		id: number;
+		findRevivedId?: boolean;
+		pid: number;
+		title: string;
+		titleSource: TitleEventSource;
+		cwd: string;
+		icon?: TerminalIcon;
+		color?: string;
+		hasChildProcesses?: boolean;
+		fixedDimensions?: IFixedTerminalDimensions;
+		environmentVariableCollections?: ISerializableEnvironmentVariableCollections;
+		reconnectionProperties?: IReconnectionProperties;
+		type?: TerminalType;
+		waitOnExit?: WaitOnExitValue;
+		hideFromUser?: boolean;
+		isFeatureTerminal?: boolean;
+		shellIntegrationNonce: string;
 	};
 
 	/**
@@ -598,6 +615,7 @@ export interface ITerminalProcessOptions {
 	shellIntegration: {
 		enabled: boolean;
 		suggestEnabled: boolean;
+		nonce: string;
 	};
 	windowsEnableConpty: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;

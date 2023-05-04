@@ -39,6 +39,7 @@ import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
+import { generateUuid } from 'vs/base/common/uuid';
 
 const enum ProcessConstants {
 	/**
@@ -74,6 +75,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	backend: ITerminalBackend | undefined;
 	readonly capabilities = new TerminalCapabilityStore();
+	readonly shellIntegrationNonce: string;
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
@@ -130,6 +132,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		private readonly _configHelper: ITerminalConfigHelper,
 		cwd: string | URI | undefined,
 		environmentVariableCollections: ReadonlyMap<string, IEnvironmentVariableCollection> | undefined,
+		shellIntegrationNonce: string | undefined,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -177,6 +180,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 			this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 		}
+
+		this.shellIntegrationNonce = shellIntegrationNonce ?? generateUuid();
 	}
 
 	async freePortKillProcess(port: string): Promise<void> {
@@ -279,6 +284,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						shellIntegration: {
 							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
 							suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
+							nonce: this.shellIntegrationNonce
 						},
 						windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
 						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
@@ -470,6 +476,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			shellIntegration: {
 				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
 				suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
+				nonce: this.shellIntegrationNonce
 			},
 			windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,

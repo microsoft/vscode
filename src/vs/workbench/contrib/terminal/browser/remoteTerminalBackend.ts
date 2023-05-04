@@ -262,6 +262,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 	async listProcesses(): Promise<IProcessDetails[]> {
 		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
 		return terms.map(termDto => {
+			// TODO: This is an unsafe cast, why not just return channel.listProcesses?
 			return <IProcessDetails>{
 				id: termDto.id,
 				pid: termDto.pid,
@@ -273,7 +274,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 				icon: termDto.icon,
 				color: termDto.color,
 				isOrphan: termDto.isOrphan,
-				fixedDimensions: termDto.fixedDimensions
+				fixedDimensions: termDto.fixedDimensions,
+				shellIntegrationNonce: termDto.shellIntegrationNonce
 			};
 		});
 	}

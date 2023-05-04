@@ -129,6 +129,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			// Set a fake detected command starting as line 0 to establish the cwd
 			commandDetection.setCommands([{
 				command: '',
+				isTrusted: true,
 				cwd: '/initial/cwd',
 				timestamp: 0,
 				getOutput() { return undefined; },
@@ -266,6 +267,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
 					command: '',
+					isTrusted: true,
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },
@@ -351,6 +353,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
 					command: '',
+					isTrusted: true,
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },

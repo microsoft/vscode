@@ -436,6 +436,7 @@ suite('QuickFixAddon', () => {
 function createCommand(command: string, output: string, outputMatcher?: RegExp | string, exitCode?: number, outputLines?: string[]): ITerminalCommand {
 	return {
 		command,
+		isTrusted: true,
 		exitCode,
 		getOutput: () => { return output; },
 		getOutputMatch: (matcher: ITerminalOutputMatcher) => {

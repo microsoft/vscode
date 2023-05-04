@@ -338,10 +338,12 @@ export interface IRemoteTerminalAttachTarget {
 	icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } } | undefined;
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
+	shellIntegrationNonce: string;
 }
 
 export interface ITerminalCommand {
 	command: string;
+	isTrusted: boolean;
 	timestamp: number;
 	cwd?: string;
 	exitCode?: number;
@@ -380,6 +382,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly hasChildProcesses: boolean;
 	readonly backend: ITerminalBackend | undefined;
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly shellIntegrationNonce: string;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
 	readonly onPtyDisconnect: Event<void>;

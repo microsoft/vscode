@@ -129,6 +129,10 @@ export function getShellIntegrationInjection(
 		'VSCODE_INJECTION': '1'
 	};
 
+	if (options.shellIntegration.nonce) {
+		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
+	}
+
 	// Windows
 	if (isWindows) {
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
