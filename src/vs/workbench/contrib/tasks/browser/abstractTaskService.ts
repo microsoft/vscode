@@ -2004,7 +2004,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 						foundAnyProviders = true;
 						counter++;
-						provider.provideTasks(validTypes).then((taskSet: ITaskSet) => {
+						raceTimeout(provider.provideTasks(validTypes).then((taskSet: ITaskSet) => {
 							// Check that the tasks provided are of the correct type
 							for (const task of taskSet.tasks) {
 								if (task.type !== this._providerTypes.get(handle)) {
@@ -2016,7 +2016,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								}
 							}
 							return done(taskSet);
-						}, error);
+						}, error), 5000, () => {
+							// onTimeout
+							console.error('Timed out getting tasks from ', providerType);
+							done(undefined);
+						});
 					}
 				}
 				if (!foundAnyProviders) {
