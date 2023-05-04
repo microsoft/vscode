@@ -34,7 +34,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
+import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorLivePreviewWidget';
 import { EditResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { InteractiveEditorWidget, InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
 import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
@@ -458,15 +458,9 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			try {
 				ignoreModelChanges = true;
-				this._strategy.renderChanges(editOperations, textModel0Changes);
+				await this._strategy.renderChanges(response, editOperations, textModel0Changes);
 			} finally {
 				ignoreModelChanges = false;
-			}
-
-			if (response.singleCreateFileEdit) {
-				this._zone.widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
-			} else {
-				this._zone.widget.hideCreatePreview();
 			}
 
 			this._zone.widget.placeholder = reply.placeholder ?? session.placeholder ?? '';
@@ -618,7 +612,7 @@ abstract class EditModeStrategy {
 
 	abstract cancel(): Promise<void>;
 
-	abstract renderChanges(edits: ISingleEditOperation[], changes: LineRangeMapping[]): void;
+	abstract renderChanges(response: EditResponse, edits: ISingleEditOperation[], changes: LineRangeMapping[]): Promise<void>;
 
 	abstract toggleInlineDiff(): void;
 }
@@ -683,12 +677,17 @@ class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override renderChanges(edits: ISingleEditOperation[], changes: LineRangeMapping[]): void {
-		const response = this._session.lastExchange?.response;
-		if (response instanceof EditResponse && response.localEdits.length > 0) {
+	override async renderChanges(response: EditResponse, edits: ISingleEditOperation[], changes: LineRangeMapping[]): Promise<void> {
+		if (response.localEdits.length > 0) {
 			this._widget.showEditsPreview(this._session.modelN, edits, changes);
 		} else {
 			this._widget.hideEditsPreview();
+		}
+
+		if (response.singleCreateFileEdit) {
+			this._widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+		} else {
+			this._widget.hideCreatePreview();
 		}
 	}
 
@@ -702,6 +701,7 @@ class LiveStrategy extends EditModeStrategy {
 
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _ctxInlineDiff: IContextKey<boolean>;
+	private _lastResponse?: EditResponse;
 
 	constructor(
 		protected readonly _session: Session,
@@ -738,6 +738,11 @@ class LiveStrategy extends EditModeStrategy {
 	}
 
 	checkChanges(response: EditResponse): boolean {
+		this._lastResponse = response;
+		if (response.singleCreateFileEdit) {
+			// preview stategy can handle simple workspace edit (single file create)
+			return true;
+		}
 		if (response.workspaceEdits) {
 			this._bulkEditService.apply(response.workspaceEdits, { showPreview: true });
 			return false;
@@ -746,7 +751,9 @@ class LiveStrategy extends EditModeStrategy {
 	}
 
 	async apply() {
-		// nothing to do
+		if (this._lastResponse?.workspaceEdits) {
+			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
+		}
 	}
 
 	async cancel() {
@@ -761,7 +768,7 @@ class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override renderChanges(edits: ISingleEditOperation[], textModel0Changes: LineRangeMapping[]): void {
+	override async renderChanges(response: EditResponse, edits: ISingleEditOperation[], textModel0Changes: LineRangeMapping[]) {
 
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
@@ -777,6 +784,12 @@ class LiveStrategy extends EditModeStrategy {
 		this._editor.pushUndoStop();
 		this._inlineDiffDecorations.update();
 		this._updateSummaryMessage(textModel0Changes);
+
+		if (response.singleCreateFileEdit) {
+			this._widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+		} else {
+			this._widget.hideCreatePreview();
+		}
 	}
 
 	protected _updateSummaryMessage(textModel0Changes: LineRangeMapping[]) {
@@ -800,8 +813,8 @@ class LiveStrategy extends EditModeStrategy {
 
 class LivePreviewStrategy extends LiveStrategy {
 
-	private _lastResponse?: EditResponse;
-	private readonly _diffZone: InteractiveEditorDiffWidget;
+	private readonly _diffZone: InteractiveEditorLivePreviewWidget;
+	private readonly _previewZone: InteractiveEditorFileCreatePreviewWidget;
 
 	constructor(
 		session: Session,
@@ -816,31 +829,19 @@ class LivePreviewStrategy extends LiveStrategy {
 	) {
 		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService);
 
-		this._diffZone = instaService.createInstance(InteractiveEditorDiffWidget, editor, session.model0);
+		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session.model0);
+		this._previewZone = instaService.createInstance(InteractiveEditorFileCreatePreviewWidget, editor);
 	}
 
 	override dispose(): void {
 		this._diffZone.hide();
 		this._diffZone.dispose();
+		this._previewZone.hide();
+		this._previewZone.dispose();
 		super.dispose();
 	}
 
-	override checkChanges(response: EditResponse): boolean {
-		this._lastResponse = response;
-		if (response.singleCreateFileEdit) {
-			// preview stategy can handle simple workspace edit (single file create)
-			return true;
-		}
-		return super.checkChanges(response);
-	}
-
-	override async apply() {
-		if (this._lastResponse?.workspaceEdits) {
-			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
-		}
-	}
-
-	override renderChanges(edits: ISingleEditOperation[], changes: LineRangeMapping[]): void {
+	override async renderChanges(response: EditResponse, edits: ISingleEditOperation[], changes: LineRangeMapping[]) {
 
 		this._editor.pushUndoStop();
 		this._editor.executeEdits('interactive-editor-livePreview', edits);
@@ -848,6 +849,12 @@ class LivePreviewStrategy extends LiveStrategy {
 
 		this._diffZone.showDiff(() => this._getWholeRange(), changes);
 		this._updateSummaryMessage(changes);
+
+		if (response.singleCreateFileEdit) {
+			this._previewZone.showCreation(this._getWholeRange(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+		} else {
+			this._previewZone.hide();
+		}
 	}
 }
 
