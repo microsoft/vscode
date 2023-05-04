@@ -31,7 +31,7 @@ export class StartSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'interactiveEditor.start',
-			title: { value: localize('run', 'Start Session'), original: 'Start Session' },
+			title: { value: localize('run', 'Start Code Chat'), original: 'Start Code Chat' },
 			category: AbstractInteractiveEditorAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, EditorContextKeys.writable),
