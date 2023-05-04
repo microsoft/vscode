@@ -2019,7 +2019,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}, error), 5000, () => {
 							// onTimeout
 							console.error('Timed out getting tasks from ', providerType);
-							resolve(result);
+							done(undefined);
 						});
 					}
 				}
