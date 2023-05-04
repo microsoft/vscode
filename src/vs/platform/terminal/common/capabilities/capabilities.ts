@@ -216,22 +216,38 @@ export interface IPartialCommandDetectionCapability {
 	readonly onCommandFinished: Event<IXtermMarker>;
 }
 
-export interface ITerminalCommand {
+interface IBaseTerminalCommand {
+	// Mandatory
 	command: string;
 	isTrusted: boolean;
 	timestamp: number;
-	cwd?: string;
-	exitCode?: number;
+
+	// Optional serializable
+	cwd: string | undefined;
+	exitCode: number | undefined;
+	commandStartLineContent: string | undefined;
+	markProperties: IMarkProperties | undefined;
+}
+
+export interface ITerminalCommand extends IBaseTerminalCommand {
+	// Optional non-serializable
 	marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
 	executedMarker?: IXtermMarker;
-	commandStartLineContent?: string;
-	markProperties?: IMarkProperties;
 	aliases?: string[][];
 	wasReplayed?: boolean;
+
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;
+}
+
+export interface ISerializedCommand extends IBaseTerminalCommand {
+	// Optional non-serializable converted for serialization
+	startLine: number | undefined;
+	startX: number | undefined;
+	endLine: number | undefined;
+	executedLine: number | undefined;
 }
 
 /**
@@ -247,19 +263,6 @@ export interface IXtermMarker {
 	};
 }
 
-export interface ISerializedCommand {
-	command: string;
-	isTrusted: boolean;
-	cwd: string | undefined;
-	startLine: number | undefined;
-	startX: number | undefined;
-	endLine: number | undefined;
-	executedLine: number | undefined;
-	exitCode: number | undefined;
-	commandStartLineContent: string | undefined;
-	timestamp: number;
-	markProperties: IMarkProperties | undefined;
-}
 export interface IMarkProperties {
 	hoverMessage?: string;
 	disableCommandStorage?: boolean;
