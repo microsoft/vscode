@@ -1304,6 +1304,11 @@ begin
   Result := ExpandConstant('{param:update|false}') <> 'false';
 end;
 
+function IsNotUpdate(): Boolean;
+begin
+  Result := not IsBackgroundUpdate();
+end;
+
 // Don't allow installing conflicting architectures
 function InitializeSetup(): Boolean;
 var
@@ -1414,9 +1419,13 @@ begin
 	end
 end;
 
-function IsNotUpdate(): Boolean;
+
+// called before the wizard checks for running application
+function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
-  Result := not IsBackgroundUpdate();
+  if IsNotUpdate() then
+    StopTunnelServiceIfNeeded;
+  Result := ''
 end;
 
 // VS Code will create a flag file before the update starts (/update=C:\foo\bar)
@@ -1502,18 +1511,6 @@ var
   UpdateResultCode: Integer;
 	StartServiceResultCode: Integer;
 begin
-
-  if (not IsBackgroundUpdate()) and (CurStep = ssInstall) then
-  begin
-    StopTunnelServiceIfNeeded();
-
-		while CheckForMutexes('{#TunnelMutex}') do
-		begin
-			MsgBox('Tunnel is still running', mbError, MB_OK);
-		end;
-
-  end;
-
   if IsBackgroundUpdate() and (CurStep = ssPostInstall) then
   begin
     CreateMutex('{#AppMutex}-ready');
