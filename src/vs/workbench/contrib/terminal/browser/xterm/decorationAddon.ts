@@ -15,13 +15,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';

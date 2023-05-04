@@ -341,7 +341,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._process = newProcess;
 		this._setProcessState(ProcessState.Launching);
 
-		// Add any capabilities inherit to the backend
+		// Add any capabilities inherent to the backend
 		if (this.os === OperatingSystem.Linux || this.os === OperatingSystem.Macintosh) {
 			this.capabilities.add(TerminalCapability.NaiveCwdDetection, new NaiveCwdDetectionCapability(this._process));
 		}

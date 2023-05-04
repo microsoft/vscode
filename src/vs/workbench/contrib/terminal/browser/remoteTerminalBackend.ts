@@ -14,7 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ISerializedCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ISerializedTerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -50,7 +50,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
-	private readonly _onRestoreCommands = this._register(new Emitter<{ id: number; commands: ISerializedCommand[] }>());
+	private readonly _onRestoreCommands = this._register(new Emitter<{ id: number; commands: ISerializedTerminalCommand[] }>());
 	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	constructor(

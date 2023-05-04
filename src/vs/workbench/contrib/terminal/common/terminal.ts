@@ -8,12 +8,12 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions, ITerminalContributions, ITerminalOutputMatcher, ITerminalOutputMatch } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions, ITerminalContributions } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import Severity from 'vs/base/common/severity';
@@ -339,19 +339,6 @@ export interface IRemoteTerminalAttachTarget {
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 	shellIntegrationNonce: string;
-}
-
-export interface ITerminalCommand {
-	command: string;
-	isTrusted: boolean;
-	timestamp: number;
-	cwd?: string;
-	exitCode?: number;
-	marker?: IXtermMarker;
-	markProperties?: IMarkProperties;
-	hasOutput(): boolean;
-	getOutput(): string | undefined;
-	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 }
 
 export interface IBeforeProcessDataEvent {
