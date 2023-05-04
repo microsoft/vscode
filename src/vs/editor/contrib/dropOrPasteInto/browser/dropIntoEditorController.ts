@@ -113,7 +113,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 					// Pass in the parent token here as it tracks cancelling the entire drop operation.
 
 					const canShowWidget = editor.getOption(EditorOption.dropIntoEditor).showDropSelector === 'afterDrop';
-					await this._postDropWidgetManager.applyEditAndShowIfNeeded(Range.fromPositions(position), { activeEditIndex: 0, allEdits }, canShowWidget, token);
+					await this._postDropWidgetManager.applyEditAndShowIfNeeded([Range.fromPositions(position)], { activeEditIndex: 0, allEdits }, canShowWidget, token);
 				}
 			} finally {
 				tokenSource.dispose();
