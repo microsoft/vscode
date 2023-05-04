@@ -131,8 +131,6 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	) {
 		super();
 
-		this.capabilities = scratchPad ? WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad : WorkingCopyCapabilities.Untitled;
-
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
 	}
