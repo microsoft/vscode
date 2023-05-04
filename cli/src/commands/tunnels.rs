@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use std::{str::FromStr, time::Duration};
 use sysinfo::Pid;
-use tokio::sync::mpsc;
 
 use super::{
 	args::{
@@ -18,12 +17,9 @@ use super::{
 };
 
 use crate::{
-	async_pipe::socket_stream_split,
 	auth::Auth,
 	constants::{APPLICATION_NAME, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
-	json_rpc::{new_json_rpc, start_json_rpc},
 	log,
-	singleton::connect_as_client,
 	state::LauncherPaths,
 	tunnels::{
 		code_server::CodeServerArgs,
@@ -31,6 +27,7 @@ use crate::{
 		paths::get_all_servers,
 		protocol,
 		shutdown_signal::ShutdownRequest,
+		singleton_client::do_single_rpc_call,
 		singleton_server::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
@@ -38,7 +35,7 @@ use crate::{
 	},
 	util::{
 		app_lock::AppMutex,
-		errors::{wrap, AnyError, CodeError},
+		errors::{wrap, AnyError},
 		prereqs::PreReqChecker,
 	},
 };
@@ -206,69 +203,34 @@ pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	Ok(0)
 }
 
-async fn do_single_rpc_call<
-	P: serde::Serialize,
-	R: serde::de::DeserializeOwned + Send + 'static,
->(
-	ctx: &CommandContext,
-	method: &'static str,
-	params: P,
-) -> Result<R, AnyError> {
-	let client = match connect_as_client(&ctx.paths.tunnel_lockfile()).await {
-		Ok(p) => p,
-		Err(CodeError::SingletonLockfileOpenFailed(_))
-		| Err(CodeError::SingletonLockedProcessExited(_)) => {
-			return Err(CodeError::NoRunningTunnel.into());
-		}
-		Err(e) => return Err(e.into()),
-	};
-
-	let (msg_tx, msg_rx) = mpsc::unbounded_channel();
-	let mut rpc = new_json_rpc();
-	let caller = rpc.get_caller(msg_tx);
-	let (read, write) = socket_stream_split(client);
-	let log = ctx.log.clone();
-
-	let rpc = tokio::spawn(async move {
-		start_json_rpc(
-			rpc.methods(()).build(log),
-			read,
-			write,
-			msg_rx,
-			ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
-		)
-		.await
-		.unwrap();
-	});
-
-	let r = caller.call(method, params).await.unwrap();
-	rpc.abort();
-	r.map_err(|err| CodeError::TunnelRpcCallFailed(err).into())
-}
-
 pub async fn restart(ctx: CommandContext) -> Result<i32, AnyError> {
 	do_single_rpc_call::<_, ()>(
-		&ctx,
+		&ctx.paths.tunnel_lockfile(),
+		ctx.log,
 		protocol::singleton::METHOD_RESTART,
 		protocol::EmptyObject {},
 	)
 	.await
 	.map(|_| 0)
+	.map_err(|e| e.into())
 }
 
 pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 	do_single_rpc_call::<_, ()>(
-		&ctx,
+		&ctx.paths.tunnel_lockfile(),
+		ctx.log,
 		protocol::singleton::METHOD_SHUTDOWN,
 		protocol::EmptyObject {},
 	)
 	.await
 	.map(|_| 0)
+	.map_err(|e| e.into())
 }
 
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 	let status: protocol::singleton::Status = do_single_rpc_call(
-		&ctx,
+		&ctx.paths.tunnel_lockfile(),
+		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
 		protocol::EmptyObject {},
 	)
