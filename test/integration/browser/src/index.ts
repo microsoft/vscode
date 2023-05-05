@@ -67,10 +67,10 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		console[type](...args);
 	});
 
-	await page.exposeFunction('codeAutomationExit', async (logs: Array<{ readonly name: string; readonly contents: string }>, code: number) => {
+	await page.exposeFunction('codeAutomationExit', async (logs: Array<{ readonly relativePath: string; readonly contents: string }>, code: number) => {
 		try {
 			for (const log of logs) {
-				const absoluteLogsPath = path.join(logsPath, log.name);
+				const absoluteLogsPath = path.join(logsPath, log.relativePath);
 
 				await promises.mkdir(path.dirname(absoluteLogsPath), { recursive: true });
 				await promises.writeFile(absoluteLogsPath, log.contents);
@@ -157,8 +157,9 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		}
 	}
 
-	console.log(`Storing log files into '${logsPath}'`);
-	serverArgs.push('--logsPath', logsPath);
+	const serverLogsPath = path.join(logsPath, 'server');
+	console.log(`Storing log files into '${serverLogsPath}'`);
+	serverArgs.push('--logsPath', serverLogsPath);
 
 	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
 

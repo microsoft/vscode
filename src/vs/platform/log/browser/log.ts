@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { relativePath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { AdapterLogger, DEFAULT_LOG_LEVEL, ILogger, LogLevel } from 'vs/platform/log/common/log';
@@ -13,7 +15,7 @@ export interface IAutomatedWindow {
 }
 
 export interface ILogFile {
-	readonly name: string;
+	readonly relativePath: string;
 	readonly contents: string;
 }
 
@@ -25,20 +27,27 @@ export interface ILogFile {
 export async function getLogs(fileService: IFileService, environmentService: IEnvironmentService): Promise<ILogFile[]> {
 	const result: ILogFile[] = [];
 
-	const logs = await fileService.resolve(environmentService.logsHome);
-
-	for (const { name, isDirectory, resource } of logs.children || []) {
-		if (isDirectory) {
-			continue;
-		}
-
-		const contents = (await fileService.readFile(resource)).value.toString();
-		if (contents) {
-			result.push({ name, contents });
-		}
-	}
+	await doGetLogs(fileService, result, environmentService.logsHome, environmentService.logsHome);
 
 	return result;
+}
+
+async function doGetLogs(fileService: IFileService, logs: ILogFile[], curFolder: URI, logsHome: URI): Promise<void> {
+	const stat = await fileService.resolve(curFolder);
+
+	for (const { resource, isDirectory } of stat.children || []) {
+		if (isDirectory) {
+			await doGetLogs(fileService, logs, resource, logsHome);
+		} else {
+			const contents = (await fileService.readFile(resource)).value.toString();
+			if (contents) {
+				const path = relativePath(logsHome, resource);
+				if (path) {
+					logs.push({ relativePath: path, contents });
+				}
+			}
+		}
+	}
 }
 
 function logLevelToString(level: LogLevel): string {
