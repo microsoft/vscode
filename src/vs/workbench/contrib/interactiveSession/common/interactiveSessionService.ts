@@ -58,8 +58,15 @@ export interface IInteractiveProvider {
 	provideSlashCommands?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
 }
 
+export interface IInteractiveSlashCommandProvider {
+	chatProviderId: string;
+	provideSlashCommands(token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
+	resolveSlashCommand(command: string, token: CancellationToken): ProviderResult<string>;
+}
+
 export interface IInteractiveSlashCommand {
 	command: string;
+	provider?: IInteractiveSlashCommandProvider;
 	sortText?: string;
 	detail?: string;
 }
@@ -152,6 +159,11 @@ export interface IInteractiveSessionCompleteResponse {
 	errorDetails?: IInteractiveResponseErrorDetails;
 }
 
+export interface IInteractiveSessionDetail {
+	sessionId: string;
+	title: string;
+}
+
 export interface IInteractiveProviderInfo {
 	id: string;
 	displayName: string;
@@ -162,6 +174,7 @@ export const IInteractiveSessionService = createDecorator<IInteractiveSessionSer
 export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
+	registerSlashCommandProvider(provider: IInteractiveSlashCommandProvider): IDisposable;
 	getProviderInfos(): IInteractiveProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): InteractiveSessionModel | undefined;
 	retrieveSession(sessionId: string): IInteractiveSessionModel | undefined;
@@ -176,6 +189,7 @@ export interface IInteractiveSessionService {
 	addInteractiveRequest(context: any): void;
 	addCompleteRequest(sessionId: string, message: string, response: IInteractiveSessionCompleteResponse): void;
 	sendInteractiveRequestToProvider(sessionId: string, message: IInteractiveSessionDynamicRequest): void;
+	getHistory(): IInteractiveSessionDetail[];
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
 	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;

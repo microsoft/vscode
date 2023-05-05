@@ -16,7 +16,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { getClearAction, getOpenInteractiveSessionEditorAction } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
+import { getClearAction, getHistoryAction, getOpenInteractiveSessionEditorAction } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
 import { IInteractiveSessionViewOptions, INTERACTIVE_SIDEBAR_PANEL_ID, InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
 import { IInteractiveSessionContributionService, IInteractiveSessionProviderContribution, IRawInteractiveSessionProviderContribution } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -136,7 +136,8 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
 
-		// Clear action in view title
+		// Actions in view title
+		const historyAction = registerAction2(getHistoryAction(viewId, providerDescriptor.id));
 		const clearAction = registerAction2(getClearAction(viewId, providerDescriptor.id));
 
 		// "Open Interactive Session Editor" Action
@@ -147,6 +148,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, viewContainer);
 				Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
 				clearAction.dispose();
+				historyAction.dispose();
 				openEditor.dispose();
 			}
 		};

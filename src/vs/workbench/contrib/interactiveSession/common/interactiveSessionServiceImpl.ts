@@ -20,7 +20,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveSessionWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveProviderInfo, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveProviderInfo, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDetail, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, IInteractiveSlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -103,10 +103,13 @@ type InteractiveSessionTerminalClassification = {
 	comment: 'Provides insight into the usage of InteractiveSession features.';
 };
 
+const maxPersistedSessions = 20;
+
 export class InteractiveSessionService extends Disposable implements IInteractiveSessionService {
 	declare _serviceBrand: undefined;
 
 	private readonly _providers = new Map<string, IInteractiveProvider>();
+	private readonly _slashCommandProviders = new Set<IInteractiveSlashCommandProvider>();
 	private readonly _sessionModels = new Map<string, InteractiveSessionModel>();
 	private readonly _pendingRequests = new Map<string, CancelablePromise<void>>();
 	private readonly _persistedSessions: ISerializableInteractiveSessionsData;
@@ -143,7 +146,10 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	private saveState(): void {
 		let allSessions: (InteractiveSessionModel | ISerializableInteractiveSessionData)[] = Array.from(this._sessionModels.values())
 			.filter(session => session.getRequests().length > 0);
-		allSessions = allSessions.concat(Object.values(this._persistedSessions));
+		allSessions = allSessions.concat(
+			Object.values(this._persistedSessions).filter(session => session.requests.length));
+		allSessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
+		allSessions = allSessions.slice(0, maxPersistedSessions);
 		this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
 
 		const serialized = JSON.stringify(allSessions);
@@ -207,6 +213,18 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			this.error('deserializeInteractiveSessions', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
 			return {};
 		}
+	}
+
+	getHistory(): IInteractiveSessionDetail[] {
+		const sessions = Object.values(this._persistedSessions);
+		sessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
+
+		return sessions.map(item => {
+			return <IInteractiveSessionDetail>{
+				sessionId: item.sessionId,
+				title: item.requests[0]?.message || '',
+			};
+		});
 	}
 
 	startSession(providerId: string, token: CancellationToken): InteractiveSessionModel {
@@ -311,8 +329,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		return true;
 	}
 
-	private _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string | IInteractiveSessionReplyFollowup): CancelablePromise<void> {
+	private async _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string | IInteractiveSessionReplyFollowup): Promise<void> {
 		const request = model.addRequest(message);
+
+		const resolvedCommand = typeof message === 'string' && message.startsWith('/') ? await this.handleSlashCommand(model.sessionId, message) : message;
+
 		let gotProgress = false;
 		const requestType = typeof message === 'string' ?
 			(message.startsWith('/') ? 'slashCommand' : 'string') :
@@ -348,7 +369,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 				model.cancelRequest(request);
 			});
-			let rawResponse = await provider.provideReply({ session: model.session!, message: request.message }, progressCallback, token);
+			let rawResponse = await provider.provideReply({ session: model.session!, message: resolvedCommand }, progressCallback, token);
 			if (token.isCancellationRequested) {
 				return;
 			} else {
@@ -382,7 +403,19 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.delete(model.sessionId);
 		});
-		return rawResponsePromise;
+	}
+
+	private async handleSlashCommand(sessionId: string, command: string): Promise<string> {
+		const start = Date.now();
+		const slashCommands = await this.getSlashCommands(sessionId, CancellationToken.None);
+		for (const slashCommand of slashCommands ?? []) {
+			if (command.startsWith(`/${slashCommand.command}`) && slashCommand.provider) {
+				return await slashCommand.provider.resolveSlashCommand(command, CancellationToken.None) ?? command;
+			}
+		}
+
+		console.log(`${Date.now() - start}ms to resolve slash command`);
+		return command;
 	}
 
 	async getSlashCommands(sessionId: string, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
@@ -401,7 +434,23 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			return;
 		}
 
-		return withNullAsUndefined(await provider.provideSlashCommands(model.session!, token));
+		const mainProviderRequest = provider.provideSlashCommands(model.session!, token);
+		const slashCommandProviders = Array.from(this._slashCommandProviders).filter(p => p.chatProviderId === model.providerId);
+		const providerResults = Promise.all([
+			mainProviderRequest,
+			...slashCommandProviders.map(p => Promise.resolve(p.provideSlashCommands(token))
+				.then(commands => commands?.map(c => ({ ...c, provider: p }))))
+		]);
+
+		try {
+			const slashCommands = (await providerResults).filter(c => !!c) as IInteractiveSlashCommand[][];
+			return withNullAsUndefined(slashCommands.flat());
+		} catch (e) {
+			this.logService.error(e);
+
+			// If one of the other contributed providers fails, return the main provider's result
+			return withNullAsUndefined(await mainProviderRequest);
+		}
 	}
 
 	async addInteractiveRequest(context: any): Promise<void> {
@@ -473,6 +522,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
+		this._persistedSessions[sessionId] = model.toJSON();
 		model.dispose();
 		this._sessionModels.delete(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
@@ -492,6 +542,16 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			this.trace('registerProvider', `Disposing interactive session provider`);
 			this._providers.delete(provider.id);
 			this._hasProvider.set(this._providers.size > 0);
+		});
+	}
+
+	registerSlashCommandProvider(provider: IInteractiveSlashCommandProvider): IDisposable {
+		this.trace('registerProvider', `Adding new interactive slash command provider`);
+
+		this._slashCommandProviders.add(provider);
+		return toDisposable(() => {
+			this.trace('registerProvider', `Disposing interactive slash command provider`);
+			this._slashCommandProviders.delete(provider);
 		});
 	}
 

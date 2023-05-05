@@ -38,6 +38,8 @@ export interface IInteractiveSessionViewModel {
 
 export interface IInteractiveRequestViewModel {
 	readonly id: string;
+	/** This ID updates every time the underlying data changes */
+	readonly dataId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly message: string | IInteractiveSessionReplyFollowup;
@@ -61,6 +63,8 @@ export interface IInteractiveSessionLiveUpdateData {
 export interface IInteractiveResponseViewModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
+	/** This ID updates every time the underlying data changes */
+	readonly dataId: string;
 	readonly providerId: string;
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
@@ -119,10 +123,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 
 		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
 		this._register(_model.onDidChange(e => {
-			if (e.kind === 'clear') {
-				this._items.length = 0;
-				this._onDidChange.fire();
-			} else if (e.kind === 'addRequest') {
+			if (e.kind === 'addRequest') {
 				this._items.push(new InteractiveRequestViewModel(e.request));
 				if (e.request.response) {
 					this.onAddResponse(e.request.response);
@@ -158,6 +159,10 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 		return this._model.id;
 	}
 
+	get dataId() {
+		return this.id + (this._model.session.isInitialized ? '' : '_initializing');
+	}
+
 	get username() {
 		return this._model.username;
 	}
@@ -186,7 +191,11 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	readonly onDidChange = this._onDidChange.event;
 
 	get id() {
-		return this._model.id + `_${this._modelChangeCount}`;
+		return this._model.id;
+	}
+
+	get dataId() {
+		return this._model.id + `_${this._modelChangeCount}` + (this._model.session.isInitialized ? '' : '_initializing');
 	}
 
 	get providerId() {

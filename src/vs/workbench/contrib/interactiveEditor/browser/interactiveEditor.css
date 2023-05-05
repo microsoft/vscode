@@ -106,6 +106,10 @@
 	margin-left: auto;
 }
 
+.monaco-editor .interactive-editor .status .label.hidden {
+	display: none;
+}
+
 .monaco-editor .interactive-editor .markdownMessage {
 	padding-top: 10px;
 }
@@ -124,6 +128,8 @@
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 	display: -webkit-box;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .monaco-editor .interactive-editor .markdownMessage .messageActions {
@@ -219,4 +225,15 @@
 .monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor-background,
 .monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
 	background-color: var(--vscode-interactiveEditor-regionHighlight);
+}
+
+/* create zone */
+
+.monaco-editor .interactive-editor-newfile-widget {
+	padding: 3px 0 6px 0;
+	background-color: var(--vscode-interactiveEditor-regionHighlight);
+}
+
+.monaco-editor .interactive-editor-newfile-widget .title {
+	padding: 3px 0;
 }

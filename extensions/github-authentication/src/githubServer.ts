@@ -31,7 +31,7 @@ const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 export interface IGitHubServer {
 	login(scopes: string): Promise<string>;
 	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
-	sendAdditionalTelemetryInfo(token: string): Promise<void>;
+	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 	friendlyName: string;
 }
 
@@ -48,7 +48,7 @@ async function getScopes(token: string, serverUri: vscode.Uri, logger: Log): Pro
 		const result = await fetching(serverUri.toString(), {
 			headers: {
 				Authorization: `token ${token}`,
-				'User-Agent': 'Visual-Studio-Code'
+				'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
 			}
 		});
 
@@ -129,14 +129,14 @@ export class GitHubServer implements IGitHubServer {
 		let userCancelled: boolean | undefined;
 		const yes = vscode.l10n.t('Yes');
 		const no = vscode.l10n.t('No');
-		const promptToContinue = async () => {
+		const promptToContinue = async (mode: string) => {
 			if (userCancelled === undefined) {
 				// We haven't had a failure yet so wait to prompt
 				return;
 			}
 			const message = userCancelled
-				? vscode.l10n.t('Having trouble logging in? Would you like to try a different way?')
-				: vscode.l10n.t('You have not yet finished authorizing this extension to use GitHub. Would you like to keep trying?');
+				? vscode.l10n.t('Having trouble logging in? Would you like to try a different way? ({0})', mode)
+				: vscode.l10n.t('You have not yet finished authorizing this extension to use GitHub. Would you like to try a different way? ({0})', mode);
 			const result = await vscode.window.showWarningMessage(message, yes, no);
 			if (result !== yes) {
 				throw new Error(CANCELLATION_ERROR);
@@ -167,7 +167,7 @@ export class GitHubServer implements IGitHubServer {
 			supportedTarget
 		) {
 			try {
-				await promptToContinue();
+				await promptToContinue(vscode.l10n.t('local server'));
 				return await this.doLoginWithLocalServer(scopes);
 			} catch (e) {
 				userCancelled = this.processLoginError(e);
@@ -177,7 +177,7 @@ export class GitHubServer implements IGitHubServer {
 		// We only can use the Device Code flow when we have a full node environment because of CORS.
 		if (typeof navigator === 'undefined') {
 			try {
-				await promptToContinue();
+				await promptToContinue(vscode.l10n.t('device code'));
 				return await this.doLoginDeviceCodeFlow(scopes);
 			} catch (e) {
 				userCancelled = this.processLoginError(e);
@@ -188,7 +188,7 @@ export class GitHubServer implements IGitHubServer {
 		// With that said, GitHub Enterprise isn't used by Settings Sync so we can use PATs for that.
 		if (!supportedClient || this._type === AuthProviderType.githubEnterprise) {
 			try {
-				await promptToContinue();
+				await promptToContinue(vscode.l10n.t('personal access token'));
 				return await this.doLoginWithPat(scopes);
 			} catch (e) {
 				userCancelled = this.processLoginError(e);
@@ -510,7 +510,7 @@ export class GitHubServer implements IGitHubServer {
 			result = await fetching(this.getServerUri('/user').toString(), {
 				headers: {
 					Authorization: `token ${token}`,
-					'User-Agent': 'Visual-Studio-Code'
+					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
 				}
 			});
 		} catch (ex) {
@@ -543,7 +543,7 @@ export class GitHubServer implements IGitHubServer {
 		}
 	}
 
-	public async sendAdditionalTelemetryInfo(token: string): Promise<void> {
+	public async sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void> {
 		if (!vscode.env.isTelemetryEnabled) {
 			return;
 		}
@@ -554,22 +554,22 @@ export class GitHubServer implements IGitHubServer {
 		}
 
 		if (this._type === AuthProviderType.github) {
-			return await this.checkUserDetails(token);
+			return await this.checkUserDetails(session);
 		}
 
 		// GHES
-		await this.checkEnterpriseVersion(token);
+		await this.checkEnterpriseVersion(session.accessToken);
 	}
 
-	private async checkUserDetails(token: string): Promise<void> {
+	private async checkUserDetails(session: vscode.AuthenticationSession): Promise<void> {
 		let edu: string | undefined;
 
 		try {
 			const result = await fetching('https://education.github.com/api/user', {
 				headers: {
-					Authorization: `token ${token}`,
+					Authorization: `token ${session.accessToken}`,
 					'faculty-check-preview': 'true',
-					'User-Agent': 'Visual-Studio-Code'
+					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
 				}
 			});
 
@@ -580,22 +580,11 @@ export class GitHubServer implements IGitHubServer {
 					: json.faculty
 						? 'faculty'
 						: 'none';
+			} else {
+				edu = 'unknown';
 			}
 		} catch (e) {
-			// No-op
-		}
-
-		let managed: string | undefined;
-		try {
-			const user = await this.getUserInfo(token);
-			// Apparently, this is how you tell if a user is an EMU...
-			managed = user.accountName.includes('_') ? 'true' : 'false';
-		} catch (e) {
-			// No-op
-		}
-
-		if (edu === undefined && managed === undefined) {
-			return;
+			edu = 'unknown';
 		}
 
 		/* __GDPR__
@@ -606,8 +595,9 @@ export class GitHubServer implements IGitHubServer {
 			}
 		*/
 		this._telemetryReporter.sendTelemetryEvent('session', {
-			isEdu: edu ?? 'unknown',
-			isManaged: managed ?? 'unknown'
+			isEdu: edu,
+			// Apparently, this is how you tell if a user is an EMU...
+			isManaged: session.account.label.includes('_') ? 'true' : 'false'
 		});
 	}
 
@@ -618,7 +608,7 @@ export class GitHubServer implements IGitHubServer {
 				const result = await fetching(this.getServerUri('/meta').toString(), {
 					headers: {
 						Authorization: `token ${token}`,
-						'User-Agent': 'Visual-Studio-Code'
+						'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
 					}
 				});
 

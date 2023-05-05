@@ -14,7 +14,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalAction, revealActiveTerminal } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -72,7 +72,7 @@ registerTerminalAction({
 	run: async (c, accessor: ServicesAccessor) => {
 		const instantiationService = accessor.get(IInstantiationService);
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		const terminal = instance?.xterm;
 		if (!terminal) {
 			return;
@@ -94,7 +94,7 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}
@@ -115,7 +115,7 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}
@@ -137,7 +137,7 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}
@@ -159,7 +159,7 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}

@@ -212,7 +212,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, decorationsToRender, this._glyphMarginDecorationLaneCount);
 
 		const lineHeight = this._lineHeight.toString();
-		const width = this._glyphMarginWidth.toString();
+		const width = (Math.round(this._glyphMarginWidth / this._glyphMarginDecorationLaneCount)).toString();
 		const common = '" style="width:' + width + 'px' + ';height:' + lineHeight + 'px;';
 
 		const output: string[] = [];

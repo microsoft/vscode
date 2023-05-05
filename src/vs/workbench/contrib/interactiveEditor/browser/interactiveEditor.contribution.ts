@@ -10,8 +10,10 @@ import * as interactiveEditorActions from 'vs/workbench/contrib/interactiveEdito
 import { IInteractiveEditorService, INTERACTIVE_EDITOR_ID } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { InteractiveEditorServiceImpl } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditorServiceImpl';
+import { IInteractiveEditorSessionService, InteractiveEditorSessionService } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 
 registerSingleton(IInteractiveEditorService, InteractiveEditorServiceImpl, InstantiationType.Delayed);
+registerSingleton(IInteractiveEditorSessionService, InteractiveEditorSessionService, InstantiationType.Delayed);
 
 registerEditorContribution(INTERACTIVE_EDITOR_ID, InteractiveEditorController, EditorContributionInstantiation.Lazy);
 
@@ -25,6 +27,8 @@ registerAction2(interactiveEditorActions.FocusInteractiveEditor);
 registerAction2(interactiveEditorActions.PreviousFromHistory);
 registerAction2(interactiveEditorActions.NextFromHistory);
 registerAction2(interactiveEditorActions.ViewInChatAction);
+registerAction2(interactiveEditorActions.ExpandMessageAction);
+registerAction2(interactiveEditorActions.ContractMessageAction);
 
 registerAction2(interactiveEditorActions.UndoToClipboard);
 registerAction2(interactiveEditorActions.UndoToNewFile);

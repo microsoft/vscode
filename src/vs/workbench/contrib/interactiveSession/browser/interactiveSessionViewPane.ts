@@ -18,6 +18,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { Memento } from 'vs/workbench/common/memento';
+import { SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
@@ -61,7 +62,7 @@ export class InteractiveSessionViewPane extends ViewPane {
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + this.interactiveSessionViewOptions.providerId, this.storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewPaneState;
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 	}
 
 	private updateModel(model?: IInteractiveSessionModel | undefined): void {
@@ -84,7 +85,15 @@ export class InteractiveSessionViewPane extends ViewPane {
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
 
-		this._widget = this._register(scopedInstantiationService.createInstance(InteractiveSessionWidget, { viewId: this.id }, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
+		this._widget = this._register(scopedInstantiationService.createInstance(
+			InteractiveSessionWidget,
+			{ viewId: this.id },
+			{
+				listForeground: SIDE_BAR_FOREGROUND,
+				listBackground: this.getBackgroundColor(),
+				inputEditorBackground: this.getBackgroundColor(),
+				resultEditorBackground: editorBackground
+			}));
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			this._widget.setVisible(visible);
 		}));

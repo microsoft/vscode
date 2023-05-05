@@ -254,7 +254,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	}
 
 	/** @inheritdoc */
-	public getDecoratedRangeForTest(resource: URI, testId: string) {
+	public getDecoratedTestPosition(resource: URI, testId: string) {
 		const model = this.modelService.getModel(resource);
 		if (!model) {
 			return undefined;
@@ -265,7 +265,8 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 			return undefined;
 		}
 
-		return model.getDecorationRange(decoration.id) || undefined;
+		// decoration is collapsed, so the range is meaningless; only position matters.
+		return model.getDecorationRange(decoration.id)?.getStartPosition();
 	}
 
 	private invalidate() {
@@ -512,11 +513,11 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 }
 
-const firstLineRange = (originalRange: IRange) => ({
+const collapseRange = (originalRange: IRange) => ({
 	startLineNumber: originalRange.startLineNumber,
 	endLineNumber: originalRange.startLineNumber,
-	startColumn: 0,
-	endColumn: Number.MAX_SAFE_INTEGER,
+	startColumn: originalRange.startColumn,
+	endColumn: originalRange.startColumn,
 });
 
 const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[], states: readonly (TestResultItem | undefined)[], visible: boolean): IModelDeltaDecoration => {
@@ -526,7 +527,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	}
 
 	if (!visible) {
-		return { range: firstLineRange(range), options: { isWholeLine: true, description: 'run-test-decoration' } };
+		return { range: collapseRange(range), options: { isWholeLine: true, description: 'run-test-decoration' } };
 	}
 
 	let computedState = TestResultState.Unset;
@@ -560,10 +561,10 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	}
 
 	return {
-		range: firstLineRange(range),
+		range: collapseRange(range),
 		options: {
 			description: 'run-test-decoration',
-			isWholeLine: true,
+			showIfCollapsed: true,
 			get hoverMessage() {
 				if (!hoverMessage) {
 					const building = hoverMessage = new MarkdownString('', true).appendText(hoverMessageParts.join(', ') + '.');
