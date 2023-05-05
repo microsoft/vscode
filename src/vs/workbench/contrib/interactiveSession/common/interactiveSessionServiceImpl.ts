@@ -406,7 +406,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	private async handleSlashCommand(sessionId: string, command: string): Promise<string> {
-		const start = Date.now();
 		const slashCommands = await this.getSlashCommands(sessionId, CancellationToken.None);
 		for (const slashCommand of slashCommands ?? []) {
 			if (command.startsWith(`/${slashCommand.command}`) && slashCommand.provider) {
@@ -414,7 +413,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			}
 		}
 
-		console.log(`${Date.now() - start}ms to resolve slash command`);
 		return command;
 	}
 

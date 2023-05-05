@@ -1271,6 +1271,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: interactiveSlashCommands
 		const interactiveSlashCommands: typeof vscode.interactiveSlashCommands = {
 			registerSlashCommandProvider(chatProviderId: string, provider: vscode.InteractiveSlashCommandProvider) {
 				checkProposedApiEnabled(extension, 'interactiveSlashCommands');
