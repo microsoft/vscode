@@ -235,13 +235,7 @@ function terminateWhenParentTerminates() {
 	}
 }
 
-// TODO@bpasero remove this when sandbox is final
 function configureCrashReporter() {
-	const crashReporterSandboxedHint = process.env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'];
-	if (crashReporterSandboxedHint) {
-		addCrashReporterParameter('_sandboxed', 'true');
-	}
-
 	const crashReporterProcessType = process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'];
 	if (crashReporterProcessType) {
 		addCrashReporterParameter('processType', crashReporterProcessType);

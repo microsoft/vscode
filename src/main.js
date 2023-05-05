@@ -26,6 +26,9 @@ const { stripComments } = require('./vs/base/common/stripComments');
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
 
+// Enable sandbox globally
+app.enableSandbox();
+
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
 

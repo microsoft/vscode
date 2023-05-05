@@ -256,7 +256,6 @@
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
-			get sandboxed() { return process.sandboxed; },
 
 			/**
 			 * @returns {string}
