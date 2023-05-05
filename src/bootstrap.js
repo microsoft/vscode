@@ -66,10 +66,8 @@
 		Module._resolveLookupPaths = function (request, parent) {
 			const paths = originalResolveLookupPaths(request, parent);
 			if (Array.isArray(paths)) {
-				let asarPathAdded = false;
 				for (let i = 0, len = paths.length; i < len; i++) {
 					if (paths[i] === NODE_MODULES_PATH) {
-						asarPathAdded = true;
 						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
 						break;
 					}
