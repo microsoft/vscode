@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -40,7 +40,7 @@ flakySuite('Storage Library', function () {
 			ok(!storage.getObject('foo'));
 			const uri = URI.file('path/to/folder');
 			storage.set('foo', { 'bar': uri });
-			strictEqual(storage.getObject('bar'), { 'bar': uri });
+			strictEqual(storage.getObject('foo'), { 'bar': uri });
 		});
 	});
 
@@ -54,7 +54,7 @@ flakySuite('Storage Library', function () {
 			strictEqual(storage.get('foo', 'bar'), 'bar');
 			strictEqual(storage.getNumber('foo', 55), 55);
 			strictEqual(storage.getBoolean('foo', true), true);
-			strictEqual(storage.getObject('foo', { 'bar': 'baz' }), { 'bar': 'baz' });
+			deepStrictEqual(storage.getObject('foo', { 'bar': 'baz' }), { 'bar': 'baz' });
 
 			let changes = new Set<string>();
 			storage.onDidChangeStorage(key => {
@@ -75,7 +75,7 @@ flakySuite('Storage Library', function () {
 			strictEqual(storage.get('bar'), 'foo');
 			strictEqual(storage.getNumber('barNumber'), 55);
 			strictEqual(storage.getBoolean('barBoolean'), true);
-			strictEqual(storage.getBoolean('barObject'), { 'bar': 'baz' });
+			deepStrictEqual(storage.getBoolean('barObject'), { 'bar': 'baz' });
 
 			strictEqual(changes.size, 4);
 			ok(changes.has('bar'));

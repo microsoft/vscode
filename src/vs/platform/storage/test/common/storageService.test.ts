@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>; teardown: (service: T) => Promise<void> }): void {
@@ -26,7 +26,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		storeData(StorageScope.PROFILE);
 	});
 
-	test('Get Data, Integer, Boolean (workspace)', () => {
+	test('Get Data, Integer, Boolean, Object (workspace)', () => {
 		storeData(StorageScope.WORKSPACE);
 	});
 
@@ -40,8 +40,8 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		strictEqual(storageService.getNumber('test.getNumber', scope, 0), 0);
 		strictEqual(storageService.getBoolean('test.getBoolean', scope, true), true);
 		strictEqual(storageService.getBoolean('test.getBoolean', scope, false), false);
-		strictEqual(storageService.getObject('test.getObject', scope, { 'foo': 'bar' }), { 'foo': 'bar' });
-		strictEqual(storageService.getObject('test.getObject', scope, {}), {});
+		deepStrictEqual(storageService.getObject('test.getObject', scope, { 'foo': 'bar' }), { 'foo': 'bar' });
+		deepStrictEqual(storageService.getObject('test.getObject', scope, {}), {});
 
 		storageService.store('test.get', 'foobar', scope, StorageTarget.MACHINE);
 		strictEqual(storageService.get('test.get', scope, (undefined)!), 'foobar');
@@ -69,15 +69,15 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		strictEqual(storageService.getBoolean('test.getBoolean', scope, (undefined)!), false);
 
 		storageService.store('test.getObject', {}, scope, StorageTarget.MACHINE);
-		strictEqual(storageService.getObject('test.getObject', scope, (undefined)!), {});
+		deepStrictEqual(storageService.getObject('test.getObject', scope, (undefined)!), {});
 
 		storageService.store('test.getObject', { 'foo': {} }, scope, StorageTarget.MACHINE);
-		strictEqual(storageService.getObject('test.getObject', scope, (undefined)!), { 'foo': {} });
+		deepStrictEqual(storageService.getObject('test.getObject', scope, (undefined)!), { 'foo': {} });
 
 		strictEqual(storageService.get('test.getDefault', scope, 'getDefault'), 'getDefault');
 		strictEqual(storageService.getNumber('test.getNumberDefault', scope, 5), 5);
 		strictEqual(storageService.getBoolean('test.getBooleanDefault', scope, true), true);
-		strictEqual(storageService.getObject('test.getObjectDefault', scope, { 'foo': 42 }), { 'foo': 42 });
+		deepStrictEqual(storageService.getObject('test.getObjectDefault', scope, { 'foo': 42 }), { 'foo': 42 });
 	}
 
 	test('Remove Data (application)', () => {
