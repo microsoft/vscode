@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use std::{str::FromStr, time::Duration};
 use sysinfo::Pid;
-use tokio::sync::mpsc;
 
 use super::{
 	args::{
@@ -18,12 +17,9 @@ use super::{
 };
 
 use crate::{
-	async_pipe::socket_stream_split,
 	auth::Auth,
 	constants::{APPLICATION_NAME, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
-	json_rpc::{new_json_rpc, start_json_rpc},
 	log,
-	singleton::connect_as_client,
 	state::LauncherPaths,
 	tunnels::{
 		code_server::CodeServerArgs,
@@ -31,6 +27,7 @@ use crate::{
 		paths::get_all_servers,
 		protocol,
 		shutdown_signal::ShutdownRequest,
+		singleton_client::do_single_rpc_call,
 		singleton_server::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
@@ -38,7 +35,7 @@ use crate::{
 	},
 	util::{
 		app_lock::AppMutex,
-		errors::{wrap, AnyError, CodeError},
+		errors::{wrap, AnyError},
 		prereqs::PreReqChecker,
 	},
 };
@@ -103,6 +100,7 @@ impl ServiceContainer for TunnelServiceContainer {
 				..Default::default()
 			},
 			csa,
+			TUNNEL_SERVICE_LOCK_NAME,
 		)
 		.await?;
 		Ok(())
@@ -149,7 +147,6 @@ pub async fn service(
 			manager.show_logs().await?;
 		}
 		TunnelServiceSubCommands::InternalRun => {
-			let _lock = TUNNEL_SERVICE_LOCK_NAME.map(AppMutex::new);
 			manager
 				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
 				.await?;
@@ -206,69 +203,34 @@ pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	Ok(0)
 }
 
-async fn do_single_rpc_call<
-	P: serde::Serialize,
-	R: serde::de::DeserializeOwned + Send + 'static,
->(
-	ctx: &CommandContext,
-	method: &'static str,
-	params: P,
-) -> Result<R, AnyError> {
-	let client = match connect_as_client(&ctx.paths.tunnel_lockfile()).await {
-		Ok(p) => p,
-		Err(CodeError::SingletonLockfileOpenFailed(_))
-		| Err(CodeError::SingletonLockedProcessExited(_)) => {
-			return Err(CodeError::NoRunningTunnel.into());
-		}
-		Err(e) => return Err(e.into()),
-	};
-
-	let (msg_tx, msg_rx) = mpsc::unbounded_channel();
-	let mut rpc = new_json_rpc();
-	let caller = rpc.get_caller(msg_tx);
-	let (read, write) = socket_stream_split(client);
-	let log = ctx.log.clone();
-
-	let rpc = tokio::spawn(async move {
-		start_json_rpc(
-			rpc.methods(()).build(log),
-			read,
-			write,
-			msg_rx,
-			ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
-		)
-		.await
-		.unwrap();
-	});
-
-	let r = caller.call(method, params).await.unwrap();
-	rpc.abort();
-	r.map_err(|err| CodeError::TunnelRpcCallFailed(err).into())
-}
-
 pub async fn restart(ctx: CommandContext) -> Result<i32, AnyError> {
 	do_single_rpc_call::<_, ()>(
-		&ctx,
+		&ctx.paths.tunnel_lockfile(),
+		ctx.log,
 		protocol::singleton::METHOD_RESTART,
 		protocol::EmptyObject {},
 	)
 	.await
 	.map(|_| 0)
+	.map_err(|e| e.into())
 }
 
 pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 	do_single_rpc_call::<_, ()>(
-		&ctx,
+		&ctx.paths.tunnel_lockfile(),
+		ctx.log,
 		protocol::singleton::METHOD_SHUTDOWN,
 		protocol::EmptyObject {},
 	)
 	.await
 	.map(|_| 0)
+	.map_err(|e| e.into())
 }
 
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 	let status: protocol::singleton::Status = do_single_rpc_call(
-		&ctx,
+		&ctx.paths.tunnel_lockfile(),
+		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
 		protocol::EmptyObject {},
 	)
@@ -317,7 +279,7 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
 	let csa = (&args).into();
-	let result = serve_with_csa(paths, log, gateway_args, csa).await;
+	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
 	drop(no_sleep);
 
 	result
@@ -335,6 +297,7 @@ async fn serve_with_csa(
 	mut log: log::Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
+	app_mutex_name: Option<&'static str>,
 ) -> Result<i32, AnyError> {
 	let log_broadcast = BroadcastLogSink::new();
 	log = log.tee(log_broadcast.clone());
@@ -386,7 +349,7 @@ async fn serve_with_csa(
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
-	let _lock = TUNNEL_CLI_LOCK_NAME.map(AppMutex::new);
+	let _lock = app_mutex_name.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);

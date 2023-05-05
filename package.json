@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.78.0",
-  "distro": "3eae5e756c195281ebb3348c7492b0ef0d4f3a16",
+  "version": "1.79.0",
+  "distro": "cc43e0a4c74e2edb2274319e362e6976beca2f41",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -82,7 +82,7 @@
     "native-keymap": "^3.3.2",
     "native-watchdog": "^1.4.1",
     "node-pty": "0.11.0-beta32",
-    "tas-client-umd": "0.1.6",
+    "tas-client-umd": "0.1.8",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
@@ -126,6 +126,7 @@
     "@typescript-eslint/eslint-plugin": "^5.57.0",
     "@typescript-eslint/experimental-utils": "^5.57.0",
     "@typescript-eslint/parser": "^5.57.0",
+    "@vscode/gulp-electron": "^1.34.0",
     "@vscode/l10n-dev": "0.0.21",
     "@vscode/telemetry-extractor": "^1.9.9",
     "@vscode/test-web": "^0.0.41",
@@ -151,7 +152,6 @@
     "file-loader": "^6.2.0",
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
-    "gulp-atom-electron": "^1.33.0",
     "gulp-azure-storage": "^0.12.1",
     "gulp-bom": "^3.0.0",
     "gulp-buffer": "0.0.2",
@@ -203,7 +203,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.1.4",
-    "typescript": "^5.1.0-dev.20230417",
+    "typescript": "^5.1.0-dev.20230502",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

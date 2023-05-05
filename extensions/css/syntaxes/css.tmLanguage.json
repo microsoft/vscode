@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-css/commit/4a6dc90f332bfa72c88192513435a64013d9aad4",
+	"version": "https://github.com/microsoft/vscode-css/commit/1452547185a1793c946cf67f8c7c9001716e32c3",
 	"name": "CSS",
 	"scopeName": "source.css",
 	"patterns": [
@@ -1198,7 +1198,7 @@
 					]
 				},
 				{
-					"begin": "(?i)((:)(?:not|has|matches))(\\()",
+					"begin": "(?i)((:)(?:not|has|matches|where|is))(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.other.attribute-name.pseudo-class.css"

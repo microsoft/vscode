@@ -1,6 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
-	"name": "Light+ (Experimental)",
+	"name": "Default Light Modern",
 	"include": "./light_plus.json",
 	"colors": {
 		"activityBar.activeBorder": "#005FB8",

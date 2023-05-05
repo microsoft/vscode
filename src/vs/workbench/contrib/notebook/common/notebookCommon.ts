@@ -57,11 +57,11 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 	Mimes.latex,
 	Mimes.markdown,
 	'application/json',
-	Mimes.text,
 	'text/html',
 	'image/svg+xml',
 	'image/png',
 	'image/jpeg',
+	Mimes.text,
 ];
 
 /**
@@ -937,6 +937,7 @@ export const NotebookSetting = {
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	formatOnSave: 'notebook.formatOnSave.enabled',
+	codeActionsOnSave: 'notebook.experimental.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',
 	outputLineHeightDeprecated: 'notebook.outputLineHeight',
 	outputLineHeight: 'notebook.output.lineHeight',

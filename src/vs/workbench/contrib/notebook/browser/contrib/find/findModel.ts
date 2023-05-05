@@ -148,16 +148,19 @@ export class FindModel extends Disposable {
 				if (cell && cell.cellKind === CellKind.Markup) {
 					const foundContentMatch = contentMatches.find(m => m.cell.handle === cell.handle && m.contentMatches.length > 0);
 					const targetState = foundContentMatch ? CellEditState.Editing : CellEditState.Preview;
-					if (cell.getEditState() !== targetState) {
+					const currentEditingState = cell.getEditState();
+
+					if (currentEditingState === CellEditState.Editing && cell.editStateSource !== 'find') {
+						// it's already in editing mode, we should not update
+						continue;
+					}
+					if (currentEditingState !== targetState) {
 						cell.updateEditState(targetState, 'find');
 					}
 				}
 			}
 		};
 
-		if (this._state.replaceString.length === 0) {
-			return;
-		}
 
 		if (e.isReplaceRevealed) {
 			updateEditingState();

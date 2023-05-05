@@ -43,6 +43,19 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 	readonly saveAs?: boolean;
 }
 
+export interface ISaveEditorsResult {
+
+	/**
+	 * Whether the save operation was successful.
+	 */
+	readonly success: boolean;
+
+	/**
+	 * Resulting editors after the save operation.
+	 */
+	readonly editors: Array<EditorInput | IUntypedEditorInput>;
+}
+
 export interface IUntypedEditorReplacement {
 
 	/**
@@ -293,17 +306,13 @@ export interface IEditorService {
 
 	/**
 	 * Save the provided list of editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
+	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Save all editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
+	saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Reverts the provided list of editors.

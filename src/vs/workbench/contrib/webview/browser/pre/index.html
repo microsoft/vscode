@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-7T0Xm7l4AYKDwm8oYNQ65wcQX7K/ndvxH/2ZgHWUE3w=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-N4YFn5ze5crjPqMK/opogKs7bSGWtf3lmjV/3LfbSOs=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -631,8 +631,10 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
-			return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
+			// 45: keyCode of "Insert"
+			const shiftInsert = e.shiftKey && e.keyCode === 45;
+			// 67, 86, 88: keyCode of "C", "V", "X"
+			return (hasMeta && [67, 86, 88].includes(e.keyCode)) || shiftInsert;
 		}
 
 		/**
@@ -641,7 +643,8 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
+			// 90, 89: keyCode of "Z", "Y"
+			return hasMeta && [90, 89].includes(e.keyCode);
 		}
 
 		/**
@@ -650,7 +653,8 @@
 		 */
 		function isPrint(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'p';
+			// 80: keyCode of "P"
+			return hasMeta && e.keyCode === 80;
 		}
 
 		/**
@@ -659,7 +663,8 @@
 		 */
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'f';
+			// 70: keyCode of "F"
+			return hasMeta && e.keyCode === 70;
 		}
 
 		/**
@@ -668,7 +673,8 @@
 		 */
 		function isSaveEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 's';
+			// 83: keyCode of "S"
+			return hasMeta && e.keyCode === 83;
 		}
 
 		/**
@@ -677,7 +683,8 @@
 		 */
 		function isCloseTab(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'w';
+			// 87: keyCode of "W"
+			return hasMeta && e.keyCode === 87;
 		}
 
 		/**
@@ -686,7 +693,8 @@
 		 */
 		function isNewWindow(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'n';
+			// 78: keyCode of "N"
+			return hasMeta && e.keyCode === 78;
 		}
 
 		let isHandlingScroll = false;

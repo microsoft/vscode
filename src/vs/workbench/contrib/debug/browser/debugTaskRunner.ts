@@ -171,7 +171,7 @@ export class DebugTaskRunner {
 				choice = result;
 				if (checkboxChecked) {
 					choiceMap[err.message] = choice;
-					this.storageService.store(DEBUG_TASK_ERROR_CHOICE_KEY, JSON.stringify(choiceMap), StorageScope.WORKSPACE, StorageTarget.USER);
+					this.storageService.store(DEBUG_TASK_ERROR_CHOICE_KEY, JSON.stringify(choiceMap), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				}
 			}
 

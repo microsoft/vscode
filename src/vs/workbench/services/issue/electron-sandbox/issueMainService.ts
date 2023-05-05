@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.post-drop-widget .monaco-button {
-	padding: 0;
-}
+import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IIssueMainService } from 'vs/platform/issue/common/issue';
+
+registerMainProcessRemoteService(IIssueMainService, 'issue');

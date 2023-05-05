@@ -12,9 +12,9 @@ export interface IInteractiveSessionWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly viewModel: IInteractiveSessionViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
+	readonly providerId: string;
 
 	acceptInput(query?: string): void;
-	clear(): void;
 	focusLastMessage(): void;
 	focusInput(): void;
 	getSlashCommands(): Promise<IInteractiveSlashCommand[] | undefined>;

@@ -270,7 +270,12 @@ export interface PushErrorHandler {
 
 export interface BranchProtection {
 	readonly remote: string;
-	readonly branches: string[];
+	readonly rules: BranchProtectionRule[];
+}
+
+export interface BranchProtectionRule {
+	readonly include?: string[];
+	readonly exclude?: string[];
 }
 
 export interface BranchProtectionProvider {

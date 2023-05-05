@@ -10,7 +10,8 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
@@ -18,13 +19,16 @@ import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSess
 
 export class InteractiveSessionEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.interactiveSession';
+	static count = 0;
 
 	private readonly inputCount: number;
-	private sessionId: number | undefined;
+	public model: IInteractiveSessionModel | undefined;
+	public sessionId: string | undefined;
+	public providerId: string | undefined;
 
-	private static counter = 0;
 	static getNewEditorUri(): URI {
-		return InteractiveSessionUri.generate(InteractiveSessionEditorInput.counter++);
+		const handle = Math.floor(Math.random() * 1e9);
+		return InteractiveSessionUri.generate(handle);
 	}
 
 	constructor(
@@ -39,7 +43,9 @@ export class InteractiveSessionEditorInput extends EditorInput {
 			throw new Error('Invalid interactive session URI');
 		}
 
-		this.inputCount = parsed.handle;
+		this.sessionId = 'sessionId' in options.target ? options.target.sessionId : undefined;
+		this.providerId = 'providerId' in options.target ? options.target.providerId : undefined;
+		this.inputCount = InteractiveSessionEditorInput.count++;
 	}
 
 	override get editorId(): string | undefined {
@@ -63,9 +69,9 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	}
 
 	override async resolve(): Promise<InteractiveSessionEditorModel | null> {
-		const model = typeof this.sessionId === 'number' ?
+		const model = typeof this.sessionId === 'string' ?
 			this.interactiveSessionService.retrieveSession(this.sessionId) :
-			this.interactiveSessionService.startSession(this.options.providerId, false, CancellationToken.None);
+			this.interactiveSessionService.startSession(this.providerId!, CancellationToken.None);
 
 		if (!model) {
 			return null;
@@ -74,6 +80,13 @@ export class InteractiveSessionEditorInput extends EditorInput {
 		await model.waitForInitialization();
 		this.sessionId = model.sessionId;
 		return new InteractiveSessionEditorModel(model);
+	}
+
+	override dispose(): void {
+		super.dispose();
+		if (this.sessionId) {
+			this.interactiveSessionService.clearSession(this.sessionId);
+		}
 	}
 }
 
@@ -132,5 +145,42 @@ export namespace InteractiveSessionUri {
 		}
 
 		return { handle };
+	}
+}
+
+interface ISerializedInteractiveSessionEditorInput {
+	options: IInteractiveSessionEditorOptions;
+	resource: URI;
+}
+
+export class InteractiveSessionEditorInputSerializer implements IEditorSerializer {
+	canSerialize(input: EditorInput): boolean {
+		return input instanceof InteractiveSessionEditorInput;
+	}
+
+	serialize(input: EditorInput): string | undefined {
+		if (!(input instanceof InteractiveSessionEditorInput)) {
+			return undefined;
+		}
+
+		if (typeof input.sessionId !== 'string') {
+			return undefined;
+		}
+
+		const obj: ISerializedInteractiveSessionEditorInput = {
+			options: input.options,
+			resource: input.resource
+		};
+		return JSON.stringify(obj);
+	}
+
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
+		try {
+			const parsed: ISerializedInteractiveSessionEditorInput = JSON.parse(serializedEditor);
+			const resource = URI.revive(parsed.resource);
+			return instantiationService.createInstance(InteractiveSessionEditorInput, resource, parsed.options as IInteractiveSessionEditorOptions);
+		} catch (err) {
+			return undefined;
+		}
 	}
 }

@@ -43,12 +43,17 @@ export class VSDataTransfer {
 
 	private readonly _entries = new Map<string, IDataTransferItem[]>();
 
+	/**
+	 * Get the total number of entries in this data transfer.
+	 */
 	public get size(): number {
-		return this._entries.size;
+		let size = 0;
+		this.forEach(() => size++);
+		return size;
 	}
 
 	/**
-	 * Check if this data transfer contains data for a given mime type.
+	 * Check if this data transfer contains data for `mimeType`.
 	 *
 	 * This uses exact matching and does not support wildcards.
 	 */
@@ -57,46 +62,35 @@ export class VSDataTransfer {
 	}
 
 	/**
-	 * Check if this data transfer contains data matching a given mime type glob.
+	 * Check if this data transfer contains data matching `pattern`.
 	 *
 	 * This allows matching for wildcards, such as `image/*`.
 	 *
 	 * Use the special `files` mime type to match any file in the data transfer.
 	 */
-	public matches(mimeTypeGlob: string): boolean {
-		// Exact match
-		if (this.has(mimeTypeGlob)) {
-			return true;
+	public matches(pattern: string): boolean {
+		const mimes = [...this._entries.keys()];
+		if (Iterable.some(this.values(), item => item.asFile())) {
+			mimes.push('files');
 		}
 
-		// Special `files` mime type matches any file
-		if (mimeTypeGlob.toLowerCase() === 'files') {
-			return Iterable.some(this.values(), item => item.asFile());
-		}
-
-		// Anything glob
-		if (mimeTypeGlob === '*/*') {
-			return this._entries.size > 0;
-		}
-
-		// Wildcard, such as `image/*`
-		const wildcard = this.toKey(mimeTypeGlob).match(/^([a-z]+)$\/([a-z]+|\*)/i);
-		if (!wildcard) {
-			return false;
-		}
-
-		const [_, type, subtype] = wildcard;
-		if (subtype === '*') {
-			return Iterable.some(this._entries.keys(), key => key.startsWith(type + '/'));
-		}
-
-		return false;
+		return matchesMimeType_normalized(normalizeMimeType(pattern), mimes);
 	}
 
+	/**
+	 * Retrieve the first entry for `mimeType`.
+	 *
+	 * Note that if want to find all entries for a given mime type, use {@link VSDataTransfer.entries} instead.
+	 */
 	public get(mimeType: string): IDataTransferItem | undefined {
 		return this._entries.get(this.toKey(mimeType))?.[0];
 	}
 
+	/**
+	 * Add a new entry to this data transfer.
+	 *
+	 * This does not replace existing entries for `mimeType`.
+	 */
 	public append(mimeType: string, value: IDataTransferItem): void {
 		const existing = this._entries.get(mimeType);
 		if (existing) {
@@ -106,14 +100,27 @@ export class VSDataTransfer {
 		}
 	}
 
+	/**
+	 * Set the entry for a given mime type.
+	 *
+	 * This replaces all existing entries for `mimeType`.
+	 */
 	public replace(mimeType: string, value: IDataTransferItem): void {
 		this._entries.set(this.toKey(mimeType), [value]);
 	}
 
+	/**
+	 * Remove all entries for `mimeType`.
+	 */
 	public delete(mimeType: string) {
 		this._entries.delete(this.toKey(mimeType));
 	}
 
+	/**
+	 * Iterate over all `[mime, item]` pairs in this data transfer.
+	 *
+	 * There may be multiple entries for each mime type.
+	 */
 	public *entries(): Iterable<[string, IDataTransferItem]> {
 		for (const [mine, items] of this._entries.entries()) {
 			for (const item of items) {
@@ -122,19 +129,64 @@ export class VSDataTransfer {
 		}
 	}
 
+	/**
+	 * Iterate over all items in this data transfer.
+	 *
+	 * There may be multiple entries for each mime type.
+	 */
 	public values(): Iterable<IDataTransferItem> {
 		return Array.from(this._entries.values()).flat();
 	}
 
-	public forEach(f: (value: IDataTransferItem, key: string) => void) {
+	/**
+	 * Call `f` for each item and mime in the data transfer.
+	 *
+	 * There may be multiple entries for each mime type.
+	 */
+	public forEach(f: (value: IDataTransferItem, mime: string) => void) {
 		for (const [mime, item] of this.entries()) {
 			f(item, mime);
 		}
 	}
 
 	private toKey(mimeType: string): string {
-		return mimeType.toLowerCase();
+		return normalizeMimeType(mimeType);
 	}
+}
+
+function normalizeMimeType(mimeType: string): string {
+	return mimeType.toLowerCase();
+}
+
+export function matchesMimeType(pattern: string, mimeTypes: readonly string[]): boolean {
+	return matchesMimeType_normalized(
+		normalizeMimeType(pattern),
+		mimeTypes.map(normalizeMimeType));
+}
+
+function matchesMimeType_normalized(normalizedPattern: string, normalizedMimeTypes: readonly string[]): boolean {
+	// Anything wildcard
+	if (normalizedPattern === '*/*') {
+		return normalizedMimeTypes.length > 0;
+	}
+
+	// Exact match
+	if (normalizedMimeTypes.includes(normalizedPattern)) {
+		return true;
+	}
+
+	// Wildcard, such as `image/*`
+	const wildcard = normalizedPattern.match(/^([a-z]+)\/([a-z]+|\*)$/i);
+	if (!wildcard) {
+		return false;
+	}
+
+	const [_, type, subtype] = wildcard;
+	if (subtype === '*') {
+		return normalizedMimeTypes.some(mime => mime.startsWith(type + '/'));
+	}
+
+	return false;
 }
 
 

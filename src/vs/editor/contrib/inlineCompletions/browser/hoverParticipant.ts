@@ -111,9 +111,9 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 
 		const w = this._instantiationService.createInstance(InlineSuggestionHintsContentWidget, this._editor, false,
 			constObservable(null),
-			model.currentInlineCompletionIndex,
+			model.selectedInlineCompletionIndex,
 			model.inlineCompletionsCount,
-			model.currentInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),);
+			model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),);
 		context.fragment.appendChild(w.getDomNode());
 
 		model.triggerExplicitly();

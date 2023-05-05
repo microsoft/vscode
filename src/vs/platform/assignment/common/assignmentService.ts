@@ -90,7 +90,6 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 			telemetry: this.telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,
 			keyValueStorage: this.keyValueStorage,
-			featuresTelemetryPropertyName: tasConfig.featuresTelemetryPropertyName,
 			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
 			telemetryEventName: tasConfig.telemetryEventName,
 			endpoint: tasConfig.endpoint,

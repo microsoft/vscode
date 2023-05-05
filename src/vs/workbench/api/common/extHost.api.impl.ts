@@ -101,6 +101,7 @@ import { ExtHostInteractiveSession } from 'vs/workbench/api/common/extHostIntera
 import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInteractiveEditor';
 import { ExtHostNotebookDocumentSaveParticipant } from 'vs/workbench/api/common/extHostNotebookDocumentSaveParticipant';
 import { ExtHostSemanticSimilarity } from 'vs/workbench/api/common/extHostSemanticSimilarity';
+import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReporter';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -199,6 +200,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInteractiveEditor, new ExtHostInteractiveEditor(rpcProtocol, extHostDocuments, extHostLogService));
 	const extHostInteractiveSession = rpcProtocol.set(ExtHostContext.ExtHostInteractiveSession, new ExtHostInteractiveSession(rpcProtocol, extHostLogService));
 	const extHostSemanticSimilarity = rpcProtocol.set(ExtHostContext.ExtHostSemanticSimilarity, new ExtHostSemanticSimilarity(rpcProtocol));
+	const extHostIssueReporter = rpcProtocol.set(ExtHostContext.ExtHostIssueReporter, new ExtHostIssueReporter(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -388,6 +390,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get onDidChangeLogLevel() {
 				return extHostLogService.onDidChangeLogLevel;
+			},
+			registerIssueUriRequestHandler(handler: vscode.IssueUriRequestHandler) {
+				checkProposedApiEnabled(extension, 'handleIssueUri');
+				return extHostIssueReporter.registerIssueUriRequestHandler(extension, handler);
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
@@ -887,6 +893,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
 			},
+			save: (uri) => {
+				checkProposedApiEnabled(extension, 'saveEditor');
+				return extHostWorkspace.save(uri);
+			},
+			saveAs: (uri) => {
+				checkProposedApiEnabled(extension, 'saveEditor');
+				return extHostWorkspace.saveAs(uri);
+			},
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
 			},
@@ -1257,6 +1271,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		const interactiveSlashCommands: typeof vscode.interactiveSlashCommands = {
+			registerSlashCommandProvider(chatProviderId: string, provider: vscode.InteractiveSlashCommandProvider) {
+				checkProposedApiEnabled(extension, 'interactiveSlashCommands');
+				return extHostInteractiveSession.registerSlashCommandProvider(extension, chatProviderId, provider);
+			}
+		};
+
 		// namespace: ai
 		const ai: typeof vscode.ai = {
 			registerSemanticSimilarityProvider(provider: vscode.SemanticSimilarityProvider) {
@@ -1276,6 +1297,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			env,
 			extensions,
 			interactive,
+			interactiveSlashCommands,
 			l10n,
 			languages,
 			notebooks,

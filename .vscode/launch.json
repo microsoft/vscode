@@ -236,7 +236,6 @@
 				"VSCODE_SKIP_PRELAUNCH": "1"
 			},
 			"cleanUp": "wholeBrowser",
-			"urlFilter": "*workbench*.html*",
 			"runtimeArgs": [
 				"--inspect-brk=5875",
 				"--no-cached-data",

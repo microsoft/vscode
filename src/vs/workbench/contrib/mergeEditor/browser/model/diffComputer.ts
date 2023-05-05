@@ -23,7 +23,9 @@ export interface IMergeDiffComputerResult {
 }
 
 export class MergeDiffComputer implements IMergeDiffComputer {
-	private readonly mergeAlgorithm = observableConfigValue<'smart' | 'experimental'>('mergeEditor.diffAlgorithm', 'experimental', this.configurationService);
+	private readonly mergeAlgorithm = observableConfigValue<'smart' | 'experimental' | 'legacy' | 'advanced'>(
+		'mergeEditor.diffAlgorithm', 'advanced', this.configurationService)
+		.map(v => v === 'smart' ? 'legacy' : v === 'experimental' ? 'advanced' : v);
 
 	constructor(
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
