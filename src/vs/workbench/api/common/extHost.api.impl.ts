@@ -1271,6 +1271,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		const interactiveSlashCommands: typeof vscode.interactiveSlashCommands = {
+			registerSlashCommandProvider(chatProviderId: string, provider: vscode.InteractiveSlashCommandProvider) {
+				checkProposedApiEnabled(extension, 'interactiveSlashCommands');
+				return extHostInteractiveSession.registerSlashCommandProvider(extension, chatProviderId, provider);
+			}
+		};
+
 		// namespace: ai
 		const ai: typeof vscode.ai = {
 			registerSemanticSimilarityProvider(provider: vscode.SemanticSimilarityProvider) {
@@ -1290,6 +1297,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			env,
 			extensions,
 			interactive,
+			interactiveSlashCommands,
 			l10n,
 			languages,
 			notebooks,
