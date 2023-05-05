@@ -1,10 +1,4 @@
 name: "Deep Classifier: Runner"
-on:
-  schedule:
-    - cron: 0 * * * *
-  workflow_dispatch:
-  repository_dispatch:
-    types: [trigger-deep-classifier-runner]
 
 jobs:
   main:
