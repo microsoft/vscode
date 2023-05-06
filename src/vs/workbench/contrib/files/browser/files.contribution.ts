@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, FILES_READONLY_FROM_PERMISSIONS_CONFIG } from 'vs/platform/files/common/files';
 import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE, UndoConfirmLevel, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
@@ -298,6 +298,11 @@ configurationRegistry.registerConfiguration({
 			'default': {},
 			'markdownDescription': nls.localize('readonlyExclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to exclude from being marked as read-only. This setting supersedes the `#files.readonlyInclude#` setting."),
 			'scope': ConfigurationScope.RESOURCE
+		},
+		[FILES_READONLY_FROM_PERMISSIONS_CONFIG]: {
+			'type': 'boolean',
+			'description': nls.localize('files.readonlyFromPermissions', "Marks files as readonly when their file permissions indicate as such."),
+			'default': false
 		},
 		'files.restoreUndoStack': {
 			'type': 'boolean',

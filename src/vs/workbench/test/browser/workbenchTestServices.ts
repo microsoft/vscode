@@ -435,7 +435,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			encoding: 'utf8',
 			value: await createTextBufferFactoryFromStream(content.value),
 			size: 10,
-			readonly: false
+			readonly: false,
+			locked: false
 		};
 	}
 

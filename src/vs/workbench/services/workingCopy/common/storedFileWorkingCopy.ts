@@ -490,7 +490,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			size,
 			etag,
 			value: buffer,
-			readonly: false
+			readonly: false,
+			locked: false
 		}, true /* dirty (resolved from buffer) */);
 	}
 
@@ -530,7 +531,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
-			readonly: false
+			readonly: false,
+			locked: false
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
@@ -622,6 +624,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			size: content.size,
 			etag: content.etag,
 			readonly: content.readonly,
+			locked: content.locked,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
@@ -1244,7 +1247,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	isReadonly(): boolean {
 		return this.lastResolvedFileStat?.readonly ||
 			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
-			this.filesConfigurationService.isReadonly(this.resource);
+			this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
 	}
 
 	private trace(msg: string): void {

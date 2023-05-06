@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
@@ -55,7 +55,7 @@ export interface IFilesConfigurationService {
 
 	readonly onReadonlyConfigurationChange: Event<void>;
 
-	isReadonly(resource: URI): boolean;
+	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean;
 
 	//#endregion
 
@@ -95,6 +95,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	private readonly readonlyIncludeMatcher = this._register(new IdleValue(() => this.createMatcher(FILES_READONLY_INCLUDE_CONFIG)));
 	private readonly readonlyExcludeMatcher = this._register(new IdleValue(() => this.createMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
+	private configuredReadonlyFromPermissions: boolean | undefined;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -128,9 +129,13 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return matcher;
 	}
 
-	isReadonly(resource: URI): boolean {
+	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean {
 		if (this.readonlyExcludeMatcher.value.matches(resource)) {
 			return false; // exclude always wins over include
+		}
+
+		if (this.configuredReadonlyFromPermissions && stat?.locked) {
+			return true; // leverage file permissions if configured as such
 		}
 
 		return this.readonlyIncludeMatcher.value.matches(resource) ?? false;
@@ -149,7 +154,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
 
 		// Auto Save
-		const autoSaveMode = configuration?.files?.autoSave || FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE;
+		const autoSaveMode = configuration.files?.autoSave || FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE;
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration?.files?.autoSaveDelay;
@@ -177,8 +182,6 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		}
 
 		this.autoSaveAfterShortDelayContext.set(this.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY);
-
-		// Emit as event
 		this._onAutoSaveConfigurationChange.fire(this.getAutoSaveConfiguration());
 
 		// Check for change in files associations
@@ -194,6 +197,13 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			this.currentHotExitConfig = hotExitMode;
 		} else {
 			this.currentHotExitConfig = HotExitConfiguration.ON_EXIT;
+		}
+
+		// Readonly
+		const readonlyFromPermissions = Boolean(configuration?.files?.readonlyFromPermissions);
+		if (readonlyFromPermissions !== Boolean(this.configuredReadonlyFromPermissions)) {
+			this.configuredReadonlyFromPermissions = readonlyFromPermissions;
+			this._onReadonlyConfigurationChange.fire();
 		}
 	}
 

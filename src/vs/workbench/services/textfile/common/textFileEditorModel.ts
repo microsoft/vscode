@@ -362,7 +362,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag,
 			value: buffer,
 			encoding: preferredEncoding.encoding,
-			readonly: false
+			readonly: false,
+			locked: false
 		}, true /* dirty (resolved from buffer) */, options);
 	}
 
@@ -409,7 +410,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, backup.value, { encoding: UTF8 })),
 			encoding,
-			readonly: false
+			readonly: false,
+			locked: false
 		}, true /* dirty (resolved from backup) */, options);
 
 		// Restore orphaned flag based on state
@@ -505,6 +507,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size: content.size,
 			etag: content.etag,
 			readonly: content.readonly,
+			locked: content.locked,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
@@ -1159,7 +1162,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	override isReadonly(): boolean {
 		return this.lastResolvedFileStat?.readonly ||
 			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
-			this.filesConfigurationService.isReadonly(this.resource);
+			this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
 	}
 
 	override dispose(): void {
