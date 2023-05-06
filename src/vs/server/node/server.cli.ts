@@ -74,6 +74,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'verbose':
 		case 'remote':
 		case 'locate-shell-integration-path':
+		case 'clipboard':
 			return true;
 		default:
 			return false;
@@ -274,6 +275,23 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit'] });
 		}
 	} else {
+		if (parsedArgs.clipboard) {
+			if (!hasStdinWithoutTty()) {
+				console.error('stdin has a tty.');
+				return;
+			}
+			const fs = require('fs');
+			const stdinBuffer = fs.readFileSync(0); // STDIN_FILENO = 0
+			const clipboardContent = stdinBuffer.toString();
+			sendToPipe({
+				type: 'clipboard',
+				content: clipboardContent
+			}, verbose).catch(e => {
+				console.error('Error when requesting status:', e);
+			});
+			return;
+		}
+
 		if (parsedArgs.status) {
 			sendToPipe({
 				type: 'status'

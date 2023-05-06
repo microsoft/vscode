@@ -8,6 +8,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
@@ -88,6 +89,11 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 		}
 	}
 	return lines.join('\n');
+});
+
+CommandsRegistry.registerCommand('_remoteCLI.setClipboard', function (accessor: ServicesAccessor, content: string) {
+	const clipboardService = accessor.get(IClipboardService);
+	clipboardService.writeText(content);
 });
 
 class RemoteExtensionManagementCLI extends ExtensionManagementCLI {
