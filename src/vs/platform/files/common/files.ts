@@ -1229,12 +1229,18 @@ export const HotExitConfiguration = {
 
 export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
 export const FILES_EXCLUDE_CONFIG = 'files.exclude';
+export const FILES_READONLY_INCLUDE_CONFIG = 'files.readonlyInclude';
+export const FILES_READONLY_EXCLUDE_CONFIG = 'files.readonlyExclude';
+
+export interface IGlobPatterns {
+	[filepattern: string]: boolean;
+}
 
 export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
 		exclude: IExpression;
-		watcherExclude: { [filepattern: string]: boolean };
+		watcherExclude: IGlobPatterns;
 		watcherInclude: string[];
 		encoding: string;
 		autoGuessEncoding: boolean;
@@ -1246,6 +1252,8 @@ export interface IFilesConfiguration {
 		enableTrash: boolean;
 		hotExit: string;
 		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
+		readonlyInclude: IGlobPatterns;
+		readonlyExclude: IGlobPatterns;
 	};
 }
 

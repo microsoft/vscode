@@ -97,7 +97,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static readonly UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD = 500;
 	private lastModelContentChangeFromUndoRedo: number | undefined = undefined;
 
-	lastResolvedFileStat: IFileStatWithMetadata | undefined; // used in tests
+	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
@@ -135,6 +135,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private registerListeners(): void {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 		this._register(this.filesConfigurationService.onFilesAssociationChange(() => this.onFilesAssociationChange()));
+		this._register(this.filesConfigurationService.onReadonlyConfigurationChange(() => this._onDidChangeReadonly.fire()));
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
@@ -1156,7 +1157,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.lastResolvedFileStat?.readonly ||
+			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
+			this.filesConfigurationService.isReadonly(this.resource);
 	}
 
 	override dispose(): void {

@@ -9,11 +9,13 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { IdleValue } from 'vs/base/common/async';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -49,6 +51,14 @@ export interface IFilesConfigurationService {
 
 	//#endregion
 
+	//#region Configured Readonly
+
+	readonly onReadonlyConfigurationChange: Event<void>;
+
+	isReadonly(resource: URI): boolean;
+
+	//#endregion
+
 	readonly onFilesAssociationChange: Event<void>;
 
 	readonly isHotExitEnabled: boolean;
@@ -70,6 +80,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly _onFilesAssociationChange = this._register(new Emitter<void>());
 	readonly onFilesAssociationChange = this._onFilesAssociationChange.event;
 
+	private readonly _onReadonlyConfigurationChange = this._register(new Emitter<void>());
+	readonly onReadonlyConfigurationChange = this._onReadonlyConfigurationChange.event;
+
 	private configuredAutoSaveDelay?: number;
 	private configuredAutoSaveOnFocusChange: boolean | undefined;
 	private configuredAutoSaveOnWindowChange: boolean | undefined;
@@ -79,6 +92,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private currentFilesAssociationConfig: { [key: string]: string };
 
 	private currentHotExitConfig: string;
+
+	private readonly readonlyIncludeMatcher = this._register(new IdleValue(() => this.createMatcher(FILES_READONLY_INCLUDE_CONFIG)));
+	private readonly readonlyExcludeMatcher = this._register(new IdleValue(() => this.createMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -97,6 +113,27 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		this.onFilesConfigurationChange(configuration);
 
 		this.registerListeners();
+	}
+
+	private createMatcher(config: string) {
+		const matcher = this._register(new ResourceGlobMatcher(
+			resource => this.configurationService.getValue(config, { resource }),
+			event => event.affectsConfiguration(config),
+			this.contextService,
+			this.configurationService
+		));
+
+		this._register(matcher.onExpressionChange(() => this._onReadonlyConfigurationChange.fire()));
+
+		return matcher;
+	}
+
+	isReadonly(resource: URI): boolean {
+		if (this.readonlyExcludeMatcher.value.matches(resource)) {
+			return false; // exclude always wins over include
+		}
+
+		return this.readonlyIncludeMatcher.value.matches(resource) ?? false;
 	}
 
 	private registerListeners(): void {

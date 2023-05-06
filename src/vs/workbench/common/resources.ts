@@ -91,6 +91,10 @@ export class ResourceGlobMatcher extends Disposable {
 		resource: URI,
 		hasSibling?: (name: string) => boolean
 	): boolean {
+		if (this.mapRootToParsedExpression.size === 0) {
+			return false; // return early: no expression for this matcher
+		}
+
 		const folder = this.contextService.getWorkspaceFolder(resource);
 
 		let expressionForRoot: ParsedExpression | undefined;

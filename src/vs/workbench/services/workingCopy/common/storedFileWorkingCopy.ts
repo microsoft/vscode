@@ -332,6 +332,12 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.filesConfigurationService.onReadonlyConfigurationChange(() => this._onDidChangeReadonly.fire()));
 	}
 
 	//#region Dirty
@@ -1236,7 +1242,9 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	//#region Utilities
 
 	isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.lastResolvedFileStat?.readonly ||
+			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
+			this.filesConfigurationService.isReadonly(this.resource);
 	}
 
 	private trace(msg: string): void {
