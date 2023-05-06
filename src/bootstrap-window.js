@@ -43,10 +43,6 @@
 	 * }} [options]
 	 */
 	async function load(modulePaths, resultCallback, options) {
-		const isDev = !!safeProcess.env['VSCODE_DEV'];
-
-		// Error handler (node.js enabled renderers only)
-		let showDevtoolsOnError = isDev;
 
 		// Await window configuration from preload
 		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
@@ -63,17 +59,15 @@
 
 		// Developer settings
 		const {
-			forceDisableShowDevtoolsOnError,
 			forceEnableDeveloperKeybindings,
 			disallowReloadKeybinding,
 			removeDeveloperKeybindingsAfterLoad
 		} = typeof options?.configureDeveloperSettings === 'function' ? options.configureDeveloperSettings(configuration) : {
-			forceDisableShowDevtoolsOnError: false,
 			forceEnableDeveloperKeybindings: false,
 			disallowReloadKeybinding: false,
 			removeDeveloperKeybindingsAfterLoad: false
 		};
-		showDevtoolsOnError = isDev && !forceDisableShowDevtoolsOnError;
+		const isDev = !!safeProcess.env['VSCODE_DEV'];
 		const enableDeveloperKeybindings = isDev || forceEnableDeveloperKeybindings;
 		let developerDeveloperKeybindingsDisposable;
 		if (enableDeveloperKeybindings) {

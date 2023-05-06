@@ -238,17 +238,13 @@ function terminateWhenParentTerminates() {
 function configureCrashReporter() {
 	const crashReporterProcessType = process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'];
 	if (crashReporterProcessType) {
-		addCrashReporterParameter('processType', crashReporterProcessType);
-	}
-}
-
-function addCrashReporterParameter(key, value) {
-	try {
-		if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
-			process['crashReporter'].addExtraParameter(key, value);
+		try {
+			if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
+				process['crashReporter'].addExtraParameter('processType', crashReporterProcessType);
+			}
+		} catch (error) {
+			console.error(error);
 		}
-	} catch (error) {
-		console.error(error);
 	}
 }
 
