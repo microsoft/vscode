@@ -18,6 +18,7 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
@@ -47,7 +48,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		@IFileService private readonly _fileService: IFileService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -103,7 +105,10 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	isReadonly(): boolean {
 		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
 			return this._workingCopy?.isReadonly();
-		} else if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+		} else if (
+			this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
+			this._filesConfigurationService.isReadonly(this.resource)
+		) {
 			return true;
 		} else {
 			return false;

@@ -53,7 +53,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			}
 		} else {
 			if (this.fileService.hasProvider(this.resource)) {
-				if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+				if (
+					this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
+					this.filesConfigurationService.isReadonly(this.resource)
+				) {
 					capabilities |= EditorInputCapabilities.Readonly;
 				}
 			} else {
@@ -94,12 +97,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IPathService private readonly pathService: IPathService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService
 	) {
-		super(resource, preferredResource, editorService, textFileService, labelService, fileService);
+		super(resource, preferredResource, editorService, textFileService, labelService, fileService, filesConfigurationService);
 
 		this.model = this.textFileService.files.get(resource);
 

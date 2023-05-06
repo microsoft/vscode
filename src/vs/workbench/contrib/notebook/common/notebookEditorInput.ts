@@ -24,6 +24,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -55,9 +56,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, undefined, labelService, fileService);
+		super(resource, undefined, labelService, fileService, filesConfigurationService);
 		this._defaultDirtyState = !!options.startDirty;
 
 		// Automatically resolve this input when the "wanted" model comes to life via
@@ -97,7 +99,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
-			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+			if (
+				this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
+				this.filesConfigurationService.isReadonly(this.resource)
+			) {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		}
