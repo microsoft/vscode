@@ -668,6 +668,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.labelFormat !== newOptions.labelFormat ||
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
+			oldOptions.tabSizingFixedWidth !== newOptions.tabSizingFixedWidth ||
 			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
@@ -1229,9 +1230,10 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
-		for (const option of ['fit', 'shrink']) {
+		for (const option of ['fit', 'shrink', 'fixed']) {
 			tabContainer.classList.toggle(`sizing-${option}`, tabSizing === option);
 		}
+		tabContainer.style.width = `${options.tabSizingFixedWidth}px`;
 
 		tabContainer.classList.toggle('has-icon', options.showIcons && options.hasIcons);
 
