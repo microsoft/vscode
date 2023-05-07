@@ -57,6 +57,8 @@ import { ActiveEditorContext, EmptyWorkspaceSupportContext } from 'vs/workbench/
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { ILocalizedString } from 'vs/platform/action/common/action';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File...");
@@ -1183,3 +1185,82 @@ export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) =
 		options: { preserveFocus: true }
 	})));
 };
+
+class BaseMarkActiveEditorReadonly extends Action2 {
+
+	constructor(
+		id: string,
+		title: ILocalizedString,
+		private readonly newReadonlyState: true | false | 'toggle'
+	) {
+		super({ id, title, f1: true, category: Categories.File });
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const dialogService = accessor.get(IDialogService);
+		const filesConfigurationService = accessor.get(IFilesConfigurationService);
+		const preferencesService = accessor.get(IPreferencesService);
+
+		const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (!fileResource) {
+			return;
+		}
+
+		const success = await filesConfigurationService.updateReadonly(fileResource, this.newReadonlyState);
+		if (!success) {
+			const { confirmed } = await dialogService.confirm({
+				type: Severity.Info,
+				message: nls.localize('readonlyMessage', "Unable to change readonly state of the active editor."),
+				detail: nls.localize('readonlyDetail', "Please review the configured settings to update readonly state manually."),
+				primaryButton: nls.localize({ key: 'openSettings', comment: ['&& denotes a mnemonic'] }, "&&Open Settings")
+			});
+
+			if (confirmed) {
+				await preferencesService.openSettings({ query: 'files.readonly' });
+			}
+		}
+	}
+}
+
+export class MarkActiveEditorReadonly extends BaseMarkActiveEditorReadonly {
+
+	static readonly ID = 'workbench.action.files.markActiveEditorReadonly';
+	static readonly LABEL = nls.localize('markActiveEditorReadonly', "Mark Active Editor Readonly");
+
+	constructor() {
+		super(
+			MarkActiveEditorReadonly.ID,
+			{ value: MarkActiveEditorReadonly.LABEL, original: 'Mark Active Editor Readonly' },
+			true
+		);
+	}
+}
+
+export class MarkActiveEditorWriteable extends BaseMarkActiveEditorReadonly {
+
+	static readonly ID = 'workbench.action.files.markActiveEditorWriteable';
+	static readonly LABEL = nls.localize('markActiveEditorWriteable', "Mark Active Editor Writeable");
+
+	constructor() {
+		super(
+			MarkActiveEditorWriteable.ID,
+			{ value: MarkActiveEditorWriteable.LABEL, original: 'Mark Active Editor Writeable' },
+			false
+		);
+	}
+}
+
+export class ToggleActiveEditorReadonly extends BaseMarkActiveEditorReadonly {
+
+	static readonly ID = 'workbench.action.files.toggleActiveEditorReadonly';
+	static readonly LABEL = nls.localize('toggleActiveEditorReadonly', "Toggle Active Editor Readonly");
+
+	constructor() {
+		super(
+			ToggleActiveEditorReadonly.ID,
+			{ value: ToggleActiveEditorReadonly.LABEL, original: 'Toggle Active Editor Readonly' },
+			'toggle'
+		);
+	}
+}

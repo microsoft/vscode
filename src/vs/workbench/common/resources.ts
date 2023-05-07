@@ -5,12 +5,19 @@
 
 import { URI } from 'vs/base/common/uri';
 import { deepClone, equals } from 'vs/base/common/objects';
+import { isAbsolute } from 'vs/base/common/path';
 import { Emitter } from 'vs/base/common/event';
 import { relativePath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { Schemas } from 'vs/base/common/network';
+
+interface IConfiguredExpression {
+	readonly expression: IExpression;
+	readonly hasAbsolutePath: boolean;
+}
 
 export class ResourceGlobMatcher extends Disposable {
 
@@ -20,7 +27,7 @@ export class ResourceGlobMatcher extends Disposable {
 	readonly onExpressionChange = this._onExpressionChange.event;
 
 	private readonly mapRootToParsedExpression = new Map<string | null, ParsedExpression>();
-	private readonly mapRootToExpressionConfig = new Map<string | null, IExpression>();
+	private readonly mapRootToExpressionConfig = new Map<string | null, IConfiguredExpression>();
 
 	constructor(
 		private globFn: (root?: URI) => IExpression,
@@ -49,20 +56,20 @@ export class ResourceGlobMatcher extends Disposable {
 		let changed = false;
 
 		// Add excludes per workspaces that got added
-		this.contextService.getWorkspace().folders.forEach(folder => {
+		for (const folder of this.contextService.getWorkspace().folders) {
 			const rootExcludes = this.globFn(folder.uri);
-			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !equals(this.mapRootToExpressionConfig.get(folder.uri.toString()), rootExcludes)) {
+			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !equals(this.mapRootToExpressionConfig.get(folder.uri.toString())?.expression, rootExcludes)) {
 				changed = true;
 
 				this.mapRootToParsedExpression.set(folder.uri.toString(), parse(rootExcludes));
-				this.mapRootToExpressionConfig.set(folder.uri.toString(), deepClone(rootExcludes));
+				this.mapRootToExpressionConfig.set(folder.uri.toString(), this.toConfiguredExpression(rootExcludes));
 			}
-		});
+		}
 
 		// Remove excludes per workspace no longer present
-		this.mapRootToExpressionConfig.forEach((value, root) => {
+		for (const [root] of this.mapRootToExpressionConfig) {
 			if (root === ResourceGlobMatcher.NO_ROOT) {
-				return; // always keep this one
+				continue; // always keep this one
 			}
 
 			if (root && !this.contextService.getWorkspaceFolder(URI.parse(root))) {
@@ -71,20 +78,27 @@ export class ResourceGlobMatcher extends Disposable {
 
 				changed = true;
 			}
-		});
+		}
 
 		// Always set for resources outside root as well
 		const globalExcludes = this.globFn();
-		if (!this.mapRootToExpressionConfig.has(ResourceGlobMatcher.NO_ROOT) || !equals(this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT), globalExcludes)) {
+		if (!this.mapRootToExpressionConfig.has(ResourceGlobMatcher.NO_ROOT) || !equals(this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT)?.expression, globalExcludes)) {
 			changed = true;
 
 			this.mapRootToParsedExpression.set(ResourceGlobMatcher.NO_ROOT, parse(globalExcludes));
-			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, deepClone(globalExcludes));
+			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, this.toConfiguredExpression(globalExcludes));
 		}
 
 		if (fromEvent && changed) {
 			this._onExpressionChange.fire();
 		}
+	}
+
+	private toConfiguredExpression(expression: IExpression): IConfiguredExpression {
+		return {
+			expression: deepClone(expression),
+			hasAbsolutePath: Object.keys(expression).some(key => expression[key] === true && isAbsolute(key))
+		};
 	}
 
 	matches(
@@ -98,23 +112,50 @@ export class ResourceGlobMatcher extends Disposable {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 
 		let expressionForRoot: ParsedExpression | undefined;
+		let expressionConfigForRoot: IConfiguredExpression | undefined;
 		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
 			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
+			expressionConfigForRoot = this.mapRootToExpressionConfig.get(folder.uri.toString());
 		} else {
 			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
+			expressionConfigForRoot = this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT);
+		}
+
+		if (!expressionForRoot) {
+			return false; // return early: no expression for this resource
 		}
 
 		// If the resource if from a workspace, convert its absolute path to a relative
 		// path so that glob patterns have a higher probability to match. For example
 		// a glob pattern of "src/**" will not match on an absolute path "/folder/src/file.txt"
 		// but can match on "src/file.txt"
+
 		let resourcePathToMatch: string | undefined;
 		if (folder) {
 			resourcePathToMatch = relativePath(folder.uri, resource); // always uses forward slashes
 		} else {
-			resourcePathToMatch = resource.fsPath; // TODO@isidor: support non-file URIs
+			resourcePathToMatch = this.uriToPath(resource);
 		}
 
-		return !!expressionForRoot && typeof resourcePathToMatch === 'string' && !!expressionForRoot(resourcePathToMatch, undefined, hasSibling);
+		if (typeof resourcePathToMatch === 'string' && !!expressionForRoot(resourcePathToMatch, undefined, hasSibling)) {
+			return true;
+		}
+
+		// If the configured expression has an absolute path, we also check for absolute paths
+		// to match, otherwise we potentially miss out on matches.
+
+		if (expressionConfigForRoot?.hasAbsolutePath) {
+			return !!expressionForRoot(this.uriToPath(resource), undefined, hasSibling);
+		}
+
+		return false;
+	}
+
+	private uriToPath(uri: URI): string {
+		if (uri.scheme === Schemas.file) {
+			return uri.fsPath;
+		}
+
+		return uri.path;
 	}
 }

@@ -9,13 +9,14 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IGlobPatterns } from 'vs/platform/files/common/files';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IdleValue } from 'vs/base/common/async';
+import { Schemas } from 'vs/base/common/network';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -56,6 +57,8 @@ export interface IFilesConfigurationService {
 	readonly onReadonlyConfigurationChange: Event<void>;
 
 	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean;
+
+	updateReadonly(resource: URI, readonly: true | false | 'toggle'): Promise<boolean>;
 
 	//#endregion
 
@@ -141,6 +144,45 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.readonlyIncludeMatcher.value.matches(resource) ?? false;
 	}
 
+	async updateReadonly(resource: URI, readonly: true | false | 'toggle'): Promise<boolean> {
+		if (readonly === 'toggle') {
+			readonly = !this.isReadonly(resource);
+		}
+
+		// Add to target setting
+		if (readonly) {
+			const targetSettingToAdd = FILES_READONLY_INCLUDE_CONFIG;
+			const configurationToAdd = this.configurationService.inspect<IGlobPatterns>(targetSettingToAdd, { resource });
+
+			const configurationClone = { ...configurationToAdd.user?.value };
+			configurationClone[this.uriToPath(resource)] = true;
+
+			await this.configurationService.updateValue(targetSettingToAdd, configurationClone);
+		}
+
+		// Remove from other setting
+		const targetSettingsToRemove = readonly ? [FILES_READONLY_EXCLUDE_CONFIG] : [FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG];
+		for (const targetSettingToRemove of targetSettingsToRemove) {
+			const configurationToRemove = this.configurationService.inspect<IGlobPatterns>(targetSettingToRemove, { resource });
+			if (configurationToRemove.user?.value) {
+				const configurationClone = { ...configurationToRemove.user.value };
+				delete configurationClone[this.uriToPath(resource)];
+
+				await this.configurationService.updateValue(targetSettingToRemove, configurationClone);
+			}
+		}
+
+		return this.isReadonly(resource) === readonly;
+	}
+
+	private uriToPath(uri: URI): string {
+		if (uri.scheme === Schemas.file) {
+			return uri.fsPath;
+		}
+
+		return uri.path;
+	}
+
 	private registerListeners(): void {
 
 		// Files configuration changes
@@ -154,7 +196,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
 
 		// Auto Save
-		const autoSaveMode = configuration.files?.autoSave || FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE;
+		const autoSaveMode = configuration?.files?.autoSave || FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE;
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration?.files?.autoSaveDelay;
