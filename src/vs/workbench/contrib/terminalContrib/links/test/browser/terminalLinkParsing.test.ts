@@ -212,6 +212,8 @@ suite('TerminalLinkParsing', () => {
 			strictEqual(removeLinkQueryString('foo?a=b'), 'foo');
 			strictEqual(removeLinkQueryString('./foo?a=b'), './foo');
 			strictEqual(removeLinkQueryString('/foo/bar?a=b'), '/foo/bar');
+			strictEqual(removeLinkQueryString('foo?a=b?'), 'foo');
+			strictEqual(removeLinkQueryString('foo?a=b&c=d'), 'foo');
 		});
 	});
 	suite('detectLinks', () => {
