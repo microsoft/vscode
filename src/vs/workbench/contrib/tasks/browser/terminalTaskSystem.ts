@@ -1141,7 +1141,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				color: task.configurationProperties.icon?.color || undefined,
 				waitOnExit
 			};
-			let shellSpecified: boolean = false;
 			const shellOptions: IShellConfiguration | undefined = task.command.options && task.command.options.shell;
 			if (shellOptions) {
 				if (shellOptions.executable) {
@@ -1150,7 +1149,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						shellLaunchConfig.args = undefined;
 					}
 					shellLaunchConfig.executable = await this._resolveVariable(variableResolver, shellOptions.executable);
-					shellSpecified = true;
 				}
 				if (shellOptions.args) {
 					shellLaunchConfig.args = await this._resolveVariables(variableResolver, shellOptions.args.slice());
@@ -1159,7 +1157,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (shellLaunchConfig.args === undefined) {
 				shellLaunchConfig.args = [];
 			}
-			const shellArgs = Array.isArray(shellLaunchConfig.args!) ? <string[]>shellLaunchConfig.args!.slice(0) : [shellLaunchConfig.args!];
+			const shellArgs = Array.isArray(shellLaunchConfig.args) ? <string[]>shellLaunchConfig.args.slice(0) : [shellLaunchConfig.args];
 			const toAdd: string[] = [];
 			const basename = path.posix.basename((await this._pathService.fileURI(shellLaunchConfig.executable!)).path).toLowerCase();
 			const commandLine = this._buildShellCommandLine(platform, basename, shellOptions, command, originalCommand, args);
@@ -1172,42 +1170,32 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					return undefined;
 				}
 				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
-					if (!shellSpecified) {
-						toAdd.push('-Command');
-					}
+					toAdd.push('-Command');
 				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
-					if (!shellSpecified) {
-						toAdd.push('-c');
-					}
+					toAdd.push('-c');
 				} else if (basename === 'wsl.exe') {
-					if (!shellSpecified) {
-						toAdd.push('-e');
-					}
+					toAdd.push('-e');
 				} else {
-					if (!shellSpecified) {
-						toAdd.push('/d', '/c');
-					}
+					toAdd.push('/d', '/c');
 				}
 			} else {
-				if (!shellSpecified) {
-					// Under Mac remove -l to not start it as a login shell.
-					if (platform === Platform.Platform.Mac) {
-						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
-						const osxShellArgs = this._configurationService.inspect(TerminalSettingId.ShellArgsMacOs);
-						if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
-							&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
-							&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
-							&& (osxShellArgs.workspaceFolder === undefined) && (osxShellArgs.workspaceFolderValue === undefined)
-							&& (osxShellArgs.workspaceValue === undefined)) {
-							const index = shellArgs.indexOf('-l');
-							if (index !== -1) {
-								shellArgs.splice(index, 1);
-							}
+				// Under Mac remove -l to not start it as a login shell.
+				if (platform === Platform.Platform.Mac) {
+					// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
+					const osxShellArgs = this._configurationService.inspect(TerminalSettingId.ShellArgsMacOs);
+					if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
+						&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
+						&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
+						&& (osxShellArgs.workspaceFolder === undefined) && (osxShellArgs.workspaceFolderValue === undefined)
+						&& (osxShellArgs.workspaceValue === undefined)) {
+						const index = shellArgs.indexOf('-l');
+						if (index !== -1) {
+							shellArgs.splice(index, 1);
 						}
 					}
-					toAdd.push('-c');
 				}
+				toAdd.push('-c');
 			}
 			const combinedShellArgs = this._addAllArgument(toAdd, shellArgs);
 			combinedShellArgs.push(commandLine);
@@ -1294,11 +1282,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const combinedShellArgs: string[] = Objects.deepClone(configuredShellArgs);
 		shellCommandArgs.forEach(element => {
 			const shouldAddShellCommandArg = configuredShellArgs.every((arg, index) => {
-				if ((arg.toLowerCase() === element) && (configuredShellArgs.length > index + 1)) {
+				const isDuplicated = arg.toLowerCase() === element.toLowerCase();
+				if (isDuplicated && (configuredShellArgs.length > index + 1)) {
 					// We can still add the argument, but only if not all of the following arguments begin with "-".
 					return !configuredShellArgs.slice(index + 1).every(testArg => testArg.startsWith('-'));
 				} else {
-					return arg.toLowerCase() !== element;
+					return !isDuplicated;
 				}
 			});
 			if (shouldAddShellCommandArg) {
