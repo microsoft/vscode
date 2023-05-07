@@ -26,6 +26,7 @@ steps:
   - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/yarnlockhash
     displayName: Prepare node_modules cache key
     
+    
   - task: Cache@2
     inputs:
       key: '"node_modules" | .build/yarnlockhash'
