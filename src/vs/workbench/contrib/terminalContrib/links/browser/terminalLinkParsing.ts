@@ -115,6 +115,14 @@ export function removeLinkSuffix(link: string): string {
 	return link.substring(0, suffix.index);
 }
 
+export function removeQueryString(link: string): string {
+	const index = link.lastIndexOf('?');
+	if (index === -1) {
+		return link;
+	}
+	return link.substring(0, index);
+}
+
 /**
  * Returns the optional link suffix which contains line and column information.
  * @param link The link to parse.

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalLinkResolver, ResolvedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { removeLinkSuffix, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { removeLinkSuffix, removeQueryString, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Schemas } from 'vs/base/common/network';
@@ -58,6 +58,8 @@ export class TerminalLinkResolver implements ITerminalLinkResolver {
 			cache.set(link, null);
 			return null;
 		}
+
+		linkUrl = removeQueryString(linkUrl);
 
 		// If the link looks like a /mnt/ WSL path and this is a Windows frontend, use the backend
 		// to get the resolved path from the wslpath util.
