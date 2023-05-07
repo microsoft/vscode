@@ -105,7 +105,7 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 
 /**
  * Removes the optional link suffix which contains line and column information.
- * @param link The link to parse.
+ * @param link The link to use.
  */
 export function removeLinkSuffix(link: string): string {
 	const suffix = getLinkSuffix(link)?.suffix;
@@ -115,8 +115,12 @@ export function removeLinkSuffix(link: string): string {
 	return link.substring(0, suffix.index);
 }
 
-export function removeQueryString(link: string): string {
-	const index = link.lastIndexOf('?');
+/**
+ * Removes any query string from the link.
+ * @param link The link to use.
+ */
+export function removeLinkQueryString(link: string): string {
+	const index = link.indexOf('?');
 	if (index === -1) {
 		return link;
 	}
