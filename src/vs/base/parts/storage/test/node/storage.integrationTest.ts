@@ -75,7 +75,7 @@ flakySuite('Storage Library', function () {
 			strictEqual(storage.get('bar'), 'foo');
 			strictEqual(storage.getNumber('barNumber'), 55);
 			strictEqual(storage.getBoolean('barBoolean'), true);
-			deepStrictEqual(storage.getBoolean('barObject'), { 'bar': 'baz' });
+			deepStrictEqual(storage.getObject('barObject'), { 'bar': 'baz' });
 
 			strictEqual(changes.size, 4);
 			ok(changes.has('bar'));
