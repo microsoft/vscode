@@ -67,7 +67,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		console[type](...args);
 	});
 
-	await page.exposeFunction('codeAutomationExit', async (logs: Array<{ readonly relativePath: string; readonly contents: string }>, code: number) => {
+	await page.exposeFunction('codeAutomationExit', async (code: number, logs: Array<{ readonly relativePath: string; readonly contents: string }>) => {
 		try {
 			for (const log of logs) {
 				const absoluteLogsPath = path.join(logsPath, log.relativePath);
