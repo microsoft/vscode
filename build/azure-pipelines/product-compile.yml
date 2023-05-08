@@ -27,6 +27,7 @@ steps:
     displayName: Setup NPM Registry
 
 
+
   - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/yarnlockhash
     displayName: Prepare node_modules cache key
     
