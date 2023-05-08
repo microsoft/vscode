@@ -287,7 +287,7 @@ configurationRegistry.registerConfiguration({
 				'.*': { 'type': 'boolean' }
 			},
 			'default': {},
-			'markdownDescription': nls.localize('readonlyInclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to mark as read-only. This setting is superseded by the `#files.readonlyExclude#` setting."),
+			'markdownDescription': nls.localize('readonlyInclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to mark as read-only. You can exclude matching paths via the `#files.readonlyExclude#` setting."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		[FILES_READONLY_EXCLUDE_CONFIG]: {
@@ -296,7 +296,7 @@ configurationRegistry.registerConfiguration({
 				'.*': { 'type': 'boolean' }
 			},
 			'default': {},
-			'markdownDescription': nls.localize('readonlyExclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to exclude from being marked as read-only. This setting supersedes the `#files.readonlyInclude#` setting."),
+			'markdownDescription': nls.localize('readonlyExclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to exclude from being marked as read-only if they match as a result of the `#files.readonlyInclude#` setting."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		[FILES_READONLY_FROM_PERMISSIONS_CONFIG]: {

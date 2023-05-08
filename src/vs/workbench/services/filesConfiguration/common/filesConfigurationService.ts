@@ -133,15 +133,11 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean {
-		if (this.readonlyExcludeMatcher.value.matches(resource)) {
-			return false; // exclude always wins over include
-		}
-
 		if (this.configuredReadonlyFromPermissions && stat?.locked) {
 			return true; // leverage file permissions if configured as such
 		}
 
-		return this.readonlyIncludeMatcher.value.matches(resource) ?? false;
+		return this.readonlyIncludeMatcher.value.matches(resource) && !this.readonlyExcludeMatcher.value.matches(resource);
 	}
 
 	async updateReadonly(resource: URI, readonly: true | false | 'toggle'): Promise<boolean> {
