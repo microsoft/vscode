@@ -15,6 +15,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
+import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
@@ -22,6 +23,7 @@ import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interacti
 import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionDetail, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const INTERACTIVE_SESSION_CATEGORY = { value: localize('interactiveSession.category', "Interactive Session"), original: 'Interactive Session' };
@@ -70,10 +72,14 @@ export function registerInteractiveSessionActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const widgetService = accessor.get(IInteractiveSessionWidgetService);
 			const editorService = accessor.get(IEditorService);
-			if (editorService.activeEditorPane instanceof InteractiveSessionEditor) {
-				await editorService.activeEditorPane.clear();
-			}
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			editorService.replaceEditors([{
+				editor: editorService.activeEditor!,
+				replacement: { resource: InteractiveSessionEditorInput.getNewEditorUri(), options: <IInteractiveSessionEditorOptions>{ target: { providerId: widgetService.lastFocusedWidget!.providerId, pinned: true } } }
+			}], editorGroupsService.activeGroup);
 		}
 	});
 
@@ -156,10 +162,25 @@ export function registerInteractiveSessionActions() {
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const widgetService = accessor.get(IInteractiveSessionWidgetService);
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-			const sessionId = widgetService.lastFocusedWidget?.viewModel?.sessionId;
-			if (sessionId) {
-				interactiveSessionService.clearSession(sessionId);
+			const viewsService = accessor.get(IViewsService);
+			const editorService = accessor.get(IEditorService);
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget) {
+				return;
+			}
+
+			if ('viewId' in widget.viewContext) {
+				const view = viewsService.getViewWithId(widget.viewContext.viewId);
+				if (view instanceof InteractiveSessionViewPane) {
+					view.clear();
+				}
+			} else {
+				editorService.replaceEditors([{
+					editor: editorService.activeEditor!,
+					replacement: { resource: InteractiveSessionEditorInput.getNewEditorUri(), options: <IInteractiveSessionEditorOptions>{ target: { providerId: widgetService.lastFocusedWidget!.providerId, pinned: true } } }
+				}], editorGroupsService.activeGroup);
 			}
 		}
 	});

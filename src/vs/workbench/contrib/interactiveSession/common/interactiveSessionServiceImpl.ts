@@ -243,6 +243,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			}
 		}).catch(err => {
 			this.trace('startSession', `initializeSession failed: ${err}`);
+			model.setInitializationError(err);
 			model.dispose();
 			this._sessionModels.delete(model.sessionId);
 		});
