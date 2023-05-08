@@ -165,7 +165,7 @@ export class ResourceGlobMatcher extends Disposable {
 
 		let resourcePathToMatch: string | undefined;
 		if (folder) {
-			resourcePathToMatch = relativePath(folder.uri, resource); // always uses forward slashes
+			resourcePathToMatch = relativePath(folder.uri, resource);
 		} else {
 			resourcePathToMatch = this.uriToPath(resource);
 		}

@@ -1186,14 +1186,20 @@ export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) =
 	})));
 };
 
-class BaseMarkActiveEditorReadonly extends Action2 {
+class BaseSetActiveEditorReadonly extends Action2 {
 
 	constructor(
 		id: string,
 		title: ILocalizedString,
 		private readonly newReadonlyState: true | false | 'toggle'
 	) {
-		super({ id, title, f1: true, category: Categories.File });
+		super({
+			id,
+			title,
+			f1: true,
+			category: Categories.File,
+			precondition: ActiveEditorContext
+		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
@@ -1223,35 +1229,35 @@ class BaseMarkActiveEditorReadonly extends Action2 {
 	}
 }
 
-export class MarkActiveEditorReadonly extends BaseMarkActiveEditorReadonly {
+export class SetActiveEditorReadonly extends BaseSetActiveEditorReadonly {
 
-	static readonly ID = 'workbench.action.files.markActiveEditorReadonly';
-	static readonly LABEL = nls.localize('markActiveEditorReadonly', "Mark Active Editor Readonly");
+	static readonly ID = 'workbench.action.files.setActiveEditorReadonly';
+	static readonly LABEL = nls.localize('setActiveEditorReadonly', "Set Active Editor Readonly");
 
 	constructor() {
 		super(
-			MarkActiveEditorReadonly.ID,
-			{ value: MarkActiveEditorReadonly.LABEL, original: 'Mark Active Editor Readonly' },
+			SetActiveEditorReadonly.ID,
+			{ value: SetActiveEditorReadonly.LABEL, original: 'Set Active Editor Readonly' },
 			true
 		);
 	}
 }
 
-export class MarkActiveEditorWriteable extends BaseMarkActiveEditorReadonly {
+export class SetActiveEditorWriteable extends BaseSetActiveEditorReadonly {
 
-	static readonly ID = 'workbench.action.files.markActiveEditorWriteable';
-	static readonly LABEL = nls.localize('markActiveEditorWriteable', "Mark Active Editor Writeable");
+	static readonly ID = 'workbench.action.files.setActiveEditorWriteable';
+	static readonly LABEL = nls.localize('setActiveEditorWriteable', "Set Active Editor Writeable");
 
 	constructor() {
 		super(
-			MarkActiveEditorWriteable.ID,
-			{ value: MarkActiveEditorWriteable.LABEL, original: 'Mark Active Editor Writeable' },
+			SetActiveEditorWriteable.ID,
+			{ value: SetActiveEditorWriteable.LABEL, original: 'Set Active Editor Writeable' },
 			false
 		);
 	}
 }
 
-export class ToggleActiveEditorReadonly extends BaseMarkActiveEditorReadonly {
+export class ToggleActiveEditorReadonly extends BaseSetActiveEditorReadonly {
 
 	static readonly ID = 'workbench.action.files.toggleActiveEditorReadonly';
 	static readonly LABEL = nls.localize('toggleActiveEditorReadonly', "Toggle Active Editor Readonly");

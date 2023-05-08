@@ -152,18 +152,18 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		// Add to target setting
 		if (readonly) {
 			const targetSettingToAdd = FILES_READONLY_INCLUDE_CONFIG;
-			const configurationToAdd = this.configurationService.inspect<IGlobPatterns>(targetSettingToAdd, { resource });
+			const configurationToAdd = this.configurationService.inspect<IGlobPatterns | undefined>(targetSettingToAdd, { resource });
 
-			const configurationClone = { ...configurationToAdd.user?.value };
-			configurationClone[this.uriToPath(resource)] = true;
-
-			await this.configurationService.updateValue(targetSettingToAdd, configurationClone);
+			await this.configurationService.updateValue(targetSettingToAdd, {
+				...configurationToAdd.user?.value,
+				[this.uriToPath(resource)]: true
+			});
 		}
 
 		// Remove from other setting
 		const targetSettingsToRemove = readonly ? [FILES_READONLY_EXCLUDE_CONFIG] : [FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG];
 		for (const targetSettingToRemove of targetSettingsToRemove) {
-			const configurationToRemove = this.configurationService.inspect<IGlobPatterns>(targetSettingToRemove, { resource });
+			const configurationToRemove = this.configurationService.inspect<IGlobPatterns | undefined>(targetSettingToRemove, { resource });
 			if (configurationToRemove.user?.value) {
 				const configurationClone = { ...configurationToRemove.user.value };
 				delete configurationClone[this.uriToPath(resource)];
