@@ -5,12 +5,15 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { Emitter } from 'vs/base/common/event';
 
 /** a singleton instance stored in ReadonlyHelperNoResource. */
 class GlobManager extends Disposable {
@@ -52,9 +55,10 @@ export class ReadonlyHelper extends Disposable implements IReadonlyHelper {
 	static globManager: GlobManager;
 
 	constructor(
-		@IFileService fileService: IFileService,
+		@IFileService readonly fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IWorkingCopyService readonly workingCopyService: IWorkingCopyService,
 	) {
 		super();
 		if (!ReadonlyHelper.globManager) {
@@ -64,10 +68,55 @@ export class ReadonlyHelper extends Disposable implements IReadonlyHelper {
 			const globReadonly = this.isGlobReadonly(resource);
 			return globReadonly !== null ? globReadonly : this.ignoreReadonlyStat ? false : statReadonly;
 		});
+		ReadonlyHelper.globManager.exactPathMatcher.onExpressionChange(() => this.pathGlobsChanged());
 
 		this._register(configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
 	}
 
+	pathReadonlyValues = new Map<string, boolean>();
+
+	/**
+	 * Exact path can specify: true, false, toggle [flip] or null [ignore].
+	 * Used by interactive command/keybinding to set, clear or toggle isReadonly.
+	 */
+	protected pathGlobsChanged() {
+		const readonlyPath = this.configurationService.getValue<{ [glob: string]: (boolean | null | 'toggle') }>(GlobManager.path);
+		if (readonlyPath !== undefined) {
+			// generally there is only one pathuri key in the readonlyPath setting.
+			Object.keys(readonlyPath).forEach((pathuri: string) => {
+				let newReadonly = readonlyPath[pathuri]; // true, false, 'toggle', null
+				const pathReadonly = this.pathReadonlyValues.get(pathuri), uri = URI.parse(pathuri);
+				const oldReadonly = (pathReadonly !== undefined) ? pathReadonly : this.isGlobReadonly(uri) || false;
+				if (newReadonly === 'toggle') {
+					newReadonly = readonlyPath[pathuri] = !oldReadonly;
+					// modify settings, so subsequent 'toggle' will be seen as a change:
+					this.configurationService.updateValue(GlobManager.path, readonlyPath, ConfigurationTarget.USER);
+					this.pathReadonlyValues.set(pathuri, newReadonly);
+				}
+				if (newReadonly === null) {
+					this.pathReadonlyValues.delete(pathuri);
+					newReadonly = this.isGlobReadonly(uri) || false; // dubious... could record & check lastResolvedFileStat?
+				} else {
+					this.pathReadonlyValues.set(pathuri, newReadonly);
+				}
+				//this.notifyEachWorkingCopy(newReadonly, pathuri, uri);
+			});
+		}
+	}
+	notifyEachWorkingCopy(newReadonly: boolean, pathuri: string, resource: URI) {
+		const wcary = this.workingCopyService.getAll(pathuri); // find the WorkingCopy[]
+		wcary?.forEach(wc => this.notifyWorkingCopy(wc, resource, newReadonly));
+	}
+	async notifyWorkingCopy(wc: IWorkingCopy, resource: URI, newReadonly: boolean) {
+		const stat = await this.fileService.stat(resource); // ensure FileService & IFileStat have updated value
+		if (stat.readonly !== newReadonly) {
+			console.warn(`notifyWorkingCopy: stat.readonly=${stat.readonly} newReadonly=${newReadonly}`);
+		}
+		const emitter = (wc as any /* as TextFileEditorModel */)._onDidChangeReadonly as Emitter<void>;
+		if (typeof emitter?.fire === 'function') {
+			emitter.fire();
+		}
+	}
 	/** When ignoreReadonlyStat is true, chmod -w files are treated as NOT readonly. */
 	protected ignoreReadonlyStat: boolean = this.configurationService.getValue(GlobManager.ignoreReadonlyStat);
 
@@ -81,8 +130,11 @@ export class ReadonlyHelper extends Disposable implements IReadonlyHelper {
 	isGlobReadonly(resource: URI) {
 		const isInclude = ReadonlyHelper.globManager.includeMatcher.matches(resource);
 		const isExclude = ReadonlyHelper.globManager.excludeMatcher.matches(resource);
-		const isSpecified = isInclude || isExclude;
-		return isSpecified ? (isInclude && !isExclude) : null;
+		const isPath = this.pathReadonlyValues.get(resource.toString());
+		if (isPath !== undefined) {
+			return isPath;
+		}
+		return (isInclude || isExclude) ? (isInclude && !isExclude) : null;
 	}
 }
 
