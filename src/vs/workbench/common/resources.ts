@@ -13,6 +13,7 @@ import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
+import { ResourceSet } from 'vs/base/common/map';
 
 interface IConfiguredExpression {
 	readonly expression: IExpression;
@@ -21,23 +22,23 @@ interface IConfiguredExpression {
 
 export class ResourceGlobMatcher extends Disposable {
 
-	private static readonly NO_ROOT: string | null = null;
+	private static readonly NO_ROOT = null;
 
 	private readonly _onExpressionChange = this._register(new Emitter<void>());
 	readonly onExpressionChange = this._onExpressionChange.event;
 
 	private readonly mapRootToParsedExpression = new Map<string | null, ParsedExpression>();
-	private readonly mapRootToExpressionConfig = new Map<string | null, IConfiguredExpression>();
+	private readonly mapRootToConfiguredExpression = new Map<string | null, IConfiguredExpression>();
 
 	constructor(
-		private globFn: (root?: URI) => IExpression,
+		private getExpression: (folder?: URI) => IExpression | undefined,
 		private shouldUpdate: (event: IConfigurationChangeEvent) => boolean,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
-		this.updateExcludes(false);
+		this.updateExpressions(false);
 
 		this.registerListeners();
 	}
@@ -45,53 +46,86 @@ export class ResourceGlobMatcher extends Disposable {
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.shouldUpdate(e)) {
-				this.updateExcludes(true);
+				this.updateExpressions(true);
 			}
 		}));
 
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.updateExcludes(true)));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.updateExpressions(true)));
 	}
 
-	private updateExcludes(fromEvent: boolean): void {
+	private updateExpressions(fromEvent: boolean): void {
 		let changed = false;
 
-		// Add excludes per workspaces that got added
+		// Add expressions per workspaces that got added
 		for (const folder of this.contextService.getWorkspace().folders) {
-			const rootExcludes = this.globFn(folder.uri);
-			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !equals(this.mapRootToExpressionConfig.get(folder.uri.toString())?.expression, rootExcludes)) {
-				changed = true;
+			const folderUriStr = folder.uri.toString();
 
-				this.mapRootToParsedExpression.set(folder.uri.toString(), parse(rootExcludes));
-				this.mapRootToExpressionConfig.set(folder.uri.toString(), this.toConfiguredExpression(rootExcludes));
+			const newExpression = this.doGetExpression(folder.uri);
+			const currentExpression = this.mapRootToConfiguredExpression.get(folderUriStr);
+
+			if (newExpression) {
+				if (!currentExpression || !equals(currentExpression.expression, newExpression)) {
+					changed = true;
+
+					this.mapRootToParsedExpression.set(folderUriStr, parse(newExpression));
+					this.mapRootToConfiguredExpression.set(folderUriStr, this.toConfiguredExpression(newExpression));
+				}
+			} else {
+				if (currentExpression) {
+					changed = true;
+
+					this.mapRootToParsedExpression.delete(folderUriStr);
+					this.mapRootToConfiguredExpression.delete(folderUriStr);
+				}
 			}
 		}
 
-		// Remove excludes per workspace no longer present
-		for (const [root] of this.mapRootToExpressionConfig) {
-			if (root === ResourceGlobMatcher.NO_ROOT) {
+		// Remove expressions per workspace no longer present
+		const foldersMap = new ResourceSet(this.contextService.getWorkspace().folders.map(folder => folder.uri));
+		for (const [folder] of this.mapRootToConfiguredExpression) {
+			if (folder === ResourceGlobMatcher.NO_ROOT) {
 				continue; // always keep this one
 			}
 
-			if (root && !this.contextService.getWorkspaceFolder(URI.parse(root))) {
-				this.mapRootToParsedExpression.delete(root);
-				this.mapRootToExpressionConfig.delete(root);
+			if (!foldersMap.has(URI.parse(folder))) {
+				this.mapRootToParsedExpression.delete(folder);
+				this.mapRootToConfiguredExpression.delete(folder);
 
 				changed = true;
 			}
 		}
 
 		// Always set for resources outside root as well
-		const globalExcludes = this.globFn();
-		if (!this.mapRootToExpressionConfig.has(ResourceGlobMatcher.NO_ROOT) || !equals(this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT)?.expression, globalExcludes)) {
-			changed = true;
+		const globalNewExpression = this.doGetExpression(undefined);
+		const globalCurrentExpression = this.mapRootToConfiguredExpression.get(ResourceGlobMatcher.NO_ROOT);
+		if (globalNewExpression) {
+			if (!globalCurrentExpression || !equals(globalCurrentExpression.expression, globalNewExpression)) {
+				changed = true;
 
-			this.mapRootToParsedExpression.set(ResourceGlobMatcher.NO_ROOT, parse(globalExcludes));
-			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, this.toConfiguredExpression(globalExcludes));
+				this.mapRootToParsedExpression.set(ResourceGlobMatcher.NO_ROOT, parse(globalNewExpression));
+				this.mapRootToConfiguredExpression.set(ResourceGlobMatcher.NO_ROOT, this.toConfiguredExpression(globalNewExpression));
+			}
+		} else {
+			if (globalCurrentExpression) {
+				changed = true;
+
+				this.mapRootToParsedExpression.delete(ResourceGlobMatcher.NO_ROOT);
+				this.mapRootToConfiguredExpression.delete(ResourceGlobMatcher.NO_ROOT);
+			}
 		}
 
 		if (fromEvent && changed) {
 			this._onExpressionChange.fire();
 		}
+	}
+
+	private doGetExpression(resource: URI | undefined): IExpression | undefined {
+		const expression = this.getExpression(resource);
+		if (expression && Object.keys(expression).length > 0) {
+			return expression;
+		}
+
+		return undefined;
 	}
 
 	private toConfiguredExpression(expression: IExpression): IConfiguredExpression {
@@ -115,10 +149,10 @@ export class ResourceGlobMatcher extends Disposable {
 		let expressionConfigForRoot: IConfiguredExpression | undefined;
 		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
 			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
-			expressionConfigForRoot = this.mapRootToExpressionConfig.get(folder.uri.toString());
+			expressionConfigForRoot = this.mapRootToConfiguredExpression.get(folder.uri.toString());
 		} else {
 			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
-			expressionConfigForRoot = this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT);
+			expressionConfigForRoot = this.mapRootToConfiguredExpression.get(ResourceGlobMatcher.NO_ROOT);
 		}
 
 		if (!expressionForRoot) {
