@@ -831,33 +831,41 @@ export class GettingStartedPage extends EditorPane {
 				showOnStartupLabel,
 			));
 
-		recentList.setLimit(5);
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
 				this.container.classList.remove('noWalkthroughs');
-				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, featuredExtensionList.getDomElement(), gettingStartedList.getDomElement());
 			}
 			else {
 				this.container.classList.add('noWalkthroughs');
-				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, featuredExtensionList.getDomElement());
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
+			layoutRecentList();
 		};
 
 		const layoutFeaturedExtension = () => {
 			if (featuredExtensionList.itemCount) {
 				this.container.classList.remove('noExtensions');
-				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, featuredExtensionList.getDomElement(), gettingStartedList.getDomElement());
 			}
 			else {
 				this.container.classList.add('noExtensions');
-				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, gettingStartedList.getDomElement());
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
+			layoutRecentList();
+		};
+
+		const layoutRecentList = () => {
+			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noExtensions')) {
+				recentList.setLimit(10);
+				reset(leftColumn, startList.getDomElement());
+				reset(rightColumn, recentList.getDomElement());
+			} else {
+				recentList.setLimit(5);
+				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
+			}
 		};
 
 		featuredExtensionList.onDidChange(layoutFeaturedExtension);

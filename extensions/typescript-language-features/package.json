@@ -68,6 +68,15 @@
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
   "contributes": {
+    "walkthroughs": [
+      {
+        "id": "tempNodejsWelcome",
+        "title": "tempNodejsTitle",
+        "description": "tempNodejsDescription",
+        "steps": [],
+        "when": "false"
+      }
+    ],
     "jsonValidation": [
       {
         "fileMatch": "package.json",

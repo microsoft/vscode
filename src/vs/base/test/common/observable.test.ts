@@ -926,6 +926,42 @@ suite('observables', () => {
 			'myAutorun(myDerived3: 1 + 0)',
 		]);
 	});
+
+	test('bug: Add observable in endUpdate', () => {
+		const myObservable1 = observableValue('myObservable1', 0);
+		const myObservable2 = observableValue('myObservable2', 0);
+
+		const myDerived1 = derived('myDerived1', reader => {
+			return myObservable1.read(reader);
+		});
+
+		const myDerived2 = derived('myDerived2', reader => {
+			return myObservable2.read(reader);
+		});
+
+		const myDerivedA1 = derived('myDerivedA1', reader => {
+			const d1 = myDerived1.read(reader);
+			if (d1 === 1) {
+				// This adds an observer while myDerived is still in update mode.
+				// When myDerived exits update mode, the observer shouldn't receive
+				// more endUpdate than beginUpdate calls.
+				myDerived2.read(reader);
+			}
+		});
+
+		autorun('myAutorun1', reader => {
+			myDerivedA1.read(reader);
+		});
+
+		autorun('myAutorun2', reader => {
+			myDerived2.read(reader);
+		});
+
+		transaction(tx => {
+			myObservable1.set(1, tx);
+			myObservable2.set(1, tx);
+		});
+	});
 });
 
 export class LoggingObserver implements IObserver {

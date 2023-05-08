@@ -69,6 +69,11 @@ declare module 'vscode' {
 
 	interface DocumentPasteProviderMetadata {
 		/**
+		 * Mime types that {@link DocumentPasteEditProvider.prepareDocumentPaste provideDocumentPasteEdits} may add on copy.
+		 */
+		readonly copyMimeTypes?: readonly string[];
+
+		/**
 		 * Mime types that {@link DocumentPasteEditProvider.provideDocumentPasteEdits provideDocumentPasteEdits} should be invoked for.
 		 *
 		 * This can either be an exact mime type such as `image/png`, or a wildcard pattern such as `image/*`.

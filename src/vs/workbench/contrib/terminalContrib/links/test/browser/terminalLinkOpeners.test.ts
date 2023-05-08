@@ -129,6 +129,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			// Set a fake detected command starting as line 0 to establish the cwd
 			commandDetection.setCommands([{
 				command: '',
+				exitCode: 0,
+				commandStartLineContent: '',
+				markProperties: {},
+				isTrusted: true,
 				cwd: '/initial/cwd',
 				timestamp: 0,
 				getOutput() { return undefined; },
@@ -266,6 +270,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
 					command: '',
+					isTrusted: true,
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },
@@ -273,7 +278,10 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,
-					hasOutput() { return true; }
+					hasOutput() { return true; },
+					exitCode: 0,
+					commandStartLineContent: '',
+					markProperties: {}
 				}]);
 				await opener.open({
 					text: 'file.txt',
@@ -350,7 +358,11 @@ suite('Workbench - TerminalLinkOpeners', () => {
 
 				// Set a fake detected command starting as line 0 to establish the cwd
 				commandDetection.setCommands([{
+					exitCode: 0,
+					commandStartLineContent: '',
+					markProperties: {},
 					command: '',
+					isTrusted: true,
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },

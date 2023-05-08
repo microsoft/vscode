@@ -299,7 +299,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.simpleDialog.enable': {
 			'type': 'boolean',
-			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
+			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog for opening and saving files and folders. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
 		},
 		'files.participants.timeout': {

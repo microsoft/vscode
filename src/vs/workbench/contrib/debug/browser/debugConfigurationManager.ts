@@ -283,7 +283,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	removeRecentDynamicConfigurations(name: string, type: string) {
 		const remaining = this.getRecentDynamicConfigurations().filter(c => c.name !== name || c.type !== type);
-		this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(remaining), StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(remaining), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		if (this.selectedConfiguration.name === name && this.selectedType === type && this.selectedDynamic) {
 			this.selectConfiguration(undefined, undefined);
 		} else {
@@ -428,7 +428,7 @@ export class ConfigurationManager implements IConfigurationManager {
 				// We need to store the recently used dynamic configurations to be able to show them in UI #110009
 				recentDynamicProviders.unshift({ name, type: dynamicConfig.type });
 				recentDynamicProviders = distinct(recentDynamicProviders, t => `${t.name} : ${t.type}`);
-				this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
+				this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
 			// We could not find the configuration to select, pick the first one, or reset the selection if there is no launch configuration

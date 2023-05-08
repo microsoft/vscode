@@ -111,6 +111,11 @@ const enum VSCodeOscPt {
 	 * "\n" -> "\x0a"
 	 * ";"  -> "\x3b"
 	 * ```
+	 *
+	 * An optional nonce can be provided which is may be required by the terminal in order enable
+	 * some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * Format: `OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST`.
 	 */
 	CommandLine = 'E',
 
@@ -201,6 +206,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
 	constructor(
+		private _nonce: string,
 		private readonly _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		@ILogService private readonly _logService: ILogService
@@ -328,12 +334,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.CommandLine: {
 				let commandLine: string;
-				if (args.length === 1) {
+				if (args.length === 2) {
 					commandLine = deserializeMessage(args[0]);
 				} else {
 					commandLine = '';
 				}
-				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
+				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, args[1] === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.ContinuationStart: {
