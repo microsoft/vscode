@@ -18,6 +18,7 @@ import { grep, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { pickRemoteSource } from './remoteSource';
+import restoreTitle from './restoreTitle';
 
 class CheckoutItem implements QuickPickItem {
 
@@ -1521,6 +1522,7 @@ export class CommandCenter {
 
 		const resources = scmResources.map(r => r.resourceUri);
 		await this.runByRepository(resources, async (repository, resources) => repository.clean(resources));
+		await restoreTitle(scmResources);
 	}
 
 	@command('git.cleanAll', { repository: true })
@@ -1606,6 +1608,7 @@ export class CommandCenter {
 		}
 
 		await repository.clean(resources.map(r => r.resourceUri));
+		await restoreTitle(resources);
 	}
 
 	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {
