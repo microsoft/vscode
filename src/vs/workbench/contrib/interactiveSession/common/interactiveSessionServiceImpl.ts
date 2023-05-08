@@ -520,7 +520,10 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		this._persistedSessions[sessionId] = model.toJSON();
+		if (model.getRequests().length) {
+			this._persistedSessions[sessionId] = model.toJSON();
+		}
+
 		model.dispose();
 		this._sessionModels.delete(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
