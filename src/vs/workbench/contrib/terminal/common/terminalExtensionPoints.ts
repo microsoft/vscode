@@ -8,8 +8,6 @@ import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/c
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionTerminalProfile, ITerminalContributions, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 // terminal extension point
 const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
@@ -18,7 +16,6 @@ export interface ITerminalContributionService {
 	readonly _serviceBrand: undefined;
 
 	readonly terminalProfiles: ReadonlyArray<IExtensionTerminalProfile>;
-	readonly quickFixes: Promise<Array<ITerminalCommandSelector>>;
 }
 
 export const ITerminalContributionService = createDecorator<ITerminalContributionService>('terminalContributionsService');
@@ -29,18 +26,14 @@ export class TerminalContributionService implements ITerminalContributionService
 	private _terminalProfiles: ReadonlyArray<IExtensionTerminalProfile> = [];
 	get terminalProfiles() { return this._terminalProfiles; }
 
-	quickFixes: Promise<Array<ITerminalCommandSelector>>;
-
 	constructor() {
-		this.quickFixes = new Promise((r) => terminalsExtPoint.setHandler(contributions => {
+		terminalsExtPoint.setHandler(contributions => {
 			this._terminalProfiles = contributions.map(c => {
 				return c.value?.profiles?.filter(p => hasValidTerminalIcon(p)).map(e => {
 					return { ...e, extensionIdentifier: c.description.identifier.value };
 				}) || [];
 			}).flat();
-			const quickFixes = (contributions.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => c.value.quickFixes ? c.value.quickFixes.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : [])).flat();
-			r(quickFixes);
-		}));
+		});
 	}
 }
 

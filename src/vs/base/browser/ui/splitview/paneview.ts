@@ -29,11 +29,11 @@ export interface IPaneOptions {
 }
 
 export interface IPaneStyles {
-	dropBackground?: Color;
-	headerForeground?: Color;
-	headerBackground?: Color;
-	headerBorder?: Color;
-	leftBorder?: Color;
+	readonly dropBackground: string | undefined;
+	readonly headerForeground: string | undefined;
+	readonly headerBackground: string | undefined;
+	readonly headerBorder: string | undefined;
+	readonly leftBorder: string | undefined;
 }
 
 /**
@@ -62,7 +62,13 @@ export abstract class Pane extends Disposable implements IView {
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private _ariaHeaderLabel: string;
-	private styles: IPaneStyles = {};
+	private styles: IPaneStyles = {
+		dropBackground: undefined,
+		headerBackground: undefined,
+		headerBorder: undefined,
+		headerForeground: undefined,
+		leftBorder: undefined
+	};
 	private animationTimer: number | undefined = undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
@@ -88,9 +94,8 @@ export abstract class Pane extends Disposable implements IView {
 		return this.element;
 	}
 
-	private _dropBackground: Color | undefined;
-	get dropBackground(): Color | undefined {
-		return this._dropBackground;
+	get dropBackground(): string | undefined {
+		return this.styles.dropBackground;
 	}
 
 	get minimumBodySize(): number {
@@ -299,10 +304,9 @@ export abstract class Pane extends Disposable implements IView {
 		this.header.classList.toggle('expanded', expanded);
 		this.header.setAttribute('aria-expanded', String(expanded));
 
-		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : '';
-		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
+		this.header.style.color = this.styles.headerForeground ?? '';
+		this.header.style.backgroundColor = this.styles.headerBackground ?? '';
 		this.header.style.borderTop = this.styles.headerBorder && this.orientation === Orientation.VERTICAL ? `1px solid ${this.styles.headerBorder}` : '';
-		this._dropBackground = this.styles.dropBackground;
 		this.element.style.borderLeft = this.styles.leftBorder && this.orientation === Orientation.HORIZONTAL ? `1px solid ${this.styles.leftBorder}` : '';
 	}
 
@@ -416,7 +420,7 @@ class PaneDraggable extends Disposable {
 		let backgroundColor: string | null = null;
 
 		if (this.dragOverCounter > 0) {
-			backgroundColor = (this.pane.dropBackground || PaneDraggable.DefaultDragOverBackgroundColor).toString();
+			backgroundColor = this.pane.dropBackground ?? PaneDraggable.DefaultDragOverBackgroundColor.toString();
 		}
 
 		this.pane.dropTargetElement.style.backgroundColor = backgroundColor || '';

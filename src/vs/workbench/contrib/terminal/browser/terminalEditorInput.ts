@@ -8,7 +8,8 @@ import Severity from 'vs/base/common/severity';
 import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -101,25 +102,16 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	}
 
 	async confirm(terminals: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
-		const { choice } = await this._dialogService.show(
-			Severity.Warning,
-			localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
-			[
-				localize({ key: 'confirmDirtyTerminal.button', comment: ['&& denotes a mnemonic'] }, "&&Terminate"),
-				localize('cancel', "Cancel")
-			],
-			{
-				cancelId: 1,
-				detail: terminals.length > 1 ?
-					terminals.map(terminal => terminal.editor.getName()).join('\n') + '\n\n' + localize('confirmDirtyTerminals.detail', "Closing will terminate the running processes in the terminals.") :
-					localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
-			}
-		);
+		const { confirmed } = await this._dialogService.confirm({
+			type: Severity.Warning,
+			message: localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
+			primaryButton: localize({ key: 'confirmDirtyTerminal.button', comment: ['&& denotes a mnemonic'] }, "&&Terminate"),
+			detail: terminals.length > 1 ?
+				terminals.map(terminal => terminal.editor.getName()).join('\n') + '\n\n' + localize('confirmDirtyTerminals.detail', "Closing will terminate the running processes in the terminals.") :
+				localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
+		});
 
-		switch (choice) {
-			case 0: return ConfirmResult.DONT_SAVE;
-			default: return ConfirmResult.CANCEL;
-		}
+		return confirmed ? ConfirmResult.DONT_SAVE : ConfirmResult.CANCEL;
 	}
 
 	override async revert(): Promise<void> {
@@ -153,12 +145,16 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			return;
 		}
 
+		const instanceOnDidFocusListener = instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true));
+		const instanceOnDidBlurListener = instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset());
+
 		this._register(toDisposable(() => {
 			if (!this._isDetached && !this._isShuttingDown) {
 				// Will be ignored if triggered by onExit or onDisposed terminal events
 				// as disposed was already called
 				instance.dispose(TerminalExitReason.User);
 			}
+			dispose([instanceOnDidFocusListener, instanceOnDidBlurListener]);
 		}));
 
 		const disposeListeners = [
@@ -170,8 +166,8 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			instance.onDisposed(() => this.dispose()),
 			instance.onTitleChanged(() => this._onDidChangeLabel.fire()),
 			instance.onIconChanged(() => this._onDidChangeLabel.fire()),
-			instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true)),
-			instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset()),
+			instanceOnDidFocusListener,
+			instanceOnDidBlurListener,
 			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 

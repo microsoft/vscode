@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { vscodeNotebookCell } from '../configuration/fileSchemes';
+import * as languageModeIds from '../configuration/languageIds';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { coalesce } from '../utils/arrays';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
-import { vscodeNotebookCell } from '../utils/fileSchemes';
-import * as languageModeIds from '../utils/languageIds';
 import { ResourceMap } from '../utils/resourceMap';
-import * as typeConverters from '../utils/typeConverters';
+import { API } from './api';
+import type * as Proto from './protocol/protocol';
 
 const enum BufferKind {
 	TypeScript = 1,
@@ -316,7 +316,7 @@ class GetErrRequest {
 		const supportsSyntaxGetErr = this.client.apiVersion.gte(API.v440);
 		const allFiles = coalesce(Array.from(files.entries)
 			.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
-			.map(entry => client.normalizedPath(entry.resource)));
+			.map(entry => client.toTsFilePath(entry.resource)));
 
 		if (!allFiles.length) {
 			this._done = true;
@@ -479,7 +479,7 @@ export default class BufferSyncSupport extends Disposable {
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		const pathNormalizer = (path: vscode.Uri) => this.client.normalizedPath(path);
+		const pathNormalizer = (path: vscode.Uri) => this.client.toTsFilePath(path);
 		this.syncedBuffers = new SyncedBufferMap(pathNormalizer, { onCaseInsensitiveFileSystem });
 		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer, { onCaseInsensitiveFileSystem });
 		this.synchronizer = new BufferSynchronizer(client, pathNormalizer, onCaseInsensitiveFileSystem);
@@ -553,7 +553,7 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	public toVsCodeResource(resource: vscode.Uri): vscode.Uri {
-		const filepath = this.client.normalizedPath(resource);
+		const filepath = this.client.toTsFilePath(resource);
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			if (buffer.filepath === filepath) {
 				return buffer.resource;
@@ -588,7 +588,7 @@ export default class BufferSyncSupport extends Disposable {
 			return false;
 		}
 		const resource = document.uri;
-		const filepath = this.client.normalizedPath(resource);
+		const filepath = this.client.toTsFilePath(resource);
 		if (!filepath) {
 			return false;
 		}

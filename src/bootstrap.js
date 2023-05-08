@@ -32,8 +32,16 @@
 	if (typeof process !== 'undefined' && !process.env['VSCODE_HANDLES_SIGPIPE']) {
 		// Workaround for Electron not installing a handler to ignore SIGPIPE
 		// (https://github.com/electron/electron/issues/13254)
+		let didLogAboutSIGPIPE = false;
 		process.on('SIGPIPE', () => {
-			console.error(new Error('Unexpected SIGPIPE'));
+			// See https://github.com/microsoft/vscode-remote-release/issues/6543
+			// We would normally install a SIGPIPE listener in bootstrap.js
+			// But in certain situations, the console itself can be in a broken pipe state
+			// so logging SIGPIPE to the console will cause an infinite async loop
+			if (!didLogAboutSIGPIPE) {
+				didLogAboutSIGPIPE = true;
+				console.error(new Error(`Unexpected SIGPIPE`));
+			}
 		});
 	}
 

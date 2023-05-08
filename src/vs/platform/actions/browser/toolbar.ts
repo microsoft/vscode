@@ -111,6 +111,7 @@ export class WorkbenchToolBar extends ToolBar {
 		const primary = _primary.slice();
 		const secondary = _secondary.slice();
 		const toggleActions: IAction[] = [];
+		let toggleActionsCheckedCount: number = 0;
 
 		const extraSecondary: IAction[] = [];
 
@@ -129,6 +130,9 @@ export class WorkbenchToolBar extends ToolBar {
 
 				// collect all toggle actions
 				toggleActions.push(action.hideActions.toggle);
+				if (action.hideActions.toggle.checked) {
+					toggleActionsCheckedCount++;
+				}
 
 				// hidden items move into overflow or ignore
 				if (action.hideActions.isHidden) {
@@ -171,11 +175,28 @@ export class WorkbenchToolBar extends ToolBar {
 				e.preventDefault();
 				e.stopPropagation();
 
-				let actions = toggleActions;
+				let noHide = false;
+
+				// last item cannot be hidden when using ignore strategy
+				if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore) {
+					noHide = true;
+					for (let i = 0; i < toggleActions.length; i++) {
+						if (toggleActions[i].checked) {
+							toggleActions[i] = toAction({
+								id: action.id,
+								label: action.label,
+								checked: true,
+								enabled: false,
+								run() { }
+							});
+							break; // there is only one
+						}
+					}
+				}
 
 				// add "hide foo" actions
 				let hideAction: IAction;
-				if (action instanceof MenuItemAction || action instanceof SubmenuItemAction) {
+				if (!noHide && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
 					if (!action.hideActions) {
 						// no context menu for MenuItemAction instances that support no hiding
 						// those are fake actions and need to be cleaned up
@@ -191,7 +212,8 @@ export class WorkbenchToolBar extends ToolBar {
 						run() { }
 					});
 				}
-				actions = [hideAction, new Separator(), ...toggleActions];
+
+				const actions = Separator.join([hideAction], toggleActions);
 
 				// add "Reset Menu" action
 				if (this._options?.resetMenu && !menuIds) {

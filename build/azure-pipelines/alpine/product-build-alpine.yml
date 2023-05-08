@@ -1,0 +1,156 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "16.x"
+
+  - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+    displayName: "Register Docker QEMU"
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+  - template: ../distro/download-distro.yml
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password"
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: Compilation
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download compilation output
+
+  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+    displayName: Extract compilation output
+
+  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js alpine $VSCODE_ARCH > .build/yarnlockhash
+    displayName: Prepare node_modules cache key
+
+  - task: Cache@2
+    inputs:
+      key: '"node_modules" | .build/yarnlockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - script: tar -xzf .build/node_modules_cache/cache.tgz
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules cache
+
+  - script: |
+      set -e
+      npm config set registry "$NPM_REGISTRY" --location=project
+      npm config set always-auth=true --location=project
+      yarn config set registry "$NPM_REGISTRY"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - task: Docker@1
+    inputs:
+      azureSubscriptionEndpoint: "vscode-builds-subscription"
+      azureContainerRegistry: vscodehub.azurecr.io
+      command: "Run an image"
+      imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
+      containerCommand: uname
+    displayName: "Pull image"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      for i in {1..5}; do # try 5 times
+        yarn --frozen-lockfile --check-files && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
+    displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: node build/azure-pipelines/distro/mixin-npm
+    displayName: Mixin distro node modules
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+      mkdir -p .build/node_modules_cache
+      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Create node_modules archive
+
+  - script: node build/azure-pipelines/distro/mixin-quality
+    displayName: Mixin distro quality
+
+  - template: ../common/install-builtin-extensions.yml
+
+  - script: |
+      set -e
+      TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
+      yarn gulp vscode-reh-$TARGET-min-ci
+      yarn gulp vscode-reh-web-$TARGET-min-ci
+    displayName: Build
+
+  - script: |
+      set -e
+      TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
+      REPO="$(pwd)"
+      ROOT="$REPO/.."
+
+      # Publish Remote Extension Host
+      LEGACY_SERVER_BUILD_NAME="vscode-reh-$TARGET"
+      SERVER_BUILD_NAME="vscode-server-$TARGET"
+      SERVER_TARBALL_FILENAME="vscode-server-$TARGET.tar.gz"
+      SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+
+      rm -rf $ROOT/vscode-server-*.tar.*
+      (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+
+      # Publish Remote Extension Host (Web)
+      LEGACY_SERVER_BUILD_NAME="vscode-reh-web-$TARGET"
+      SERVER_BUILD_NAME="vscode-server-$TARGET-web"
+      SERVER_TARBALL_FILENAME="vscode-server-$TARGET-web.tar.gz"
+      SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+
+      rm -rf $ROOT/vscode-server-*-web.tar.*
+      (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+    displayName: Prepare for publish
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH).tar.gz
+    artifact: vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
+    displayName: Publish server archive
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH)-web.tar.gz
+    artifact: vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
+    displayName: Publish web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
+
+  # Legacy x64 artifact name
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine.tar.gz
+    artifact: vscode_server_linux_alpine_archive-unsigned
+    displayName: Publish x64 server archive
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine-web.tar.gz
+    artifact: vscode_web_linux_alpine_archive-unsigned
+    displayName: Publish x64 web server archive
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))

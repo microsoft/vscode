@@ -62,7 +62,8 @@
 /* NOTE: height is also used in searchWidget.ts as a constant*/
 .search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	overflow: initial;
-	height: 26px; /* set initial height before measure */
+	/* set initial height before measure */
+	height: 26px;
 }
 
 .search-view .search-widget .monaco-findInput .monaco-scrollable-element .scrollbar {
@@ -70,7 +71,8 @@
 }
 
 .search-view .monaco-inputbox > .ibwrapper > textarea.input {
-	scrollbar-width: none; /* Firefox: hide scrollbar */
+	/* Firefox: hide scrollbar */
+	scrollbar-width: none;
 }
 
 .search-view .monaco-inputbox > .ibwrapper > textarea.input::-webkit-scrollbar {
@@ -124,7 +126,8 @@
 	width: 25px;
 	height: 16px;
 	color: inherit;
-	z-index: 2; /* Force it above the search results message, which has a negative top margin */
+	/* Force it above the search results message, which has a negative top margin */
+	z-index: 2;
 }
 
 .search-view .query-details .file-types {
@@ -157,6 +160,7 @@
 .search-view .messages {
 	margin-top: -5px;
 	cursor: default;
+	color: var(--vscode-search-resultsInfoForeground);
 }
 
 .search-view .message {
@@ -371,4 +375,23 @@
 
 .monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus {
 	outline-color: var(--vscode-list-activeSelectionForeground)
+}
+
+.monaco-workbench .search-container .monaco-custom-toggle.disabled {
+	opacity: 0.3;
+	cursor: default;
+	user-select: none;
+	-webkit-user-select: none;
+	pointer-events: none;
+	background-color: inherit !important;
+}
+
+.monaco-workbench .search-container .find-filter-button {
+	color: inherit;
+	margin-left: 2px;
+	float: left;
+	cursor: pointer;
+	box-sizing: border-box;
+	user-select: none;
+	-webkit-user-select: none;
 }

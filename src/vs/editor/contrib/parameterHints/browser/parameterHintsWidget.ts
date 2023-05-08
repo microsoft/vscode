@@ -25,7 +25,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { listHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const $ = dom.$;
 

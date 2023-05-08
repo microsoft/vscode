@@ -37,6 +37,11 @@ function getMangledFileContents(projectPath) {
  * @type {webpack.LoaderDefinitionFunction}
  */
 module.exports = async function (source, sourceMap, meta) {
+	if (this.mode !== 'production') {
+		// Only enable mangling in production builds
+		return source;
+	}
+
 	if (source !== fs.readFileSync(this.resourcePath).toString()) {
 		// File content has changed by previous webpack steps.
 		// Skip mangling.

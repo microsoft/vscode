@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use std::fmt::Display;
-
-use crate::constants::{
-	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
+use crate::{
+	constants::{APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME},
+	rpc::ResponseError,
 };
+use std::fmt::Display;
+use thiserror::Error;
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -171,7 +172,7 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\r\n\r\nMore info at {}/remote/linux",
+			"{}\n\nMore info at {}/remote/linux",
 			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
@@ -249,32 +250,11 @@ impl std::fmt::Display for NoAttachedServerError {
 }
 
 #[derive(Debug)]
-pub struct ServerWriteError();
-
-impl std::fmt::Display for ServerWriteError {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Error writing to the server, it should be restarted")
-	}
-}
-
-#[derive(Debug)]
 pub struct RefreshTokenNotAvailableError();
 
 impl std::fmt::Display for RefreshTokenNotAvailableError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "Refresh token not available, authentication is required")
-	}
-}
-
-#[derive(Debug)]
-pub struct UnsupportedPlatformError();
-
-impl std::fmt::Display for UnsupportedPlatformError {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(
-			f,
-			"This operation is not supported on your current platform"
-		)
 	}
 }
 
@@ -352,7 +332,7 @@ pub struct ServiceAlreadyRegistered();
 
 impl std::fmt::Display for ServiceAlreadyRegistered {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Already registered the service. Run `code tunnel service uninstall` to unregister it first")
+		write!(f, "Already registered the service. Run `{} tunnel service uninstall` to unregister it first", APPLICATION_NAME)
 	}
 }
 
@@ -376,6 +356,15 @@ impl std::fmt::Display for WindowsNeedsElevation {
 		} else {
 			writeln!(f, " 3. Run the same command again",)
 		}
+	}
+}
+
+#[derive(Debug)]
+pub struct InvalidRpcDataError(pub String);
+
+impl std::fmt::Display for InvalidRpcDataError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "parse error: {}", self.0)
 	}
 }
 
@@ -418,28 +407,6 @@ impl std::fmt::Display for OAuthError {
 	}
 }
 
-#[derive(Debug)]
-pub struct CommandFailed {
-	pub output: std::process::Output,
-	pub command: String,
-}
-
-impl std::fmt::Display for CommandFailed {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(
-			f,
-			"Failed to run command \"{}\" (code {}): {}",
-			self.command,
-			self.output.status,
-			String::from_utf8_lossy(if self.output.stderr.is_empty() {
-				&self.output.stdout
-			} else {
-				&self.output.stderr
-			})
-		)
-	}
-}
-
 // Makes an "AnyError" enum that contains any of the given errors, in the form
 // `enum AnyError { FooError(FooError) }` (when given `makeAnyError!(FooError)`).
 // Useful to easily deal with application error types without making tons of "From"
@@ -475,6 +442,48 @@ macro_rules! makeAnyError {
     };
 }
 
+/// Internal errors in the VS Code CLI.
+/// Note: other error should be migrated to this type gradually
+#[derive(Error, Debug)]
+pub enum CodeError {
+	#[error("could not connect to socket/pipe: {0:?}")]
+	AsyncPipeFailed(std::io::Error),
+	#[error("could not listen on socket/pipe: {0:?}")]
+	AsyncPipeListenerFailed(std::io::Error),
+	#[error("could not create singleton lock file: {0:?}")]
+	SingletonLockfileOpenFailed(std::io::Error),
+	#[error("could not read singleton lock file: {0:?}")]
+	SingletonLockfileReadFailed(rmp_serde::decode::Error),
+	#[error("the process holding the singleton lock file (pid={0}) exited")]
+	SingletonLockedProcessExited(u32),
+	#[error("no tunnel process is currently running")]
+	NoRunningTunnel,
+	#[error("rpc call failed: {0:?}")]
+	TunnelRpcCallFailed(ResponseError),
+	#[cfg(windows)]
+	#[error("the windows app lock {0} already exists")]
+	AppAlreadyLocked(String),
+	#[cfg(windows)]
+	#[error("could not get windows app lock: {0:?}")]
+	AppLockFailed(std::io::Error),
+	#[error("failed to run command \"{command}\" (code {code}): {output}")]
+	CommandFailed {
+		command: String,
+		code: i32,
+		output: String,
+	},
+
+	#[error("platform not currently supported: {0}")]
+	UnsupportedPlatform(String),
+	#[error("This machine not meet {name}'s prerequisites, expected either...: {bullets}")]
+	PrerequisitesFailed { name: &'static str, bullets: String },
+	#[error("failed to spawn process: {0:?}")]
+	ProcessSpawnFailed(std::io::Error),
+
+	#[error("download appears corrupted, please retry ({0})")]
+	CorruptDownload(&'static str),
+}
+
 makeAnyError!(
 	MissingLegalConsent,
 	MismatchConnectionToken,
@@ -491,8 +500,6 @@ makeAnyError!(
 	ExtensionInstallFailed,
 	MismatchedLaunchModeError,
 	NoAttachedServerError,
-	ServerWriteError,
-	UnsupportedPlatformError,
 	RefreshTokenNotAvailableError,
 	NoInstallInUserProvidedPath,
 	UserCancelledInstallation,
@@ -504,8 +511,9 @@ makeAnyError!(
 	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
-	CommandFailed,
-	OAuthError
+	OAuthError,
+	InvalidRpcDataError,
+	CodeError
 );
 
 impl From<reqwest::Error> for AnyError {

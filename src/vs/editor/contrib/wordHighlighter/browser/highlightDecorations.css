@@ -8,7 +8,7 @@
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-editor-selectionHighlightBorder);
 }
-.monaco-editor.hc-black .selectionHighlight, .monaco-editor.hc-light .selectionHighlight {
+.monaco-editor.hc-black .focused .selectionHighlight, .monaco-editor.hc-light .focused .selectionHighlight {
 	border-style: dotted;
 }
 
@@ -30,7 +30,7 @@
 	border-style: dotted;
 }
 
-.monaco-editor .focused .wordHighlightText {
+.monaco-editor .wordHighlightText {
 	background-color: var(--vscode-editor-wordHighlightTextBackground);
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-editor-wordHighlightTextBorder);

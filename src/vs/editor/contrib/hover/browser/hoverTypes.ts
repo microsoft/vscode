@@ -67,6 +67,7 @@ export class HoverForeignElementAnchor {
 		public readonly range: Range,
 		public readonly initialMousePosX: number | undefined,
 		public readonly initialMousePosY: number | undefined,
+		public readonly supportsMarkerHover: boolean | undefined
 	) {
 	}
 	public equals(other: HoverAnchor) {

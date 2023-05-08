@@ -19,25 +19,28 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 const $ = dom.$;
+
+export const enum ShowDebugHoverResult {
+	NOT_CHANGED,
+	NOT_AVAILABLE,
+	CANCELLED,
+}
 
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
@@ -92,7 +95,6 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
 
@@ -132,24 +134,10 @@ export class DebugHoverWidget implements IContentWidget {
 		this.toDispose.push(this.scrollbar);
 
 		this.editor.applyFontInfo(this.domNode);
+		this.domNode.style.backgroundColor = asCssVariable(editorHoverBackground);
+		this.domNode.style.border = `1px solid ${asCssVariable(editorHoverBorder)}`;
+		this.domNode.style.color = asCssVariable(editorHoverForeground);
 
-		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder, editorHoverForeground }, colors => {
-			if (colors.editorHoverBackground) {
-				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
-			} else {
-				this.domNode.style.backgroundColor = '';
-			}
-			if (colors.editorHoverBorder) {
-				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
-			} else {
-				this.domNode.style.border = '';
-			}
-			if (colors.editorHoverForeground) {
-				this.domNode.style.color = colors.editorHoverForeground.toString();
-			} else {
-				this.domNode.style.color = '';
-			}
-		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
 
 		this.registerListeners();
@@ -196,30 +184,40 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	async showAt(position: Position, focus: boolean): Promise<void> {
+	async showAt(position: Position, focus: boolean): Promise<void | ShowDebugHoverResult> {
 		this.showCancellationSource?.cancel();
 		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
 			this.hide();
-			return;
+			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
 
 		const result = await this.debugHoverComputer.compute(position, cancellationSource.token);
-		if (this.isVisible() && !result.rangeChanged) {
-			return;
+		if (cancellationSource.token.isCancellationRequested) {
+			this.hide();
+			return ShowDebugHoverResult.CANCELLED;
 		}
 
-		if (!result.range || cancellationSource.token.isCancellationRequested) {
+		if (!result.range) {
 			this.hide();
-			return;
+			return ShowDebugHoverResult.NOT_AVAILABLE;
+		}
+
+		if (this.isVisible() && !result.rangeChanged) {
+			return ShowDebugHoverResult.NOT_CHANGED;
 		}
 
 		const expression = await this.debugHoverComputer.evaluate(session);
-		if (cancellationSource.token.isCancellationRequested || !expression || (expression instanceof Expression && !expression.available)) {
+		if (cancellationSource.token.isCancellationRequested) {
 			this.hide();
-			return;
+			return ShowDebugHoverResult.CANCELLED;
+		}
+
+		if (!expression || (expression instanceof Expression && !expression.available)) {
+			this.hide();
+			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
 
 		this.highlightDecorations.set([{
@@ -380,7 +378,7 @@ class DebugHoverComputer {
 		}
 
 		const model = this.editor.getModel();
-		const result = await this.doCompute(model, position, token);
+		const result = await getEvaluatableExpressionAtPosition(this.languageFeaturesService, model, position, token);
 		if (!result) {
 			return { rangeChanged: false };
 		}
@@ -392,44 +390,6 @@ class DebugHoverComputer {
 		this._currentExpression = matchingExpression;
 		this._currentRange = Range.lift(range);
 		return { rangeChanged, range: this._currentRange };
-	}
-
-	private async doCompute(model: ITextModel, position: Position, token: CancellationToken): Promise<{ range: IRange; matchingExpression: string } | null> {
-		if (this.languageFeaturesService.evaluatableExpressionProvider.has(model)) {
-			const supports = this.languageFeaturesService.evaluatableExpressionProvider.ordered(model);
-
-			const results = coalesce(await Promise.all(supports.map(async support => {
-				try {
-					return await support.provideEvaluatableExpression(model, position, token);
-				} catch (err) {
-					return undefined;
-				}
-			})));
-
-			if (results.length > 0) {
-				let matchingExpression = results[0].expression;
-				const range = results[0].range;
-
-				if (!matchingExpression) {
-					const lineContent = model.getLineContent(position.lineNumber);
-					matchingExpression = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
-				}
-
-				return { range, matchingExpression };
-			}
-		} else { // old one-size-fits-all strategy
-			const lineContent = model.getLineContent(position.lineNumber);
-			const { start, end } = getExactExpressionStartAndEnd(lineContent, position.column, position.column);
-
-			// use regex to extract the sub-expression #9821
-			const matchingExpression = lineContent.substring(start - 1, end);
-			return {
-				matchingExpression,
-				range: new Range(position.lineNumber, start, position.lineNumber, start + matchingExpression.length)
-			};
-		}
-
-		return null;
 	}
 
 	async evaluate(session: IDebugSession): Promise<IExpression | undefined> {

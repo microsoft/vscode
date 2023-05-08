@@ -6,21 +6,22 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
-import { IQuickNavigateConfiguration, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 /**
  * Provider specific options for this particular showing of the
  * quick access.
  */
-export interface IQuickAccessProviderRunOptions { }
+export interface IQuickAccessProviderRunOptions {
+	readonly from?: string;
+}
 
 /**
  * The specific options for the AnythingQuickAccessProvider. Put here to share between layers.
  */
 export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
-	includeHelp?: boolean;
+	readonly includeHelp?: boolean;
 }
 
 export interface IQuickAccessOptions {
@@ -28,25 +29,25 @@ export interface IQuickAccessOptions {
 	/**
 	 * Allows to enable quick navigate support in quick input.
 	 */
-	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+	readonly quickNavigateConfiguration?: IQuickNavigateConfiguration;
 
 	/**
 	 * Allows to configure a different item activation strategy.
 	 * By default the first item in the list will get activated.
 	 */
-	itemActivation?: ItemActivation;
+	readonly itemActivation?: ItemActivation;
 
 	/**
 	 * Whether to take the input value as is and not restore it
 	 * from any existing value if quick access is visible.
 	 */
-	preserveValue?: boolean;
+	readonly preserveValue?: boolean;
 
 	/**
 	 * Provider specific options for this particular showing of the
 	 * quick access.
 	 */
-	providerOptions?: IQuickAccessProviderRunOptions;
+	readonly providerOptions?: IQuickAccessProviderRunOptions;
 }
 
 export interface IQuickAccessController {
@@ -113,12 +114,12 @@ export interface IQuickAccessProviderHelp {
 	 * The prefix to show for the help entry. If not provided,
 	 * the prefix used for registration will be taken.
 	 */
-	prefix?: string;
+	readonly prefix?: string;
 
 	/**
 	 * A description text to help understand the intent of the provider.
 	 */
-	description: string;
+	readonly description: string;
 
 	/**
 	 * The command to bring up this quick access provider.
@@ -180,6 +181,7 @@ export interface IQuickAccessRegistry {
 }
 
 export class QuickAccessRegistry implements IQuickAccessRegistry {
+
 	private providers: IQuickAccessProviderDescriptor[] = [];
 	private defaultProvider: IQuickAccessProviderDescriptor | undefined = undefined;
 

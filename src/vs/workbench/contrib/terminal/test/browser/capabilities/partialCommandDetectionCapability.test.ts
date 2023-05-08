@@ -4,21 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { timeout } from 'vs/base/common/async';
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
 import { IMarker, Terminal } from 'xterm';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-
-async function writeP(terminal: Terminal, data: string): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		const failTimeout = timeout(2000);
-		failTimeout.then(() => reject('Writing to xterm is taking longer than 2 seconds'));
-		terminal.write(data, () => {
-			failTimeout.cancel();
-			resolve();
-		});
-	});
-}
+import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;

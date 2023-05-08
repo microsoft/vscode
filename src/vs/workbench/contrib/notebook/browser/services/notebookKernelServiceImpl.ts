@@ -16,6 +16,7 @@ import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions'
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction } from 'vs/base/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { Schemas } from 'vs/base/common/network';
 
 class KernelInfo {
 
@@ -134,7 +135,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		this._register(_notebookService.onWillRemoveNotebookDocument(notebook => {
 			const id = NotebookTextModelLikeId.str(notebook);
 			const kernelId = this._notebookBindings.get(id);
-			if (kernelId) {
+			if (kernelId && notebook.uri.scheme === Schemas.untitled) {
 				this.selectKernelForNotebook(undefined, notebook);
 			}
 			this._kernelSourceActionsUpdates.get(id)?.dispose();
@@ -384,6 +385,10 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		this._kernelSourceActionProviders.set(viewType, providers);
 		this._onDidChangeSourceActions.fire({ viewType: viewType });
 
+		const eventEmitterDisposable = provider.onDidChangeSourceActions?.(() => {
+			this._onDidChangeSourceActions.fire({ viewType: viewType });
+		});
+
 		return toDisposable(() => {
 			const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
 			const idx = providers.indexOf(provider);
@@ -391,6 +396,8 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 				providers.splice(idx, 1);
 				this._kernelSourceActionProviders.set(viewType, providers);
 			}
+
+			eventEmitterDisposable?.dispose();
 		});
 	}
 

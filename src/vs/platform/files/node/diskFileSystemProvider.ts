@@ -287,7 +287,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		let fd: number | undefined = undefined;
 		try {
 
-			// Determine wether to unlock the file (write only)
+			// Determine whether to unlock the file (write only)
 			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
 				try {
 					const { stat } = await SymlinkSupport.stat(filePath);

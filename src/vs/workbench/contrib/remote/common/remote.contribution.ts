@@ -9,11 +9,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ILoggerService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
-import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -31,7 +29,7 @@ import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { timeout } from 'vs/base/common/async';
-import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
+import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -68,52 +66,15 @@ export class LabelContribution implements IWorkbenchContribution {
 class RemoteChannelsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IDownloadService downloadService: IDownloadService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
-		const updateRemoteLogLevel = () => {
-			const connection = remoteAgentService.getConnection();
-			if (!connection) {
-				return;
-			}
-			connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logService.getLevel()));
-		};
-		updateRemoteLogLevel();
-		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LogLevelChannel(logService, loggerService));
-		}
-	}
-}
-
-class RemoteLogOutputChannels extends Disposable implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ILoggerService loggerService: ILoggerService,
-	) {
-		super();
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			remoteAgentService.getEnvironment().then(remoteEnv => {
-				if (remoteEnv) {
-					const remoteServerLog = 'remoteServerLog';
-					const remotePtyHostLog = 'remotePtyHostLog';
-					loggerService.registerLogger({ id: remoteServerLog, name: localize('remoteExtensionLog', "Remote Server"), resource: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`) });
-					loggerService.registerLogger({ id: remotePtyHostLog, name: localize('remotePtyHostLog', "Remote Pty Host"), resource: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`) });
-					this._register(loggerService.onDidChangeLogLevel(([resource, logLevel]) => {
-						const logger = loggerService.getRegisteredLogger(resource);
-						if (logger?.id === remoteServerLog || logger?.id === remotePtyHostLog) {
-							connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logLevel, resource));
-						}
-					}));
-				}
-			});
+			connection.withChannel('logger', async channel => this._register(new RemoteLoggerChannelClient(loggerService, channel)));
 		}
 	}
 }
@@ -162,9 +123,8 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 		const res = await this.dialogService.confirm({
 			type: 'warning',
 			message: localize('invalidWorkspaceMessage', "Workspace does not exist"),
-			detail: localize('invalidWorkspaceDetail', "The workspace does not exist. Please select another workspace to open."),
-			primaryButton: localize('invalidWorkspacePrimary', "&&Open Workspace..."),
-			secondaryButton: localize('invalidWorkspaceCancel', "&&Cancel")
+			detail: localize('invalidWorkspaceDetail', "Please select another workspace to open."),
+			primaryButton: localize({ key: 'invalidWorkspacePrimary', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace...")
 		});
 
 		if (res.confirmed) {
@@ -280,9 +240,8 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Ready);
 
 const enableDiagnostics = true;
@@ -365,11 +324,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'remote.autoForwardPortsSource': {
 				type: 'string',
-				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. On Windows and Mac remotes, the `process` option has no effect and `output` will be used. Requires a reload to take effect.", '`#remote.autoForwardPorts#`'),
-				enum: ['process', 'output'],
+				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. On Windows and Mac remotes, the `process` and `hybrid` options have no effect and `output` will be used. Requires a reload to take effect.", '`#remote.autoForwardPorts#`'),
+				enum: ['process', 'output', 'hybrid'],
 				enumDescriptions: [
 					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
-					localize('remote.autoForwardPortsSource.output', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view.")
+					localize('remote.autoForwardPortsSource.output', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view."),
+					localize('remote.autoForwardPortsSource.hybrid', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports will be \"un-forwarded\" by watching for processes that listen on that port to be terminated.")
 				],
 				default: 'process'
 			},

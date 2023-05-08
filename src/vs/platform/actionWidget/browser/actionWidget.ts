@@ -10,9 +10,8 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./actionWidget';
 import { localize } from 'vs/nls';
+import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionList';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { acceptSelectedActionCommand, ActionList, IListMenuItem, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionList';
-import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -24,17 +23,12 @@ const ActionWidgetContextKeys = {
 	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the action widget list is visible"))
 };
 
-export interface IRenderDelegate<T extends IActionItem> {
-	onHide(didCancel?: boolean): void;
-	onSelect(action: IActionItem, preview?: boolean): Promise<any>;
-}
-
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
 
 export interface IActionWidgetService {
 	readonly _serviceBrand: undefined;
 
-	show(user: string, supportsPreview: boolean, items: IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[]): Promise<void>;
+	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[]): void;
 
 	hide(): void;
 
@@ -48,21 +42,21 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		return ActionWidgetContextKeys.Visible.getValue(this._contextKeyService) || false;
 	}
 
-	private readonly _list = this._register(new MutableDisposable<ActionList<any>>());
+	private readonly _list = this._register(new MutableDisposable<ActionList<unknown>>());
 
 	constructor(
-		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 	}
 
-	async show(user: string, supportsPreview: boolean, items: IListMenuItem<IActionItem>[], delegate: IRenderDelegate<any>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[]): Promise<void> {
+	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[]): void {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate);
-		this.contextViewService.showContextView({
+		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
@@ -70,7 +64,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			},
 			onHide: (didCancel) => {
 				visibleContext.reset();
-				return this._onWidgetClosed(didCancel);
+				this._onWidgetClosed(didCancel);
 			},
 		}, container, false);
 	}
@@ -96,7 +90,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list.clear();
 	}
 
-	private _renderWidget(element: HTMLElement, list: ActionList<any>, actionBarActions: readonly IAction[]): IDisposable {
+	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[]): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
 		element.appendChild(widget);

@@ -143,12 +143,8 @@
 	align-items: center;
 }
 
-.extension-editor > .header > .details > .subtitle .publisher .codicon {
-	margin-right: 2px;
-}
-
-.extension-editor > .header > .details > .subtitle .publisher-name:not(:first-child) {
-	padding-left: 1px;
+.extension-editor > .header > .details > .subtitle .publisher .verified-publisher:not(:empty) {
+	margin-left: 4px;
 }
 
 .extension-editor > .header > .details > .subtitle,

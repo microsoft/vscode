@@ -37,6 +37,10 @@
 	opacity: .8;
 }
 
+.runtime-extensions-editor .monaco-action-bar  {
+	height: unset;
+}
+
 .runtime-extensions-editor .monaco-action-bar .actions-container {
 	justify-content: left;
 }

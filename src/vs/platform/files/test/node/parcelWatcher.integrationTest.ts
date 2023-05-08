@@ -424,7 +424,7 @@ import { FileAccess } from 'vs/base/common/network';
 		await watcher.watch([
 			{ path: testDir, excludes: [], recursive: true },
 			{ path: join(testDir, 'invalid-folder'), excludes: [], recursive: true },
-			{ path: __filename, excludes: [], recursive: true }
+			{ path: FileAccess.asFileUri('').fsPath, excludes: [], recursive: true }
 		]);
 
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));

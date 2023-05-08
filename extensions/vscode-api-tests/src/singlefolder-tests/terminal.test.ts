@@ -850,17 +850,17 @@ import { assertNoRpc, poll } from '../utils';
 				collection.prepend('C', '~c2~');
 
 				// Verify get
-				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
-				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
-				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
+				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, scope: undefined });
+				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append, scope: undefined });
+				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, scope: undefined });
 
 				// Verify forEach
 				const entries: [string, EnvironmentVariableMutator][] = [];
 				collection.forEach((v, m) => entries.push([v, m]));
 				deepStrictEqual(entries, [
-					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
-					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
-					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
+					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, scope: undefined }],
+					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append, scope: undefined }],
+					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, scope: undefined }]
 				]);
 			});
 		});

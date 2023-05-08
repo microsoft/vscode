@@ -222,10 +222,13 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon {
 	opacity: 0;
-	transition: opacity .3s;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+}
+
+.monaco-workbench:not(.reduce-motion) .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon {
+	transition: opacity .3s;
 }
 
 .settings-editor > .settings-body .settings-toc-container {

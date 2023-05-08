@@ -632,3 +632,35 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		}
 	}
 }
+
+export class CounterSet<T> {
+
+	private map = new Map<T, number>();
+
+	add(value: T): CounterSet<T> {
+		this.map.set(value, (this.map.get(value) || 0) + 1);
+		return this;
+	}
+
+	delete(value: T): boolean {
+		let counter = this.map.get(value) || 0;
+
+		if (counter === 0) {
+			return false;
+		}
+
+		counter--;
+
+		if (counter === 0) {
+			this.map.delete(value);
+		} else {
+			this.map.set(value, counter);
+		}
+
+		return true;
+	}
+
+	has(value: T): boolean {
+		return this.map.has(value);
+	}
+}

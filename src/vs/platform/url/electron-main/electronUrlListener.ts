@@ -13,6 +13,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IURLService } from 'vs/platform/url/common/url';
+import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 /**
@@ -27,23 +28,25 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
  */
 export class ElectronURLListener {
 
-	private uris: { uri: URI; url: string }[] = [];
+	private uris: IProtocolUrl[] = [];
 	private retryCount = 0;
 	private flushDisposable: IDisposable = Disposable.None;
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		initialUrisToHandle: { uri: URI; url: string }[],
+		initialProtocolUrls: IProtocolUrl[] | undefined,
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
 		environmentMainService: IEnvironmentMainService,
 		productService: IProductService,
 		private readonly logService: ILogService
 	) {
-		logService.trace('ElectronURLListener initialUrisToHandle:', initialUrisToHandle.map(initialUri => initialUri.url));
+		if (initialProtocolUrls) {
+			logService.trace('ElectronURLListener initialUrisToHandle:', initialProtocolUrls.map(url => url.originalUrl));
 
-		// the initial set of URIs we need to handle once the window is ready
-		this.uris = initialUrisToHandle;
+			// the initial set of URIs we need to handle once the window is ready
+			this.uris = initialProtocolUrls;
+		}
 
 		// Windows: install as protocol handler
 		if (isWindows) {
@@ -103,14 +106,14 @@ export class ElectronURLListener {
 
 		this.logService.trace('ElectronURLListener#flush(): flushing URLs');
 
-		const uris: { uri: URI; url: string }[] = [];
+		const uris: IProtocolUrl[] = [];
 
 		for (const obj of this.uris) {
-			const handled = await this.urlService.open(obj.uri, { originalUrl: obj.url });
+			const handled = await this.urlService.open(obj.uri, { originalUrl: obj.originalUrl });
 			if (handled) {
-				this.logService.trace('ElectronURLListener#flush(): URL was handled', obj.url);
+				this.logService.trace('ElectronURLListener#flush(): URL was handled', obj.originalUrl);
 			} else {
-				this.logService.trace('ElectronURLListener#flush(): URL was not yet handled', obj.url);
+				this.logService.trace('ElectronURLListener#flush(): URL was not yet handled', obj.originalUrl);
 
 				uris.push(obj);
 			}

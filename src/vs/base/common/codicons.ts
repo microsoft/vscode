@@ -2,22 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isString } from 'vs/base/common/types';
-
-// Selects all codicon names encapsulated in the `$()` syntax and wraps the
-// results with spaces so that screen readers can read the text better.
-export function getCodiconAriaLabel(text: string | undefined) {
-	if (!text) {
-		return '';
-	}
-
-	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
-}
 
 const _codiconFontCharacters: { [id: string]: number } = Object.create(null);
 
-function register(id: string, fontCharacter: number | string): CSSIcon {
+function register(id: string, fontCharacter: number | string): ThemeIcon {
 	if (isString(fontCharacter)) {
 		const val = _codiconFontCharacters[fontCharacter];
 		if (val === undefined) {
@@ -39,7 +29,7 @@ export function getCodiconFontCharacters(): { [id: string]: number } {
 /**
  * Only to be used by the iconRegistry.
  */
-export function getAllCodicons(): CSSIcon[] {
+export function getAllCodicons(): ThemeIcon[] {
 	return Object.values(Codicon);
 }
 
@@ -306,6 +296,7 @@ export const Codicon = {
 	italic: register('italic', 0xeb0d),
 	jersey: register('jersey', 0xeb0e),
 	json: register('json', 0xeb0f),
+	bracket: register('bracket', 0xeb0f),
 	kebabVertical: register('kebab-vertical', 0xeb10),
 	key: register('key', 0xeb11),
 	law: register('law', 0xeb12),
@@ -528,7 +519,6 @@ export const Codicon = {
 	graphLine: register('graph-line', 0xebe2),
 	graphScatter: register('graph-scatter', 0xebe3),
 	pieChart: register('pie-chart', 0xebe4),
-	bracket: register('bracket', 0xebe4),
 	bracketDot: register('bracket-dot', 0xebe5),
 	bracketError: register('bracket-error', 0xebe6),
 	lockSmall: register('lock-small', 0xebe7),
@@ -570,6 +560,9 @@ export const Codicon = {
 	gitPullRequestNewChanges: register('git-pull-request-new-changes', 0xec0c),
 	searchFuzzy: register('search-fuzzy', 0xec0d),
 	commentDraft: register('comment-draft', 0xec0e),
+	send: register('send', 0xec0f),
+	sparkle: register('sparkle', 0xec10),
+	insert: register('insert', 0xec11),
 
 
 	// derived icons, that could become separate icons
@@ -604,37 +597,3 @@ export const Codicon = {
 
 } as const;
 
-export interface CSSIcon {
-	readonly id: string;
-}
-
-
-export namespace CSSIcon {
-	export const iconNameSegment = '[A-Za-z0-9]+';
-	export const iconNameExpression = '[A-Za-z0-9-]+';
-	export const iconModifierExpression = '~[A-Za-z]+';
-	export const iconNameCharacter = '[A-Za-z0-9~-]';
-
-	const cssIconIdRegex = new RegExp(`^(${iconNameExpression})(${iconModifierExpression})?$`);
-
-	export function asClassNameArray(icon: CSSIcon): string[] {
-		const match = cssIconIdRegex.exec(icon.id);
-		if (!match) {
-			return asClassNameArray(Codicon.error);
-		}
-		const [, id, modifier] = match;
-		const classNames = ['codicon', 'codicon-' + id];
-		if (modifier) {
-			classNames.push('codicon-modifier-' + modifier.substring(1));
-		}
-		return classNames;
-	}
-
-	export function asClassName(icon: CSSIcon): string {
-		return asClassNameArray(icon).join(' ');
-	}
-
-	export function asCSSSelector(icon: CSSIcon): string {
-		return '.' + asClassNameArray(icon).join('.');
-	}
-}

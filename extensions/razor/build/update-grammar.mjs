@@ -11,7 +11,7 @@ function patchGrammar(grammar) {
 	return grammar;
 }
 
-const razorGrammarRepo = 'dotnet/razor-tooling';
+const razorGrammarRepo = 'dotnet/razor';
 const grammarPath = 'src/Razor/src/Microsoft.AspNetCore.Razor.VSCode.Extension/syntaxes/aspnetcorerazor.tmLanguage.json';
 vscodeGrammarUpdater.update(razorGrammarRepo, grammarPath, './syntaxes/cshtml.tmLanguage.json', grammar => patchGrammar(grammar), 'main');
 

@@ -269,7 +269,7 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 					run: () => {
 						const result = action.run();
 						if (result instanceof Promise) {
-							result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
+							result.catch(error => this.dialogService.error(toErrorMessage(error)));
 						}
 					}
 				};

@@ -67,13 +67,19 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 
 	async getAllRefs(profile: IUserDataProfile, resource: SyncResource): Promise<IResourceRefHandle[]> {
 		const folder = this.getResourceBackupHome(profile, resource);
-		const stat = await this.fileService.resolve(folder);
-		if (stat.children) {
-			const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort().reverse();
-			return all.map(stat => ({
-				ref: stat.name,
-				created: this.getCreationTime(stat)
-			}));
+		try {
+			const stat = await this.fileService.resolve(folder);
+			if (stat.children) {
+				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort().reverse();
+				return all.map(stat => ({
+					ref: stat.name,
+					created: this.getCreationTime(stat)
+				}));
+			}
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error;
+			}
 		}
 		return [];
 	}

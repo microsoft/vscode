@@ -6,78 +6,16 @@
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { posix } from 'vs/base/common/path';
-import { hash } from 'vs/base/common/hash';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { BrowserResourcePerformanceMarks, BrowserStartupTimings } from 'vs/workbench/contrib/performance/browser/startupTimings';
 
-class ResourcePerformanceMarks {
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService
-	) {
-
-		type Entry = {
-			hosthash: string;
-			name: string;
-			duration: number;
-		};
-		type EntryClassifify = {
-			owner: 'jrieken';
-			comment: 'Resource performance numbers';
-			hosthash: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Hash of the hostname' };
-			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Resource basename' };
-			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Resource duration' };
-		};
-		for (const item of performance.getEntriesByType('resource')) {
-
-			try {
-				const url = new URL(item.name);
-				const name = posix.basename(url.pathname);
-
-				telemetryService.publicLog2<Entry, EntryClassifify>('startup.resource.perf', {
-					hosthash: `H${hash(url.host).toString(16)}`,
-					name,
-					duration: item.duration
-				});
-			} catch {
-				// ignore
-			}
-		}
-	}
-}
-
-class StartupTimings {
-	constructor(
-		@ITimerService private readonly timerService: ITimerService,
-		@ILogService private readonly logService: ILogService,
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService
-	) {
-		this.logPerfMarks();
-	}
-
-	private async logPerfMarks(): Promise<void> {
-		if (!this.environmentService.profDurationMarkers) {
-			return;
-		}
-
-		await this.timerService.whenReady();
-
-		const [from, to] = this.environmentService.profDurationMarkers;
-		this.logService.info(`[perf] from '${from}' to '${to}': ${this.timerService.getDuration(from, to)}ms`);
-	}
-}
+// -- startup timings
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	ResourcePerformanceMarks,
+	BrowserResourcePerformanceMarks,
 	LifecyclePhase.Eventually
 );
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	StartupTimings,
+	BrowserStartupTimings,
 	LifecyclePhase.Eventually
 );

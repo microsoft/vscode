@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Schemes } from '../../util/schemes';
 import { getNewFileName } from './copyFiles';
 import { createUriListSnippet, tryGetUriListSnippet } from './dropIntoEditor';
 
@@ -26,13 +25,10 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		if (document.uri.scheme === Schemes.notebookCell) {
-			return;
-		}
-
 		for (const imageMime of supportedImageMimes) {
-			const file = dataTransfer.get(imageMime)?.asFile();
-			if (file) {
+			const item = dataTransfer.get(imageMime);
+			const file = item?.asFile();
+			if (item && file) {
 				const edit = await this._makeCreateImagePasteEdit(document, file, token);
 				if (token.isCancellationRequested) {
 					return;
@@ -45,7 +41,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-		return snippet ? new vscode.DocumentPasteEdit(snippet) : undefined;
+		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet, snippet.label) : undefined;
 	}
 
 	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
@@ -54,7 +50,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
 			if (workspaceFolder) {
 				const snippet = createUriListSnippet(document, [file.uri]);
-				return snippet ? new vscode.DocumentPasteEdit(snippet) : undefined;
+				return snippet ? new vscode.DocumentPasteEdit(snippet.snippet, snippet.label) : undefined;
 			}
 		}
 
@@ -70,9 +66,9 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		// Note that there is currently no way to undo the file creation :/
 		const workspaceEdit = new vscode.WorkspaceEdit();
-		workspaceEdit.createFile(uri, { contents: await file.data() });
+		workspaceEdit.createFile(uri, { contents: file });
 
-		const pasteEdit = new vscode.DocumentPasteEdit(snippet);
+		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, snippet.label);
 		pasteEdit.additionalEdit = workspaceEdit;
 		return pasteEdit;
 	}

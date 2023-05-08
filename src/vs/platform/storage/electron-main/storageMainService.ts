@@ -130,16 +130,16 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			this.shutdownReason = e.reason;
 
 			// Application Storage
-			e.join(this.applicationStorage.close());
+			e.join('applicationStorage', this.applicationStorage.close());
 
 			// Profile Storage(s)
 			for (const [, profileStorage] of this.mapProfileToStorage) {
-				e.join(profileStorage.close());
+				e.join('profileStorage', profileStorage.close());
 			}
 
 			// Workspace Storage(s)
 			for (const [, workspaceStorage] of this.mapWorkspaceToStorage) {
-				e.join(workspaceStorage.close());
+				e.join('workspaceStorage', workspaceStorage.close());
 			}
 		}));
 

@@ -13,7 +13,7 @@ const month = day * 30;
 const year = day * 365;
 
 /**
- * Create a localized of the time between now and the specified date.
+ * Create a localized difference of the time between now and the specified date.
  * @param date The date to generate the difference from.
  * @param appendAgoLabel Whether to append the " ago" to the end.
  * @param useFullTimeWords Whether to use full words (eg. seconds) instead of

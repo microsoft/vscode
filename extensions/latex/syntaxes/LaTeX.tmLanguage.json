@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/7497a8c9ae12324ac3df3bb5053a2a0c43f80315",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/580c019674f82ef887a6dcce7bfc75ab0b58486d",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -505,7 +505,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:cppcode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:cppcode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:cppcode)\\*?\\}",
 			"captures": {
 				"0": {
@@ -548,7 +548,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:hscode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:hscode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:hscode)\\*?\\}",
 			"captures": {
 				"0": {
@@ -591,7 +591,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:luacode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:luacode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:luacode)\\*?\\}",
 			"captures": {
 				"0": {
@@ -634,7 +634,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:jlcode|jlverbatim|jlblock|jlconcode|jlconsole|jlconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:jlcode|jlverbatim|jlblock|jlconcode|jlconsole|jlconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:jlcode|jlverbatim|jlblock|jlconcode|jlconsole|jlconverbatim)\\*?\\}",
 			"captures": {
 				"0": {
@@ -677,7 +677,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:juliacode|juliaverbatim|juliablock|juliaconcode|juliaconsole|juliaconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:juliacode|juliaverbatim|juliablock|juliaconcode|juliaconsole|juliaconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:juliacode|juliaverbatim|juliablock|juliaconcode|juliaconsole|juliaconverbatim)\\*?\\}",
 			"captures": {
 				"0": {
@@ -720,7 +720,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:sageblock|sagesilent|sageverbatim|sageexample|sagecommandline|python|pythonq|pythonrepl)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:sageblock|sagesilent|sageverbatim|sageexample|sagecommandline|python|pythonq|pythonrepl)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:sageblock|sagesilent|sageverbatim|sageexample|sagecommandline|python|pythonq|pythonrepl)\\*?\\}",
 			"captures": {
 				"0": {
@@ -763,7 +763,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:pycode|pyverbatim|pyblock|pyconcode|pyconsole|pyconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:pycode|pyverbatim|pyblock|pyconcode|pyconsole|pyconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:pycode|pyverbatim|pyblock|pyconcode|pyconsole|pyconverbatim)\\*?\\}",
 			"captures": {
 				"0": {
@@ -806,7 +806,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:pylabcode|pylabverbatim|pylabblock|pylabconcode|pylabconsole|pylabconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:pylabcode|pylabverbatim|pylabblock|pylabconcode|pylabconsole|pylabconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:pylabcode|pylabverbatim|pylabblock|pylabconcode|pylabconsole|pylabconverbatim)\\*?\\}",
 			"captures": {
 				"0": {
@@ -849,7 +849,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:sympycode|sympyverbatim|sympyblock|sympyconcode|sympyconsole|sympyconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:sympycode|sympyverbatim|sympyblock|sympyconcode|sympyconsole|sympyconverbatim)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:sympycode|sympyverbatim|sympyblock|sympyconcode|sympyconsole|sympyconverbatim)\\*?\\}",
 			"captures": {
 				"0": {
@@ -892,7 +892,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:scalacode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:scalacode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:scalacode)\\*?\\}",
 			"captures": {
 				"0": {
@@ -935,7 +935,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:asy|asycode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:asy|asycode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:asy|asycode)\\*?\\}",
 			"captures": {
 				"0": {
@@ -978,7 +978,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:dot2tex|dotcode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:dot2tex|dotcode)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:dot2tex|dotcode)\\*?\\}",
 			"captures": {
 				"0": {
@@ -1021,7 +1021,7 @@
 			]
 		},
 		{
-			"begin": "\\s*\\\\begin\\{(?:gnuplot)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{)",
+			"begin": "\\s*\\\\begin\\{(?:gnuplot)\\*?\\}(?:\\[[a-zA-Z0-9_-]*\\])?(?=\\[|\\{|\\s*$)",
 			"end": "\\s*\\\\end\\{(?:gnuplot)\\*?\\}",
 			"captures": {
 				"0": {
@@ -1064,7 +1064,7 @@
 			]
 		},
 		{
-			"begin": "((?:\\s*)\\\\begin\\{([a-z]*code(?:\\*)?)\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
+			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code(?:\\*)?)\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -1074,7 +1074,9 @@
 					]
 				}
 			},
-			"end": "(\\\\end\\{\\2\\}(?:\\s*\\n)?)"
+			"end": "(\\\\end\\{\\2\\}(?:\\s*\\n)?)",
+			"contentName": "meta.function.embedded.latex",
+			"name": "meta.embedded.block.generic.latex"
 		},
 		{
 			"begin": "((\\\\)addplot)(?:\\+?)((?:\\[[^\\[]*\\]))*\\s*(gnuplot)\\s*((?:\\[[^\\[]*\\]))*\\s*(\\{)",
@@ -1203,16 +1205,32 @@
 					"name": "punctuation.definition.function.latex"
 				},
 				"3": {
-					"name": "punctuation.definition.arguments.begin.latex"
+					"patterns": [
+						{
+							"include": "#optional-arg"
+						}
+					]
 				},
 				"4": {
-					"name": "markup.underline.link.latex"
+					"name": "punctuation.definition.arguments.begin.latex"
 				},
 				"5": {
+					"name": "markup.underline.link.latex"
+				},
+				"6": {
+					"name": "punctuation.definition.arguments.end.latex"
+				},
+				"7": {
+					"name": "punctuation.definition.arguments.begin.latex"
+				},
+				"8": {
+					"name": "entity.name.hyperlink.latex"
+				},
+				"9": {
 					"name": "punctuation.definition.arguments.end.latex"
 				}
 			},
-			"match": "(?:\\s*)((\\\\)(?:url|href))(\\{)([^}]*)(\\})",
+			"match": "(?:\\s*)((\\\\)(?:url|href|hyperref|hyperimage))(\\[[^\\[]*?\\])?(\\{)([^}]*)(\\})(?:\\{[^}]*\\}){2}?(?:(\\{)([^}]*)(\\}))?",
 			"name": "meta.function.link.url.latex"
 		},
 		{
@@ -1684,7 +1702,7 @@
 			"name": "meta.scope.item.latex"
 		},
 		{
-			"begin": "((\\\\)(?:[aA]uto|foot|full|no|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\w:.]*\\})*)(?:([<\\[])[^\\]<>]*([>\\]]))?(?:(\\[)[^\\]]*(\\]))?(\\{)",
+			"begin": "((\\\\)(?:[aA]uto|foot|full|no|ref|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\p{Alphabetic}:.]*\\})*)(?:([<\\[])[^\\]<>]*([>\\]]))?(?:(\\[)[^\\]]*(\\]))?(\\{)",
 			"captures": {
 				"1": {
 					"name": "keyword.control.cite.latex"
@@ -1735,7 +1753,7 @@
 					"match": "((%).*)$"
 				},
 				{
-					"match": "[\\w:.-]+",
+					"match": "[\\p{Alphabetic}\\p{Number}:.-]+",
 					"name": "constant.other.reference.citation.latex"
 				}
 			]
@@ -1762,7 +1780,7 @@
 			"name": "meta.citation.latex",
 			"patterns": [
 				{
-					"match": "[\\w:.]+",
+					"match": "[\\p{Alphabetic}\\p{Number}:.]+",
 					"name": "constant.other.reference.citation.latex"
 				}
 			]
@@ -1789,7 +1807,7 @@
 			"name": "meta.reference.label.latex",
 			"patterns": [
 				{
-					"match": "[a-zA-Z0-9\\.,:/*!^_-]",
+					"match": "[\\p{Alphabetic}\\p{Number}\\.,:/*!^_-]",
 					"name": "constant.other.reference.label.latex"
 				}
 			]
@@ -2053,6 +2071,30 @@
 			]
 		},
 		{
+			"name": "string.quoted.double.latex",
+			"match": "(?<!\\\\)(\\`\\`)(?:.*?(?<!\\\\))(\\'\\'|\\\")",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.string.begin.latex"
+				},
+				"2": {
+					"name": "punctuation.definition.string.end.latex"
+				}
+			}
+		},
+		{
+			"name": "string.quoted.single.latex",
+			"match": "(?<!\\\\)(\\`)(?:.*?(?<!\\\\))(\\')",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.string.begin.latex"
+				},
+				"2": {
+					"name": "punctuation.definition.string.end.latex"
+				}
+			}
+		},
+		{
 			"begin": "\\$\\$",
 			"beginCaptures": {
 				"0": {
@@ -2248,7 +2290,7 @@
 							]
 						}
 					},
-					"match": "(?:(\\()[^\\)]*(\\))){0,2}(?:(\\[)[^\\]]*(\\])){0,2}(\\{)([\\w:.]+)(\\})(.*)"
+					"match": "(?:(\\()[^\\)]*(\\))){0,2}(?:(\\[)[^\\]]*(\\])){0,2}(\\{)([\\p{Alphabetic}\\p{Number}:.]+)(\\})(.*)"
 				}
 			]
 		},

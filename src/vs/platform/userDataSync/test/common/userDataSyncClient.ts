@@ -65,6 +65,7 @@ export class UserDataSyncClient extends Disposable {
 		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
 			userDataSyncHome,
 			userRoamingDataHome,
+			cacheHome: joinPath(userRoamingDataHome, 'cache'),
 			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
 			sync: 'on',
 		});
@@ -91,7 +92,6 @@ export class UserDataSyncClient extends Disposable {
 
 		const userDataProfilesService = new InMemoryUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		this.instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
-		userDataProfilesService.setEnablement(true);
 
 		const storageService = new TestStorageService(userDataProfilesService.defaultProfile);
 		this.instantiationService.stub(IStorageService, this._register(storageService));

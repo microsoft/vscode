@@ -6,6 +6,7 @@
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",
 	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
+	"serverLicenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
 	"serverGreeting": [],
 	"serverLicense": [],
 	"serverLicensePrompt": "",
@@ -23,6 +24,8 @@
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
 	"win32AppUserModelId": "Microsoft.CodeOSS",
 	"win32ShellNameShort": "C&ode - OSS",
+	"win32TunnelServiceMutex": "vscodetunnelserviceoss",
+	"win32TunnelMutex": "vscodetunneloss",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
 	"linuxIconName": "code-oss",
 	"licenseFileName": "LICENSE.txt",
@@ -47,7 +50,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.74.1",
+			"version": "1.78.0",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",

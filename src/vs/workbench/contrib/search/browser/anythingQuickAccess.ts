@@ -49,7 +49,8 @@ import { once } from 'vs/base/common/functional';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
@@ -82,6 +83,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private static readonly MAX_RESULTS = 512;
 
 	private static readonly TYPING_SEARCH_DELAY = 200; // this delay accommodates for the user typing a word and then stops typing to start searching
+
+	private static SYMBOL_PICKS_MERGE_DELAY = 200; // allow some time to merge fast and slow picks to reduce flickering
 
 	private readonly pickState = new class {
 
@@ -322,7 +325,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// search without prior filtering, you could not paste a file name
 		// including the `@` character to open it (e.g. /some/file@path)
 		// refs: https://github.com/microsoft/vscode/issues/93845
-		return this.doGetPicks(filter, { enableEditorSymbolSearch: lastWasFiltering, includeHelp: runOptions?.includeHelp }, disposables, token);
+		return this.doGetPicks(filter, { enableEditorSymbolSearch: lastWasFiltering, includeHelp: runOptions?.includeHelp, from: runOptions?.from }, disposables, token);
 	}
 
 	private doGetPicks(
@@ -360,7 +363,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		} else {
 			picks = [];
 			if (options.includeHelp) {
-				picks.push(...this.getHelpPicks(query, token));
+				picks.push(...this.getHelpPicks(query, token, options));
 			}
 			if (historyEditorPicks.length !== 0) {
 				picks.push({ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") } as IQuickPickSeparator);
@@ -393,7 +396,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					{ type: 'separator', label: this.configuration.includeSymbols ? localize('fileAndSymbolResultsSeparator', "file and symbol results") : localize('fileResultsSeparator', "file results") },
 					...additionalPicks
 				] : [];
-			})()
+			})(),
+
+			// allow some time to merge files and symbols to reduce flickering
+			mergeDelay: AnythingQuickAccessProvider.SYMBOL_PICKS_MERGE_DELAY
 		};
 	}
 
@@ -755,7 +761,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private helpQuickAccess = this.instantiationService.createInstance(HelpQuickAccessProvider);
 
-	private getHelpPicks(query: IPreparedQuery, token: CancellationToken): IAnythingQuickPickItem[] {
+	private getHelpPicks(query: IPreparedQuery, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IAnythingQuickPickItem[] {
 		if (query.normalized) {
 			return []; // If there's a filter, we don't show the help
 		}
@@ -779,9 +785,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				// If the user chooses 'Go to File' the help should go away as if they were
 				// entering a new mode
-				const providerSpecificOptions: AnythingQuickAccessProviderRunOptions | undefined = provider.prefix === AnythingQuickAccessProvider.PREFIX
-					? undefined
-					: { includeHelp: true };
+				const providerSpecificOptions: AnythingQuickAccessProviderRunOptions | undefined = {
+					...runOptions,
+					includeHelp: provider.prefix === AnythingQuickAccessProvider.PREFIX ? false : runOptions?.includeHelp
+				};
 
 				importantProviders.push({
 					...mapOfProviders.get(prefix)!,
@@ -982,7 +989,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			// Open to side / below
 			buttons.push({
-				iconClass: openSideBySideDirection === 'right' ? CSSIcon.asClassName(Codicon.splitHorizontal) : CSSIcon.asClassName(Codicon.splitVertical),
+				iconClass: openSideBySideDirection === 'right' ? ThemeIcon.asClassName(Codicon.splitHorizontal) : ThemeIcon.asClassName(Codicon.splitVertical),
 				tooltip: openSideBySideDirection === 'right' ?
 					localize({ key: 'openToSide', comment: ['Open this file in a split editor on the left/right side'] }, "Open to the Side") :
 					localize({ key: 'openToBottom', comment: ['Open this file in a split editor on the bottom'] }, "Open to the Bottom")
@@ -991,7 +998,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			// Remove from History
 			if (isEditorHistoryEntry) {
 				buttons.push({
-					iconClass: isDirty ? ('dirty-anything ' + CSSIcon.asClassName(Codicon.circleFilled)) : CSSIcon.asClassName(Codicon.close),
+					iconClass: isDirty ? ('dirty-anything ' + ThemeIcon.asClassName(Codicon.circleFilled)) : ThemeIcon.asClassName(Codicon.close),
 					tooltip: localize('closeEditor', "Remove from Recently Opened"),
 					alwaysVisible: isDirty
 				});

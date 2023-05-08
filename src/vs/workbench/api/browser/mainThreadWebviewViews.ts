@@ -114,7 +114,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 					await this._proxy.$resolveWebviewView(handle, viewType, webviewView.title, state, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewView.webview.html = this.mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+					webviewView.webview.setHtml(this.mainThreadWebviews.getWebviewResolvedFailedContent(viewType));
 				}
 			}
 		});

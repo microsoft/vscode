@@ -23,7 +23,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
@@ -133,11 +133,13 @@ export class ConfigurationManager implements IConfigurationManager {
 			return config;
 		};
 
+		let resolvedType = config.type ?? type;
 		let result: IConfig | null | undefined = config;
-		for (let seen = new Set(); result && !seen.has(result.type);) {
-			seen.add(result?.type);
-			result = await resolveDebugConfigurationForType(result.type, result);
+		for (let seen = new Set(); result && !seen.has(resolvedType);) {
+			seen.add(resolvedType);
+			result = await resolveDebugConfigurationForType(resolvedType, result);
 			result = await resolveDebugConfigurationForType('*', result);
+			resolvedType = result?.type ?? type!;
 		}
 
 		return result;
@@ -281,7 +283,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	removeRecentDynamicConfigurations(name: string, type: string) {
 		const remaining = this.getRecentDynamicConfigurations().filter(c => c.name !== name || c.type !== type);
-		this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(remaining), StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(remaining), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		if (this.selectedConfiguration.name === name && this.selectedType === type && this.selectedDynamic) {
 			this.selectConfiguration(undefined, undefined);
 		} else {
@@ -426,7 +428,7 @@ export class ConfigurationManager implements IConfigurationManager {
 				// We need to store the recently used dynamic configurations to be able to show them in UI #110009
 				recentDynamicProviders.unshift({ name, type: dynamicConfig.type });
 				recentDynamicProviders = distinct(recentDynamicProviders, t => `${t.name} : ${t.type}`);
-				this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
+				this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
 			// We could not find the configuration to select, pick the first one, or reset the selection if there is no launch configuration

@@ -128,8 +128,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._linkProviderRegistration?.dispose();
 	}
 
-
 	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean; isReadonly?: boolean } = {}) {
+
+		// validate the given provider is complete
+		ExtHostFileSystem._validateFileSystemProvider(provider);
 
 		if (this._registeredSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
@@ -201,6 +203,36 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			this._fsProvider.delete(handle);
 			this._proxy.$unregisterProvider(handle);
 		});
+	}
+
+	private static _validateFileSystemProvider(provider: vscode.FileSystemProvider) {
+		if (!provider) {
+			throw new Error('MISSING provider');
+		}
+		if (typeof provider.watch !== 'function') {
+			throw new Error('Provider does NOT implement watch');
+		}
+		if (typeof provider.stat !== 'function') {
+			throw new Error('Provider does NOT implement stat');
+		}
+		if (typeof provider.readDirectory !== 'function') {
+			throw new Error('Provider does NOT implement readDirectory');
+		}
+		if (typeof provider.createDirectory !== 'function') {
+			throw new Error('Provider does NOT implement createDirectory');
+		}
+		if (typeof provider.readFile !== 'function') {
+			throw new Error('Provider does NOT implement readFile');
+		}
+		if (typeof provider.writeFile !== 'function') {
+			throw new Error('Provider does NOT implement writeFile');
+		}
+		if (typeof provider.delete !== 'function') {
+			throw new Error('Provider does NOT implement delete');
+		}
+		if (typeof provider.rename !== 'function') {
+			throw new Error('Provider does NOT implement rename');
+		}
 	}
 
 	private static _asIStat(stat: vscode.FileStat): files.IStat {

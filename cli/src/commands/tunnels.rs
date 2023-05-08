@@ -5,11 +5,8 @@
 
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
-use std::fmt;
-use std::str::FromStr;
-use sysinfo::{Pid, SystemExt};
-use tokio::sync::mpsc;
-use tokio::time::{sleep, Duration};
+use std::{str::FromStr, time::Duration};
+use sysinfo::Pid;
 
 use super::{
 	args::{
@@ -19,18 +16,35 @@ use super::{
 	CommandContext,
 };
 
-use crate::tunnels::dev_tunnels::ActiveTunnel;
 use crate::{
 	auth::Auth,
-	log::{self, Logger},
+	constants::{APPLICATION_NAME, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
+	log,
 	state::LauncherPaths,
 	tunnels::{
-		code_server::CodeServerArgs, create_service_manager, dev_tunnels, legal,
-		paths::get_all_servers, ServiceContainer, ServiceManager,
+		code_server::CodeServerArgs,
+		create_service_manager, dev_tunnels, legal,
+		paths::get_all_servers,
+		protocol,
+		shutdown_signal::ShutdownRequest,
+		singleton_client::do_single_rpc_call,
+		singleton_server::{
+			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
+		},
+		Next, ServiceContainer, ServiceManager,
 	},
 	util::{
+		app_lock::AppMutex,
 		errors::{wrap, AnyError},
 		prereqs::PreReqChecker,
+	},
+};
+use crate::{
+	singleton::{acquire_singleton, SingletonConnection},
+	tunnels::{
+		dev_tunnels::ActiveTunnel,
+		singleton_client::{start_singleton_client, SingletonClientArgs},
+		SleepInhibitor,
 	},
 };
 
@@ -76,7 +90,6 @@ impl ServiceContainer for TunnelServiceContainer {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 	) -> Result<(), AnyError> {
 		let csa = (&self.args).into();
 		serve_with_csa(
@@ -87,26 +100,10 @@ impl ServiceContainer for TunnelServiceContainer {
 				..Default::default()
 			},
 			csa,
-			Some(shutdown_rx),
+			TUNNEL_SERVICE_LOCK_NAME,
 		)
 		.await?;
 		Ok(())
-	}
-}
-/// Describes the signal to manully stop the server
-pub enum ShutdownSignal {
-	CtrlC,
-	ParentProcessKilled,
-	ServiceStopped,
-}
-
-impl fmt::Display for ShutdownSignal {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match self {
-			ShutdownSignal::CtrlC => write!(f, "Ctrl-C received"),
-			ShutdownSignal::ParentProcessKilled => write!(f, "Parent process no longer exists"),
-			ShutdownSignal::ServiceStopped => write!(f, "Service stopped"),
-		}
 	}
 }
 
@@ -116,14 +113,14 @@ pub async fn service(
 ) -> Result<i32, AnyError> {
 	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
 	match service_args {
-		TunnelServiceSubCommands::Install => {
+		TunnelServiceSubCommands::Install(args) => {
 			// ensure logged in, otherwise subsequent serving will fail
 			Auth::new(&ctx.paths, ctx.log.clone())
 				.get_credential()
 				.await?;
 
 			// likewise for license consent
-			legal::require_consent(&ctx.paths, false)?;
+			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 			let current_exe =
 				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
@@ -141,7 +138,7 @@ pub async fn service(
 					],
 				)
 				.await?;
-			ctx.log.result("Service successfully installed! You can use `code tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.");
+			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `{} tunnel service uninstall` to remove it.", APPLICATION_NAME, APPLICATION_NAME));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;
@@ -190,7 +187,7 @@ pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Resul
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
 	dt.rename_tunnel(&rename_args.name).await?;
-	ctx.log.result(&format!(
+	ctx.log.result(format!(
 		"Successfully renamed this gateway to {}",
 		&rename_args.name
 	));
@@ -206,6 +203,44 @@ pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	Ok(0)
 }
 
+pub async fn restart(ctx: CommandContext) -> Result<i32, AnyError> {
+	do_single_rpc_call::<_, ()>(
+		&ctx.paths.tunnel_lockfile(),
+		ctx.log,
+		protocol::singleton::METHOD_RESTART,
+		protocol::EmptyObject {},
+	)
+	.await
+	.map(|_| 0)
+	.map_err(|e| e.into())
+}
+
+pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
+	do_single_rpc_call::<_, ()>(
+		&ctx.paths.tunnel_lockfile(),
+		ctx.log,
+		protocol::singleton::METHOD_SHUTDOWN,
+		protocol::EmptyObject {},
+	)
+	.await
+	.map(|_| 0)
+	.map_err(|e| e.into())
+}
+
+pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
+	let status: protocol::singleton::Status = do_single_rpc_call(
+		&ctx.paths.tunnel_lockfile(),
+		ctx.log.clone(),
+		protocol::singleton::METHOD_STATUS,
+		protocol::EmptyObject {},
+	)
+	.await?;
+
+	ctx.log.result(serde_json::to_string(&status).unwrap());
+
+	Ok(0)
+}
+
 /// Removes unused servers.
 pub async fn prune(ctx: CommandContext) -> Result<i32, AnyError> {
 	get_all_servers(&ctx.paths)
@@ -214,7 +249,7 @@ pub async fn prune(ctx: CommandContext) -> Result<i32, AnyError> {
 		.filter(|s| s.get_running_pid().is_none())
 		.try_for_each(|s| {
 			ctx.log
-				.result(&format!("Deleted {}", s.server_dir.display()));
+				.result(format!("Deleted {}", s.server_dir.display()));
 			s.delete()
 		})
 		.map_err(AnyError::from)?;
@@ -230,10 +265,24 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 		log, paths, args, ..
 	} = ctx;
 
+	let no_sleep = match gateway_args.no_sleep.then(SleepInhibitor::new) {
+		Some(i) => match i.await {
+			Ok(i) => Some(i),
+			Err(e) => {
+				warning!(log, "Could not inhibit sleep: {}", e);
+				None
+			}
+		},
+		None => None,
+	};
+
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
 	let csa = (&args).into();
-	serve_with_csa(paths, log, gateway_args, csa, None).await
+	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
+	drop(no_sleep);
+
+	result
 }
 
 fn get_connection_token(tunnel: &ActiveTunnel) -> String {
@@ -245,74 +294,105 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 
 async fn serve_with_csa(
 	paths: LauncherPaths,
-	log: Logger,
+	mut log: log::Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
-	shutdown_rx: Option<mpsc::UnboundedReceiver<ShutdownSignal>>,
+	app_mutex_name: Option<&'static str>,
 ) -> Result<i32, AnyError> {
+	let log_broadcast = BroadcastLogSink::new();
+	log = log.tee(log_broadcast.clone());
+	log::install_global_logger(log.clone()); // re-install so that library logs are captured
+
+	let shutdown = match gateway_args
+		.parent_process_id
+		.and_then(|p| Pid::from_str(&p).ok())
+	{
+		Some(pid) => ShutdownRequest::create_rx([
+			ShutdownRequest::CtrlC,
+			ShutdownRequest::ParentProcessKilled(pid),
+		]),
+		None => ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+	};
+
 	// Intentionally read before starting the server. If the server updated and
 	// respawn is requested, the old binary will get renamed, and then
 	// current_exe will point to the wrong path.
 	let current_exe = std::env::current_exe().unwrap();
+	let server = loop {
+		if shutdown.is_open() {
+			return Ok(0);
+		}
+
+		match acquire_singleton(paths.tunnel_lockfile()).await {
+			Ok(SingletonConnection::Client(stream)) => {
+				debug!(log, "starting as client to singleton");
+				let should_exit = start_singleton_client(SingletonClientArgs {
+					log: log.clone(),
+					shutdown: shutdown.clone(),
+					stream,
+				})
+				.await;
+				if should_exit {
+					return Ok(0);
+				}
+			}
+			Ok(SingletonConnection::Singleton(server)) => break server,
+			Err(e) => {
+				warning!(log, "error access singleton, retrying: {}", e);
+				tokio::time::sleep(Duration::from_secs(2)).await
+			}
+		}
+	};
+
+	debug!(log, "starting as new singleton");
+
+	let mut server =
+		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	let _lock = app_mutex_name.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
-	let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
-		dt.start_existing_tunnel(d).await
-	} else {
-		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name)
-			.await
-	}?;
+	loop {
+		let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
+			dt.start_existing_tunnel(d).await
+		} else {
+			dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name)
+				.await
+		}?;
 
-	csa.connection_token = Some(get_connection_token(&tunnel));
+		csa.connection_token = Some(get_connection_token(&tunnel));
 
-	let shutdown_tx = if let Some(tx) = shutdown_rx {
-		tx
-	} else {
-		let (tx, rx) = mpsc::unbounded_channel::<ShutdownSignal>();
-		if let Some(process_id) = gateway_args.parent_process_id {
-			match Pid::from_str(&process_id) {
-				Ok(pid) => {
-					let tx = tx.clone();
-					info!(log, "checking for parent process {}", process_id);
-					tokio::spawn(async move {
-						let mut s = sysinfo::System::new();
-						while s.refresh_process(pid) {
-							sleep(Duration::from_millis(2000)).await;
-						}
-						tx.send(ShutdownSignal::ParentProcessKilled).ok();
-					});
-				}
-				Err(_) => {
-					info!(log, "invalid parent process id: {}", process_id);
-				}
+		let mut r = start_singleton_server(SingletonServerArgs {
+			log: log.clone(),
+			tunnel,
+			paths: &paths,
+			code_server_args: &csa,
+			platform,
+			log_broadcast: &log_broadcast,
+			shutdown: shutdown.clone(),
+			server: &mut server,
+		})
+		.await?;
+		r.tunnel.close().await.ok();
+
+		match r.next {
+			Next::Respawn => {
+				warning!(log, "respawn requested, starting new server");
+				// reuse current args, but specify no-forward since tunnels will
+				// already be running in this process, and we cannot do a login
+				let args = std::env::args().skip(1).collect::<Vec<String>>();
+				let exit = std::process::Command::new(current_exe)
+					.args(args)
+					.spawn()
+					.map_err(|e| wrap(e, "error respawning after update"))?
+					.wait()
+					.map_err(|e| wrap(e, "error waiting for child"))?;
+
+				return Ok(exit.code().unwrap_or(1));
 			}
+			Next::Exit => return Ok(0),
+			Next::Restart => continue,
 		}
-		tokio::spawn(async move {
-			tokio::signal::ctrl_c().await.ok();
-			tx.send(ShutdownSignal::CtrlC).ok();
-		});
-		rx
-	};
-
-	let mut r = crate::tunnels::serve(&log, tunnel, &paths, &csa, platform, shutdown_tx).await?;
-	r.tunnel.close().await.ok();
-
-	if r.respawn {
-		warning!(log, "respawn requested, starting new server");
-		// reuse current args, but specify no-forward since tunnels will
-		// already be running in this process, and we cannot do a login
-		let args = std::env::args().skip(1).collect::<Vec<String>>();
-		let exit = std::process::Command::new(current_exe)
-			.args(args)
-			.spawn()
-			.map_err(|e| wrap(e, "error respawning after update"))?
-			.wait()
-			.map_err(|e| wrap(e, "error waiting for child"))?;
-
-		return Ok(exit.code().unwrap_or(1));
 	}
-
-	Ok(0)
 }

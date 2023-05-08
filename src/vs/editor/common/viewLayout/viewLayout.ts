@@ -146,6 +146,10 @@ class EditorScrollable extends Disposable {
 	public setScrollPositionSmooth(update: INewScrollPosition): void {
 		this._scrollable.setScrollPositionSmooth(update);
 	}
+
+	public hasPendingScrollAnimation(): boolean {
+		return this._scrollable.hasPendingScrollAnimation();
+	}
 }
 
 export class ViewLayout extends Disposable implements IViewLayout {
@@ -446,6 +450,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		} else {
 			this._scrollable.setScrollPositionSmooth(position);
 		}
+	}
+
+	public hasPendingScrollAnimation(): boolean {
+		return this._scrollable.hasPendingScrollAnimation();
 	}
 
 	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {

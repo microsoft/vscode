@@ -10,11 +10,12 @@ import { Constants } from 'vs/base/common/uint';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
@@ -28,6 +29,8 @@ const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	description: 'top-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframe),
+	glyphMargin: { position: GlyphMarginLane.Right },
+	zIndex: 9999,
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
@@ -37,6 +40,8 @@ const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	description: 'focused-stack-frame-margin',
 	glyphMarginClassName: ThemeIcon.asClassName(debugStackframeFocused),
+	glyphMargin: { position: GlyphMarginLane.Right },
+	zIndex: 9999,
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,

@@ -90,6 +90,7 @@ export class WebviewInput extends EditorInput {
 
 	public setName(value: string): void {
 		this._name = value;
+		this.webview.setTitle(value);
 		this._onDidChangeLabel.fire();
 	}
 
