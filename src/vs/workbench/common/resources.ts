@@ -22,13 +22,13 @@ interface IConfiguredExpression {
 
 export class ResourceGlobMatcher extends Disposable {
 
-	private static readonly NO_ROOT = null;
+	private static readonly NO_FOLDER = null;
 
 	private readonly _onExpressionChange = this._register(new Emitter<void>());
 	readonly onExpressionChange = this._onExpressionChange.event;
 
-	private readonly mapRootToParsedExpression = new Map<string | null, ParsedExpression>();
-	private readonly mapRootToConfiguredExpression = new Map<string | null, IConfiguredExpression>();
+	private readonly mapFolderToParsedExpression = new Map<string | null, ParsedExpression>();
+	private readonly mapFolderToConfiguredExpression = new Map<string | null, IConfiguredExpression>();
 
 	constructor(
 		private getExpression: (folder?: URI) => IExpression | undefined,
@@ -61,56 +61,56 @@ export class ResourceGlobMatcher extends Disposable {
 			const folderUriStr = folder.uri.toString();
 
 			const newExpression = this.doGetExpression(folder.uri);
-			const currentExpression = this.mapRootToConfiguredExpression.get(folderUriStr);
+			const currentExpression = this.mapFolderToConfiguredExpression.get(folderUriStr);
 
 			if (newExpression) {
 				if (!currentExpression || !equals(currentExpression.expression, newExpression)) {
 					changed = true;
 
-					this.mapRootToParsedExpression.set(folderUriStr, parse(newExpression));
-					this.mapRootToConfiguredExpression.set(folderUriStr, this.toConfiguredExpression(newExpression));
+					this.mapFolderToParsedExpression.set(folderUriStr, parse(newExpression));
+					this.mapFolderToConfiguredExpression.set(folderUriStr, this.toConfiguredExpression(newExpression));
 				}
 			} else {
 				if (currentExpression) {
 					changed = true;
 
-					this.mapRootToParsedExpression.delete(folderUriStr);
-					this.mapRootToConfiguredExpression.delete(folderUriStr);
+					this.mapFolderToParsedExpression.delete(folderUriStr);
+					this.mapFolderToConfiguredExpression.delete(folderUriStr);
 				}
 			}
 		}
 
 		// Remove expressions per workspace no longer present
 		const foldersMap = new ResourceSet(this.contextService.getWorkspace().folders.map(folder => folder.uri));
-		for (const [folder] of this.mapRootToConfiguredExpression) {
-			if (folder === ResourceGlobMatcher.NO_ROOT) {
+		for (const [folder] of this.mapFolderToConfiguredExpression) {
+			if (folder === ResourceGlobMatcher.NO_FOLDER) {
 				continue; // always keep this one
 			}
 
 			if (!foldersMap.has(URI.parse(folder))) {
-				this.mapRootToParsedExpression.delete(folder);
-				this.mapRootToConfiguredExpression.delete(folder);
+				this.mapFolderToParsedExpression.delete(folder);
+				this.mapFolderToConfiguredExpression.delete(folder);
 
 				changed = true;
 			}
 		}
 
-		// Always set for resources outside root as well
+		// Always set for resources outside workspace as well
 		const globalNewExpression = this.doGetExpression(undefined);
-		const globalCurrentExpression = this.mapRootToConfiguredExpression.get(ResourceGlobMatcher.NO_ROOT);
+		const globalCurrentExpression = this.mapFolderToConfiguredExpression.get(ResourceGlobMatcher.NO_FOLDER);
 		if (globalNewExpression) {
 			if (!globalCurrentExpression || !equals(globalCurrentExpression.expression, globalNewExpression)) {
 				changed = true;
 
-				this.mapRootToParsedExpression.set(ResourceGlobMatcher.NO_ROOT, parse(globalNewExpression));
-				this.mapRootToConfiguredExpression.set(ResourceGlobMatcher.NO_ROOT, this.toConfiguredExpression(globalNewExpression));
+				this.mapFolderToParsedExpression.set(ResourceGlobMatcher.NO_FOLDER, parse(globalNewExpression));
+				this.mapFolderToConfiguredExpression.set(ResourceGlobMatcher.NO_FOLDER, this.toConfiguredExpression(globalNewExpression));
 			}
 		} else {
 			if (globalCurrentExpression) {
 				changed = true;
 
-				this.mapRootToParsedExpression.delete(ResourceGlobMatcher.NO_ROOT);
-				this.mapRootToConfiguredExpression.delete(ResourceGlobMatcher.NO_ROOT);
+				this.mapFolderToParsedExpression.delete(ResourceGlobMatcher.NO_FOLDER);
+				this.mapFolderToConfiguredExpression.delete(ResourceGlobMatcher.NO_FOLDER);
 			}
 		}
 
@@ -139,23 +139,22 @@ export class ResourceGlobMatcher extends Disposable {
 		resource: URI,
 		hasSibling?: (name: string) => boolean
 	): boolean {
-		if (this.mapRootToParsedExpression.size === 0) {
+		if (this.mapFolderToParsedExpression.size === 0) {
 			return false; // return early: no expression for this matcher
 		}
 
 		const folder = this.contextService.getWorkspaceFolder(resource);
-
-		let expressionForRoot: ParsedExpression | undefined;
-		let expressionConfigForRoot: IConfiguredExpression | undefined;
-		if (folder && this.mapRootToParsedExpression.has(folder.uri.toString())) {
-			expressionForRoot = this.mapRootToParsedExpression.get(folder.uri.toString());
-			expressionConfigForRoot = this.mapRootToConfiguredExpression.get(folder.uri.toString());
+		let expressionForFolder: ParsedExpression | undefined;
+		let expressionConfigForFolder: IConfiguredExpression | undefined;
+		if (folder && this.mapFolderToParsedExpression.has(folder.uri.toString())) {
+			expressionForFolder = this.mapFolderToParsedExpression.get(folder.uri.toString());
+			expressionConfigForFolder = this.mapFolderToConfiguredExpression.get(folder.uri.toString());
 		} else {
-			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
-			expressionConfigForRoot = this.mapRootToConfiguredExpression.get(ResourceGlobMatcher.NO_ROOT);
+			expressionForFolder = this.mapFolderToParsedExpression.get(ResourceGlobMatcher.NO_FOLDER);
+			expressionConfigForFolder = this.mapFolderToConfiguredExpression.get(ResourceGlobMatcher.NO_FOLDER);
 		}
 
-		if (!expressionForRoot) {
+		if (!expressionForFolder) {
 			return false; // return early: no expression for this resource
 		}
 
@@ -171,15 +170,16 @@ export class ResourceGlobMatcher extends Disposable {
 			resourcePathToMatch = this.uriToPath(resource);
 		}
 
-		if (typeof resourcePathToMatch === 'string' && !!expressionForRoot(resourcePathToMatch, undefined, hasSibling)) {
+		if (typeof resourcePathToMatch === 'string' && !!expressionForFolder(resourcePathToMatch, undefined, hasSibling)) {
 			return true;
 		}
 
 		// If the configured expression has an absolute path, we also check for absolute paths
-		// to match, otherwise we potentially miss out on matches.
+		// to match, otherwise we potentially miss out on matches. We only do that if we previously
+		// matched on the relative path.
 
-		if (expressionConfigForRoot?.hasAbsolutePath) {
-			return !!expressionForRoot(this.uriToPath(resource), undefined, hasSibling);
+		if (resourcePathToMatch !== this.uriToPath(resource) && expressionConfigForFolder?.hasAbsolutePath) {
+			return !!expressionForFolder(this.uriToPath(resource), undefined, hasSibling);
 		}
 
 		return false;
