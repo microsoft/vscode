@@ -31,7 +31,8 @@ export class TerminalProfileService implements ITerminalProfileService {
 	declare _serviceBrand: undefined;
 
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
-	private _profilesReadyBarrier: AutoOpenBarrier;
+	private _profilesReadyBarrier: AutoOpenBarrier | undefined;
+	private _profilesReadyPromise: Promise<void>;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
 	private _defaultProfileName?: string;
@@ -41,7 +42,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
 	get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
 
-	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
+	get profilesReady(): Promise<void> { return this._profilesReadyPromise; }
 	get availableProfiles(): ITerminalProfile[] {
 		if (!this._platformConfigJustRefreshed) {
 			this.refreshAvailableProfiles();
@@ -67,10 +68,14 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
 		this._updateWebContextKey();
-		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
-		// default terminal before launching the first terminal. This isn't expected to ever take
-		// this long.
-		this._profilesReadyBarrier = new AutoOpenBarrier(20000);
+		this._profilesReadyPromise = this._remoteAgentService.getEnvironment()
+			.then(() => {
+				// Wait up to 20 seconds for profiles to be ready so it's assured that we know the actual
+				// default terminal before launching the first terminal. This isn't expected to ever take
+				// this long.
+				this._profilesReadyBarrier = new AutoOpenBarrier(20000);
+				return this._profilesReadyBarrier.wait().then(() => { });
+			});
 		this.refreshAvailableProfiles();
 		this._setupConfigListener();
 	}
@@ -138,7 +143,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		if (profilesChanged || contributedProfilesChanged) {
 			this._availableProfiles = profiles;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
-			this._profilesReadyBarrier.open();
+			this._profilesReadyBarrier!.open();
 			this._updateWebContextKey();
 			await this._refreshPlatformConfig(this._availableProfiles);
 		}
