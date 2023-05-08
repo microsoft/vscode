@@ -215,6 +215,9 @@ suite('TerminalLinkParsing', () => {
 			strictEqual(removeLinkQueryString('foo?a=b?'), 'foo');
 			strictEqual(removeLinkQueryString('foo?a=b&c=d'), 'foo');
 		});
+		test('should respect ? in UNC paths', () => {
+			strictEqual(removeLinkQueryString('\\\\?\\foo?a=b'), '\\\\?\\foo',);
+		});
 	});
 	suite('detectLinks', () => {
 		test('foo(1, 2) bar[3, 4] "baz" on line 5', () => {

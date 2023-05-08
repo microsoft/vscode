@@ -120,7 +120,9 @@ export function removeLinkSuffix(link: string): string {
  * @param link The link to use.
  */
 export function removeLinkQueryString(link: string): string {
-	const index = link.indexOf('?');
+	// Skip ? in UNC paths
+	const start = link.startsWith('\\\\?\\') ? 4 : 0;
+	const index = link.indexOf('?', start);
 	if (index === -1) {
 		return link;
 	}
