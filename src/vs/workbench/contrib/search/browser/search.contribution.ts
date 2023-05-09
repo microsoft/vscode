@@ -211,6 +211,16 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('filterSortOrder', "Controls sorting order of editor history in quick open when filtering.")
 		},
+		'search.quickOpen.ellipsisLocation': {
+			'type': 'string',
+			'enum': ['left', 'right'],
+			'default': 'right',
+			'description': nls.localize('search.quickOpen.ellipsisLocation', "Controls the location of the ellipsis in the quick open widget."),
+			'enumDescriptions': [
+				nls.localize('search.quickOpen.ellipsisLocation.left', 'Ellipsis is located at the left of the label.'),
+				nls.localize('search.quickOpen.ellipsisLocation.right', 'Ellipsis is located at the right of the label.')
+			]
+		},
 		'search.followSymlinks': {
 			type: 'boolean',
 			description: nls.localize('search.followSymlinks', "Controls whether to follow symlinks while searching."),

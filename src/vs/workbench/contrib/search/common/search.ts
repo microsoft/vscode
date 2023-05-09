@@ -123,6 +123,7 @@ export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigur
 	quickOpen: {
 		includeSymbols: boolean;
 		includeHistory: boolean;
+		ellipsisLocation: 'left' | 'right';
 		history: {
 			filterSortOrder: 'default' | 'recency';
 		};

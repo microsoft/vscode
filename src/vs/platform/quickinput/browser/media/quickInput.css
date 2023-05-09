@@ -190,7 +190,9 @@
 	border-radius: 3px;
 }
 
-.quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
+.quick-input-list
+	.monaco-list-row[data-index="0"]
+	.quick-input-list-entry.quick-input-list-separator-border {
 	border-top-style: none;
 }
 
@@ -223,7 +225,9 @@
 .quick-input-widget .quick-input-list .quick-input-list-checkbox {
 	display: none;
 }
-.quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-checkbox {
+.quick-input-widget.show-checkboxes
+	.quick-input-list
+	.quick-input-list-checkbox {
 	display: inline;
 }
 
@@ -232,12 +236,43 @@
 	align-items: center;
 }
 
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label,
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label .monaco-icon-label-container > .monaco-icon-name-container {
+.quick-input-list .monaco-icon-label-container .left-ellipsis {
+	display: flex;
+	align-items: center;
+}
+
+.quick-input-list .monaco-icon-name-container.left-ellipsis {
+	display: inline-block;
+	block-size: 1.5rem;
+}
+
+.quick-input-list .monaco-icon-description-container .left-ellipsis {
+	display: inline-block;
+	block-size: 1.5rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	width: 100%;
+	direction: rtl;
+	text-align: left;
+}
+
+.quick-input-list
+	.quick-input-list-rows
+	> .quick-input-list-row
+	.monaco-icon-label,
+.quick-input-list
+	.quick-input-list-rows
+	> .quick-input-list-row
+	.monaco-icon-label
+	.monaco-icon-label-container
+	> .monaco-icon-name-container {
 	flex: 1; /* make sure the icon label grows within the row */
 }
 
-.quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon[class*='codicon-'] {
+.quick-input-list
+	.quick-input-list-rows
+	> .quick-input-list-row
+	.codicon[class*="codicon-"] {
 	vertical-align: text-bottom;
 }
 
@@ -291,16 +326,28 @@
 	margin-right: 4px; /* separate from scrollbar */
 }
 
-.quick-input-list .quick-input-list-entry .quick-input-list-entry-action-bar .action-label.always-visible,
-.quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
-.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label {
+.quick-input-list
+	.quick-input-list-entry
+	.quick-input-list-entry-action-bar
+	.action-label.always-visible,
+.quick-input-list
+	.quick-input-list-entry:hover
+	.quick-input-list-entry-action-bar
+	.action-label,
+.quick-input-list
+	.monaco-list-row.focused
+	.quick-input-list-entry-action-bar
+	.action-label {
 	display: flex;
 }
 
 /* focused items in quick pick */
 .quick-input-list .monaco-list-row.focused .monaco-keybinding-key,
-.quick-input-list .monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator {
-	color: inherit
+.quick-input-list
+	.monaco-list-row.focused
+	.quick-input-list-entry
+	.quick-input-list-separator {
+	color: inherit;
 }
 .quick-input-list .monaco-list-row.focused .monaco-keybinding-key {
 	background: none;

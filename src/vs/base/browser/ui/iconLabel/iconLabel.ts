@@ -18,6 +18,7 @@ export interface IIconLabelCreationOptions {
 	readonly supportDescriptionHighlights?: boolean;
 	readonly supportIcons?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
+	readonly ellipsisLocation?: 'left' | 'right';
 }
 
 export interface IIconLabelValueOptions {
@@ -104,6 +105,11 @@ export class IconLabel extends Disposable {
 
 		const nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
 
+		if (options?.ellipsisLocation === 'left') {
+			nameContainer.classList.add('left-ellipsis');
+			this.labelContainer.classList.add('left-ellipsis');
+		}
+
 		if (options?.supportHighlights || options?.supportIcons) {
 			this.nameNode = new LabelWithHighlights(nameContainer, !!options.supportIcons);
 		} else {
@@ -137,6 +143,7 @@ export class IconLabel extends Disposable {
 				containerClasses.push('disabled');
 			}
 		}
+
 
 		this.domNode.className = labelClasses.join(' ');
 		this.labelContainer.className = containerClasses.join(' ');
@@ -190,13 +197,15 @@ export class IconLabel extends Disposable {
 	private getOrCreateDescriptionNode() {
 		if (!this.descriptionNode) {
 			const descriptionContainer = this._register(new FastLabelNode(dom.append(this.labelContainer, dom.$('span.monaco-icon-description-container'))));
+			if (this.creationOptions?.ellipsisLocation === 'left') {
+				descriptionContainer.element.classList.add('left-ellipsis');
+			}
 			if (this.creationOptions?.supportDescriptionHighlights) {
 				this.descriptionNode = new HighlightedLabel(dom.append(descriptionContainer.element, dom.$('span.label-description')), { supportIcons: !!this.creationOptions.supportIcons });
 			} else {
 				this.descriptionNode = this._register(new FastLabelNode(dom.append(descriptionContainer.element, dom.$('span.label-description'))));
 			}
 		}
-
 		return this.descriptionNode;
 	}
 }

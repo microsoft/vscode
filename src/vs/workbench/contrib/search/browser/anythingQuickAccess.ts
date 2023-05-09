@@ -205,6 +205,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			openSideBySideDirection: editorConfig?.openSideBySideDirection,
 			includeSymbols: searchConfig?.quickOpen.includeSymbols,
 			includeHistory: searchConfig?.quickOpen.includeHistory,
+			ellipsisLocation: searchConfig?.quickOpen.ellipsisLocation,
 			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
 			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY,
 			preserveInput: quickAccessConfig.preserveInput
