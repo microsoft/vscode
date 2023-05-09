@@ -66,7 +66,8 @@ suite('Files - TextFileEditorTracker', () => {
 				configurationService,
 				new TestContextService(TestWorkspace),
 				TestEnvironmentService,
-				new UriIdentityService(new TestFileService())
+				new UriIdentityService(new TestFileService()),
+				new TestFileService()
 			));
 		}
 

@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService } from 'vs/platform/files/common/files';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
@@ -60,7 +60,7 @@ export interface IFilesConfigurationService {
 
 	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean;
 
-	updateReadonly(resource: URI, readonly: true | false | 'toggle'): void;
+	updateReadonly(resource: URI, readonly: true | false | 'toggle'): Promise<void>;
 
 	//#endregion
 
@@ -110,7 +110,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -159,9 +160,16 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.readonlyIncludeMatcher.value.matches(resource) && !this.readonlyExcludeMatcher.value.matches(resource);
 	}
 
-	updateReadonly(resource: URI, readonly: true | false | 'toggle'): void {
+	async updateReadonly(resource: URI, readonly: true | false | 'toggle'): Promise<void> {
 		if (readonly === 'toggle') {
-			readonly = !this.isReadonly(resource);
+			let stat: IFileStatWithMetadata | undefined = undefined;
+			try {
+				stat = await this.fileService.resolve(resource, { resolveMetadata: true });
+			} catch (error) {
+				// ignore
+			}
+
+			readonly = !this.isReadonly(resource, stat);
 		}
 
 		this.sessionReadonlyResources.delete(resource);

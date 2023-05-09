@@ -48,7 +48,8 @@ suite('EditorAutoSave', () => {
 			configurationService,
 			new TestContextService(TestWorkspace),
 			TestEnvironmentService,
-			new UriIdentityService(new TestFileService())
+			new UriIdentityService(new TestFileService()),
+			new TestFileService()
 		));
 
 		const part = await createEditorPart(instantiationService, disposables);

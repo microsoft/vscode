@@ -1210,7 +1210,7 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 			return;
 		}
 
-		filesConfigurationService.updateReadonly(fileResource, this.newReadonlyState);
+		await filesConfigurationService.updateReadonly(fileResource, this.newReadonlyState);
 	}
 }
 
