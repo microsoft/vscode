@@ -49,6 +49,8 @@ const fallbackMatchers: RegExp[] = [
 	// C:\foo/bar baz:339: error ...
 	// C:\foo/bar baz:339:12: error ...     [#178584, Clang]
 	/^(?<link>(?<path>.+):(?<line>\d+)(?::(?<col>\d+))?) ?:/,
+	// Cmd prompt
+	/^(?<link>(?<path>.+))>/,
 	// The whole line is the path
 	/^ *(?<link>(?<path>.+))/
 ];
