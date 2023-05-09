@@ -538,7 +538,7 @@ class DocumentPasteEditProvider {
 		}
 
 		return {
-			id: edit.id,
+			id: edit.id ? this._extension.identifier.value + '.' + edit.id : this._extension.identifier.value,
 			label: edit.label ?? localize('defaultPasteLabel', "Paste using '{0}' extension", this._extension.displayName || this._extension.name),
 			detail: this._extension.displayName || this._extension.name,
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
