@@ -128,7 +128,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				type: this.getDialogType(type),
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
 					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-					if (resolved && resolved.kind === ResultKind.KbFound && resolved.commandId) {
+					if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
 							EventHelper.stop(event, true);
 						}

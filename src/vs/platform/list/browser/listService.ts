@@ -810,7 +810,7 @@ function createKeyboardNavigationEventFilter(keybindingService: IKeybindingServi
 
 		const result = keybindingService.softDispatch(event, event.target);
 
-		if (result?.kind === ResultKind.MoreChordsNeeded) {
+		if (result.kind === ResultKind.MoreChordsNeeded) {
 			inMultiChord = true;
 			return false;
 		}
