@@ -18,7 +18,7 @@ import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IdleValue } from 'vs/base/common/async';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ResourceSet } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -60,7 +60,7 @@ export interface IFilesConfigurationService {
 
 	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean;
 
-	updateReadonly(resource: URI, readonly: true | false | 'toggle'): Promise<void>;
+	updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void>;
 
 	//#endregion
 
@@ -102,8 +102,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly readonlyExcludeMatcher = this._register(new IdleValue(() => this.createMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 	private configuredReadonlyFromPermissions: boolean | undefined;
 
-	private readonly sessionReadonlyResources = new ResourceSet(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
-	private readonly sessionWriteableResources = new ResourceSet(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -141,12 +140,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean {
-		if (this.sessionReadonlyResources.has(resource)) {
-			return true; // session override: readonly
-		}
-
-		if (this.sessionWriteableResources.has(resource)) {
-			return false; // session override: writeable
+		const sessionReadonlyOverride = this.sessionReadonlyOverrides.get(resource);
+		if (typeof sessionReadonlyOverride === 'boolean') {
+			return sessionReadonlyOverride; // session override always wins
 		}
 
 		if (this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome)) {
@@ -160,7 +156,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.readonlyIncludeMatcher.value.matches(resource) && !this.readonlyExcludeMatcher.value.matches(resource);
 	}
 
-	async updateReadonly(resource: URI, readonly: true | false | 'toggle'): Promise<void> {
+	async updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void> {
 		if (readonly === 'toggle') {
 			let stat: IFileStatWithMetadata | undefined = undefined;
 			try {
@@ -172,13 +168,10 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			readonly = !this.isReadonly(resource, stat);
 		}
 
-		this.sessionReadonlyResources.delete(resource);
-		this.sessionWriteableResources.delete(resource);
-
-		if (readonly) {
-			this.sessionReadonlyResources.add(resource);
+		if (readonly === 'reset') {
+			this.sessionReadonlyOverrides.delete(resource);
 		} else {
-			this.sessionWriteableResources.add(resource);
+			this.sessionReadonlyOverrides.set(resource, readonly);
 		}
 
 		this._onReadonlyConfigurationChange.fire();

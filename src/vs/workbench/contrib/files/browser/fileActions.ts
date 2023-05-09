@@ -1190,7 +1190,7 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 	constructor(
 		id: string,
 		title: ILocalizedString,
-		private readonly newReadonlyState: true | false | 'toggle'
+		private readonly newReadonlyState: true | false | 'toggle' | 'reset'
 	) {
 		super({
 			id,
@@ -1252,6 +1252,20 @@ export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorRead
 			ToggleActiveEditorReadonlyInSession.ID,
 			{ value: ToggleActiveEditorReadonlyInSession.LABEL, original: 'Toggle Active Editor Readonly in Session' },
 			'toggle'
+		);
+	}
+}
+
+export class ResetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
+
+	static readonly ID = 'workbench.action.files.resetActiveEditorReadonlyInSession';
+	static readonly LABEL = nls.localize('resetActiveEditorReadonlyInSession', "Reset Active Editor Readonly in Session");
+
+	constructor() {
+		super(
+			ResetActiveEditorReadonlyInSession.ID,
+			{ value: ResetActiveEditorReadonlyInSession.LABEL, original: 'Reset Active Editor Readonly in Session' },
+			'reset'
 		);
 	}
 }
