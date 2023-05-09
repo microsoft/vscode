@@ -40,7 +40,7 @@ flakySuite('Storage Library', function () {
 			ok(!storage.getObject('foo'));
 			const uri = URI.file('path/to/folder');
 			storage.set('foo', { 'bar': uri });
-			strictEqual(storage.getObject('foo'), { 'bar': uri });
+			deepStrictEqual(storage.getObject('foo'), { 'bar': uri });
 		});
 	});
 
