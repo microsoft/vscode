@@ -215,10 +215,10 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['left', 'right'],
 			'default': 'right',
-			'description': nls.localize('search.quickOpen.ellipsisLocation', "Controls the location of the ellipsis in the quick open widget."),
+			'description': nls.localize('search.quickOpen.ellipsisLocation', "Controls the location of the ellipsis in truncated quick-open results."),
 			'enumDescriptions': [
-				nls.localize('search.quickOpen.ellipsisLocation.left', 'Ellipsis is located at the left of the label.'),
-				nls.localize('search.quickOpen.ellipsisLocation.right', 'Ellipsis is located at the right of the label.')
+				nls.localize('search.quickOpen.ellipsisLocation.left', 'Ellipsis is located at the left of the text.'),
+				nls.localize('search.quickOpen.ellipsisLocation.right', 'Ellipsis is located at the right of the text.')
 			]
 		},
 		'search.followSymlinks': {
