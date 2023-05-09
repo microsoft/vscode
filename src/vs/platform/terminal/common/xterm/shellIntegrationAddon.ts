@@ -338,7 +338,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				if (commandLine) {
 					this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, isTrusted);
 				}
-				return !!commandLine || args.length > 2;
+				return !!commandLine && args.length < 3;
 			}
 			case VSCodeOscPt.ContinuationStart: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationStart();
