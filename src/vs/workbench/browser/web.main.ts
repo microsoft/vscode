@@ -90,6 +90,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { UserDataProfileInitializer } from 'vs/workbench/services/userDataProfile/browser/userDataProfileInit';
 import { UserDataSyncInitializer } from 'vs/workbench/services/userDataSync/browser/userDataSyncInit';
+import { BrowserRemoteResourceLoader } from 'vs/workbench/services/remote/browser/browserRemoteResourceHandler';
 
 export class BrowserMain extends Disposable {
 
@@ -257,9 +258,15 @@ export class BrowserMain extends Disposable {
 		const logService = new LogService(bufferLogger, otherLoggers);
 		serviceCollection.set(ILogService, logService);
 
+		// Files
+		const fileService = this._register(new FileService(logService));
+		serviceCollection.set(IWorkbenchFileService, fileService);
+
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, this.configuration.resourceUriProvider, productService, logService);
+		const remoteResourceLoader = this.configuration.remoteResourceProvider ? new BrowserRemoteResourceLoader(fileService, this.configuration.remoteResourceProvider) : undefined;
+		const resourceUriProvider = this.configuration.resourceUriProvider ?? remoteResourceLoader?.getResourceUriProvider();
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, resourceUriProvider, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
@@ -277,9 +284,6 @@ export class BrowserMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		// Files
-		const fileService = this._register(new FileService(logService));
-		serviceCollection.set(IWorkbenchFileService, fileService);
 
 		// Logger
 		const loggerService = new FileLoggerService(logLevel, logsPath, fileService);
