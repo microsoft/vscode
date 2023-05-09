@@ -322,7 +322,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		const command = dataArr[0];
 		const args: string[] | undefined = dataArr.length > 1 ? dataArr.slice(1) : undefined;
-		if (args && args?.length > 2) {
+		if (args && args?.length > 1) {
 			return false;
 		}
 		switch (command) {
