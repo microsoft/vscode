@@ -15648,6 +15648,9 @@ declare module 'vscode' {
 		readonly label: string;
 	}
 
+	export interface AuthenticationForceNewSessionOptions {
+		detail?: string;
+	}
 
 	/**
 	 * Options to be used when getting an {@link AuthenticationSession} from an {@link AuthenticationProvider}.
@@ -15698,7 +15701,7 @@ declare module 'vscode' {
 		 *
 		 * This defaults to false.
 		 */
-		forceNewSession?: boolean | { detail: string };
+		forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
 
 		/**
 		 * Whether we should show the indication to sign in in the Accounts menu.
@@ -15848,7 +15851,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not

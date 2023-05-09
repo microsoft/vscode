@@ -7,6 +7,10 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/152399
 
+	export interface AuthenticationForceNewSessionOptions {
+		sessionToRecreate?: AuthenticationSession;
+	}
+
 	export namespace authentication {
 		/**
 		 * Get all authentication sessions matching the desired scopes that this extension has access to. In order to request access,
@@ -21,5 +25,34 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to a readonly array of authentication sessions.
 		 */
 		export function getSessions(providerId: string, scopes: readonly string[]): Thenable<readonly AuthenticationSession[]>;
+	}
+
+	/**
+	 * The options passed in to the provider when creating a session.
+	 */
+	export interface AuthenticationProviderCreateSessionOptions {
+		/**
+		 * The session that is being asked to be recreated. If this is passed in, the provider should
+		 * attempt to recreate the session based on the information in this session.
+		 */
+		sessionToRecreate?: AuthenticationSession;
+	}
+
+	export interface AuthenticationProvider {
+		/**
+		 * Prompts a user to login.
+		 *
+		 * If login is successful, the onDidChangeSessions event should be fired.
+		 *
+		 * If login fails, a rejected promise should be returned.
+		 *
+		 * If the provider has specified that it does not support multiple accounts,
+		 * then this should never be called if there is already an existing session matching these
+		 * scopes.
+		 * @param scopes A list of scopes, permissions, that the new session should be created with.
+		 * @param options Additional options for creating a session.
+		 * @returns A promise that resolves to an authentication session.
+		 */
+		createSession(scopes: readonly string[], options: AuthenticationProviderCreateSessionOptions): Thenable<AuthenticationSession>;
 	}
 }
