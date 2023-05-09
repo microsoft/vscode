@@ -303,21 +303,23 @@ async fn serve_with_csa(
 	log = log.tee(log_broadcast.clone());
 	log::install_global_logger(log.clone()); // re-install so that library logs are captured
 
-	let shutdown = match gateway_args
-		.parent_process_id
-		.and_then(|p| Pid::from_str(&p).ok())
-	{
-		Some(pid) => ShutdownRequest::create_rx([
-			ShutdownRequest::CtrlC,
-			ShutdownRequest::ParentProcessKilled(pid),
-		]),
-		None => ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
-	};
-
 	// Intentionally read before starting the server. If the server updated and
 	// respawn is requested, the old binary will get renamed, and then
 	// current_exe will point to the wrong path.
 	let current_exe = std::env::current_exe().unwrap();
+
+	let mut vec = vec![
+		ShutdownRequest::CtrlC,
+		ShutdownRequest::ExeUninstalled(current_exe.to_owned()),
+	];
+	if let Some(p) = gateway_args
+		.parent_process_id
+		.and_then(|p| Pid::from_str(&p).ok())
+	{
+		vec.push(ShutdownRequest::ParentProcessKilled(p));
+	}
+	let shutdown = ShutdownRequest::create_rx(vec);
+
 	let server = loop {
 		if shutdown.is_open() {
 			return Ok(0);

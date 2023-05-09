@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Schemes } from '../../util/schemes';
 import { getNewFileName } from './copyFiles';
 import { createUriListSnippet, tryGetUriListSnippet } from './dropIntoEditor';
 
@@ -45,6 +46,10 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 	}
 
 	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
+		if (document.uri.scheme === Schemes.untitled) {
+			return undefined;
+		}
+
 		if (file.uri) {
 			// If file is already in workspace, we don't want to create a copy of it
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
