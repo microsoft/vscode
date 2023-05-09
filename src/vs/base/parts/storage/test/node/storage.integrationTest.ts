@@ -41,6 +41,8 @@ flakySuite('Storage Library', function () {
 			const uri = URI.file('path/to/folder');
 			storage.set('foo', { 'bar': uri });
 			deepStrictEqual(storage.getObject('foo'), { 'bar': uri });
+
+			await storage.close();
 		});
 	});
 
