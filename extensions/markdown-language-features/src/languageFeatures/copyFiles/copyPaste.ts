@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Schemes } from '../../util/schemes';
 import { getNewFileName } from './copyFiles';
 import { createUriListSnippet, tryGetUriListSnippet } from './dropIntoEditor';
 
@@ -23,10 +22,6 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 	): Promise<vscode.DocumentPasteEdit | undefined> {
 		const enabled = vscode.workspace.getConfiguration('markdown', document).get('experimental.editor.pasteLinks.enabled', true);
 		if (!enabled) {
-			return;
-		}
-
-		if (document.uri.scheme === Schemes.notebookCell) {
 			return;
 		}
 

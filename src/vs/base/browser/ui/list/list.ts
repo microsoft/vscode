@@ -29,8 +29,12 @@ export interface IListEvent<T> {
 	readonly browserEvent?: UIEvent;
 }
 
+export interface IListBrowserMouseEvent extends MouseEvent {
+	isHandledByList?: boolean;
+}
+
 export interface IListMouseEvent<T> {
-	readonly browserEvent: MouseEvent;
+	readonly browserEvent: IListBrowserMouseEvent;
 	readonly element: T | undefined;
 	readonly index: number | undefined;
 }

@@ -2408,7 +2408,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerDocumentPasteEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentPasteEditProvider, metadata: vscode.DocumentPasteProviderMetadata): vscode.Disposable {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentPasteEditProvider(this._proxy, this._documents, provider, handle, extension), extension));
-		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector, extension), !!provider.prepareDocumentPaste, metadata.pasteMimeTypes);
+		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector, extension), {
+			supportsCopy: !!provider.prepareDocumentPaste,
+			copyMimeTypes: metadata.copyMimeTypes,
+			pasteMimeTypes: metadata.pasteMimeTypes,
+		});
 		return this._createDisposable(handle);
 	}
 

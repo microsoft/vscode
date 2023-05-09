@@ -345,7 +345,6 @@ class SharedProcessMain extends Disposable {
 			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 		},
-			false,
 			configurationService,
 			environmentService,
 			logService,

@@ -387,7 +387,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void;
-	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean, pasteMimeTypes: readonly string[]): void;
+	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IPasteEditProviderMetadataDto): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, supportRanges: boolean): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
@@ -1125,6 +1125,9 @@ export interface MainThreadInteractiveSessionShape extends IDisposable {
 	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
 	$unregisterInteractiveSessionProvider(handle: number): Promise<void>;
 	$acceptInteractiveResponseProgress(handle: number, sessionId: number, progress: IInteractiveProgress): void;
+
+	$registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void>;
+	$unregisterSlashCommandProvider(handle: number): Promise<void>;
 }
 
 export interface ExtHostInteractiveSessionShape {
@@ -1136,6 +1139,9 @@ export interface ExtHostInteractiveSessionShape {
 	$provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	$releaseSession(sessionId: number): void;
 	$onDidPerformUserAction(event: IInteractiveSessionUserActionEvent): Promise<void>;
+
+	$provideProviderSlashCommands(handle: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
+	$resolveSlashCommand(handle: number, command: string, token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface ExtHostUrlsShape {
@@ -1816,6 +1822,12 @@ export interface IInlineValueContextDto {
 }
 
 export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
+
+export interface IPasteEditProviderMetadataDto {
+	readonly supportsCopy: boolean;
+	readonly copyMimeTypes?: readonly string[];
+	readonly pasteMimeTypes: readonly string[];
+}
 
 export interface IPasteEditDto {
 	label: string;

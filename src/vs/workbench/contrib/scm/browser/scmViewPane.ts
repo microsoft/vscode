@@ -1084,7 +1084,7 @@ class ViewModel {
 		this._onDidChangeMode.fire(mode);
 		this.modeContextKey.set(mode);
 
-		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
@@ -1100,7 +1100,7 @@ class ViewModel {
 		this.sortKeyContextKey.set(sortKey);
 
 		if (this._mode === ViewModelMode.List) {
-			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
