@@ -555,7 +555,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					if (unlinkError.code === 'EPERM' || unlinkError.code === 'EISDIR') {
 						let isDirectory = false;
 						try {
-							isDirectory = (await this.stat(resource)).type === FileType.Directory;
+							const { stat, symbolicLink } = await SymlinkSupport.stat(filePath);
+							isDirectory = stat.isDirectory() && !symbolicLink;
 						} catch (statError) {
 							// ignore
 						}

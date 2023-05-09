@@ -608,21 +608,21 @@ flakySuite('Disk File Service', function () {
 		assert.ok(error);
 	});
 
-	test('deleteFolder empty folder (recursive)', async () => {
-		const { resource } = await service.createFolder(URI.file(join(testDir, 'deep', 'empty')));
-
-		await service.del(resource, { recursive: true });
-
-		assert.strictEqual(await service.exists(resource), false);
+	test('deleteFolder empty folder (recursive)', () => {
+		return testDeleteEmptyFolder(true);
 	});
 
-	test('deleteFolder empty folder (non recursive)', async () => {
+	test('deleteFolder empty folder (non recursive)', () => {
+		return testDeleteEmptyFolder(false);
+	});
+
+	async function testDeleteEmptyFolder(recursive: boolean): Promise<void> {
 		const { resource } = await service.createFolder(URI.file(join(testDir, 'deep', 'empty')));
 
-		await service.del(resource, { recursive: false });
+		await service.del(resource, { recursive });
 
 		assert.strictEqual(await service.exists(resource), false);
-	});
+	}
 
 	test('move', async () => {
 		let event: FileOperationEvent;
