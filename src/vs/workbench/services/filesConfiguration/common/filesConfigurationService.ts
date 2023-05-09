@@ -142,18 +142,17 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean {
 		const sessionReadonlyOverride = this.sessionReadonlyOverrides.get(resource);
 		if (typeof sessionReadonlyOverride === 'boolean') {
-			return sessionReadonlyOverride; // session override always wins
+			return sessionReadonlyOverride; // determined by session override/Command
 		}
 
 		if (this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome)) {
 			return false; // never turn configuration folder readonly
 		}
-
-		if (this.configuredReadonlyFromPermissions && stat?.locked) {
-			return true; // leverage file permissions if configured as such
+		if (this.readonlyIncludeMatcher.value.matches(resource)) {
+			return !this.readonlyExcludeMatcher.value.matches(resource); // determined by Inc/Exc Globs
 		}
-
-		return this.readonlyIncludeMatcher.value.matches(resource) && !this.readonlyExcludeMatcher.value.matches(resource);
+		// determined by file permissions if configured as such:
+		return (this.configuredReadonlyFromPermissions && stat?.locked) || false;
 	}
 
 	async updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void> {
