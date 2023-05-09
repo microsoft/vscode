@@ -22,6 +22,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
+import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, IValidEditOperation } from 'vs/editor/common/model';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -582,6 +583,12 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
+	acceptLast(): void {
+		if (this._activeSession?.lastExchange?.response instanceof EditResponse && this._strategy) {
+			this._activeSession.lastExchange.accepted = true;
+		}
+	}
+
 	async applyChanges(): Promise<EditResponse | void> {
 		if (this._activeSession?.lastExchange?.response instanceof EditResponse && this._strategy) {
 			const strategy = this._strategy;
@@ -757,11 +764,26 @@ class LiveStrategy extends EditModeStrategy {
 	}
 
 	async cancel() {
-		const { modelN, model0 } = this._session;
+		const { modelN, model0, exchanges, lastExchange } = this._session;
 		if (modelN.isDisposed() || model0.isDisposed()) {
 			return;
 		}
-		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: model0.getValue() }]);
+
+		if (lastExchange?.accepted) {
+			return;
+		}
+
+		// find the last exchange which is accepted
+		const lastAcceptedExchange = exchanges.reverse().find(exchange => exchange.accepted);
+		let edits: TextEdit[] | undefined = undefined;
+		if (lastAcceptedExchange && lastAcceptedExchange.response instanceof EditResponse) {
+			// apply change on model0 with the last accepted exchange, and then compute minimal edits to apply on modelN
+			model0.applyEdits(lastAcceptedExchange.response.localEdits);
+			edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: model0.getValue() }]);
+		} else {
+			edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: model0.getValue() }]);
+		}
+
 		if (edits) {
 			const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));
 			modelN.pushEditOperations(null, operations, () => null);

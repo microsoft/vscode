@@ -71,6 +71,10 @@ export class Session {
 		this._teldata.rounds += `${newLen}|`;
 	}
 
+	get exchanges(): SessionExchange[] {
+		return this._exchange;
+	}
+
 	get lastExchange(): SessionExchange | undefined {
 		return this._exchange[this._exchange.length - 1];
 	}
@@ -97,6 +101,16 @@ export class Session {
 
 
 export class SessionExchange {
+	private _accepted = false;
+
+	get accepted() {
+		return this._accepted;
+	}
+
+	set accepted(value: boolean) {
+		this._accepted = value;
+	}
+
 	constructor(
 		readonly prompt: string,
 		readonly response: MarkdownResponse | EditResponse
