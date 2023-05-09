@@ -25,7 +25,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update?: { mode?: string };
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
-	security?: { workspace?: { trust?: { enabled?: boolean } } };
+	security?: { workspace?: { trust?: { enabled?: boolean } }; allowedUNCHosts?: string[] };
 	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
@@ -44,7 +44,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
 		'workbench.enableExperiments',
-		'_extensionsGallery.enablePPE'
+		'_extensionsGallery.enablePPE',
+		'security.allowedUNCHosts'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
@@ -58,6 +59,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
 	private readonly experimentsEnabled = new ChangeObserver('boolean');
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
+	private readonly allowedUNCHosts = new ChangeObserver('string');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -117,6 +119,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Workspace trust
 			processChanged(this.workspaceTrustEnabled.handleChange(config?.security?.workspace?.trust?.enabled));
+
+			// Allowed UNC Hosts
+			processChanged(this.allowedUNCHosts.handleChange(config?.security?.allowedUNCHosts?.join('\\')));
 		}
 
 		// Experiments
