@@ -255,8 +255,7 @@ export class BrowserMain extends Disposable {
 
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const expectResolverExtension = !!environmentService.remoteAuthority?.includes('+') && !environmentService.options.webSocketFactory;
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!expectResolverExtension, connectionToken, this.configuration.resourceUriProvider, productService, logService);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, this.configuration.resourceUriProvider, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
