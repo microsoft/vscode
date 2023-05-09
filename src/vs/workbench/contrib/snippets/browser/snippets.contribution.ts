@@ -48,7 +48,7 @@ Registry
 				'description': nls.localize('editor.snippets.codeActions.enabled', 'Controls if surround-with-snippets or file template snippets show as Code Actions.'),
 				'type': 'boolean',
 				'default': true
-			},
+			}
 		}
 	});
 
