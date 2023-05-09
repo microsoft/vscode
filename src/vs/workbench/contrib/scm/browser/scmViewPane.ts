@@ -519,12 +519,9 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	}
 
 	private _renderActionBar(template: ResourceTemplate, resourceOrFolder: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, menu: IMenu): void {
-		if (!template.actionBarMenu || template.actionBarMenu !== menu) {
-			template.actionBar.clear();
-			template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
-			template.actionBarMenu = menu;
-		}
-
+		template.actionBar.clear();
+		template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
+		template.actionBarMenu = menu;
 		template.actionBar.context = resourceOrFolder;
 	}
 
