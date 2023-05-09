@@ -205,7 +205,6 @@ function initializeScroll(scrollableElement: HTMLElement, disposables: Disposabl
 		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
 		scrollableElement.addEventListener('scroll', onScrollHandler);
 		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
-		scrollableElement.tabIndex = 0;
 	}
 }
 
