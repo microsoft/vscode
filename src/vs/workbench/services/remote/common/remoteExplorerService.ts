@@ -426,6 +426,7 @@ export class TunnelModel extends Disposable {
 	private restoreListener: IDisposable | undefined;
 	private knownPortsRestoreValue: string | undefined;
 	private unrestoredExtensionTunnels: Map<string, Tunnel> = new Map();
+	private sessionCachedProperties: Map<string, Partial<TunnelProperties>> = new Map();
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
 
@@ -507,6 +508,12 @@ export class TunnelModel extends Disposable {
 	private async onTunnelClosed(address: { host: string; port: number }) {
 		const key = makeAddress(address.host, address.port);
 		if (this.forwarded.has(key)) {
+			const oldTunnel = this.forwarded.get(key)!;
+			this.sessionCachedProperties.set(key, {
+				local: oldTunnel.localPort,
+				name: oldTunnel.name,
+				privacy: oldTunnel.privacy,
+			});
 			this.forwarded.delete(key);
 			await this.storeForwarded();
 			this._onClosePort.fire(address);
@@ -631,7 +638,9 @@ export class TunnelModel extends Disposable {
 
 			const key = makeAddress(tunnelProperties.remote.host, tunnelProperties.remote.port);
 			this.inProgress.set(key, true);
-			let tunnel = await this.tunnelService.openTunnel(addressProvider, tunnelProperties.remote.host, tunnelProperties.remote.port, undefined, localPort, (!tunnelProperties.elevateIfNeeded) ? attributes?.elevateIfNeeded : tunnelProperties.elevateIfNeeded, tunnelProperties.privacy, attributes?.protocol);
+			tunnelProperties = this.mergeCachedAndUnrestoredProperties(key, tunnelProperties);
+
+			const tunnel = await this.tunnelService.openTunnel(addressProvider, tunnelProperties.remote.host, tunnelProperties.remote.port, undefined, localPort, (!tunnelProperties.elevateIfNeeded) ? attributes?.elevateIfNeeded : tunnelProperties.elevateIfNeeded, tunnelProperties.privacy, attributes?.protocol);
 			if (tunnel && tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), tunnelProperties.remote.host, tunnelProperties.remote.port);
 				const protocol = (tunnel.protocol ?
@@ -658,37 +667,63 @@ export class TunnelModel extends Disposable {
 				await this.storeForwarded();
 				await this.showPortMismatchModalIfNeeded(tunnel, localPort, attributes);
 				this._onForwardPort.fire(newForward);
-				if (this.unrestoredExtensionTunnels.has(key)) {
-					const updateProps = this.unrestoredExtensionTunnels.get(key);
-					this.unrestoredExtensionTunnels.delete(key);
-					if (updateProps) {
-						tunnel = await this.forward({
-							remote: { host: newForward.remoteHost, port: newForward.remotePort },
-							local: newForward.localPort,
-							name: newForward.name,
-							privacy: updateProps.privacy,
-							elevateIfNeeded: true,
-						});
-					}
-				}
 				return tunnel;
 			}
 			this.inProgress.delete(key);
 		} else {
-			const newName = attributes?.label ?? tunnelProperties.name;
-			if (newName !== existingTunnel.name) {
-				existingTunnel.name = newName;
-				this._onForwardPort.fire();
-			}
-			if ((attributes?.protocol || (existingTunnel.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== existingTunnel.protocol)) {
-				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
-				tunnelProperties.source = existingTunnel.source;
-				await this.forward(tunnelProperties, attributes);
-			}
-			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, tunnelProperties.remote.host, tunnelProperties.remote.port);
+			return this.mergeAttributesIntoExistingTunnel(existingTunnel, tunnelProperties, attributes);
 		}
 
 		return undefined;
+	}
+
+	private mergeCachedAndUnrestoredProperties(key: string, tunnelProperties: TunnelProperties): TunnelProperties {
+		const map = this.unrestoredExtensionTunnels.has(key) ? this.unrestoredExtensionTunnels : (this.sessionCachedProperties.has(key) ? this.sessionCachedProperties : undefined);
+		if (map) {
+			const updateProps = map.get(key)!;
+			map.delete(key);
+			if (updateProps) {
+				tunnelProperties.name = updateProps.name ?? tunnelProperties.name;
+				tunnelProperties.local = (('local' in updateProps) ? updateProps.local : (('localPort' in updateProps) ? updateProps.localPort : undefined)) ?? tunnelProperties.local;
+				tunnelProperties.privacy = updateProps.privacy ?? tunnelProperties.privacy;
+			}
+		}
+		return tunnelProperties;
+	}
+
+	private async mergeAttributesIntoExistingTunnel(existingTunnel: Tunnel, tunnelProperties: TunnelProperties, attributes: Attributes | undefined) {
+		const newName = attributes?.label ?? tunnelProperties.name;
+		enum MergedAttributeAction {
+			None = 0,
+			Fire = 1,
+			Reopen = 2
+		}
+		let mergedAction = MergedAttributeAction.None;
+		if (newName !== existingTunnel.name) {
+			existingTunnel.name = newName;
+			mergedAction = MergedAttributeAction.Fire;
+		}
+		// Source of existing tunnel wins so that original source is maintained
+		if ((attributes?.protocol || (existingTunnel.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== existingTunnel.protocol)) {
+			tunnelProperties.source = existingTunnel.source;
+			mergedAction = MergedAttributeAction.Reopen;
+		}
+		// New privacy value wins
+		if (tunnelProperties.privacy && (existingTunnel.privacy !== tunnelProperties.privacy)) {
+			mergedAction = MergedAttributeAction.Reopen;
+		}
+		switch (mergedAction) {
+			case MergedAttributeAction.Fire: {
+				this._onForwardPort.fire();
+				break;
+			}
+			case MergedAttributeAction.Reopen: {
+				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
+				await this.forward(tunnelProperties, attributes);
+			}
+		}
+
+		return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, tunnelProperties.remote.host, tunnelProperties.remote.port);
 	}
 
 	async name(host: string, port: number, name: string) {
