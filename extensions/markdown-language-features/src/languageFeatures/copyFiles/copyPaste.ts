@@ -26,10 +26,6 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		if (document.uri.scheme === Schemes.notebookCell) {
-			return;
-		}
-
 		for (const imageMime of supportedImageMimes) {
 			const item = dataTransfer.get(imageMime);
 			const file = item?.asFile();
@@ -46,16 +42,20 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet) : undefined;
+		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet, snippet.label) : undefined;
 	}
 
 	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
+		if (document.uri.scheme === Schemes.untitled) {
+			return undefined;
+		}
+
 		if (file.uri) {
 			// If file is already in workspace, we don't want to create a copy of it
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
 			if (workspaceFolder) {
 				const snippet = createUriListSnippet(document, [file.uri]);
-				return snippet ? new vscode.DocumentPasteEdit(snippet.snippet) : undefined;
+				return snippet ? new vscode.DocumentPasteEdit(snippet.snippet, snippet.label) : undefined;
 			}
 		}
 
@@ -73,7 +73,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		workspaceEdit.createFile(uri, { contents: file });
 
-		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet);
+		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, snippet.label);
 		pasteEdit.additionalEdit = workspaceEdit;
 		return pasteEdit;
 	}

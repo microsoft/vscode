@@ -45,6 +45,11 @@ declare module 'vscode' {
 	 */
 	class DocumentPasteEdit {
 		/**
+		 * Human readable label that describes the edit.
+		 */
+		label: string;
+
+		/**
 		 * The text or snippet to insert at the pasted locations.
 		 */
 		insertText: string | SnippetString;
@@ -56,11 +61,18 @@ declare module 'vscode' {
 
 		/**
 		 * @param insertText The text or snippet to insert at the pasted locations.
+		 *
+		 * TODO: Reverse args, but this will break existing consumers :(
 		 */
-		constructor(insertText: string | SnippetString);
+		constructor(insertText: string | SnippetString, label: string);
 	}
 
 	interface DocumentPasteProviderMetadata {
+		/**
+		 * Mime types that {@link DocumentPasteEditProvider.prepareDocumentPaste provideDocumentPasteEdits} may add on copy.
+		 */
+		readonly copyMimeTypes?: readonly string[];
+
 		/**
 		 * Mime types that {@link DocumentPasteEditProvider.provideDocumentPasteEdits provideDocumentPasteEdits} should be invoked for.
 		 *

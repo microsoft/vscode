@@ -3,32 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IReader, IObservable, IObserver } from 'vs/base/common/observableImpl/base';
+import { IReader, IObservable, IObserver, IChangeContext } from 'vs/base/common/observableImpl/base';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
 
 export function autorun(debugName: string, fn: (reader: IReader) => void): IDisposable {
-	return new AutorunObserver(debugName, fn, undefined);
+	return new AutorunObserver(debugName, fn, undefined, undefined);
 }
 
-interface IChangeContext {
-	readonly changedObservable: IObservable<any, any>;
-	readonly change: unknown;
-
-	didChange<T, TChange>(observable: IObservable<T, TChange>): this is { change: TChange };
-}
-
-export function autorunHandleChanges(
+export function autorunHandleChanges<TChangeSummary>(
 	debugName: string,
 	options: {
-		/**
-		 * Returns if this change should cause a re-run of the autorun.
-		*/
-		handleChange: (context: IChangeContext) => boolean;
+		createEmptyChangeSummary?: () => TChangeSummary;
+		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
 	},
-	fn: (reader: IReader) => void
+	fn: (reader: IReader, changeSummary: TChangeSummary) => void
 ): IDisposable {
-	return new AutorunObserver(debugName, fn, options.handleChange);
+	return new AutorunObserver(debugName, fn, options.createEmptyChangeSummary, options.handleChange);
 }
 
 export function autorunWithStore(
@@ -63,18 +55,21 @@ const enum AutorunState {
 	upToDate = 3,
 }
 
-export class AutorunObserver implements IObserver, IReader, IDisposable {
+export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader, IDisposable {
 	private state = AutorunState.stale;
 	private updateCount = 0;
 	private disposed = false;
 	private dependencies = new Set<IObservable<any>>();
 	private dependenciesToBeRemoved = new Set<IObservable<any>>();
+	private changeSummary: TChangeSummary | undefined;
 
 	constructor(
 		public readonly debugName: string,
-		private readonly runFn: (reader: IReader) => void,
-		private readonly _handleChange: ((context: IChangeContext) => boolean) | undefined
+		private readonly runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
+		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
+		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
 	) {
+		this.changeSummary = this.createChangeSummary?.();
 		getLogger()?.handleAutorunCreated(this);
 		this._runIfNeeded();
 	}
@@ -101,7 +96,9 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 		getLogger()?.handleAutorunTriggered(this);
 
 		try {
-			this.runFn(this);
+			const changeSummary = this.changeSummary!;
+			this.changeSummary = this.createChangeSummary?.();
+			this.runFn(this, changeSummary);
 		} finally {
 			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 			// Thus, we only unsubscribe from observables that are definitely not read anymore.
@@ -142,6 +139,10 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 			} while (this.state !== AutorunState.upToDate);
 		}
 		this.updateCount--;
+
+		if (this.updateCount < 0) {
+			throw new BugIndicatingError();
+		}
 	}
 
 	public handlePossibleChange(observable: IObservable<any>): void {
@@ -156,7 +157,7 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 				changedObservable: observable,
 				change,
 				didChange: o => o === observable as any,
-			}) : true;
+			}, this.changeSummary!) : true;
 			if (shouldReact) {
 				this.state = AutorunState.stale;
 			}

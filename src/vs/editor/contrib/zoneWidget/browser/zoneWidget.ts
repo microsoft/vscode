@@ -28,7 +28,7 @@ export interface IOptions {
 	frameColor?: Color;
 	arrowColor?: Color;
 	keepEditorSelection?: boolean;
-
+	allowUnlimitedHeight?: boolean;
 	ordinal?: number;
 	showInHiddenAreas?: boolean;
 }
@@ -363,8 +363,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 
 		// adjust heightInLines to viewport
-		const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
-		heightInLines = Math.min(heightInLines, maxHeightInLines);
+		if (!this.options.allowUnlimitedHeight) {
+			const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
+			heightInLines = Math.min(heightInLines, maxHeightInLines);
+		}
 
 		let arrowHeight = 0;
 		let frameThickness = 0;

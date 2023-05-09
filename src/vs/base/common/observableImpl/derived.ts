@@ -4,11 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { IReader, IObservable, BaseObservable, IObserver, _setDerived } from 'vs/base/common/observableImpl/base';
+import { IReader, IObservable, BaseObservable, IObserver, _setDerived, IChangeContext } from 'vs/base/common/observableImpl/base';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
 
 export function derived<T>(debugName: string | (() => string), computeFn: (reader: IReader) => T): IObservable<T> {
-	return new Derived(debugName, computeFn);
+	return new Derived(debugName, computeFn, undefined, undefined);
+}
+
+export function derivedHandleChanges<T, TChangeSummary>(
+	debugName: string | (() => string),
+	options: {
+		createEmptyChangeSummary: () => TChangeSummary;
+		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
+	},
+	computeFn: (reader: IReader, changeSummary: TChangeSummary) => T): IObservable<T> {
+	return new Derived(debugName, computeFn, options.createEmptyChangeSummary, options.handleChange);
 }
 
 _setDerived(derived);
@@ -35,12 +45,13 @@ const enum DerivedState {
 	upToDate = 3,
 }
 
-export class Derived<T> extends BaseObservable<T, void> implements IReader, IObserver {
+export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> implements IReader, IObserver {
 	private state = DerivedState.initial;
 	private value: T | undefined = undefined;
 	private updateCount = 0;
 	private dependencies = new Set<IObservable<any>>();
 	private dependenciesToBeRemoved = new Set<IObservable<any>>();
+	private changeSummary: TChangeSummary | undefined = undefined;
 
 	public override get debugName(): string {
 		return typeof this._debugName === 'function' ? this._debugName() : this._debugName;
@@ -48,10 +59,12 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 
 	constructor(
 		private readonly _debugName: string | (() => string),
-		private readonly computeFn: (reader: IReader) => T
+		private readonly computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
+		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
+		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
 	) {
 		super();
-
+		this.changeSummary = this.createChangeSummary?.();
 		getLogger()?.handleDerivedCreated(this);
 	}
 
@@ -72,7 +85,7 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 		if (this.observers.size === 0) {
 			// Without observers, we don't know when to clean up stuff.
 			// Thus, we don't cache anything to prevent memory leaks.
-			const result = this.computeFn(this);
+			const result = this.computeFn(this, this.createChangeSummary?.()!);
 			// Clear new dependencies
 			this.onLastObserverRemoved();
 			return result;
@@ -113,9 +126,11 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 		const oldValue = this.value;
 		this.state = DerivedState.upToDate;
 
+		const changeSummary = this.changeSummary!;
+		this.changeSummary = this.createChangeSummary?.();
 		try {
 			/** might call {@link handleChange} indirectly, which could invalidate us */
-			this.value = this.computeFn(this);
+			this.value = this.computeFn(this, changeSummary);
 		} finally {
 			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 			// Thus, we only unsubscribe from observables that are definitely not read anymore.
@@ -146,7 +161,7 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 	}
 
 	// IObserver Implementation
-	public beginUpdate(): void {
+	public beginUpdate<T>(_observable: IObservable<T>): void {
 		this.updateCount++;
 		const propagateBeginUpdate = this.updateCount === 1;
 		if (this.state === DerivedState.upToDate) {
@@ -165,7 +180,7 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 		}
 	}
 
-	public endUpdate(): void {
+	public endUpdate<T>(_observable: IObservable<T>): void {
 		this.updateCount--;
 		if (this.updateCount === 0) {
 			// End update could change the observer list.
@@ -189,9 +204,19 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 		}
 	}
 
-	public handleChange<T, TChange>(observable: IObservable<T, TChange>, _change: TChange): void {
+	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
 		const isUpToDate = this.state === DerivedState.upToDate;
-		if ((this.state === DerivedState.dependenciesMightHaveChanged || isUpToDate) && this.dependencies.has(observable)) {
+		let shouldReact = true;
+
+		if (this._handleChange && this.dependencies.has(observable)) {
+			shouldReact = this._handleChange({
+				changedObservable: observable,
+				change,
+				didChange: o => o === observable as any,
+			}, this.changeSummary!);
+		}
+
+		if (shouldReact && (this.state === DerivedState.dependenciesMightHaveChanged || isUpToDate) && this.dependencies.has(observable)) {
 			this.state = DerivedState.stale;
 			if (isUpToDate) {
 				for (const r of this.observers) {
@@ -211,5 +236,19 @@ export class Derived<T> extends BaseObservable<T, void> implements IReader, IObs
 		this.dependencies.add(observable);
 		this.dependenciesToBeRemoved.delete(observable);
 		return value;
+	}
+
+	public override addObserver(observer: IObserver): void {
+		if (!this.observers.has(observer) && this.updateCount > 0) {
+			observer.beginUpdate(this);
+		}
+		super.addObserver(observer);
+	}
+
+	public override removeObserver(observer: IObserver): void {
+		if (this.observers.has(observer) && this.updateCount > 0) {
+			observer.endUpdate(this);
+		}
+		super.removeObserver(observer);
 	}
 }

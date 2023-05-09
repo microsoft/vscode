@@ -379,6 +379,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				// When no expression available fallback to editor hover
 				this.showEditorHover(position, focus);
 			}
+		} else {
+			this.showEditorHover(position, focus);
 		}
 	}
 

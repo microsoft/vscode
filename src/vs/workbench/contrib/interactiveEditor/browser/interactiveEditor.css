@@ -226,3 +226,14 @@
 .monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
 	background-color: var(--vscode-interactiveEditor-regionHighlight);
 }
+
+/* create zone */
+
+.monaco-editor .interactive-editor-newfile-widget {
+	padding: 3px 0 6px 0;
+	background-color: var(--vscode-interactiveEditor-regionHighlight);
+}
+
+.monaco-editor .interactive-editor-newfile-widget .title {
+	padding: 3px 0;
+}

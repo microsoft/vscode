@@ -210,8 +210,8 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/interactiveSession',
 					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['interactiveSession.*']
-				},
+					settings: ['interactiveSession.*', 'interactiveEditor.*']
+				}
 			]
 		},
 		{
@@ -258,6 +258,7 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'security',
 			label: localize('security', "Security"),
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',

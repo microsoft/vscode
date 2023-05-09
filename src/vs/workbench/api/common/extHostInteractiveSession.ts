@@ -7,6 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -15,7 +16,7 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import type * as vscode from 'vscode';
 
-class InteractiveSessionProviderWrapper {
+class InteractiveSessionProviderWrapper<T> {
 
 	private static _pool = 0;
 
@@ -23,14 +24,15 @@ class InteractiveSessionProviderWrapper {
 
 	constructor(
 		readonly extension: Readonly<IRelaxedExtensionDescription>,
-		readonly provider: vscode.InteractiveSessionProvider,
+		readonly provider: T,
 	) { }
 }
 
 export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape {
 	private static _nextId = 0;
 
-	private readonly _interactiveSessionProvider = new Map<number, InteractiveSessionProviderWrapper>();
+	private readonly _interactiveSessionProvider = new Map<number, InteractiveSessionProviderWrapper<vscode.InteractiveSessionProvider>>();
+	private readonly _slashCommandProvider = new Map<number, InteractiveSessionProviderWrapper<vscode.InteractiveSlashCommandProvider>>();
 	private readonly _interactiveSessions = new Map<number, vscode.InteractiveSession>();
 	// private readonly _providerResponsesByRequestId = new Map<number, { response: vscode.ProviderResult<vscode.InteractiveResponse | vscode.InteractiveResponseForProgress>; sessionId: number }>();
 
@@ -243,4 +245,37 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 	}
 
 	//#endregion
+
+	registerSlashCommandProvider(extension: Readonly<IRelaxedExtensionDescription>, chatProviderId: string, provider: vscode.InteractiveSlashCommandProvider): vscode.Disposable {
+		const wrapper = new InteractiveSessionProviderWrapper(extension, provider);
+		this._slashCommandProvider.set(wrapper.handle, wrapper);
+		this._proxy.$registerSlashCommandProvider(wrapper.handle, chatProviderId);
+		return toDisposable(() => {
+			this._proxy.$unregisterSlashCommandProvider(wrapper.handle);
+			this._slashCommandProvider.delete(wrapper.handle);
+		});
+	}
+
+	async $provideProviderSlashCommands(handle: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
+		const entry = this._slashCommandProvider.get(handle);
+		if (!entry) {
+			return undefined;
+		}
+
+		const slashCommands = await entry.provider.provideSlashCommands(token);
+		return slashCommands?.map(c => (<IInteractiveSlashCommand>{
+			...c,
+			kind: typeConvert.CompletionItemKind.from(c.kind)
+		}));
+	}
+
+	async $resolveSlashCommand(handle: number, command: string, token: CancellationToken): Promise<string | undefined> {
+		const entry = this._slashCommandProvider.get(handle);
+		if (!entry) {
+			return undefined;
+		}
+
+		const resolved = await entry.provider.resolveSlashCommand(command, token);
+		return withNullAsUndefined(resolved);
+	}
 }

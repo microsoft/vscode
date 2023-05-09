@@ -114,6 +114,7 @@ export const CTX_INTERACTIVE_EDITOR_INLNE_DIFF = new RawContextKey<boolean>('int
 export const CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE = new RawContextKey<InteractiveEditorResponseType | undefined>('interactiveEditorLastResponseType', undefined, localize('interactiveEditorResponseType', "What type was the last response of the current interactive editor session"));
 export const CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE = new RawContextKey<'simple' | ''>('interactiveEditorLastEditKind', '', localize('interactiveEditorLastEditKind', "The last kind of edit that was performed"));
 export const CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('interactiveEditorLastFeedbackKind', '', localize('interactiveEditorLastFeedbackKind', "The last kind of feedback that was provided"));
+export const CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED = new RawContextKey<boolean>('interactiveEditorDocumentChanged', false, localize('interactiveEditorDocumentChanged', "Whether the document has changed concurrently"));
 export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<EditMode>('config.interactiveEditor.editMode', EditMode.Live);
 
 // --- menus

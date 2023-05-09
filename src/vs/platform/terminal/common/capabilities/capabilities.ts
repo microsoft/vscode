@@ -176,8 +176,13 @@ export interface ICommandDetectionCapability {
 	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
 	/**
 	 * Set the command line explicitly.
+	 * @param commandLine The command line being set.
+	 * @param isTrusted Whether the command line is trusted via the optional nonce is send in order
+	 * to prevent spoofing. This is important as some interactions do not require verification
+	 * before re-running a command. Note that this is optional according to the spec, it should
+	 * always be present when running the _builtin_ SI scripts.
 	 */
-	setCommandLine(commandLine: string): void;
+	setCommandLine(commandLine: string, isTrusted: boolean): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
@@ -211,21 +216,38 @@ export interface IPartialCommandDetectionCapability {
 	readonly onCommandFinished: Event<IXtermMarker>;
 }
 
-export interface ITerminalCommand {
+interface IBaseTerminalCommand {
+	// Mandatory
 	command: string;
+	isTrusted: boolean;
 	timestamp: number;
-	cwd?: string;
-	exitCode?: number;
+
+	// Optional serializable
+	cwd: string | undefined;
+	exitCode: number | undefined;
+	commandStartLineContent: string | undefined;
+	markProperties: IMarkProperties | undefined;
+}
+
+export interface ITerminalCommand extends IBaseTerminalCommand {
+	// Optional non-serializable
 	marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
 	executedMarker?: IXtermMarker;
-	commandStartLineContent?: string;
-	markProperties?: IMarkProperties;
 	aliases?: string[][];
 	wasReplayed?: boolean;
+
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;
+}
+
+export interface ISerializedTerminalCommand extends IBaseTerminalCommand {
+	// Optional non-serializable converted for serialization
+	startLine: number | undefined;
+	startX: number | undefined;
+	endLine: number | undefined;
+	executedLine: number | undefined;
 }
 
 /**
@@ -241,18 +263,6 @@ export interface IXtermMarker {
 	};
 }
 
-export interface ISerializedCommand {
-	command: string;
-	cwd: string | undefined;
-	startLine: number | undefined;
-	startX: number | undefined;
-	endLine: number | undefined;
-	executedLine: number | undefined;
-	exitCode: number | undefined;
-	commandStartLineContent: string | undefined;
-	timestamp: number;
-	markProperties: IMarkProperties | undefined;
-}
 export interface IMarkProperties {
 	hoverMessage?: string;
 	disableCommandStorage?: boolean;
@@ -262,7 +272,7 @@ export interface IMarkProperties {
 }
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
-	commands: ISerializedCommand[];
+	commands: ISerializedTerminalCommand[];
 }
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];

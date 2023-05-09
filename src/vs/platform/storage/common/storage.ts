@@ -98,6 +98,17 @@ export interface IStorageService {
 	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
+	 * Retrieve an element stored with the given key from storage. Use
+	 * the provided `defaultValue` if the element is `null` or `undefined`.
+	 * The element will be converted to a `object` using `JSON.parse`.
+	 *
+	 * @param scope allows to define the scope of the storage operation
+	 * to either the current workspace only, all workspaces or all profiles.
+	 */
+	getObject<T extends object>(key: string, scope: StorageScope, fallbackValue: T): T;
+	getObject<T extends object>(key: string, scope: StorageScope, fallbackValue?: T): T | undefined;
+
+	/**
 	 * Store a value under the given key to storage. The value will be
 	 * converted to a `string`. Storing either `undefined` or `null` will
 	 * remove the entry under the key.
@@ -108,7 +119,7 @@ export interface IStorageService {
 	 * @param target allows to define the target of the storage operation
 	 * to either the current machine or user.
 	 */
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void;
+	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -371,7 +382,13 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getStorage(scope)?.getNumber(key, fallbackValue);
 	}
 
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void {
+	getObject(key: string, scope: StorageScope, fallbackValue: object): object;
+	getObject(key: string, scope: StorageScope): object | undefined;
+	getObject(key: string, scope: StorageScope, fallbackValue?: object): object | undefined {
+		return this.getStorage(scope)?.getObject(key, fallbackValue);
+	}
+
+	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget): void {
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {

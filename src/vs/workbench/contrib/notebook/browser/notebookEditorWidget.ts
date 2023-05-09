@@ -89,7 +89,8 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { Schemas } from 'vs/base/common/network';
-import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
+import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
+import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 
 const $ = DOM.$;
 
@@ -1900,6 +1901,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (this.getActiveCell() === cell && editor) {
 				SuggestController.get(editor)?.cancelSuggestWidget();
 				DropIntoEditorController.get(editor)?.clearWidgets();
+				CopyPasteController.get(editor)?.clearWidgets();
 			}
 		});
 	}

@@ -6,17 +6,16 @@
 use async_trait::async_trait;
 use shell_escape::windows::escape as shell_escape;
 use std::{
-	io,
 	path::PathBuf,
 	process::{Command, Stdio},
 };
-use sysinfo::{ProcessExt, System, SystemExt};
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
 use crate::{
 	constants::TUNNEL_ACTIVITY_NAME,
 	log,
 	state::LauncherPaths,
+	tunnels::{protocol, singleton_client::do_single_rpc_call},
 	util::errors::{wrap, wrapdbg, AnyError},
 };
 
@@ -24,6 +23,7 @@ use super::service::{tail_log_file, ServiceContainer, ServiceManager as CliServi
 
 pub struct WindowsService {
 	log: log::Logger,
+	tunnel_lock: PathBuf,
 	log_file: PathBuf,
 }
 
@@ -31,6 +31,7 @@ impl WindowsService {
 	pub fn new(log: log::Logger, paths: &LauncherPaths) -> Self {
 		Self {
 			log,
+			tunnel_lock: paths.tunnel_lockfile(),
 			log_file: paths.service_log_file(),
 		}
 	}
@@ -94,29 +95,23 @@ impl CliServiceManager for WindowsService {
 
 	async fn unregister(&self) -> Result<(), AnyError> {
 		let key = WindowsService::open_key()?;
-		let prev_command_line: String = match key.get_value(TUNNEL_ACTIVITY_NAME) {
-			Ok(l) => l,
-			Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
-			Err(e) => return Err(wrap(e, "error getting registry key").into()),
-		};
-
 		key.delete_value(TUNNEL_ACTIVITY_NAME)
 			.map_err(|e| AnyError::from(wrap(e, "error deleting registry key")))?;
 		info!(self.log, "Tunnel service uninstalled");
 
-		let mut sys = System::new();
-		sys.refresh_processes();
+		let r = do_single_rpc_call::<_, ()>(
+			&self.tunnel_lock,
+			self.log.clone(),
+			protocol::singleton::METHOD_SHUTDOWN,
+			protocol::EmptyObject {},
+		)
+		.await;
 
-		for process in sys.processes().values() {
-			let joined = process.cmd().join(" "); // this feels a little sketch, but seems to work fine
-			if joined == prev_command_line {
-				process.kill();
-				info!(self.log, "Successfully shut down running tunnel");
-				return Ok(());
-			}
+		if r.is_err() {
+			warning!(self.log, "The tunnel service has been unregistered, but we couldn't find a running tunnel process. You may need to restart or log out and back in to fully stop the tunnel.");
+		} else {
+			info!(self.log, "Successfully shut down running tunnel.");
 		}
-
-		warning!(self.log, "The tunnel service has been unregistered, but we couldn't find a running tunnel process. You may need to restart or log out and back in to fully stop the tunnel.");
 
 		Ok(())
 	}
