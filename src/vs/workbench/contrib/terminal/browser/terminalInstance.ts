@@ -53,7 +53,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IRequestAddInstanceToGroupEvent, ITerminalChildElement, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalChildElement, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -351,6 +351,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		resource: URI | undefined,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly _pathService: IPathService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -484,7 +485,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Resolve the executable ahead of time if shell integration is enabled, this should not
 			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
 			// to hang in resolver extensions
-			if (!this.shellLaunchConfig.customPtyImplementation && this._configHelper.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
+			if (!this.shellLaunchConfig.customPtyImplementation && this._terminalConfigurationService.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
 				const os = await this._processManager.getBackendOS();
 				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
 				this.shellLaunchConfig.executable = defaultProfile.path;
@@ -646,6 +647,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
+		console.log('font', font);
 		if (!font.charWidth || !font.charHeight) {
 			this._setLastKnownColsAndRows();
 			return null;
@@ -766,13 +768,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// starts up or reconnects
 		setTimeout(() => {
 			xterm.raw.onBell(() => {
-				if (this._configHelper.config.enableBell) {
+				if (this._terminalConfigurationService.config.enableBell) {
 					this.statusList.add({
 						id: TerminalStatus.Bell,
 						severity: Severity.Warning,
 						icon: Codicon.bell,
 						tooltip: nls.localize('bellStatus', "Bell")
-					}, this._configHelper.config.bellDuration);
+					}, this._terminalConfigurationService.config.bellDuration);
 					this._audioCueService.playSound(AudioCue.terminalBell.sound);
 				}
 			});
@@ -860,7 +862,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 
 	private _loadTypeAheadAddon(xterm: XtermTerminal): void {
-		const enabled = this._configHelper.config.localEchoEnabled;
+		const enabled = this._terminalConfigurationService.config.localEchoEnabled;
 		const isRemote = !!this.remoteAuthority;
 		if (enabled === 'off' || enabled === 'auto' && !isRemote) {
 			return this._xtermTypeAheadAddon?.dispose();
@@ -953,7 +955,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
 			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
 			// terminals generally
-			const isValidChord = resolveResult?.kind === ResultKind.MoreChordsNeeded && this._configHelper.config.allowChords && event.key !== 'Escape';
+			const isValidChord = resolveResult?.kind === ResultKind.MoreChordsNeeded && this._terminalConfigurationService.config.allowChords && event.key !== 'Escape';
 			if (this._keybindingService.inChordMode || isValidChord) {
 				event.preventDefault();
 				return false;
@@ -973,7 +975,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
-			if (resolveResult && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
+			if (resolveResult && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._terminalConfigurationService.config.sendKeybindingsToShell) {
 				// don't alert when terminal is opened or closed
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
 					this._hasHadInput &&
@@ -997,7 +999,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// Skip processing by xterm.js of keyboard events that match menu bar mnemonics
-			if (this._configHelper.config.allowMnemonics && !isMacintosh && event.altKey) {
+			if (this._terminalConfigurationService.config.allowMnemonics && !isMacintosh && event.altKey) {
 				return false;
 			}
 
@@ -1401,7 +1403,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
 			if (!this._labelComputer) {
-				this._labelComputer = this._register(this._scopedInstantiationService.createInstance(TerminalLabelComputer, this._configHelper, this));
+				this._labelComputer = this._register(this._scopedInstantiationService.createInstance(TerminalLabelComputer, this));
 				this._labelComputer.onDidChangeLabel(e => {
 					this._title = e.title;
 					this._description = e.description;
@@ -1615,7 +1617,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.dispose(TerminalExitReason.Process);
 			if (exitMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
-				if (failedDuringLaunch || this._configHelper.config.showExitAlert) {
+				if (failedDuringLaunch || this._terminalConfigurationService.config.showExitAlert) {
 					// Always show launch failures
 					this._notificationService.notify({
 						message: exitMessage,
@@ -1820,12 +1822,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	updateConfig(): void {
-		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
+		this._setCommandsToSkipShell(this._terminalConfigurationService.config.commandsToSkipShell);
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
-		this._processManager.setUnicodeVersion(this._configHelper.config.unicodeVersion);
+		this._processManager.setUnicodeVersion(this._terminalConfigurationService.config.unicodeVersion);
 	}
 
 	updateAccessibilitySupport(): void {
@@ -1887,7 +1889,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// the characters are measured correctly.
 			if (this._isVisible && this._layoutSettingsChanged) {
 				const font = this.xterm.getFont();
-				const config = this._configHelper.config;
+				const config = this._terminalConfigurationService.config;
 				this.xterm.raw.options.letterSpacing = font.letterSpacing;
 				this.xterm.raw.options.lineHeight = font.lineHeight;
 				this.xterm.raw.options.fontSize = font.fontSize;
@@ -2162,7 +2164,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// special terminal (eg. extension terminal)
 		if (
 			info.requiresAction &&
-			this._configHelper.config.environmentChangesRelaunch &&
+			this._terminalConfigurationService.config.environmentChangesRelaunch &&
 			!this._processManager.hasWrittenData &&
 			(!this._shellLaunchConfig.isFeatureTerminal || (this.reconnectionProperties && this._configurationService.getValue(TaskSettingId.Reconnection) === true)) &&
 			!this._shellLaunchConfig.customPtyImplementation
@@ -2486,17 +2488,17 @@ export class TerminalLabelComputer extends Disposable {
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
 	constructor(
-		private readonly _configHelper: TerminalConfigHelper,
 		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		@IFileService private readonly _fileService: IFileService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 	}
 
 	refreshLabel(reset?: boolean): void {
-		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title, reset);
-		this._description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
+		this._title = this.computeLabel(this._terminalConfigurationService.config.tabs.title, TerminalLabelType.Title, reset);
+		this._description = this.computeLabel(this._terminalConfigurationService.config.tabs.description, TerminalLabelType.Description);
 		if (this._title !== this._instance.title || this._description !== this._instance.description || reset) {
 			this._onDidChangeLabel.fire({ title: this._title, description: this._description });
 		}
@@ -2519,7 +2521,7 @@ export class TerminalLabelComputer extends Disposable {
 			fixedDimensions: this._instance.fixedCols
 				? (this._instance.fixedRows ? `\u2194${this._instance.fixedCols} \u2195${this._instance.fixedRows}` : `\u2194${this._instance.fixedCols}`)
 				: (this._instance.fixedRows ? `\u2195${this._instance.fixedRows}` : ''),
-			separator: { label: this._configHelper.config.tabs.separator }
+			separator: { label: this._terminalConfigurationService.config.tabs.separator }
 		};
 		labelTemplate = labelTemplate.trim();
 		if (!labelTemplate) {

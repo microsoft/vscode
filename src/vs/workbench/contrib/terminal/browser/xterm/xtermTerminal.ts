@@ -17,7 +17,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -186,11 +186,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
 	) {
 		super();
 		const font = this._configHelper.getFont(undefined, true);
-		const config = this._configHelper.config;
+		const config = this._terminalConfigurationService.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
 		this.raw = this.add(new xtermCtor({
@@ -303,7 +304,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	updateConfig(): void {
-		const config = this._configHelper.config;
+		const config = this._terminalConfigurationService.config;
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
@@ -335,11 +336,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	private _shouldLoadWebgl(): boolean {
-		return !isSafari && (this._configHelper.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._configHelper.config.gpuAcceleration === 'on';
+		return !isSafari && (this._terminalConfigurationService.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._terminalConfigurationService.config.gpuAcceleration === 'on';
 	}
 
 	private _shouldLoadCanvas(): boolean {
-		return (this._configHelper.config.gpuAcceleration === 'auto' && (XtermTerminal._suggestedRendererType === undefined || XtermTerminal._suggestedRendererType === 'canvas')) || this._configHelper.config.gpuAcceleration === 'canvas';
+		return (this._terminalConfigurationService.config.gpuAcceleration === 'auto' && (XtermTerminal._suggestedRendererType === undefined || XtermTerminal._suggestedRendererType === 'canvas')) || this._terminalConfigurationService.config.gpuAcceleration === 'canvas';
 	}
 
 	forceRedraw() {
@@ -535,7 +536,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
-			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
+			if (!neverMeasureRenderTime && this._terminalConfigurationService.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
 			XtermTerminal._suggestedRendererType = 'canvas';
@@ -558,7 +559,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this._logService.warn(`Canvas renderer could not be loaded, falling back to dom renderer`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
-			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
+			if (!neverMeasureRenderTime && this._terminalConfigurationService.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
 			XtermTerminal._suggestedRendererType = 'dom';
@@ -632,7 +633,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
 			if (medianTime > RenderConstants.SlowCanvasRenderThreshold) {
-				if (this._configHelper.config.gpuAcceleration === 'auto') {
+				if (this._terminalConfigurationService.config.gpuAcceleration === 'auto') {
 					XtermTerminal._suggestedRendererType = 'dom';
 					this.updateConfig();
 				} else {
@@ -722,13 +723,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
-		if (!this._unicode11Addon && this._configHelper.config.unicodeVersion === '11') {
+		if (!this._unicode11Addon && this._terminalConfigurationService.config.unicodeVersion === '11') {
 			const Addon = await this._getUnicode11Constructor();
 			this._unicode11Addon = new Addon();
 			this.raw.loadAddon(this._unicode11Addon);
 		}
-		if (this.raw.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
-			this.raw.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+		if (this.raw.unicode.activeVersion !== this._terminalConfigurationService.config.unicodeVersion) {
+			this.raw.unicode.activeVersion = this._terminalConfigurationService.config.unicodeVersion;
 		}
 	}
 

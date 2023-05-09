@@ -16,7 +16,9 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -39,6 +41,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 suite('Buffer Content Tracker', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
+	let terminalConfigurationService: ITerminalConfigurationService;
 	let themeService: TestThemeService;
 	let xterm: XtermTerminal;
 	let capabilities: TerminalCapabilityStore;
@@ -48,6 +51,7 @@ suite('Buffer Content Tracker', () => {
 	const promptPlusData = 'vscode-git:(prompt/more-tests) ' + 'some data';
 	setup(() => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
+		terminalConfigurationService = new TerminalConfigurationService(configurationService);
 		instantiationService = new TestInstantiationService();
 		themeService = new TestThemeService();
 		instantiationService = new TestInstantiationService();
@@ -56,6 +60,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
+		instantiationService.stub(ITerminalConfigurationService, terminalConfigurationService);
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		capabilities = new TerminalCapabilityStore();
 		if (!isWindows) {
@@ -65,7 +70,7 @@ suite('Buffer Content Tracker', () => {
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
-		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		terminalConfigurationService = new TerminalConfigurationService(configurationService);
 		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
 	});
 	test('should not clear the prompt line', async () => {

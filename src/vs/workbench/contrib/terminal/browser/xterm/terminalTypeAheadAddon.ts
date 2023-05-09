@@ -10,6 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { XtermAttributes, IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -1289,8 +1290,8 @@ export const enum CharPredictState {
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private _typeaheadStyle?: TypeAheadStyle;
-	private _typeaheadThreshold = this._config.config.localEchoLatencyThreshold;
-	private _excludeProgramRe = compileExcludeRegexp(this._config.config.localEchoExcludePrograms);
+	private _typeaheadThreshold = this._terminalConfigurationService.config.localEchoLatencyThreshold;
+	private _excludeProgramRe = compileExcludeRegexp(this._terminalConfigurationService.config.localEchoExcludePrograms);
 	protected _lastRow?: { y: number; startingX: number; endingX: number; charState: CharPredictState };
 	protected _timeline?: PredictionTimeline;
 	private _terminalTitle = '';
@@ -1304,6 +1305,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	constructor(
 		private _processManager: ITerminalProcessManager,
 		private readonly _config: TerminalConfigHelper,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
@@ -1311,7 +1313,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	}
 
 	activate(terminal: Terminal): void {
-		const style = this._typeaheadStyle = this._register(new TypeAheadStyle(this._config.config.localEchoStyle, terminal));
+		const style = this._typeaheadStyle = this._register(new TypeAheadStyle(this._terminalConfigurationService.config.localEchoStyle, terminal));
 		const timeline = this._timeline = new PredictionTimeline(terminal, this._typeaheadStyle);
 		const stats = this.stats = this._register(new PredictionStats(this._timeline));
 
@@ -1327,9 +1329,9 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			this._reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this._config.onConfigChanged(() => {
-			style.onUpdate(this._config.config.localEchoStyle);
-			this._typeaheadThreshold = this._config.config.localEchoLatencyThreshold;
-			this._excludeProgramRe = compileExcludeRegexp(this._config.config.localEchoExcludePrograms);
+			style.onUpdate(this._terminalConfigurationService.config.localEchoStyle);
+			this._typeaheadThreshold = this._terminalConfigurationService.config.localEchoLatencyThreshold;
+			this._excludeProgramRe = compileExcludeRegexp(this._terminalConfigurationService.config.localEchoExcludePrograms);
 			this._reevaluatePredictorState(stats, timeline);
 		}));
 		this._register(this._timeline.onPredictionSucceeded(p => {

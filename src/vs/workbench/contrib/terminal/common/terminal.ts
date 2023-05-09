@@ -310,8 +310,6 @@ export interface ITerminalConfiguration {
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
 
 export interface ITerminalConfigHelper {
-	config: ITerminalConfiguration;
-
 	configFontIsMonospace(): boolean;
 	getFont(): ITerminalFont;
 	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;

@@ -11,6 +11,8 @@ import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from '
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 const CSI = `\x1b[`;
 
@@ -103,7 +105,8 @@ suite('Workbench - Terminal Typeahead', () => {
 			publicLog = stub();
 			addon = new TestTypeAheadAddon(
 				upcastPartial<ITerminalProcessManager>({ onBeforeProcessData: onBeforeProcessData.event }),
-				upcastPartial<TerminalConfigHelper>({ config, onConfigChanged: onConfigChanged.event }),
+				upcastPartial<TerminalConfigHelper>({ onConfigChanged: onConfigChanged.event }),
+				new TerminalConfigurationService(new TestConfigurationService(config)),
 				upcastPartial<ITelemetryService>({ publicLog })
 			);
 			addon.unlockMakingPredictions();
