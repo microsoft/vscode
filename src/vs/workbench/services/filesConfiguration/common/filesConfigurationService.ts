@@ -9,14 +9,16 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IGlobPatterns } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IdleValue } from 'vs/base/common/async';
-import { Schemas } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ResourceSet } from 'vs/base/common/map';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -54,11 +56,11 @@ export interface IFilesConfigurationService {
 
 	//#region Configured Readonly
 
-	readonly onReadonlyConfigurationChange: Event<void>;
+	readonly onReadonlyChange: Event<void>;
 
 	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean;
 
-	updateReadonly(resource: URI, readonly: true | false | 'toggle'): Promise<boolean>;
+	updateReadonly(resource: URI, readonly: true | false | 'toggle'): void;
 
 	//#endregion
 
@@ -84,7 +86,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	readonly onFilesAssociationChange = this._onFilesAssociationChange.event;
 
 	private readonly _onReadonlyConfigurationChange = this._register(new Emitter<void>());
-	readonly onReadonlyConfigurationChange = this._onReadonlyConfigurationChange.event;
+	readonly onReadonlyChange = this._onReadonlyConfigurationChange.event;
 
 	private configuredAutoSaveDelay?: number;
 	private configuredAutoSaveOnFocusChange: boolean | undefined;
@@ -100,10 +102,15 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly readonlyExcludeMatcher = this._register(new IdleValue(() => this.createMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 	private configuredReadonlyFromPermissions: boolean | undefined;
 
+	private readonly sessionReadonlyResources = new ResourceSet(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	private readonly sessionWriteableResources = new ResourceSet(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -133,6 +140,18 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean {
+		if (this.sessionReadonlyResources.has(resource)) {
+			return true; // session override: readonly
+		}
+
+		if (this.sessionWriteableResources.has(resource)) {
+			return false; // session override: writeable
+		}
+
+		if (this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome)) {
+			return false; // never turn configuration folder readonly
+		}
+
 		if (this.configuredReadonlyFromPermissions && stat?.locked) {
 			return true; // leverage file permissions if configured as such
 		}
@@ -140,43 +159,21 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.readonlyIncludeMatcher.value.matches(resource) && !this.readonlyExcludeMatcher.value.matches(resource);
 	}
 
-	async updateReadonly(resource: URI, readonly: true | false | 'toggle'): Promise<boolean> {
+	updateReadonly(resource: URI, readonly: true | false | 'toggle'): void {
 		if (readonly === 'toggle') {
 			readonly = !this.isReadonly(resource);
 		}
 
-		// Add to target setting
+		this.sessionReadonlyResources.delete(resource);
+		this.sessionWriteableResources.delete(resource);
+
 		if (readonly) {
-			const targetSettingToAdd = FILES_READONLY_INCLUDE_CONFIG;
-			const configurationToAdd = this.configurationService.inspect<IGlobPatterns | undefined>(targetSettingToAdd, { resource });
-
-			await this.configurationService.updateValue(targetSettingToAdd, {
-				...configurationToAdd.user?.value,
-				[this.uriToPath(resource)]: true
-			});
+			this.sessionReadonlyResources.add(resource);
+		} else {
+			this.sessionWriteableResources.add(resource);
 		}
 
-		// Remove from other setting
-		const targetSettingsToRemove = readonly ? [FILES_READONLY_EXCLUDE_CONFIG] : [FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG];
-		for (const targetSettingToRemove of targetSettingsToRemove) {
-			const configurationToRemove = this.configurationService.inspect<IGlobPatterns | undefined>(targetSettingToRemove, { resource });
-			if (configurationToRemove.user?.value) {
-				const configurationClone = { ...configurationToRemove.user.value };
-				delete configurationClone[this.uriToPath(resource)];
-
-				await this.configurationService.updateValue(targetSettingToRemove, configurationClone);
-			}
-		}
-
-		return this.isReadonly(resource) === readonly;
-	}
-
-	private uriToPath(uri: URI): string {
-		if (uri.scheme === Schemas.file) {
-			return uri.fsPath;
-		}
-
-		return uri.path;
+		this._onReadonlyConfigurationChange.fire();
 	}
 
 	private registerListeners(): void {

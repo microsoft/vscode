@@ -58,7 +58,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILocalizedString } from 'vs/platform/action/common/action';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File...");
@@ -1186,7 +1185,7 @@ export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) =
 	})));
 };
 
-class BaseSetActiveEditorReadonly extends Action2 {
+class BaseSetActiveEditorReadonlyInSession extends Action2 {
 
 	constructor(
 		id: string,
@@ -1204,68 +1203,54 @@ class BaseSetActiveEditorReadonly extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const dialogService = accessor.get(IDialogService);
 		const filesConfigurationService = accessor.get(IFilesConfigurationService);
-		const preferencesService = accessor.get(IPreferencesService);
 
 		const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (!fileResource) {
 			return;
 		}
 
-		const success = await filesConfigurationService.updateReadonly(fileResource, this.newReadonlyState);
-		if (!success) {
-			const { confirmed } = await dialogService.confirm({
-				type: Severity.Info,
-				message: nls.localize('readonlyMessage', "Unable to change readonly state of the active editor."),
-				detail: nls.localize('readonlyDetail', "Please review the configured settings to update readonly state manually."),
-				primaryButton: nls.localize({ key: 'openSettings', comment: ['&& denotes a mnemonic'] }, "&&Open Settings")
-			});
-
-			if (confirmed) {
-				await preferencesService.openSettings({ query: 'files.readonly' });
-			}
-		}
+		filesConfigurationService.updateReadonly(fileResource, this.newReadonlyState);
 	}
 }
 
-export class SetActiveEditorReadonly extends BaseSetActiveEditorReadonly {
+export class SetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
-	static readonly ID = 'workbench.action.files.setActiveEditorReadonly';
-	static readonly LABEL = nls.localize('setActiveEditorReadonly', "Set Active Editor Readonly");
+	static readonly ID = 'workbench.action.files.setActiveEditorReadonlyInSession';
+	static readonly LABEL = nls.localize('setActiveEditorReadonlyInSession', "Set Active Editor Readonly in Session");
 
 	constructor() {
 		super(
-			SetActiveEditorReadonly.ID,
-			{ value: SetActiveEditorReadonly.LABEL, original: 'Set Active Editor Readonly' },
+			SetActiveEditorReadonlyInSession.ID,
+			{ value: SetActiveEditorReadonlyInSession.LABEL, original: 'Set Active Editor Readonly in Session' },
 			true
 		);
 	}
 }
 
-export class SetActiveEditorWriteable extends BaseSetActiveEditorReadonly {
+export class SetActiveEditorWriteableInSession extends BaseSetActiveEditorReadonlyInSession {
 
-	static readonly ID = 'workbench.action.files.setActiveEditorWriteable';
-	static readonly LABEL = nls.localize('setActiveEditorWriteable', "Set Active Editor Writeable");
+	static readonly ID = 'workbench.action.files.setActiveEditorWriteableInSession';
+	static readonly LABEL = nls.localize('setActiveEditorWriteableInSession', "Set Active Editor Writeable in Session");
 
 	constructor() {
 		super(
-			SetActiveEditorWriteable.ID,
-			{ value: SetActiveEditorWriteable.LABEL, original: 'Set Active Editor Writeable' },
+			SetActiveEditorWriteableInSession.ID,
+			{ value: SetActiveEditorWriteableInSession.LABEL, original: 'Set Active Editor Writeable in Session' },
 			false
 		);
 	}
 }
 
-export class ToggleActiveEditorReadonly extends BaseSetActiveEditorReadonly {
+export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
-	static readonly ID = 'workbench.action.files.toggleActiveEditorReadonly';
-	static readonly LABEL = nls.localize('toggleActiveEditorReadonly', "Toggle Active Editor Readonly");
+	static readonly ID = 'workbench.action.files.toggleActiveEditorReadonlyInSession';
+	static readonly LABEL = nls.localize('toggleActiveEditorReadonlyInSession', "Toggle Active Editor Readonly in Session");
 
 	constructor() {
 		super(
-			ToggleActiveEditorReadonly.ID,
-			{ value: ToggleActiveEditorReadonly.LABEL, original: 'Toggle Active Editor Readonly' },
+			ToggleActiveEditorReadonlyInSession.ID,
+			{ value: ToggleActiveEditorReadonlyInSession.LABEL, original: 'Toggle Active Editor Readonly in Session' },
 			'toggle'
 		);
 	}

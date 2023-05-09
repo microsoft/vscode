@@ -337,7 +337,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	private registerListeners(): void {
-		this._register(this.filesConfigurationService.onReadonlyConfigurationChange(() => this._onDidChangeReadonly.fire()));
+		this._register(this.filesConfigurationService.onReadonlyChange(() => this._onDidChangeReadonly.fire()));
 	}
 
 	//#region Dirty
