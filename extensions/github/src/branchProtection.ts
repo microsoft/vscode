@@ -21,9 +21,9 @@ const REPOSITORY_QUERY = `
 `;
 
 const REPOSITORY_RULESETS_QUERY = `
-	query repositoryRulesets($owner: String!, $repo: String!) {
+	query repositoryRulesets($owner: String!, $repo: String!, $cursor: String, $limit: Int = 100) {
 		repository(owner: $owner, name: $repo) {
-			rulesets(first: 100, includeParents: true) {
+			rulesets(includeParents: true, first: $limit, after: $cursor) {
 				nodes {
 					name
 					enforcement
@@ -129,16 +129,26 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 	}
 
 	private async getRepositoryRulesets(owner: string, repo: string): Promise<RepositoryRuleset[]> {
-		const graphql = await getOctokitGraphql();
-		const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_RULESETS_QUERY, { owner, repo });
+		const rulesets: RepositoryRuleset[] = [];
 
-		if (!repository.rulesets || !repository.rulesets.nodes) {
-			return [];
+		let cursor: string | undefined = undefined;
+		const graphql = await getOctokitGraphql();
+
+		while (true) {
+			const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_RULESETS_QUERY, { owner, repo, cursor });
+
+			rulesets.push(...(repository.rulesets?.nodes ?? [])
+				// Active branch ruleset that contains the pull request required rule
+				.filter(node => node && node.target === 'BRANCH' && node.enforcement === 'ACTIVE' && (node.rules?.totalCount ?? 0) > 0) as RepositoryRuleset[]);
+
+			if (repository.rulesets?.pageInfo.hasNextPage) {
+				cursor = repository.rulesets.pageInfo.endCursor as string | undefined;
+			} else {
+				break;
+			}
 		}
 
-		return repository.rulesets.nodes
-			// Active branch ruleset that contains the pull request required rule
-			.filter(node => node && node.target === 'BRANCH' && node.enforcement === 'ACTIVE' && (node.rules?.totalCount ?? 0) > 0) as RepositoryRuleset[];
+		return rulesets;
 	}
 
 	private async updateRepositoryBranchProtection(): Promise<void> {
