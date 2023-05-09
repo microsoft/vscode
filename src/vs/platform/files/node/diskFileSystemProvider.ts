@@ -562,7 +562,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 						if (isDirectory) {
 							await Promises.rmdir(filePath);
+						} else {
+							throw unlinkError;
 						}
+					} else {
+						throw unlinkError;
 					}
 				}
 			}
