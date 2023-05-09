@@ -75,7 +75,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
 		this.start.title = this.action.label + keybindingLabel;
 		this.start.setAttribute('role', 'button');
-		this.start.ariaLabel = nls.localize('startDebug', "Start Debugging");
+		this.start.ariaLabel = this.start.title;
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
 			this.start.blur();
