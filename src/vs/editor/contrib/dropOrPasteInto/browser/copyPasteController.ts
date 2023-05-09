@@ -98,7 +98,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._editor.focus();
 		try {
 			this._pasteAsActionContext = { preferredId };
-			document.execCommand('paste', false, 'bla');
+			document.execCommand('paste');
 		} finally {
 			this._pasteAsActionContext = undefined;
 		}

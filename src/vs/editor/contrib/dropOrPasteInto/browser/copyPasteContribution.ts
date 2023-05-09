@@ -41,7 +41,7 @@ registerEditorAction(class extends EditorAction {
 			alias: 'Paste As...',
 			precondition: undefined,
 			description: {
-				description: `Paste as`,
+				description: 'Paste as',
 				args: [{
 					name: 'args',
 					schema: {
@@ -49,6 +49,7 @@ registerEditorAction(class extends EditorAction {
 						properties: {
 							'id': {
 								type: 'string',
+								description: nls.localize('pasteAs.id', "The id of the paste edit to try applying. If not provided, the editor will show a picker."),
 							}
 						},
 					}
