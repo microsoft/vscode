@@ -11,11 +11,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippets: string | Snippet[]): Promise<Snippet | undefined> {
 
-	const configurationService = accessor.get(IConfigurationService);
 	const snippetService = accessor.get(ISnippetsService);
 	const quickInputService = accessor.get(IQuickInputService);
 
@@ -35,11 +33,10 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 	const makeSnippetPicks = () => {
 		const result: QuickPickInput<ISnippetPick>[] = [];
 		let prevSnippet: Snippet | undefined;
-		const fillSnippetDescriptions = configurationService.getValue<boolean>('editor.snippets.fillDescriptions.enabled');
 		for (const snippet of snippets) {
 			const pick: ISnippetPick = {
 				label: snippet.prefix || snippet.name,
-				detail: snippet.description || (fillSnippetDescriptions ? snippet.body : ''),
+				detail: snippet.description || snippet.body,
 				snippet
 			};
 			if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource || prevSnippet.source !== snippet.source) {

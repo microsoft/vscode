@@ -49,11 +49,6 @@ Registry
 				'type': 'boolean',
 				'default': true
 			},
-			'editor.snippets.fillDescriptions.enabled': {
-				'description': nls.localize('editor.snippets.fillDescriptions.enabled', 'Controls whether empty descriptions in snippets are replaced with the body of the snippet.'),
-				'type': 'boolean',
-				'default': false
-			}
 		}
 	});
 
