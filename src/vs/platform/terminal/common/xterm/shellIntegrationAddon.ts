@@ -316,7 +316,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		// Pass the sequence along to the capability
-		const [command, ...args] = data.split(';');
+		const dataArr = data.split(';');
+		if (!dataArr.length) {
+			return false;
+		}
+		const command = dataArr[0];
+		const args: string[] | undefined = dataArr.length > 1 ? dataArr.slice(1) : undefined;
+		if (args && args?.length > 2) {
+			return false;
+		}
 		switch (command) {
 			case VSCodeOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
@@ -328,17 +336,17 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
 			case VSCodeOscPt.CommandFinished: {
-				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				const exitCode = command ? parseInt(command) : undefined;
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
 			}
 			case VSCodeOscPt.CommandLine: {
-				const commandLine: string | undefined = args.length ? deserializeMessage(args[0]) : undefined;
-				const isTrusted = args.length > 1 ? args[1] === this._nonce : false;
+				const commandLine: string | undefined = command ? deserializeMessage(command) : undefined;
+				const isTrusted = args ? args[1] === this._nonce : false;
 				if (commandLine) {
 					this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, isTrusted);
 				}
-				return !!commandLine && args.length < 3;
+				return !!commandLine;
 			}
 			case VSCodeOscPt.ContinuationStart: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationStart();
@@ -357,7 +365,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const deserialized = args.length ? deserializeMessage(args[0]) : '';
+				const deserialized = args?.length ? deserializeMessage(args[0]) : '';
 				const { key, value } = parseKeyValueAssignment(deserialized);
 				if (value === undefined) {
 					return true;
@@ -379,8 +387,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 			}
 			case VSCodeOscPt.SetMark: {
-				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
-				return true;
+				if (args) {
+					this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
+				}
+				return !!args;
 			}
 		}
 
