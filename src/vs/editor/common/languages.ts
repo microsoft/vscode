@@ -705,8 +705,9 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	/**
 	 * Will be called when an item is shown.
+	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
-	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 
 	/**
 	 * Will be called when an item is partially accepted.
@@ -782,7 +783,8 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	insertText: string | { snippet: string };
+	readonly label: string;
+	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 
@@ -791,6 +793,9 @@ export interface DocumentPasteEdit {
  */
 export interface DocumentPasteEditProvider {
 
+	readonly id?: string;
+
+	readonly copyMimeTypes?: readonly string[];
 	readonly pasteMimeTypes: readonly string[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
@@ -1941,7 +1946,7 @@ export enum ExternalUriOpenerPriority {
 export interface DocumentOnDropEdit {
 	readonly label: string;
 
-	insertText: string | { snippet: string };
+	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 

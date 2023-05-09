@@ -689,7 +689,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 }
 
-class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
+export class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
 	public readonly hoverElement: HTMLElement;
 	private readonly actionsElement: HTMLElement;

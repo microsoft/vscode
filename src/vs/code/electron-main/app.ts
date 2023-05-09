@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { setUNCHostAllowlist, toUNCHostAllowlist } from 'vs/base/node/unc';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -54,7 +55,8 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IIssueMainService, IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
+import { IIssueMainService } from 'vs/platform/issue/common/issue';
+import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -307,6 +309,14 @@ export class CodeApplication extends Disposable {
 			// invalidate caches that we know are invalid
 			// (https://github.com/microsoft/vscode/issues/120655)
 			defaultSession.setCodeCachePath(join(this.environmentMainService.codeCachePath, 'chrome'));
+		}
+
+		//#endregion
+
+		//#region UNC Host Allowlist (Windows)
+
+		if (isWindows) {
+			setUNCHostAllowlist(toUNCHostAllowlist(this.configurationService.getValue<unknown>('security.allowedUNCHosts')));
 		}
 
 		//#endregion

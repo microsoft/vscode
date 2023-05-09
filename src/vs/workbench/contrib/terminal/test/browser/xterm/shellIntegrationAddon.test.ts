@@ -34,7 +34,7 @@ suite('ShellIntegrationAddon', () => {
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ILogService, NullLogService);
-		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, true, undefined);
+		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, '', true, undefined);
 		xterm.loadAddon(shellIntegrationAddon);
 		capabilities = shellIntegrationAddon.capabilities;
 	});

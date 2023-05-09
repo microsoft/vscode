@@ -35,6 +35,7 @@ export function registerInteractiveSessionCopyActions() {
 			if (widget) {
 				const viewModel = widget.viewModel;
 				const sessionAsText = viewModel?.getItems()
+					.filter((item): item is (IInteractiveRequestViewModel | IInteractiveResponseViewModel) => isRequestVM(item) || isResponseVM(item))
 					.map(stringifyItem)
 					.join('\n\n');
 				if (sessionAsText) {
@@ -75,5 +76,5 @@ export function registerInteractiveSessionCopyActions() {
 
 function stringifyItem(item: IInteractiveRequestViewModel | IInteractiveResponseViewModel): string {
 	return isRequestVM(item) ?
-		`${item.username}: ${item.message}` : `${item.username}: ${item.response.value}`;
+		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.value}`;
 }

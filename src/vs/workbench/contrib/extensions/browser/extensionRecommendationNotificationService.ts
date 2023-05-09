@@ -196,7 +196,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		});
 
 		if (result === RecommendationsNotificationResult.Accepted) {
-			this.storageService.store(donotShowWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(donotShowWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 
 	}
@@ -235,7 +235,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 
 		let extensionsMessage = '';
 		if (extensions.length === 1) {
-			extensionsMessage = localize('extensionFromPublisher', "'{0} extension from {1}'", extensions[0].displayName, extensions[0].publisherDisplayName);
+			extensionsMessage = localize('extensionFromPublisher', "'{0}' extension from {1}", extensions[0].displayName, extensions[0].publisherDisplayName);
 		} else {
 			const publishers = [...extensions.reduce((result, extension) => result.add(extension.publisherDisplayName), new Set<string>())];
 			if (publishers.length > 2) {

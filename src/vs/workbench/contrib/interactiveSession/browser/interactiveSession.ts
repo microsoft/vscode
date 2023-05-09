@@ -8,13 +8,16 @@ import { IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSessio
 import { IInteractiveSessionViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { Event } from 'vs/base/common/event';
 
+export type IInteractiveSessionWidgetViewContext = { viewId: string } | { resource: boolean };
+
 export interface IInteractiveSessionWidget {
 	readonly onDidChangeViewModel: Event<void>;
+	readonly viewContext: IInteractiveSessionWidgetViewContext;
 	readonly viewModel: IInteractiveSessionViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
+	readonly providerId: string;
 
 	acceptInput(query?: string): void;
-	clear(): void;
 	focusLastMessage(): void;
 	focusInput(): void;
 	getSlashCommands(): Promise<IInteractiveSlashCommand[] | undefined>;

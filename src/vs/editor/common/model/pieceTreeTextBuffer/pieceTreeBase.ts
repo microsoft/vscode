@@ -374,7 +374,7 @@ export class PieceTreeBase {
 			return false;
 		}
 
-		const offset = 0;
+		let offset = 0;
 		const ret = this.iterate(this.root, node => {
 			if (node === SENTINEL) {
 				return true;
@@ -385,6 +385,7 @@ export class PieceTreeBase {
 			const endPosition = other.nodeAt(offset + len);
 			const val = other.getValueInRange2(startPosition, endPosition);
 
+			offset += len;
 			return str === val;
 		});
 

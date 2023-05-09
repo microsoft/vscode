@@ -16,6 +16,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { deepClone } from 'vs/base/common/objects';
+import { isWindows } from 'vs/base/common/platform';
+import { getUNCHostAllowlist } from 'vs/base/node/unc';
 
 export interface IUtilityProcessConfiguration {
 
@@ -259,6 +261,9 @@ export class UtilityProcess extends Disposable {
 			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1'; // TODO@bpasero remove me once sandbox is final
 		}
 		env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] = configuration.type;
+		if (isWindows) {
+			env['NODE_UNC_HOST_ALLOWLIST'] = getUNCHostAllowlist().join('\\');
+		}
 
 		// Remove any environment variables that are not allowed
 		removeDangerousEnvVariables(env);

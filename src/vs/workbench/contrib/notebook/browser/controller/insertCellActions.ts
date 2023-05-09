@@ -7,21 +7,16 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
-import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { CellKind, NOTEBOOK_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { isCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInteractiveSessionService, IInteractiveSessionUserActionEvent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
 const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
@@ -223,61 +218,6 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 		if (newCell) {
 			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
-	}
-});
-
-registerAction2(class InsertCodeBlockAsNotebookCellAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.interactiveSession.insertCodeBlockAsNotebookCell',
-			title: {
-				value: localize('interactive.insertCodeBlockAsNotebookCell.label', "Insert as Code Cell"),
-				original: 'Insert as Code Cell'
-			},
-			f1: false,
-			category: INTERACTIVE_SESSION_CATEGORY,
-			icon: Codicon.notebook,
-			menu: {
-				id: MenuId.InteractiveSessionCodeBlock,
-				group: 'navigation',
-				when: NOTEBOOK_IS_ACTIVE_EDITOR
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const context = args[0];
-		if (!isCodeBlockActionContext(context)) {
-			return;
-		}
-
-		const editorService = accessor.get(IEditorService);
-		const languageService = accessor.get(ILanguageService);
-		const interactiveSessionService = accessor.get(IInteractiveSessionService);
-
-		if (editorService.activeEditorPane?.getId() !== NOTEBOOK_EDITOR_ID) {
-			return;
-		}
-
-		const editor = editorService.activeEditorPane.getControl() as INotebookEditor;
-
-		if (!editor || !editor.hasModel()) {
-			return;
-		}
-
-		const focusRange = editor.getFocus();
-		const next = Math.max(focusRange.end - 1, 0);
-		insertCell(languageService, editor, next, CellKind.Code, 'below', context.code, true);
-
-		interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
-			providerId: context.element.providerId,
-			action: {
-				kind: 'insert',
-				responseId: context.element.providerResponseId,
-				codeBlockIndex: context.codeBlockIndex,
-				totalCharacters: context.code.length,
-			}
-		});
 	}
 });
 

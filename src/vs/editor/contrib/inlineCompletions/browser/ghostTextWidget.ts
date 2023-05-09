@@ -119,7 +119,7 @@ export class GhostTextWidget extends Disposable {
 			additionalLines,
 			hiddenRange,
 			lineNumber: ghostText.lineNumber,
-			additionalReservedLineCount: ghostText.additionalReservedLineCount,
+			additionalReservedLineCount: this.model.minReservedLineCount.read(reader),
 			targetTextModel: textModel,
 		};
 	});

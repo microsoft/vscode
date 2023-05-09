@@ -816,7 +816,7 @@ function createKeyboardNavigationEventFilter(keybindingService: IKeybindingServi
 		}
 
 		inMultiChord = false;
-		return !result;
+		return result === null || result.kind === ResultKind.NoMatchingKb;
 	};
 }
 

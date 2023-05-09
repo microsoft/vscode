@@ -439,7 +439,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.layoutSplitView(dimension);
 
-		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
+		const innerWidth = Math.min(this.headerContainer.clientWidth, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
 		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
@@ -1555,6 +1555,8 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (!this.searchResultModel) {
 				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
+				// Must be called before this.renderTree()
+				// to make sure the search results count is set.
 				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.currentSearchModel = this.searchResultModel;
 				this.onSearchModeToggled();
@@ -1596,9 +1598,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.rootElement.classList.remove('no-results');
 			this.splitView.el.style.visibility = 'visible';
 			return;
-		}
-
-		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
+		} else {
 			const count = this.searchResultModel.getUniqueResultsCount();
 			let resultString: string;
 			switch (count) {

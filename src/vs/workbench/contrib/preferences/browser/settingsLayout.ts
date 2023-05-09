@@ -123,6 +123,11 @@ export const tocData: ITOCEntry<string> = {
 			label: localize('features', "Features"),
 			children: [
 				{
+					id: 'features/accessibility',
+					label: localize('accessibility', "Accessibility"),
+					settings: ['accessibility.*']
+				},
+				{
 					id: 'features/explorer',
 					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
@@ -131,8 +136,7 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/search',
 					label: localize('search', "Search"),
 					settings: ['search.*']
-				}
-				,
+				},
 				{
 					id: 'features/debug',
 					label: localize('debug', "Debug"),
@@ -206,8 +210,8 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/interactiveSession',
 					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['interactiveSession.*']
-				},
+					settings: ['interactiveSession.*', 'interactiveEditor.*']
+				}
 			]
 		},
 		{
@@ -254,6 +258,7 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'security',
 			label: localize('security', "Security"),
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',

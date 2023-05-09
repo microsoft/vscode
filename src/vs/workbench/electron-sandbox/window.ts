@@ -795,7 +795,7 @@ export class NativeWindow extends Disposable {
 		const that = this;
 		let pendingQuit = false;
 
-		registerWindowDriver({
+		registerWindowDriver(this.instantiationService, {
 			async exitApplication(): Promise<void> {
 				if (pendingQuit) {
 					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');

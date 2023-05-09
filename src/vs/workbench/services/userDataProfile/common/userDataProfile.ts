@@ -101,6 +101,10 @@ export const enum ProfileResourceType {
 	GlobalState = 'globalState',
 }
 
+export interface IProfileResourceInitializer {
+	initialize(content: string): Promise<void>;
+}
+
 export interface IProfileResource {
 	getContent(profile: IUserDataProfile): Promise<string>;
 	apply(content: string, profile: IUserDataProfile): Promise<void>;

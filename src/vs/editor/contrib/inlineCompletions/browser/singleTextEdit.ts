@@ -140,7 +140,7 @@ export class SingleTextEdit {
 			}
 		}
 
-		return new GhostText(lineNumber, parts, 0);
+		return new GhostText(lineNumber, parts);
 	}
 }
 

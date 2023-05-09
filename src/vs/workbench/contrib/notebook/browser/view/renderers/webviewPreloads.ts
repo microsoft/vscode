@@ -453,15 +453,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	function focusFirstFocusableInCell(cellId: string) {
+	function focusFirstFocusableOrContainerInOutput(cellId: string) {
 		const cellOutputContainer = document.getElementById(cellId);
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;
 			}
 
-			const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
-			focusableElement?.focus();
+			let focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
+			if (!focusableElement) {
+				focusableElement = cellOutputContainer;
+				focusableElement.tabIndex = -1;
+			}
+
+			focusableElement.focus();
 		}
 	}
 
@@ -1225,6 +1230,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 
+		document.designMode = 'Off';
+
 		postNotebookMessage('didFind', {
 			matches: matches.map((match, index) => ({
 				type: match.type,
@@ -1355,7 +1362,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'focus-output':
-				focusFirstFocusableInCell(event.data.cellId);
+				focusFirstFocusableOrContainerInOutput(event.data.cellId);
 				break;
 			case 'decorations': {
 				let outputContainer = document.getElementById(event.data.cellId);
@@ -2281,6 +2288,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.element = document.createElement('div');
 			this.element.style.position = 'absolute';
+			this.element.style.outline = '0';
 
 			this.element.id = cellId;
 			this.element.classList.add('cell_container');

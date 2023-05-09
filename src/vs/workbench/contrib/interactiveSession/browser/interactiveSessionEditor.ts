@@ -5,105 +5,122 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { Memento } from 'vs/workbench/common/memento';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
-import { InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveSessionEditorOptions extends IEditorOptions {
-	providerId: string;
+	target: { sessionId: string } | { providerId: string };
 }
 
 export class InteractiveSessionEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.interactiveSession';
 
-	private widget = new MutableDisposable<InteractiveSessionWidget>();
-	private parentElement: HTMLElement | undefined;
-	private dimension: dom.Dimension | undefined;
+	private widget!: InteractiveSessionWidget;
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
+	private _scopedContextKeyService!: IScopedContextKeyService;
 	override get scopedContextKeyService() {
-		return this._scopedContextKeyService.value;
+		return this._scopedContextKeyService;
 	}
+
+	private _memento: Memento | undefined;
+	private _viewState: IViewState | undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 	) {
 		super(InteractiveSessionEditor.ID, telemetryService, themeService, storageService);
 	}
 
 	public async clear() {
-		if (this.widget.value) {
-			await this.widget.value.clear();
+		if (this.widget?.viewModel) {
+			this.interactiveSessionService.clearSession(this.widget.viewModel.sessionId);
 		}
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
-		this.parentElement = parent;
+		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
+		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+
+		this.widget = this._register(
+			scopedInstantiationService.createInstance(
+				InteractiveSessionWidget,
+				{ resource: true },
+				{
+					listForeground: editorForeground,
+					listBackground: editorBackground,
+					inputEditorBackground: SIDE_BAR_BACKGROUND,
+					resultEditorBackground: SIDE_BAR_BACKGROUND
+				}));
+		this.widget.render(parent);
+		this.widget.setVisible(true);
 	}
 
 	public override focus(): void {
-		if (this.widget.value) {
-			this.widget.value.focusInput();
+		if (this.widget) {
+			this.widget.focusInput();
 		}
 	}
 
 	override clearInput(): void {
+		this.saveState();
 		super.clearInput();
-
-		// This will dispose the current widget and release its session
-		this.widget.clear();
-
-		dom.clearNode(this.parentElement!);
 	}
 
 	override async setInput(input: InteractiveSessionEditorInput, options: IInteractiveSessionEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, context, token);
 
-		// This will dispose the current widget and release its session
-		this.widget.clear();
-
 		const editorModel = await input.resolve();
 		if (!editorModel) {
-			throw new Error('idk man something happened');
+			throw new Error(`Failed to get model for interactive session editor. id: ${input.sessionId}`);
 		}
 
-		if (!this.parentElement) {
-			throw new Error('InteractiveSessionEditor lifecycle issue: Parent element not set');
+		if (!this.widget) {
+			throw new Error('InteractiveSessionEditor lifecycle issue: no editor widget');
 		}
 
-		this._scopedContextKeyService.value = this._register(this.contextKeyService.createScoped(this.parentElement));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-		this.widget.value = scopedInstantiationService.createInstance(InteractiveSessionWidget, editorModel.model.providerId, editorModel.model, { resource: input.resource }, () => editorBackground, () => SIDE_BAR_BACKGROUND, () => SIDE_BAR_BACKGROUND);
-		this.widget.value.render(this.parentElement);
-		this.widget.value.setVisible(true);
+		this.updateModel(editorModel.model);
+	}
 
-		if (this.dimension) {
-			this.layout(this.dimension, undefined);
+	private updateModel(model: IInteractiveSessionModel): void {
+		this._memento = new Memento('interactive-session-editor-' + model.sessionId, this.storageService);
+		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewState;
+		this.widget.setModel(model, { ...this._viewState });
+	}
+
+	protected override saveState(): void {
+		this.widget?.saveState();
+
+		if (this._memento && this._viewState) {
+			const widgetViewState = this.widget.getViewState();
+			this._viewState!.inputValue = widgetViewState.inputValue;
+			this._memento!.saveMemento();
 		}
 	}
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {
-		if (this.widget.value) {
+		if (this.widget) {
 			const width = Math.min(dimension.width, 600);
-			this.widget.value.layout(dimension.height, width);
+			this.widget.layout(dimension.height, width);
 		}
-
-		this.dimension = dimension;
 	}
 }
 

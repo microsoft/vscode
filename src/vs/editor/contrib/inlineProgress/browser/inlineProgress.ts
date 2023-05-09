@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { disposableTimeout } from 'vs/base/common/async';
+import { CancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { noBreakWhitespace } from 'vs/base/common/strings';
@@ -116,6 +116,9 @@ export class InlineProgressManager extends Disposable {
 	private readonly _currentDecorations: IEditorDecorationsCollection;
 	private readonly _currentWidget = new MutableDisposable<InlineProgressWidget>();
 
+	private _operationIdPool = 0;
+	private _currentOperation?: number;
+
 	constructor(
 		readonly id: string,
 		private readonly _editor: ICodeEditor,
@@ -126,7 +129,10 @@ export class InlineProgressManager extends Disposable {
 		this._currentDecorations = _editor.createDecorationsCollection();
 	}
 
-	public setAtPosition(position: IPosition, title: string, delegate: InlineProgressDelegate) {
+	public async showWhile<R>(position: IPosition, title: string, promise: CancelablePromise<R>): Promise<R> {
+		const operationId = this._operationIdPool++;
+		this._currentOperation = operationId;
+
 		this.clear();
 
 		this._showPromise.value = disposableTimeout(() => {
@@ -137,12 +143,21 @@ export class InlineProgressManager extends Disposable {
 			}]);
 
 			if (decorationIds.length > 0) {
-				this._currentWidget.value = this._instantiationService.createInstance(InlineProgressWidget, this.id, this._editor, range, title, delegate);
+				this._currentWidget.value = this._instantiationService.createInstance(InlineProgressWidget, this.id, this._editor, range, title, promise);
 			}
 		}, this._showDelay);
+
+		try {
+			return await promise;
+		} finally {
+			if (this._currentOperation === operationId) {
+				this.clear();
+				this._currentOperation = undefined;
+			}
+		}
 	}
 
-	public clear() {
+	private clear() {
 		this._showPromise.clear();
 		this._currentDecorations.clear();
 		this._currentWidget.clear();

@@ -111,7 +111,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private _isPromptingAfterCrash = false;
 	private isRestarting: boolean = false;
 	private hasServerFatallyCrashedTooManyTimes = false;
-	private readonly loadingIndicator = new ServerInitializingIndicator();
+	private readonly loadingIndicator = this._register(new ServerInitializingIndicator());
 
 	public readonly telemetryReporter: TelemetryReporter;
 	public readonly bufferSyncSupport: BufferSyncSupport;
@@ -469,10 +469,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 
 		handle.onEvent(event => this.dispatchEvent(event));
-
-		if (apiVersion.gte(API.v300) && this.capabilities.has(ClientCapability.Semantic)) {
-			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
-		}
 
 		this.serviceStarted(resendModels);
 

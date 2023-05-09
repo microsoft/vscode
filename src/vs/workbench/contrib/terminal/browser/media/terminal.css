@@ -479,10 +479,12 @@
 	right: 0;
 	border-left: 5px solid #ffffff;
 	border-left-width: 5px !important;
+	pointer-events: none;
 }
 
 .terminal-scroll-highlight-outline {
 	border: 1px solid #ffffff;
+	pointer-events: none;
 }
 
 .terminal-scroll-highlight {

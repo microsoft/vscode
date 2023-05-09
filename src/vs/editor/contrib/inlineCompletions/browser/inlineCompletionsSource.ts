@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { BugIndicatingError } from 'vs/base/common/errors';
 import { matchesSubString } from 'vs/base/common/filters';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction } from 'vs/base/common/observable';
-import { disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
+import { ITransaction, derived } from 'vs/base/common/observable';
+import { IObservable, IReader, disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
@@ -20,14 +19,13 @@ import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/sing
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
 
 export class InlineCompletionsSource extends Disposable {
-	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
-
+	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 	public readonly inlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('inlineCompletions', undefined);
 	public readonly suggestWidgetInlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('suggestWidgetInlineCompletions', undefined);
 
-
 	constructor(
 		private readonly textModel: ITextModel,
+		private readonly versionId: IObservable<number>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
@@ -35,36 +33,23 @@ export class InlineCompletionsSource extends Disposable {
 		super();
 
 		this._register(this.textModel.onDidChangeContent(() => {
-			this.updateOperation.clear();
+			this._updateOperation.clear();
 		}));
 	}
 
-	public clear(tx: ITransaction): void {
-		this.updateOperation.clear();
-		this.inlineCompletions.set(undefined, tx);
-		this.suggestWidgetInlineCompletions.set(undefined, tx);
-	}
-
-	public clearSuggestWidgetInlineCompletions(): void {
-		if (this.updateOperation.value?.request.context.selectedSuggestionInfo) {
-			this.updateOperation.clear();
-		}
-		this.suggestWidgetInlineCompletions.set(undefined, undefined);
-	}
-
-	public update(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined): Promise<boolean> {
+	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this.textModel.getVersionId());
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions : this.inlineCompletions;
 
-		if (this.updateOperation.value?.request.satisfies(request)) {
-			return this.updateOperation.value.promise;
+		if (this._updateOperation.value?.request.satisfies(request)) {
+			return this._updateOperation.value.promise;
 		} else if (target.get()?.request.satisfies(request)) {
 			return Promise.resolve(true);
 		}
 
-		const updateOngoing = !!this.updateOperation.value;
-		this.updateOperation.clear();
+		const updateOngoing = !!this._updateOperation.value;
+		this._updateOperation.clear();
 
 		const source = new CancellationTokenSource();
 
@@ -96,28 +81,43 @@ export class InlineCompletionsSource extends Disposable {
 			const endTime = new Date();
 			this._debounceValue.update(this.textModel, endTime.getTime() - startTime.getTime());
 
-			const completions = new UpToDateInlineCompletions(updatedCompletions, request, this.textModel);
-			if (
-				activeInlineCompletion && activeInlineCompletion.updatedRange.containsPosition(position)
-				&& activeInlineCompletion.isVisible(this.textModel, position)
-				&& !activeInlineCompletion.isSmallerThanOriginal()
-				&& !updatedCompletions.has(activeInlineCompletion.toInlineCompletion())
-			) {
-				completions.prepend(activeInlineCompletion.inlineCompletion, activeInlineCompletion.updatedRange, true);
+			const completions = new UpToDateInlineCompletions(updatedCompletions, request, this.textModel, this.versionId);
+			if (activeInlineCompletion) {
+				const asInlineCompletion = activeInlineCompletion.toInlineCompletion(undefined);
+				if (activeInlineCompletion.canBeReused(this.textModel, position) && !updatedCompletions.has(asInlineCompletion)) {
+					completions.prepend(activeInlineCompletion.inlineCompletion, asInlineCompletion.range, true);
+				}
 			}
 
 			transaction(tx => {
 				target.set(completions, tx);
 			});
-			this.updateOperation.clear();
+			this._updateOperation.clear();
 
 			return true;
 		})();
 
 		const updateOperation = new UpdateOperation(request, source, promise);
-		this.updateOperation.value = updateOperation;
+		this._updateOperation.value = updateOperation;
 
 		return promise;
+	}
+
+	public clear(tx: ITransaction): void {
+		this._updateOperation.clear();
+		this.inlineCompletions.set(undefined, tx);
+		this.suggestWidgetInlineCompletions.set(undefined, tx);
+	}
+
+	public clearSuggestWidgetInlineCompletions(tx: ITransaction): void {
+		if (this._updateOperation.value?.request.context.selectedSuggestionInfo) {
+			this._updateOperation.clear();
+		}
+		this.suggestWidgetInlineCompletions.set(undefined, tx);
+	}
+
+	public cancelUpdate(): void {
+		this._updateOperation.clear();
 	}
 }
 
@@ -176,15 +176,30 @@ class UpdateOperation implements IDisposable {
 }
 
 export class UpToDateInlineCompletions implements IDisposable {
-	private lastVersionId: number = -1;
-	private readonly inlineCompletions: InlineCompletionWithUpdatedRange[];
-	private refCount = 1;
-	private readonly prependedInlineCompletionItems: InlineCompletionItem[] = [];
+	private readonly _inlineCompletions: InlineCompletionWithUpdatedRange[];
+	public get inlineCompletions(): ReadonlyArray<InlineCompletionWithUpdatedRange> { return this._inlineCompletions; }
+
+	private _refCount = 1;
+	private readonly _prependedInlineCompletionItems: InlineCompletionItem[] = [];
+
+	private _rangeVersionIdValue = 0;
+	private readonly _rangeVersionId = derived('ranges', reader => {
+		this.versionId.read(reader);
+		let changed = false;
+		for (const i of this._inlineCompletions) {
+			changed = changed || i._updateRange(this.textModel);
+		}
+		if (changed) {
+			this._rangeVersionIdValue++;
+		}
+		return this._rangeVersionIdValue;
+	});
 
 	constructor(
 		private readonly inlineCompletionProviderResult: InlineCompletionProviderResult,
 		public readonly request: UpdateRequest,
-		private readonly textModel: ITextModel
+		private readonly textModel: ITextModel,
+		private readonly versionId: IObservable<number>,
 	) {
 		const ids = textModel.deltaDecorations([], inlineCompletionProviderResult.completions.map(i => ({
 			range: i.range,
@@ -193,9 +208,25 @@ export class UpToDateInlineCompletions implements IDisposable {
 			},
 		})));
 
-		this.inlineCompletions = inlineCompletionProviderResult.completions.map(
-			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index])
+		this._inlineCompletions = inlineCompletionProviderResult.completions.map(
+			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._rangeVersionId)
 		);
+	}
+
+	public clone(): this {
+		this._refCount++;
+		return this;
+	}
+
+	public dispose(): void {
+		this._refCount--;
+		if (this._refCount === 0) {
+			this.textModel.deltaDecorations(this._inlineCompletions.map(i => i.decorationId), []);
+			this.inlineCompletionProviderResult.dispose();
+			for (const i of this._prependedInlineCompletionItems) {
+				i.source.removeRef();
+			}
+		}
 	}
 
 	public prepend(inlineCompletion: InlineCompletionItem, range: Range, addRefToSource: boolean): void {
@@ -209,82 +240,49 @@ export class UpToDateInlineCompletions implements IDisposable {
 				description: 'inline-completion-tracking-range'
 			},
 		}])[0];
-		this.inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, range));
-		this.prependedInlineCompletionItems.push(inlineCompletion);
-	}
-
-	public clone(): this {
-		this.refCount++;
-		return this;
-	}
-
-	public dispose(): void {
-		this.refCount--;
-		if (this.refCount === 0) {
-			this.textModel.deltaDecorations(this.inlineCompletions.map(i => i.decorationId), []);
-			this.inlineCompletionProviderResult.dispose();
-			for (const i of this.prependedInlineCompletionItems) {
-				i.source.removeRef();
-			}
-		}
-	}
-
-	/**
-	 * The ranges of the inline completions are extended as the user typed.
-	 */
-	public getInlineCompletions(versionId: number): readonly InlineCompletionWithUpdatedRange[] {
-		if (versionId !== this.textModel.getVersionId()) {
-			throw new BugIndicatingError();
-		}
-		if (this.textModel.getVersionId() !== this.lastVersionId) {
-			this.inlineCompletions.forEach(i => i.updateRange(this.textModel));
-			this.lastVersionId = this.textModel.getVersionId();
-		}
-		return this.inlineCompletions;
+		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this._rangeVersionId, range));
+		this._prependedInlineCompletionItems.push(inlineCompletion);
 	}
 }
 
 export class InlineCompletionWithUpdatedRange {
-	public readonly semanticId = JSON.stringify([this.inlineCompletion.filterText, this.inlineCompletion.insertText, this.inlineCompletion.range.getStartPosition().toString()]);
+	public readonly semanticId = JSON.stringify([
+		this.inlineCompletion.filterText,
+		this.inlineCompletion.insertText,
+		this.inlineCompletion.range.getStartPosition().toString()
+	]);
 	private _updatedRange: Range;
-	public get updatedRange(): Range { return this._updatedRange; }
+	private _isValid = true;
+
+	public get forwardStable() {
+		return this.inlineCompletion.source.inlineCompletions.enableForwardStability ?? false;
+	}
 
 	constructor(
 		public readonly inlineCompletion: InlineCompletionItem,
 		public readonly decorationId: string,
+		private readonly rangeVersion: IObservable<number>,
 		initialRange?: Range,
 	) {
 		this._updatedRange = initialRange ?? inlineCompletion.range;
 	}
 
-	public updateRange(textModel: ITextModel): void {
-		const range = textModel.getDecorationRange(this.decorationId);
-		if (!range) {
-			throw new BugIndicatingError();
-		}
-		this._updatedRange = range;
+	public toInlineCompletion(reader: IReader | undefined): InlineCompletionItem {
+		return this.inlineCompletion.withRange(this._getUpdatedRange(reader));
 	}
 
-	public toInlineCompletion(): InlineCompletionItem {
-		return this.inlineCompletion.withRange(this.updatedRange);
+	public toSingleTextEdit(reader: IReader | undefined): SingleTextEdit {
+		return new SingleTextEdit(this._getUpdatedRange(reader), this.inlineCompletion.insertText);
 	}
 
-	public toSingleTextEdit(): SingleTextEdit {
-		return new SingleTextEdit(this.updatedRange, this.inlineCompletion.insertText);
-	}
+	public isVisible(model: ITextModel, cursorPosition: Position, reader: IReader | undefined): boolean {
+		const minimizedReplacement = this._toFilterTextReplacement(reader).removeCommonPrefix(model);
 
-	public toFilterTextReplacement(): SingleTextEdit {
-		return new SingleTextEdit(this.updatedRange, this.inlineCompletion.filterText);
-	}
-
-	public isVisible(model: ITextModel, cursorPosition: Position): boolean {
-		const minimizedReplacement = this.toFilterTextReplacement().removeCommonPrefix(model);
-
-		if (!this.inlineCompletion.range.getStartPosition().equals(this.updatedRange.getStartPosition())) {
-			return false;
-		}
-
-		if (cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber) {
+		if (
+			!this._isValid
+			|| !this.inlineCompletion.range.getStartPosition().equals(this._getUpdatedRange(reader).getStartPosition())
+			|| cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber
+		) {
 			return false;
 		}
 
@@ -316,8 +314,39 @@ export class InlineCompletionWithUpdatedRange {
 			&& !!matchesSubString(originalValueAfter, filterTextAfter);
 	}
 
-	public isSmallerThanOriginal(): boolean {
-		return length(this.updatedRange).isBefore(length(this.inlineCompletion.range));
+	public canBeReused(model: ITextModel, position: Position): boolean {
+		const result = this._isValid
+			&& this._getUpdatedRange(undefined).containsPosition(position)
+			&& this.isVisible(model, position, undefined)
+			&& !this._isSmallerThanOriginal(undefined);
+		return result;
+	}
+
+	private _toFilterTextReplacement(reader: IReader | undefined): SingleTextEdit {
+		return new SingleTextEdit(this._getUpdatedRange(reader), this.inlineCompletion.filterText);
+	}
+
+	private _isSmallerThanOriginal(reader: IReader | undefined): boolean {
+		return length(this._getUpdatedRange(reader)).isBefore(length(this.inlineCompletion.range));
+	}
+
+	private _getUpdatedRange(reader: IReader | undefined): Range {
+		this.rangeVersion.read(reader); // This makes sure all the ranges are updated.
+		return this._updatedRange;
+	}
+
+	public _updateRange(textModel: ITextModel): boolean {
+		const range = textModel.getDecorationRange(this.decorationId);
+		if (!range) {
+			// A setValue call might flush all decorations.
+			this._isValid = false;
+			return true;
+		}
+		if (!this._updatedRange.equalsRange(range)) {
+			this._updatedRange = range;
+			return true;
+		}
+		return false;
 	}
 }
 

@@ -19,8 +19,8 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface IEditorLineDecoration {
-	rangeHighlightId: string;
-	overviewRulerDecorationId: string;
+	readonly rangeHighlightId: string;
+	readonly overviewRulerDecorationId: string;
 }
 
 export interface IEditorNavigationQuickAccessOptions {

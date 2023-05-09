@@ -68,6 +68,15 @@
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
   "contributes": {
+    "walkthroughs": [
+      {
+        "id": "tempNodejsWelcome",
+        "title": "tempNodejsTitle",
+        "description": "tempNodejsDescription",
+        "steps": [],
+        "when": "false"
+      }
+    ],
     "jsonValidation": [
       {
         "fileMatch": "package.json",
@@ -514,6 +523,12 @@
             "%format.semicolons.remove%"
           ]
         },
+        "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
+        },
         "javascript.validate.enable": {
           "type": "boolean",
           "default": true,
@@ -889,6 +904,12 @@
             "index",
             "js"
           ],
+          "enumItemLabels": [
+            null,
+            null,
+            null,
+            "%typescript.preferences.importModuleSpecifierEnding.label.js%"
+          ],
           "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifierEnding.auto%",
             "%typescript.preferences.importModuleSpecifierEnding.minimal%",
@@ -906,6 +927,12 @@
             "minimal",
             "index",
             "js"
+          ],
+          "enumItemLabels": [
+            null,
+            null,
+            null,
+            "%typescript.preferences.importModuleSpecifierEnding.label.js%"
           ],
           "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifierEnding.auto%",

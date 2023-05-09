@@ -40,7 +40,7 @@ suite('InteractiveSessionModel', () => {
 		await timeout(0);
 		assert.strictEqual(hasInitialized, false);
 
-		model.initialize(null!, undefined);
+		model.initialize({} as any, undefined);
 		await timeout(0);
 		assert.strictEqual(hasInitialized, true);
 	});
