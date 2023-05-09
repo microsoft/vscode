@@ -349,9 +349,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 						this._log(`+ Leaving chord mode: Nothing bound to "${currentChordsLabel}, ${keypressLabel}".`);
 						this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", currentChordsLabel, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
 						this._leaveChordMode();
+						shouldPreventDefault = true;
 					}
-
-					shouldPreventDefault = true;
 
 				} else {
 					if (this.inChordMode) {
