@@ -5,15 +5,21 @@
 
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export type Recording = {
 	when: Date;
@@ -51,8 +57,9 @@ export class Session {
 
 	constructor(
 		readonly editMode: EditMode,
-		readonly model0: ITextModel,
-		readonly modelN: ITextModel,
+		readonly editor: ICodeEditor,
+		readonly textModel0: ITextModel,
+		readonly textModelN: ITextModel,
 		readonly provider: IInteractiveEditorSessionProvider,
 		readonly session: IInteractiveEditorSession,
 	) {
@@ -171,47 +178,91 @@ export const IInteractiveEditorSessionService = createDecorator<IInteractiveEdit
 export interface IInteractiveEditorSessionService {
 	_serviceBrand: undefined;
 
+	getOrCreateSession(editor: IActiveCodeEditor, editMode: EditMode, provider: IInteractiveEditorSessionProvider, raw: IInteractiveEditorSession): Promise<Session>;
+
 	retrieveSession(editor: ICodeEditor, uri: URI): Session | undefined;
 
-	storeSession(editor: ICodeEditor, uri: URI, session: Session): void;
-
-	releaseSession(editor: ICodeEditor, uri: URI, session: Session): void;
+	releaseSession(session: Session): void;
 
 	//
 
 	recordings(): readonly Recording[];
 }
 
+type SessionData = {
+	session: Session;
+	store: IDisposable;
+	counter: number;
+};
 
 export class InteractiveEditorSessionService implements IInteractiveEditorSessionService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _sessions = new Map<ICodeEditor, ResourceMap<Session>>();
+	private readonly _sessions = new Map<ICodeEditor, ResourceMap<SessionData>>();
 	private _recordings: Recording[] = [];
 
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IModelService private readonly _modelService: IModelService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	storeSession(editor: ICodeEditor, uri: URI, session: Session): void {
+
+	async getOrCreateSession(editor: IActiveCodeEditor, editMode: EditMode, provider: IInteractiveEditorSessionProvider, raw: IInteractiveEditorSession) {
+
+		// lookup:
+		const data = this._sessions.get(editor)?.get(editor.getModel().uri);
+		if (data) {
+			this._logService.trace(`[IE] session reuse for ${editor.getId()},  ${provider.debugName}`);
+			data.counter++;
+			return data.session;
+		}
+
+		this._logService.trace(`[IE] creating NEW session for ${editor.getId()},  ${provider.debugName}`);
+		const store = new DisposableStore();
+		const textModel = editor.getModel();
+
+		// create: keep a reference to prevent disposal of the "actual" model
+		const refTextModelN = await this._textModelService.createModelReference(textModel.uri);
+		store.add(refTextModelN);
+
+		// create: keep a snapshot of the "actual" model
+		const textModel0 = this._modelService.createModel(
+			createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
+			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
+			undefined, true
+		);
+		store.add(textModel0);
+
+		const session = new Session(editMode, editor, textModel0, textModel, provider, raw);
+
+		// store: editor -> uri -> session
 		let map = this._sessions.get(editor);
 		if (!map) {
-			map = new ResourceMap<Session>();
+			map = new ResourceMap<SessionData>();
 			this._sessions.set(editor, map);
 		}
-		if (map.has(uri)) {
-			throw new Error(`Session already stored for ${uri}`);
+		if (map.has(textModel.uri)) {
+			throw new Error(`Session already stored for ${textModel.uri}`);
 		}
-		map.set(uri, session);
+		map.set(textModel.uri, { session, store, counter: 1 });
+		return session;
 	}
 
-	releaseSession(editor: ICodeEditor, uri: URI, session: Session): void {
+	releaseSession(session: Session): void {
+
+		const { editor, textModel0: model0 } = session;
 
 		// cleanup
 		const map = this._sessions.get(editor);
 		if (map) {
-			map.delete(uri);
+			const data = map.get(model0.uri);
+			if (data && --data.counter === 0) {
+				data.store.dispose();
+				map.delete(model0.uri);
+			}
 			if (map.size === 0) {
 				this._sessions.delete(editor);
 			}
@@ -228,7 +279,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 	}
 
 	retrieveSession(editor: ICodeEditor, uri: URI): Session | undefined {
-		return this._sessions.get(editor)?.get(uri);
+		return this._sessions.get(editor)?.get(uri)?.session;
 	}
 
 	// --- debug

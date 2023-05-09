@@ -26,7 +26,6 @@ import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, I
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -160,7 +159,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 
@@ -223,19 +221,11 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		const store = new DisposableStore();
 
-		// keep a snapshot of the "actual" model
-		const textModel0 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModel.createSnapshot()), { languageId: textModel.getLanguageId(), onDidChange: Event.None }, undefined, true);
-		store.add(textModel0);
-
-		// keep a reference to prevent disposal of the "actual" model
-		const refTextModelN = await this._textModelService.createModelReference(textModel.uri);
-		store.add(refTextModelN);
-
 		let textModel0Changes: LineRangeMapping[] | undefined;
 
 		const editMode = this._getMode();
-		const activeSession = new Session(editMode, textModel0, textModel, provider, session);
-		this._interactiveEditorSessionService.storeSession(this._editor, textModel.uri, activeSession);
+
+		const activeSession = await this._interactiveEditorSessionService.getOrCreateSession(this._editor, editMode, provider, session);
 
 		switch (editMode) {
 			case EditMode.Live:
@@ -452,7 +442,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModel.createSnapshot()), null, undefined, true);
 			textModelNplus1.applyEdits(editOperations);
-			const diff = await this._editorWorkerService.computeDiff(textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000 }, 'advanced');
+			const diff = await this._editorWorkerService.computeDiff(activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000 }, 'advanced');
 			textModel0Changes = diff?.changes ?? [];
 			textModelNplus1.dispose();
 
@@ -480,7 +470,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxLastEditKind.reset();
 		this._ctxLastResponseType.reset();
 		this._ctxLastFeedbackKind.reset();
-		this._interactiveEditorSessionService.releaseSession(this._editor, textModel.uri, activeSession);
+		this._interactiveEditorSessionService.releaseSession(activeSession);
 
 		this._zone.hide();
 		this._editor.focus();
@@ -568,7 +558,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	undoLast(): string | void {
 		if (this._activeSession?.lastExchange?.response instanceof EditResponse) {
-			this._activeSession.modelN.undo();
+			this._activeSession.textModelN.undo();
 			return this._activeSession.lastExchange.response.localEdits[0].text;
 		}
 	}
@@ -631,8 +621,8 @@ class PreviewStrategy extends EditModeStrategy {
 		super();
 
 		this._ctxDocumentChanged = CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED.bindTo(contextKeyService);
-		this._listener = Event.debounce(_session.modelN.onDidChangeContent.bind(_session.modelN), () => { }, 350)(_ => {
-			this._ctxDocumentChanged.set(!_session.modelN.equalsTextBuffer(_session.model0.getTextBuffer()));
+		this._listener = Event.debounce(_session.textModelN.onDidChangeContent.bind(_session.textModelN), () => { }, 350)(_ => {
+			this._ctxDocumentChanged.set(!_session.textModelN.equalsTextBuffer(_session.textModel0.getTextBuffer()));
 		});
 	}
 
@@ -662,9 +652,9 @@ class PreviewStrategy extends EditModeStrategy {
 
 		} else if (!editResponse.workspaceEditsIncludeLocalEdits) {
 
-			const { modelN } = this._session;
+			const { textModelN: modelN } = this._session;
 
-			if (modelN.equalsTextBuffer(this._session.model0.getTextBuffer())) {
+			if (modelN.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
 				modelN.pushStackElement();
 				const edits = editResponse.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
 				modelN.pushEditOperations(null, edits, () => null);
@@ -679,7 +669,7 @@ class PreviewStrategy extends EditModeStrategy {
 
 	override async renderChanges(response: EditResponse, edits: ISingleEditOperation[], changes: LineRangeMapping[]): Promise<void> {
 		if (response.localEdits.length > 0) {
-			this._widget.showEditsPreview(this._session.modelN, edits, changes);
+			this._widget.showEditsPreview(this._session.textModelN, edits, changes);
 		} else {
 			this._widget.hideEditsPreview();
 		}
@@ -757,7 +747,7 @@ class LiveStrategy extends EditModeStrategy {
 	}
 
 	async cancel() {
-		const { modelN, model0 } = this._session;
+		const { textModelN: modelN, textModel0: model0 } = this._session;
 		if (modelN.isDisposed() || model0.isDisposed()) {
 			return;
 		}
@@ -829,7 +819,7 @@ class LivePreviewStrategy extends LiveStrategy {
 	) {
 		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService);
 
-		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session.model0);
+		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session.textModel0);
 		this._previewZone = instaService.createInstance(InteractiveEditorFileCreatePreviewWidget, editor);
 	}
 
