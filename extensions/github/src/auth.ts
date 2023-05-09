@@ -10,6 +10,8 @@ import { Octokit } from '@octokit/rest';
 import { httpsOverHttp } from 'tunnel';
 import { URL } from 'url';
 
+export class AuthenticationError extends Error { }
+
 function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
 	if (!url) {
 		return globalAgent;
@@ -57,25 +59,30 @@ export function getOctokit(): Promise<Octokit> {
 
 let _octokitGraphql: Promise<graphql> | undefined;
 
-export function getOctokitGraphql(): Promise<graphql> {
+export async function getOctokitGraphql(): Promise<graphql> {
 	if (!_octokitGraphql) {
-		_octokitGraphql = getSession()
-			.then(async session => {
-				const token = session.accessToken;
-				const { graphql } = await import('@octokit/graphql');
+		try {
+			const session = await authentication.getSession('github', scopes, { createIfNone: false });
 
-				return graphql.defaults({
-					headers: {
-						authorization: `token ${token}`
-					},
-					request: {
-						agent: getAgent()
-					}
-				});
-			}).then(null, async err => {
-				_octokitGraphql = undefined;
-				throw err;
+			if (!session) {
+				throw new AuthenticationError('No GitHub authentication session available.');
+			}
+
+			const token = session.accessToken;
+			const { graphql } = await import('@octokit/graphql');
+
+			return graphql.defaults({
+				headers: {
+					authorization: `token ${token}`
+				},
+				request: {
+					agent: getAgent()
+				}
 			});
+		} catch (err) {
+			_octokitGraphql = undefined;
+			throw err;
+		}
 	}
 
 	return _octokitGraphql;

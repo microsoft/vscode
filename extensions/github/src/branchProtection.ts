@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
+import { authentication, EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
 import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/graphql-schema';
-import { getOctokitGraphql } from './auth';
+import { AuthenticationError, getOctokitGraphql } from './auth';
 import { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git';
 import { DisposableStore, getRepositoryFromUrl } from './util';
 
@@ -190,7 +190,18 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			// Save branch protection to global state
 			await this.globalState.update(this.globalStateKey, branchProtection);
 		} catch (err) {
-			// noop
+			if (err instanceof AuthenticationError) {
+				// Since there is no GitHub authentication session available we need to wait
+				// until the user signs in with their GitHub account so that we can query the
+				// repository rulesets
+				const disposable = authentication.onDidChangeSessions(e => {
+					if (e.provider.id === 'github') {
+						disposable.dispose();
+						this.updateRepositoryBranchProtection();
+					}
+				});
+			}
+
 			this.logger.warn(`Failed to update repository branch protection: ${err.message}`);
 		}
 	}
