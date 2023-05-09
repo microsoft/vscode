@@ -322,9 +322,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 		const command = dataArr[0];
 		const args: string[] | undefined = dataArr.length > 1 ? dataArr.slice(1) : undefined;
-		if (args && args?.length > 1) {
-			return false;
-		}
 		switch (command) {
 			case VSCodeOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
@@ -346,7 +343,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				if (commandLine) {
 					this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, isTrusted);
 				}
-				return !!commandLine;
+				return !!commandLine || (!!args && args.length > 1);
 			}
 			case VSCodeOscPt.ContinuationStart: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationStart();
