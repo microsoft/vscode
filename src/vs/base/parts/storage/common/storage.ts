@@ -6,7 +6,7 @@
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { revive, stringify } from 'vs/base/common/marshalling';
+import { parse, stringify } from 'vs/base/common/marshalling';
 import { isUndefinedOrNull, isObject } from 'vs/base/common/types';
 
 export enum StorageHint {
@@ -226,7 +226,7 @@ export class Storage extends Disposable implements IStorage {
 			return fallbackValue;
 		}
 
-		return revive(JSON.parse(value));
+		return parse(value);
 	}
 
 	async set(key: string, value: string | boolean | number | null | undefined | object): Promise<void> {
