@@ -163,10 +163,12 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 				}
 
 				// Repository details
+				this.logger.trace(`Fetching repository details for "${repository.owner}/${repository.repo}".`);
 				const repositoryDetails = await this.getRepositoryDetails(repository.owner, repository.repo);
 
 				// Check repository write permission
 				if (repositoryDetails.viewerPermission !== 'ADMIN' && repositoryDetails.viewerPermission !== 'MAINTAIN' && repositoryDetails.viewerPermission !== 'WRITE') {
+					this.logger.trace(`Skipping branch protection for "${repository.owner}/${repository.repo}" due to missing repository write permission.`);
 					continue;
 				}
 
@@ -189,6 +191,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 			// Save branch protection to global state
 			await this.globalState.update(this.globalStateKey, branchProtection);
+			this.logger.trace(`Branch protection for "${this.repository.rootUri.toString()}": ${JSON.stringify(branchProtection)}.`);
 		} catch (err) {
 			if (err instanceof AuthenticationError) {
 				// Since there is no GitHub authentication session available we need to wait
