@@ -1289,7 +1289,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _updateAriaLabel(options: IEditorConstructionOptions): void {
-		let ariaLabel = options.ariaLabel;
+		let ariaLabel = options.ariaLabel ?? '';
 		if (this._options.accessibilityVerbose) {
 			ariaLabel += ariaNavigationTip;
 		} else if (ariaLabel) {

@@ -176,14 +176,14 @@ CommandsRegistry.registerCommand({
 		const fileService = accessor.get(IFileService);
 		const openerService = accessor.get(IOpenerService);
 
-		let { range, uri } = test.item;
+		const { range, uri } = test.item;
 		if (!uri) {
 			return;
 		}
 
 		// If an editor has the file open, there are decorations. Try to adjust the
 		// revealed range to those decorations (#133441).
-		range = accessor.get(ITestingDecorationsService).getDecoratedRangeForTest(uri, extId) || range;
+		const position = accessor.get(ITestingDecorationsService).getDecoratedTestPosition(uri, extId) || range?.getStartPosition();
 
 		accessor.get(ITestExplorerFilterState).reveal.value = extId;
 		accessor.get(ITestingPeekOpener).closeAllPeeks();
@@ -202,8 +202,8 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		await openerService.open(range
-			? uri.with({ fragment: `L${range.startLineNumber}:${range.startColumn}` })
+		await openerService.open(position
+			? uri.with({ fragment: `L${position.lineNumber}:${position.column}` })
 			: uri
 		);
 	}

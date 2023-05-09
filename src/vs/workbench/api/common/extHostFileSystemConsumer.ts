@@ -141,6 +141,20 @@ export class ExtHostConsumerFileSystem {
 			throw err;
 		}
 
+		// file system provider error
+		if (err instanceof files.FileSystemProviderError) {
+			switch (err.code) {
+				case files.FileSystemProviderErrorCode.FileExists: throw FileSystemError.FileExists(err.message);
+				case files.FileSystemProviderErrorCode.FileNotFound: throw FileSystemError.FileNotFound(err.message);
+				case files.FileSystemProviderErrorCode.FileNotADirectory: throw FileSystemError.FileNotADirectory(err.message);
+				case files.FileSystemProviderErrorCode.FileIsADirectory: throw FileSystemError.FileIsADirectory(err.message);
+				case files.FileSystemProviderErrorCode.NoPermissions: throw FileSystemError.NoPermissions(err.message);
+				case files.FileSystemProviderErrorCode.Unavailable: throw FileSystemError.Unavailable(err.message);
+
+				default: throw new FileSystemError(err.message, err.name as files.FileSystemProviderErrorCode);
+			}
+		}
+
 		// generic error
 		if (!(err instanceof Error)) {
 			throw new FileSystemError(String(err));

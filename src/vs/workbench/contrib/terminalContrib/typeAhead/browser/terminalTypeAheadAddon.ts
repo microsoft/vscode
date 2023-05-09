@@ -9,10 +9,10 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { XtermAttributes, IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from 'xterm';
 
 const enum VT {
@@ -1289,8 +1289,8 @@ export const enum CharPredictState {
 
 export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private _typeaheadStyle?: TypeAheadStyle;
-	private _typeaheadThreshold = this._config.config.localEchoLatencyThreshold;
-	private _excludeProgramRe = compileExcludeRegexp(this._config.config.localEchoExcludePrograms);
+	private _typeaheadThreshold = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoLatencyThreshold;
+	private _excludeProgramRe = compileExcludeRegexp(this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoExcludePrograms);
 	protected _lastRow?: { y: number; startingX: number; endingX: number; charState: CharPredictState };
 	protected _timeline?: PredictionTimeline;
 	private _terminalTitle = '';
@@ -1303,7 +1303,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 	constructor(
 		private _processManager: ITerminalProcessManager,
-		private readonly _config: TerminalConfigHelper,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
@@ -1311,7 +1311,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	}
 
 	activate(terminal: Terminal): void {
-		const style = this._typeaheadStyle = this._register(new TypeAheadStyle(this._config.config.localEchoStyle, terminal));
+		const style = this._typeaheadStyle = this._register(new TypeAheadStyle(this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoStyle, terminal));
 		const timeline = this._timeline = new PredictionTimeline(terminal, this._typeaheadStyle);
 		const stats = this.stats = this._register(new PredictionStats(this._timeline));
 
@@ -1326,11 +1326,13 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			timeline.clearCursor();
 			this._reevaluatePredictorState(stats, timeline);
 		}));
-		this._register(this._config.onConfigChanged(() => {
-			style.onUpdate(this._config.config.localEchoStyle);
-			this._typeaheadThreshold = this._config.config.localEchoLatencyThreshold;
-			this._excludeProgramRe = compileExcludeRegexp(this._config.config.localEchoExcludePrograms);
-			this._reevaluatePredictorState(stats, timeline);
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+				style.onUpdate(this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoStyle);
+				this._typeaheadThreshold = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoLatencyThreshold;
+				this._excludeProgramRe = compileExcludeRegexp(this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).localEchoExcludePrograms);
+				this._reevaluatePredictorState(stats, timeline);
+			}
 		}));
 		this._register(this._timeline.onPredictionSucceeded(p => {
 			if (this._lastRow?.charState === CharPredictState.HasPendingChar && isTenativeCharacterPrediction(p) && p.inner.appliedAt) {

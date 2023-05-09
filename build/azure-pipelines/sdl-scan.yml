@@ -32,6 +32,10 @@ variables:
     value: x64
   - name: Codeql.enabled
     value: true
+  - name: Codeql.TSAEnabled
+    value: true
+  - name: Codeql.TSAOptionsPath
+    value: '$(Build.SourcesDirectory)\build\azure-pipelines\.gdntsa'
 
 stages:
   - stage: Windows

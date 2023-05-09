@@ -36,7 +36,7 @@ export class InteractiveSessionWidgetHistoryService implements IInteractiveSessi
 		@IStorageService storageService: IStorageService
 	) {
 		this.memento = new Memento('interactive-session', storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IInteractiveSessionHistory;
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IInteractiveSessionHistory;
 	}
 
 	getHistory(providerId: string): string[] {
