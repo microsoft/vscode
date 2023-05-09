@@ -1069,6 +1069,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return range.commonAncestorContainer;
 	}
 
+	function getTextContentLength(node: Node): number {
+		let length = 0;
+
+		if (node.nodeType === Node.TEXT_NODE) {
+			length += node.textContent?.length || 0;
+		} else {
+			for (const childNode of node.childNodes) {
+				length += getTextContentLength(childNode);
+			}
+		}
+
+		return length;
+	}
+
 	// modified from https://stackoverflow.com/a/48812529/16253823
 	function getSelectionOffsetRelativeTo(parentElement: Node, currentNode: Node | null): number {
 		if (!currentNode) {
@@ -1084,8 +1098,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		// count the number of chars before the current dom elem and the start of the dom
 		let prevSibling = currentNode.previousSibling;
 		while (prevSibling) {
-			const nodeContent = prevSibling.nodeValue || '';
-			offset += nodeContent.length;
+			offset += getTextContentLength(prevSibling);
 			prevSibling = prevSibling.previousSibling;
 		}
 
