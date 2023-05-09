@@ -342,7 +342,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 				this._logService.trace('KeybindingService#dispatch', keypressLabel, `[ Will dispatch command ${resolveResult.commandId} ]`);
 
-				if (resolveResult.commandId === null) {
+				if (resolveResult.commandId === null || resolveResult.commandId === '') {
 
 					if (this.inChordMode) {
 						const currentChordsLabel = this._currentChords.map(({ label }) => label).join(', ');
