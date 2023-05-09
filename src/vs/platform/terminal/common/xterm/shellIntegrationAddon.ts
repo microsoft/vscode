@@ -333,13 +333,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.CommandLine: {
-				let commandLine: string;
-				if (args.length && args.length <= 2) {
-					commandLine = deserializeMessage(args[0]);
-				} else {
-					commandLine = '';
+				const commandLine: string | undefined = args.length ? deserializeMessage(args[0]) : undefined;
+				const isTrusted = args.length > 1 ? args[1] === this._nonce : false;
+				if (commandLine) {
+					this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, isTrusted);
 				}
-				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, args[1] === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.ContinuationStart: {
