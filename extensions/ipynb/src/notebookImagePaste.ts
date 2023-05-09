@@ -35,6 +35,7 @@ function getImageMimeType(uri: vscode.Uri): string | undefined {
 	return imageExtToMime.get(extname(uri.fsPath).toLowerCase());
 }
 
+const id = 'insertAttachment';
 class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 	async provideDocumentPasteEdits(
@@ -53,7 +54,7 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, vscode.l10n.t('Insert Image as Attachment'));
+		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, id, vscode.l10n.t('Insert Image as Attachment'));
 		pasteEdit.additionalEdit = insert.additionalEdit;
 		return pasteEdit;
 	}
@@ -73,6 +74,7 @@ class DropEditProvider implements vscode.DocumentDropEditProvider {
 		}
 
 		const dropEdit = new vscode.DocumentDropEdit(insert.insertText);
+		dropEdit.id = id;
 		dropEdit.additionalEdit = insert.additionalEdit;
 		dropEdit.label = vscode.l10n.t('Insert Image as Attachment');
 		return dropEdit;
@@ -287,7 +289,6 @@ export function notebookImagePasteSetup(): vscode.Disposable {
 			],
 		}),
 		vscode.languages.registerDocumentDropEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, new DropEditProvider(), {
-			id: 'imageAttachment',
 			dropMimeTypes: [
 				...Object.values(imageExtToMime),
 				MimeType.uriList,
