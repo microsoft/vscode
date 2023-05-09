@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "^1.13.0"
   },
+  "enabledApiProposals": ["contribMenuBar", "languageInfo"],
   "icon": "images/icon.png",
   "categories": [
     "Other"
@@ -378,6 +379,19 @@
         "command": "workbench.action.showEmmetCommands",
         "title": "%command.showEmmetCommands%",
         "category": ""
+      },
+      {
+        "command": "editor.emmet.action.expandAbbreviation",
+        "title": "%expandAbbreviationAction%",
+        "category": ""
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "editor.emmet.action.expandAbbreviation",
+        "key": "tab",
+        "mac": "tab",
+        "when": "editorTextFocus && !editorTabMovesFocus && config.emmet.triggerExpansionOnTab && !editorReadonly"
       }
     ],
     "menus": {
@@ -469,6 +483,13 @@
         {
           "command": "editor.emmet.action.reflectCSSValue",
           "when": "!activeEditorIsReadonly"
+        }
+      ],
+      "menuBar/edit": [
+        {
+          "command": "editor.emmet.action.expandAbbreviation",
+          "group": "5_insert@3",
+          "when": "!editorReadonly"
         }
       ]
     }

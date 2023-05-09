@@ -12,8 +12,43 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
+import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
+
+interface ModeScopeMap {
+	[key: string]: string;
+}
+
+export interface IGrammarContributions {
+	getGrammar(mode: string): string;
+}
+
+class GrammarContributions implements IGrammarContributions {
+
+	private static _grammars: ModeScopeMap = {};
+
+	constructor(contributions: ExtensionPointContribution<ITMSyntaxExtensionPoint[]>[]) {
+		if (!Object.keys(GrammarContributions._grammars).length) {
+			this.fillModeScopeMap(contributions);
+		}
+	}
+
+	private fillModeScopeMap(contributions: ExtensionPointContribution<ITMSyntaxExtensionPoint[]>[]) {
+		contributions.forEach((contribution) => {
+			contribution.value.forEach((grammar) => {
+				if (grammar.language && grammar.scopeName) {
+					GrammarContributions._grammars[grammar.language] = grammar.scopeName;
+				}
+			});
+		});
+	}
+
+	public getGrammar(mode: string): string {
+		return GrammarContributions._grammars[mode];
+	}
+}
 
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
 export class MainThreadLanguages implements MainThreadLanguagesShape {
@@ -29,6 +64,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private _resolverService: ITextModelService,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostLanguages);
 
@@ -36,6 +72,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		this._disposables.add(_languageService.onDidChange(_ => {
 			this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
 		}));
+		this._disposables.add(this.extensionService.onDidChangeExtensions(() => { this._extensionsUpdated = true; }));
 	}
 
 	dispose(): void {
@@ -71,6 +108,29 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 			type: tokens.getStandardTokenType(idx),
 			range: new Range(position.lineNumber, 1 + tokens.getStartOffset(idx), position.lineNumber, 1 + tokens.getEndOffset(idx))
 		};
+	}
+
+	async $languageAtPosition(resource: UriComponents, position: IPosition): Promise<string | undefined> {
+		const uri = URI.revive(resource);
+		const model = this._modelService.getModel(uri);
+		if (!model) {
+			return undefined;
+		}
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
+		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
+	}
+
+	private _extensionsUpdated = false;
+	private _lastGrammarContributions: Promise<GrammarContributions> | undefined = undefined;
+	async $scopeName(languageId: string): Promise<string | undefined> {
+		if (this._extensionsUpdated) {
+			this._extensionsUpdated = false;
+			this._lastGrammarContributions = this.extensionService.readExtensionPointContributions(grammarsExtPoint).then((contributions) => {
+				return new GrammarContributions(contributions);
+			});
+		}
+		const grammarContributions = await this._lastGrammarContributions;
+		return this._getGrammarContributions()?.getGrammar(languageId);
 	}
 
 	// --- language status
