@@ -26,6 +26,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IListAccessibilityProvider, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
+import { getAriaLabelForExtension } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 
 export class ExtensionsGridView extends Disposable {
 
@@ -265,12 +266,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				overrideStyles,
 				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
 					getAriaLabel(extensionData: IExtensionData): string {
-						const extension = extensionData.extension;
-						if (extension.rating) {
-							return localize('extension.arialabelWithRating', "{0}, {1}, {2}, {3}, rated {4} out of 5 by {5} users", extension.displayName, extension.version, extension.publisherDisplayName, extension.description, extension.rating, extension.ratingCount);
-						} else {
-							return localize('extension.arialabel', "{0}, {1}, {2}, {3}", extension.displayName, extension.version, extension.publisherDisplayName, extension.description);
-						}
+						return getAriaLabelForExtension(extensionData.extension);
 					},
 					getWidgetAriaLabel(): string {
 						return localize('extensions', "Extensions");
