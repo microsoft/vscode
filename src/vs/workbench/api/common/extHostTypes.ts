@@ -2921,19 +2921,6 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 
 @es5ClassCompat
 export class StackFrameFocus {
-	static isStackFrameFocus(thing: any): thing is StackFrameFocus {
-		if (thing instanceof StackFrameFocus) {
-			return true;
-		}
-		if (!thing) {
-			return false;
-		}
-
-		const typeofId = typeof<StackFrameFocus>thing.threadId;
-		return !!(<StackFrameFocus>thing).session &&
-			(typeofId === 'number' || typeofId === 'undefined');
-	}
-
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId?: number,
@@ -2942,19 +2929,6 @@ export class StackFrameFocus {
 
 @es5ClassCompat
 export class ThreadFocus {
-	static isThreadFocus(thing: any): thing is StackFrameFocus {
-		if (thing instanceof ThreadFocus) {
-			return true;
-		}
-		if (!thing) {
-			return false;
-		}
-
-		const typeofId = typeof<StackFrameFocus>thing.threadId;
-		return !!(<StackFrameFocus>thing).session &&
-			(typeofId === 'number' || typeofId === 'undefined') && !('frameId' in thing);
-	}
-
 	constructor(
 		public readonly session: vscode.DebugSession,
 		readonly threadId?: number) { }

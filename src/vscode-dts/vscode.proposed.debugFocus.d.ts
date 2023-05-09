@@ -9,11 +9,6 @@ declare module 'vscode' {
 
 	export class ThreadFocus {
 		/**
-		 * test if object is a ThreadFocus
-		 */
-		static isThreadFocus(thing: any): thing is ThreadFocus;
-
-		/**
 		 * Create a ThreadFocus
 		 * @param session
 		 * @param threadId
@@ -36,11 +31,6 @@ declare module 'vscode' {
 	}
 
 	export class StackFrameFocus {
-		/**
-		 * test if object is a StackFrameFocus
-		 */
-		static isStackFrameFocus(thing: any): thing is StackFrameFocus;
-
 		/**
 		 * Create a StackFrameFocus
 		 * @param session
