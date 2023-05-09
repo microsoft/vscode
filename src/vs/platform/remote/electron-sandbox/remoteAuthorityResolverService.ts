@@ -22,14 +22,14 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 
 	private readonly _resolveAuthorityRequests: Map<string, DeferredPromise<ResolverResult>>;
 	private readonly _connectionTokens: Map<string, string>;
-	private readonly _canonicalURIRequests: Map<string, DeferredPromise<URI>>;
+	private readonly _canonicalURIRequests: Map<string, { input: URI; result: DeferredPromise<URI> }>;
 	private _canonicalURIProvider: ((uri: URI) => Promise<URI>) | null;
 
 	constructor(@IProductService productService: IProductService) {
 		super();
 		this._resolveAuthorityRequests = new Map<string, DeferredPromise<ResolverResult>>();
 		this._connectionTokens = new Map<string, string>();
-		this._canonicalURIRequests = new Map<string, DeferredPromise<URI>>();
+		this._canonicalURIRequests = new Map();
 		this._canonicalURIProvider = null;
 
 		RemoteAuthorities.setServerRootPath(getRemoteServerRootPath(productService));
@@ -44,12 +44,15 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 
 	async getCanonicalURI(uri: URI): Promise<URI> {
 		const key = uri.toString();
-		if (!this._canonicalURIRequests.has(key)) {
-			const request = new DeferredPromise<URI>();
-			this._canonicalURIProvider?.(uri).then((uri) => request.complete(uri), (err) => request.error(err));
-			this._canonicalURIRequests.set(key, request);
+		const existing = this._canonicalURIRequests.get(key);
+		if (existing) {
+			return existing.result.p;
 		}
-		return this._canonicalURIRequests.get(key)!.p;
+
+		const result = new DeferredPromise<URI>();
+		this._canonicalURIProvider?.(uri).then((uri) => result.complete(uri), (err) => result.error(err));
+		this._canonicalURIRequests.set(key, { input: uri, result });
+		return result.p;
 	}
 
 	getConnectionData(authority: string): IRemoteConnectionData | null {
@@ -105,8 +108,8 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 
 	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void {
 		this._canonicalURIProvider = provider;
-		this._canonicalURIRequests.forEach((value, key) => {
-			this._canonicalURIProvider!(URI.parse(key)).then((uri) => value.complete(uri), (err) => value.error(err));
+		this._canonicalURIRequests.forEach(({ result, input }) => {
+			this._canonicalURIProvider!(input).then((uri) => result.complete(uri), (err) => result.error(err));
 		});
 	}
 }
