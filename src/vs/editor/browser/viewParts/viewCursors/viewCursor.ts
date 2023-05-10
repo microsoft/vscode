@@ -35,8 +35,7 @@ class ViewCursorRenderData {
 	) { }
 }
 
-export enum CursorPlurality
-{
+export enum CursorPlurality {
 	Single,
 	MultiPrimary,
 	MultiSecondary,
@@ -97,8 +96,7 @@ export class ViewCursor {
 	}
 
 	public setPlurality(plurality: CursorPlurality) {
-		switch (plurality)
-		{
+		switch (plurality) {
 			default:
 			case CursorPlurality.Single:
 				this._pluralityClass = '';
