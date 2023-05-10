@@ -514,14 +514,6 @@ export class TunnelModel extends Disposable {
 	private async onTunnelClosed(address: { host: string; port: number }, reason: TunnelCloseReason) {
 		const key = makeAddress(address.host, address.port);
 		if (this.forwarded.has(key)) {
-			const oldTunnel = this.forwarded.get(key)!;
-			if (reason === TunnelCloseReason.AutoForwardEnd) {
-				this.sessionCachedProperties.set(key, {
-					local: oldTunnel.localPort,
-					name: oldTunnel.name,
-					privacy: oldTunnel.privacy,
-				});
-			}
 			this.forwarded.delete(key);
 			await this.storeForwarded();
 			this._onClosePort.fire(address);
@@ -749,6 +741,15 @@ export class TunnelModel extends Disposable {
 	}
 
 	async close(host: string, port: number, reason: TunnelCloseReason): Promise<void> {
+		const key = makeAddress(host, port);
+		const oldTunnel = this.forwarded.get(key)!;
+		if (reason === TunnelCloseReason.AutoForwardEnd) {
+			this.sessionCachedProperties.set(key, {
+				local: oldTunnel.localPort,
+				name: oldTunnel.name,
+				privacy: oldTunnel.privacy,
+			});
+		}
 		await this.tunnelService.closeTunnel(host, port);
 		return this.onTunnelClosed({ host, port }, reason);
 	}
