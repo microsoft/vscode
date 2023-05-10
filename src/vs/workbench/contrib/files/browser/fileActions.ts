@@ -53,7 +53,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Action2 } from 'vs/platform/actions/common/actions';
-import { ActiveEditorContext, EmptyWorkspaceSupportContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorCanToggleReadonlyContext, ActiveEditorContext, EmptyWorkspaceSupportContext } from 'vs/workbench/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -1197,7 +1197,7 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 			title,
 			f1: true,
 			category: Categories.File,
-			precondition: ActiveEditorContext
+			precondition: ActiveEditorCanToggleReadonlyContext
 		});
 	}
 

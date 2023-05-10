@@ -12,7 +12,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -144,10 +144,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
-			if (
-				this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
-				this.filesConfigurationService.isReadonly(this.resource)
-			) {
+			if (this.filesConfigurationService.isReadonly(this.resource)) {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		}

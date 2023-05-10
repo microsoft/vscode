@@ -16,7 +16,7 @@ import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { CellEditType, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IEditorOptions, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -99,10 +99,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
-			if (
-				this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
-				this.filesConfigurationService.isReadonly(this.resource)
-			) {
+			if (this.filesConfigurationService.isReadonly(this.resource)) {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		}
