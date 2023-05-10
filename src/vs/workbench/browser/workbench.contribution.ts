@@ -146,16 +146,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enumDescriptions': [
 					localize('workbench.editor.tabSizing.fit', "Always keep tabs large enough to show the full editor label."),
 					localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once."),
-					localize('workbench.editor.tabSizing.fixed', "Make tabs always the same width.")
+					localize('workbench.editor.tabSizing.fixed', "Make all tabs the same size, while allowing them to get smaller when the available space is not enough to show all tabs at once.")
 				],
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
-			'workbench.editor.tabSizingFixedWidth': {
+			'workbench.editor.tabSizingMaxWidth': {
 				'type': 'number',
-				'default': 160,
+				'default': 240,
 				'minimum': 50,
-				'maximum': 320,
-				'markdownDescription': localize('workbench.editor.tabSizingFixedWidth', "Controls the width of tabs when {0} is set to {1}.", '`#workbench.editor.tabSizing#`', '`fixed`')
+				'markdownDescription': localize('workbench.editor.tabSizingMaxWidth', "Controls the maximum width of tabs when {0} is set to {1}.", '`#workbench.editor.tabSizing#`', '`fixed`')
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',

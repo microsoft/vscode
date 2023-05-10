@@ -176,7 +176,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.classList.add('tabs-container');
 		this.tabsContainer.addEventListener('mouseenter', this.fixTabWidths.bind(this));
 		this.tabsContainer.addEventListener('mouseleave', this.relaxTabWidths.bind(this));
-		this.updateTabSizingFixedWidth();
+		this.updateTabSizingMaxWidth();
 		this._register(Gesture.addTarget(this.tabsContainer));
 
 		// Tabs Scrollbar
@@ -225,11 +225,11 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private updateTabSizingFixedWidth(): void {
+	private updateTabSizingMaxWidth(): void {
 		const options = this.accessor.partOptions;
 		this.tabsContainer?.style.setProperty(
 			'--tab-sizing-max-width',
-			options.tabSizing === 'fixed' ? `${options.tabSizingFixedWidth}px` : ''
+			options.tabSizing === 'fixed' ? `${options.tabSizingMaxWidth}px` : ''
 		);
 	}
 
@@ -674,10 +674,10 @@ export class TabsTitleControl extends TitleControl {
 			this.updateTabsScrollbarSizing();
 		}
 
-		if (oldOptions.tabSizingFixedWidth !== newOptions.tabSizingFixedWidth ||
+		if (oldOptions.tabSizingMaxWidth !== newOptions.tabSizingMaxWidth ||
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
-			this.updateTabSizingFixedWidth();
+			this.updateTabSizingMaxWidth();
 		}
 
 		// Redraw tabs when other options change

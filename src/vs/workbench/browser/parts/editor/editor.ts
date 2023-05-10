@@ -28,7 +28,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
-	tabSizingFixedWidth: 160,
+	tabSizingMaxWidth: 160,
 	pinnedTabSizing: 'normal',
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
