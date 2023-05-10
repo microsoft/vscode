@@ -1287,10 +1287,10 @@
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
 
-"@vscode/proxy-agent@^0.13.1":
-  version "0.13.1"
-  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.13.1.tgz#c03e9a9d65b62c762f31fa95bf9d9f52372c4825"
-  integrity sha512-6z/EQ4IrVYJ35f7g/HoDsVIcBjBHJtUOe/msBoTQ6B/LN2TTlxTHH1TWAwMxQgKZkKrjD5JJG2ZJN8qThQlVaQ==
+"@vscode/proxy-agent@^0.13.2":
+  version "0.13.2"
+  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.13.2.tgz#0d289826c07faecc4ca07de80a8e5a9459d06119"
+  integrity sha512-BSUd0NTj44WvG4O9A6N+4R1XhxtPqCYltWeHyNkquX9T//a1US+cd8fxzcZCPd3z7dygdYIPkZAKM+CrefWWOA==
   dependencies:
     "@tootallnate/once" "^1.1.2"
     agent-base "^6.0.2"

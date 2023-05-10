@@ -7,7 +7,7 @@
     "@microsoft/1ds-post-js": "^3.2.2",
     "@parcel/watcher": "2.1.0",
     "@vscode/iconv-lite-umd": "0.7.0",
-    "@vscode/proxy-agent": "^0.13.1",
+    "@vscode/proxy-agent": "^0.13.2",
     "@vscode/ripgrep": "^1.15.2",
     "@vscode/spdlog": "^0.13.10",
     "@vscode/vscode-languagedetection": "1.0.21",
