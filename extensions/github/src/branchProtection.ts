@@ -114,25 +114,32 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		// Restore branch protection from global state
 		this.branchProtection = this.globalState.get<BranchProtection[]>(this.globalStateKey, []);
 
-		repository.status().then(() => this.updateRepositoryBranchProtection());
+		repository.status().then(() => {
+			authentication.onDidChangeSessions(e => {
+				if (e.provider.id === 'github') {
+					this.updateRepositoryBranchProtection(true);
+				}
+			});
+			this.updateRepositoryBranchProtection();
+		});
 	}
 
 	provideBranchProtection(): BranchProtection[] {
 		return this.branchProtection;
 	}
 
-	private async getRepositoryDetails(owner: string, repo: string): Promise<GitHubRepository> {
-		const graphql = await getOctokitGraphql();
+	private async getRepositoryDetails(owner: string, repo: string, silent: boolean): Promise<GitHubRepository> {
+		const graphql = await getOctokitGraphql(silent);
 		const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_QUERY, { owner, repo });
 
 		return repository;
 	}
 
-	private async getRepositoryRulesets(owner: string, repo: string): Promise<RepositoryRuleset[]> {
+	private async getRepositoryRulesets(owner: string, repo: string, silent: boolean): Promise<RepositoryRuleset[]> {
 		const rulesets: RepositoryRuleset[] = [];
 
 		let cursor: string | undefined = undefined;
-		const graphql = await getOctokitGraphql();
+		const graphql = await getOctokitGraphql(silent);
 
 		while (true) {
 			const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_RULESETS_QUERY, { owner, repo, cursor });
@@ -151,10 +158,10 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		return rulesets;
 	}
 
-	private async updateRepositoryBranchProtection(): Promise<void> {
-		try {
-			const branchProtection: BranchProtection[] = [];
+	private async updateRepositoryBranchProtection(silent = false): Promise<void> {
+		const branchProtection: BranchProtection[] = [];
 
+		try {
 			for (const remote of this.repository.state.remotes) {
 				const repository = getRepositoryFromUrl(remote.pushUrl ?? remote.fetchUrl ?? '');
 
@@ -164,7 +171,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 				// Repository details
 				this.logger.trace(`Fetching repository details for "${repository.owner}/${repository.repo}".`);
-				const repositoryDetails = await this.getRepositoryDetails(repository.owner, repository.repo);
+				const repositoryDetails = await this.getRepositoryDetails(repository.owner, repository.repo, silent);
 
 				// Check repository write permission
 				if (repositoryDetails.viewerPermission !== 'ADMIN' && repositoryDetails.viewerPermission !== 'MAINTAIN' && repositoryDetails.viewerPermission !== 'WRITE') {
@@ -174,7 +181,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 				// Get repository rulesets
 				const branchProtectionRules: BranchProtectionRule[] = [];
-				const repositoryRulesets = await this.getRepositoryRulesets(repository.owner, repository.repo);
+				const repositoryRulesets = await this.getRepositoryRulesets(repository.owner, repository.repo, silent);
 
 				for (const ruleset of repositoryRulesets) {
 					branchProtectionRules.push({
@@ -193,19 +200,17 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			await this.globalState.update(this.globalStateKey, branchProtection);
 			this.logger.trace(`Branch protection for "${this.repository.rootUri.toString()}": ${JSON.stringify(branchProtection)}.`);
 		} catch (err) {
-			if (err instanceof AuthenticationError) {
-				// Since there is no GitHub authentication session available we need to wait
-				// until the user signs in with their GitHub account so that we can query the
-				// repository rulesets
-				const disposable = authentication.onDidChangeSessions(e => {
-					if (e.provider.id === 'github') {
-						disposable.dispose();
-						this.updateRepositoryBranchProtection();
-					}
-				});
-			}
-
 			this.logger.warn(`Failed to update repository branch protection: ${err.message}`);
+
+			if (err instanceof AuthenticationError) {
+				// A GitHub authentication session could be missing if the user has not yet
+				// signed in with their GitHub account or they have signed out. In this case
+				// we have to clear the branch protection information.
+				this.branchProtection = branchProtection;
+				this._onDidChangeBranchProtection.fire(this.repository.rootUri);
+
+				await this.globalState.update(this.globalStateKey, undefined);
+			}
 		}
 	}
 

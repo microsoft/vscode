@@ -32,7 +32,7 @@ import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy'
 import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -907,8 +907,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _documentOnDropEditProviders = new Map<number, MainThreadDocumentOnDropEditProvider>();
 
-	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, metadata: { id: string; dropMimeTypes: string[] }): void {
-		const provider = new MainThreadDocumentOnDropEditProvider(handle, extensionId, metadata, this._proxy, this._uriIdentService);
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IDocumentDropEditProviderMetadata): void {
+		const provider = new MainThreadDocumentOnDropEditProvider(handle, metadata, this._proxy, this._uriIdentService);
 		this._documentOnDropEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
@@ -974,7 +974,9 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 			}
 
 			return {
+				id: result.id,
 				label: result.label,
+				detail: result.detail,
 				insertText: result.insertText,
 				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
 			};
@@ -992,17 +994,14 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 
 	private readonly dataTransfers = new DataTransferCache();
 
-	readonly id: string;
 	readonly dropMimeTypes?: readonly string[];
 
 	constructor(
 		private readonly handle: number,
-		extensionId: ExtensionIdentifier,
-		metadata: { id: string; dropMimeTypes: readonly string[] } | undefined,
+		metadata: IDocumentDropEditProviderMetadata | undefined,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
-		this.id = extensionId.value + (metadata ? '.' + metadata.id : '');
 		this.dropMimeTypes = metadata?.dropMimeTypes ?? ['*/*'];
 	}
 
@@ -1015,6 +1014,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 				return undefined;
 			}
 			return {
+				id: edit.id,
 				label: edit.label,
 				insertText: edit.insertText,
 				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),

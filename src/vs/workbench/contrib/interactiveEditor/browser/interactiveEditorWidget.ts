@@ -41,7 +41,7 @@ import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
@@ -100,6 +100,12 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	diffAlgorithm: 'advanced',
 	readOnly: true,
 };
+
+export interface InteractiveEditorWidgetViewState {
+	editorViewState: ICodeEditorViewState;
+	input: string;
+	placeholder: string;
+}
 
 export class InteractiveEditorWidget {
 
@@ -314,6 +320,21 @@ export class InteractiveEditorWidget {
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
 		return base + editorHeight + markdownMessageHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
+	}
+
+	saveViewState(): InteractiveEditorWidgetViewState {
+		const editorViewState = this._inputEditor.saveViewState();
+		return {
+			editorViewState,
+			input: this.input,
+			placeholder: this.placeholder
+		};
+	}
+
+	restoreViewState(state: InteractiveEditorWidgetViewState) {
+		this.input = state.input;
+		this.placeholder = state.placeholder;
+		this._inputEditor.restoreViewState(state.editorViewState);
 	}
 
 	updateProgress(show: boolean) {

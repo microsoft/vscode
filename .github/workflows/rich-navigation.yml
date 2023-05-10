@@ -1,7 +1,6 @@
 name: "Rich Navigation Indexing"
 on:
   workflow_dispatch:
-  pull_request:
   push:
     branches:
       - main

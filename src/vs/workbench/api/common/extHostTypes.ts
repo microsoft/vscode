@@ -2675,6 +2675,8 @@ export class DataTransfer implements vscode.DataTransfer {
 
 @es5ClassCompat
 export class DocumentDropEdit {
+	id: string | undefined;
+
 	insertText: string | SnippetString;
 
 	additionalEdit?: WorkspaceEdit;
@@ -2686,13 +2688,16 @@ export class DocumentDropEdit {
 
 @es5ClassCompat
 export class DocumentPasteEdit {
+	id: string;
+
 	label: string;
 
 	insertText: string | SnippetString;
 
 	additionalEdit?: WorkspaceEdit;
 
-	constructor(insertText: string | SnippetString, label: string) {
+	constructor(insertText: string | SnippetString, id: string, label: string) {
+		this.id = id;
 		this.label = label;
 		this.insertText = insertText;
 	}

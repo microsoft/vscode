@@ -61,7 +61,7 @@ import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
+import { IAuthenticationCreateSessionOptions, AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IExtensionDescriptionDelta, IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
@@ -144,12 +144,17 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$updateCommentingRanges(handle: number): void;
 }
 
+export interface AuthenticationForceNewSessionOptions {
+	detail?: string;
+	sessionToRecreate?: AuthenticationSession;
+}
+
 export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): void;
 	$unregisterAuthenticationProvider(id: string): void;
 	$ensureProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): void;
-	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean; forceNewSession?: boolean | { detail: string }; clearSessionPreference?: boolean }): Promise<AuthenticationSession | undefined>;
+	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean; forceNewSession?: boolean | AuthenticationForceNewSessionOptions; clearSessionPreference?: boolean }): Promise<AuthenticationSession | undefined>;
 	$getSessions(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string): Promise<AuthenticationSession[]>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 }
@@ -408,7 +413,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, metadata?: { id: string; dropMimeTypes: readonly string[] }): void;
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], metadata?: IDocumentDropEditProviderMetadata): void;
 	$resolvePasteFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
@@ -1558,7 +1563,7 @@ export interface ExtHostLabelServiceShape {
 
 export interface ExtHostAuthenticationShape {
 	$getSessions(id: string, scopes?: string[]): Promise<ReadonlyArray<AuthenticationSession>>;
-	$createSession(id: string, scopes: string[]): Promise<AuthenticationSession>;
+	$createSession(id: string, scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string): Promise<void>;
 	$setProviders(providers: AuthenticationProviderInformation[]): Promise<void>;
@@ -1830,12 +1835,19 @@ export interface IPasteEditProviderMetadataDto {
 }
 
 export interface IPasteEditDto {
+	id: string;
 	label: string;
+	detail: string;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
 }
 
+export interface IDocumentDropEditProviderMetadata {
+	dropMimeTypes: readonly string[];
+}
+
 export interface IDocumentOnDropEditDto {
+	id: string;
 	label: string;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;

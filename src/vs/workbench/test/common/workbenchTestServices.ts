@@ -228,6 +228,7 @@ export function createFileStat(resource: URI, readonly = false): IFileStatWithMe
 		isDirectory: false,
 		isSymbolicLink: false,
 		readonly,
+		locked: false,
 		name: basename(resource),
 		children: undefined
 	};
