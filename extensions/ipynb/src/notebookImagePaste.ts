@@ -18,6 +18,16 @@ enum MimeType {
 	uriList = 'text/uri-list',
 }
 
+const imageMimeTypes: ReadonlySet<string> = new Set<string>([
+	MimeType.bmp,
+	MimeType.gif,
+	MimeType.ico,
+	MimeType.jpeg,
+	MimeType.png,
+	MimeType.tiff,
+	MimeType.webp,
+]);
+
 const imageExtToMime: ReadonlyMap<string, string> = new Map<string, string>([
 	['.bmp', MimeType.bmp],
 	['.gif', MimeType.gif],
@@ -43,7 +53,7 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('pasteImagesAsAttachments.enabled', false);
+		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('pasteImagesAsAttachments.enabled', true);
 		if (!enabled) {
 			return;
 		}
@@ -126,16 +136,21 @@ async function getDroppedImageData(
 ): Promise<readonly ImageAttachmentData[]> {
 
 	// Prefer using image data in the clipboard
-	// TODO: dataTransfer.get() limits to one image pasted. Should we support multiple?
-	const pngDataItem = dataTransfer.get(MimeType.png);
-	if (pngDataItem) {
-		const fileItem = pngDataItem.asFile();
-		if (!fileItem) {
-			return [];
+	const files = coalesce(await Promise.all(Array.from(dataTransfer, async ([mimeType, item]): Promise<ImageAttachmentData | undefined> => {
+		if (!imageMimeTypes.has(mimeType)) {
+			return;
 		}
 
-		const data = await fileItem.data();
-		return [{ fileName: fileItem.name, mimeType: MimeType.png, data }];
+		const file = item.asFile();
+		if (!file) {
+			return;
+		}
+
+		const data = await file.data();
+		return { fileName: file.name, mimeType, data };
+	})));
+	if (files.length) {
+		return files;
 	}
 
 	// Then fallback to image files in the uri-list
