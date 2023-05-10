@@ -708,6 +708,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		super.dispose();
 	}
 
+	hasOnlyReadOnlyMatches(): boolean {
+		return this.matches().every(match => (match instanceof MatchInNotebook && match.isWebviewMatch()));
+	}
+
 	// #region strictly notebook methods
 	bindNotebookEditorWidget(widget: NotebookEditorWidget) {
 		if (this._notebookEditorWidget === widget) {
@@ -999,7 +1003,7 @@ export class FolderMatch extends Disposable {
 		this.doRemoveFile(allMatches);
 	}
 
-	replace(match: FileMatch): Promise<any> {
+	async replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
 			this.doRemoveFile([match], true, true, true);
 		});
@@ -1126,6 +1130,10 @@ export class FolderMatch extends Disposable {
 		if (this._unDisposedFileMatches.has(fileMatch.resource)) {
 			this._unDisposedFileMatches.delete(fileMatch.resource);
 		}
+	}
+
+	hasOnlyReadOnlyMatches(): boolean {
+		return Array.from(this._fileMatches.values()).every(fm => fm.hasOnlyReadOnlyMatches());
 	}
 
 	protected uriHasParent(parent: URI, child: URI) {

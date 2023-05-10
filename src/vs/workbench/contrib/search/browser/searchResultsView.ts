@@ -37,6 +37,7 @@ interface IFolderMatchTemplate {
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
 	disposableActions: DisposableStore;
+	contextKeyService: IContextKeyService;
 }
 
 interface IFileMatchTemplate {
@@ -45,6 +46,7 @@ interface IFileMatchTemplate {
 	badge: CountBadge;
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
+	contextKeyService: IContextKeyService;
 }
 
 interface IMatchTemplate {
@@ -126,8 +128,12 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		const disposableElements = new DisposableStore();
 		disposables.add(disposableElements);
 
-		const contextKeyService = this.contextKeyService.createOverlay([[FolderFocusKey.key, true], [FileFocusKey.key, false], [MatchFocusKey.key, false]]);
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
+		MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
+		FileFocusKey.bindTo(contextKeyServiceMain).set(false);
+		FolderFocusKey.bindTo(contextKeyServiceMain).set(true);
+
+		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -143,7 +149,8 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			badge,
 			actions,
 			disposables,
-			disposableActions: disposableElements
+			disposableActions: disposableElements,
+			contextKeyService: contextKeyServiceMain
 		};
 	}
 
@@ -159,6 +166,8 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
+		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
+
 		this.renderFolderDetails(folderMatch, templateData);
 	}
 
@@ -211,8 +220,12 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')), {}, defaultCountBadgeStyles);
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 
-		const contextKeyService = this.contextKeyService.createOverlay([[FileFocusKey.key, true], [FolderFocusKey.key, false], [MatchFocusKey.key, false]]);
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
+		MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
+		FileFocusKey.bindTo(contextKeyServiceMain).set(true);
+		FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
+
+		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -229,6 +242,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 			badge,
 			actions,
 			disposables,
+			contextKeyService: contextKeyServiceMain
 		};
 	}
 
@@ -243,6 +257,8 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
 
 		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
+
+		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
 
 		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
 		// be hard to tell whether the node is collapsed or expanded.

@@ -599,6 +599,19 @@ export class SearchView extends ViewPane {
 				event.elements.forEach(element => {
 					this.tree.setChildren(element, this.createIterator(element, collapseResults));
 					this.tree.rerender(element);
+
+					const treeView = this.isTreeLayoutViewVisible;
+					if (treeView) {
+						let parent: FolderMatch | SearchResult = element.parent();
+						while (parent instanceof FolderMatch) {
+							if (this.tree.hasElement(parent)) {
+								this.tree.rerender(parent);
+							}
+							parent = parent.parent();
+						}
+					} else if (element.closestRoot && this.tree.hasElement(element.closestRoot)) {
+						this.tree.rerender(element.closestRoot ?? undefined);
+					}
 				});
 			}
 		}
@@ -852,7 +865,14 @@ export class SearchView extends ViewPane {
 			}
 
 			// we don't need to check experimental flag here because NotebookMatches only exist when the flag is enabled
-			const editable = (!(focus instanceof MatchInNotebook)) || !focus.isWebviewMatch();
+			let editable = false;
+			if (focus instanceof MatchInNotebook) {
+				editable = !focus.isWebviewMatch();
+			} else if (focus instanceof FileMatch) {
+				editable = !focus.hasOnlyReadOnlyMatches();
+			} else if (focus instanceof FolderMatch) {
+				editable = !focus.hasOnlyReadOnlyMatches();
+			}
 			this.isEditableItem.set(editable);
 		}));
 
