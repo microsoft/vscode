@@ -51,13 +51,13 @@ export class OneReference {
 
 		if (!preview) {
 			return localize(
-				'aria.oneReference', "symbol in {0} on line {1} at column {2}",
+				'aria.oneReference', "in {0} on line {1} at column {2}",
 				basename(this.uri), this.range.startLineNumber, this.range.startColumn
 			);
 		} else {
 			return localize(
-				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "symbol in {0} on line {1} at column {2}, {3}",
-				basename(this.uri), this.range.startLineNumber, this.range.startColumn, preview.value
+				{ key: 'aria.oneReference.preview', comment: ['Placeholders are: 0: filename, 1:line number, 2: column number, 3: preview snippet of source code'] }, "{0} in {1} on line {2} at column {3}",
+				preview.value, basename(this.uri), this.range.startLineNumber, this.range.startColumn
 			);
 		}
 	}
@@ -119,9 +119,9 @@ export class FileReferences implements IDisposable {
 	get ariaMessage(): string {
 		const len = this.children.length;
 		if (len === 1) {
-			return localize('aria.fileReferences.1', "1 symbol in {0}, full path {1}", basename(this.uri), this.uri.fsPath);
+			return localize('aria.fileReferences.1', "1 in {0}, full path {1}", basename(this.uri), this.uri.fsPath);
 		} else {
-			return localize('aria.fileReferences.N', "{0} symbols in {1}, full path {2}", len, basename(this.uri), this.uri.fsPath);
+			return localize('aria.fileReferences.N', "{0} in {1}, full path {2}", len, basename(this.uri), this.uri.fsPath);
 		}
 	}
 
@@ -208,11 +208,11 @@ export class ReferencesModel implements IDisposable {
 		if (this.isEmpty) {
 			return localize('aria.result.0', "No results found");
 		} else if (this.references.length === 1) {
-			return localize('aria.result.1', "Found 1 symbol in {0}", this.references[0].uri.fsPath);
+			return localize('aria.result.1', "Found 1 in {0}", this.references[0].uri.fsPath);
 		} else if (this.groups.length === 1) {
-			return localize('aria.result.n1', "Found {0} symbols in {1}", this.references.length, this.groups[0].uri.fsPath);
+			return localize('aria.result.n1', "Found {0} in {1}", this.references.length, this.groups[0].uri.fsPath);
 		} else {
-			return localize('aria.result.nm', "Found {0} symbols in {1} files", this.references.length, this.groups.length);
+			return localize('aria.result.nm', "Found {0} in {1} files", this.references.length, this.groups.length);
 		}
 	}
 
