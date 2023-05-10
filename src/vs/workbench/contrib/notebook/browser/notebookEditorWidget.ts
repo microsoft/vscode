@@ -266,10 +266,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._notebookOptions;
 	}
 
-	get viewContext() {
-		return this._viewContext;
-	}
-
 	constructor(
 		readonly creationOptions: INotebookEditorCreationOptions,
 		dimension: DOM.Dimension | undefined,
@@ -296,13 +292,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
 
-		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.configurationService, notebookExecutionStateService);
+		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.configurationService, notebookExecutionStateService, this._readOnly);
 		this._register(this._notebookOptions);
 		this._viewContext = new ViewContext(
 			this._notebookOptions,
 			new NotebookEventDispatcher(),
-			language => this.getBaseCellEditorOptions(language),
-			() => this._readOnly);
+			language => this.getBaseCellEditorOptions(language));
 		this._register(this._viewContext.eventDispatcher.onDidChangeCellState(e => {
 			this._onDidChangeCellState.fire(e);
 		}));
@@ -603,7 +598,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			collapsedIndicatorHeight,
 			compactView,
 			focusIndicator,
-			insertToolbarBetweenCells,
+			insertToolbarPosition,
 			insertToolbarAlignment,
 			fontSize,
 			outputFontSize,
@@ -611,7 +606,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			focusIndicatorGap
 		} = this._notebookOptions.getLayoutConfiguration();
 
-		const { bottomToolbarGap, bottomToolbarHeight } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType, this.viewModel?.options.isReadOnly);
+		const { bottomToolbarGap, bottomToolbarHeight } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 
 		const styleSheets: string[] = [];
 		if (!this._fontInfo) {
@@ -721,7 +716,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		// between cell insert toolbar
-		if (insertToolbarBetweenCells) {
+		if (insertToolbarPosition === 'betweenCells' || insertToolbarPosition === 'both') {
 			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { display: flex; }`);
 			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { display: flex; }`);
 		} else {
@@ -760,7 +755,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		// top insert toolbar
-		const topInsertToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType, this.viewModel?.options.isReadOnly);
+		const topInsertToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
 		styleSheets.push(`.notebookOverlay .cell-list-top-cell-toolbar-container { top: -${topInsertToolbarHeight - 3}px }`);
 		styleSheets.push(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element,
 		.notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element {
@@ -1053,12 +1048,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks): Promise<void> {
 		if (this.viewModel === undefined || !this.viewModel.equal(textModel)) {
-			const oldTopInsertToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType, this.viewModel?.options.isReadOnly);
-			const oldBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType, this.viewModel?.options.isReadOnly);
+			const oldTopInsertToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
+			const oldBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 			this._detachModel();
 			await this._attachModel(textModel, viewState, perf);
-			const newTopInsertToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType, this.viewModel?.options.isReadOnly);
-			const newBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType, this.viewModel?.options.isReadOnly);
+			const newTopInsertToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
+			const newBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 
 			if (oldTopInsertToolbarHeight !== newTopInsertToolbarHeight
 				|| oldBottomToolbarDimensions.bottomToolbarGap !== newBottomToolbarDimensions.bottomToolbarGap
@@ -1181,6 +1176,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this.viewModel.updateOptions({ isReadOnly: this._readOnly });
+		this.notebookOptions.updateOptions(this._readOnly);
 
 		// reveal cell if editor options tell to do so
 		const cellOptions = options?.cellOptions ?? this._parseIndexedCellOptions(options);
@@ -1369,6 +1365,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
+		this.notebookOptions.updateOptions(this._readOnly);
 
 		this._updateForOptions();
 		this._updateForNotebookConfiguration();
@@ -1472,7 +1469,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		if (this._dimension) {
-			const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType, this.viewModel?.options.isReadOnly);
+			const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
 			this._list.layout(this._dimension.height - topInserToolbarHeight, this._dimension.width);
 		} else {
 			this._list.layout();
@@ -1766,7 +1763,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const newBodyHeight = Math.max(dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0), 0);
 		DOM.size(this._body, dimension.width, newBodyHeight);
 
-		const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType, this.viewModel?.options.isReadOnly);
+		const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
 		const newCellListHeight = Math.max(newBodyHeight - topInserToolbarHeight, 0);
 		if (this._list.getRenderHeight() < newCellListHeight) {
 			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
@@ -2939,7 +2936,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _updateMarkupCellHeight(cellId: string, height: number, isInit: boolean) {
 		const cell = this._getCellById(cellId);
 		if (cell && cell instanceof MarkupCellViewModel) {
-			const { bottomToolbarGap } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType, this.viewModel?.options.isReadOnly);
+			const { bottomToolbarGap } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 			this._debug('updateMarkdownCellHeight', cell.handle, height + bottomToolbarGap, isInit);
 			cell.renderedMarkdownHeight = height;
 		}
