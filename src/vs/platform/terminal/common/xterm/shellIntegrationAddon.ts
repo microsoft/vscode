@@ -339,13 +339,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.CommandLine: {
-				const commandLine = deserializeMessage(command);
-				const isTrusted = args[0] === this._nonce;
+				const commandLine = deserializeMessage(args[0]);
+				const isTrusted = args[1] === this._nonce;
 				if (commandLine) {
 					this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, isTrusted);
 				}
-				// A nonce may or may not be provided. If it is, then it should be the last argument.
-				return isTrusted ? args.length === 1 : args.length === 0;
+				return true;
 			}
 			case VSCodeOscPt.ContinuationStart: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationStart();
