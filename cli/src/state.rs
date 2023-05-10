@@ -130,11 +130,11 @@ impl LauncherPaths {
 			// no logger exists at this point in the lifecycle, so just log to stderr
 			eprintln!(
 				"Failed to migrate old CLI data directory, will create a new one ({})",
-				e.to_string()
+				e
 			);
 		}
 
-		return Self::new_for_path(new_dir);
+		Self::new_for_path(new_dir)
 	}
 
 	pub fn new(root: Option<String>) -> Result<LauncherPaths, AnyError> {
