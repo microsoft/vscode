@@ -38,11 +38,19 @@ export interface IViewZone {
 	 * This is relevant for wrapped lines.
 	 */
 	afterColumn?: number;
-
 	/**
 	 * If the `afterColumn` has multiple view columns, the affinity specifies which one to use. Defaults to `none`.
 	*/
 	afterColumnAffinity?: PositionAffinity;
+	/**
+	 * Render the zone even when its line is hidden.
+	 */
+	showInHiddenAreas?: boolean;
+	/**
+	 * Tiebreaker that is used when multiple view zones want to be after the same line.
+	 * Defaults to `afterColumn` otherwise 10000;
+	 */
+	ordinal?: number;
 	/**
 	 * Suppress mouse down events.
 	 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
@@ -804,6 +812,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Change the scroll position of the editor's viewport.
 	 */
 	setScrollPosition(position: editorCommon.INewScrollPosition, scrollType?: editorCommon.ScrollType): void;
+	/**
+	 * Check if the editor is currently scrolling towards a different scroll position.
+	 */
+	hasPendingScrollAnimation(): boolean;
 
 	/**
 	 * Get an action that is a contribution to this editor.

@@ -6,28 +6,23 @@
 import * as vscode from 'vscode';
 import { memoize } from '../utils/memoize';
 
-
-type LogLevel = 'Trace' | 'Info' | 'Error';
-
 export class Logger {
 
 	@memoize
-	private get output(): vscode.OutputChannel {
-		return vscode.window.createOutputChannel('TypeScript');
+	private get output(): vscode.LogOutputChannel {
+		return vscode.window.createOutputChannel('TypeScript', { log: true });
 	}
 
-	private data2String(data: any): string {
-		if (data instanceof Error) {
-			return data.stack || data.message;
-		}
-		if (data.success === false && data.message) {
-			return data.message;
-		}
-		return data.toString();
+	public get logLevel(): vscode.LogLevel {
+		return this.output.logLevel;
 	}
 
-	public info(message: string, data?: any): void {
-		this.logLevel('Info', message, data);
+	public info(message: string, ...args: any[]): void {
+		this.output.info(message, ...args);
+	}
+
+	public trace(message: string, ...args: any[]): void {
+		this.output.trace(message, ...args);
 	}
 
 	public error(message: string, data?: any): void {
@@ -35,24 +30,6 @@ export class Logger {
 		if (data && data.message === 'No content available.') {
 			return;
 		}
-		this.logLevel('Error', message, data);
+		this.output.error(message, ...(data ? [data] : []));
 	}
-
-	public logLevel(level: LogLevel, message: string, data?: any): void {
-		this.output.appendLine(`[${level} - ${this.now()}] ${message}`);
-		if (data) {
-			this.output.appendLine(this.data2String(data));
-		}
-	}
-
-	private now(): string {
-		const now = new Date();
-		return padLeft(now.getUTCHours() + '', 2, '0')
-			+ ':' + padLeft(now.getMinutes() + '', 2, '0')
-			+ ':' + padLeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMilliseconds();
-	}
-}
-
-function padLeft(s: string, n: number, pad = ' ') {
-	return pad.repeat(Math.max(0, n - s.length)) + s;
 }

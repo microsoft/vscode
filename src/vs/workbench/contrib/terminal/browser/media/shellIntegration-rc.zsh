@@ -38,6 +38,35 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# Apply EnvironmentVariableCollections if needed
+if [ -n "$VSCODE_ENV_REPLACE" ]; then
+	echo "VSCODE_ENV_REPLACE: $VSCODE_ENV_REPLACE"
+	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_REPLACE"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo ${ITEM%%=*})"
+		export $VARNAME="${ITEM#*=}"
+	done
+	unset VSCODE_ENV_REPLACE
+fi
+if [ -n "$VSCODE_ENV_PREPEND" ]; then
+	echo "VSCODE_ENV_PREPEND: $VSCODE_ENV_PREPEND"
+	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_PREPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo ${ITEM%%=*})"
+		export $VARNAME="${ITEM#*=}${(P)VARNAME}"
+	done
+	unset VSCODE_ENV_PREPEND
+fi
+if [ -n "$VSCODE_ENV_APPEND" ]; then
+	echo "VSCODE_ENV_APPEND: $VSCODE_ENV_APPEND"
+	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_APPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo ${ITEM%%=*})"
+		export $VARNAME="${(P)VARNAME}${ITEM#*=}"
+	done
+	unset VSCODE_ENV_APPEND
+fi
+
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
@@ -67,6 +96,10 @@ __vsc_escape_value() {
 __vsc_in_command_execution="1"
 __vsc_current_command=""
 
+# It's fine this is in the global scope as it getting at it requires access to the shell environment
+__vsc_nonce="$VSCODE_NONCE"
+unset VSCODE_NONCE
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -81,7 +114,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf '\e]633;C\a'
-	builtin printf '\e]633;E;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")"
+	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 }
 
 __vsc_continuation_start() {

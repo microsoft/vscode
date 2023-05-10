@@ -22,6 +22,7 @@ const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
 const { stripComments } = require('./vs/base/common/stripComments');
+const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
@@ -35,6 +36,12 @@ bootstrap.enableASARSupport();
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
+if (process.platform === 'win32') {
+	const userDataUNCHost = getUNCHost(userDataPath);
+	if (userDataUNCHost) {
+		addUNCHostToAllowlist(userDataUNCHost); // enables to use UNC paths in userDataPath
+	}
+}
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path
@@ -95,20 +102,12 @@ let nlsConfigurationPromise = undefined;
 /**
  * @type {String}
  **/
-let osLocale = 'en';
-// This if statement can be simplified once
-// VS Code moves to Electron 22.
-// Ref https://github.com/microsoft/vscode/issues/159813
-// and https://github.com/electron/electron/pull/36035
-if ('getPreferredSystemLanguages' in app
-	&& typeof app.getPreferredSystemLanguages === 'function') {
-	// Use the most preferred OS language for language recommendation.
-	// The API might return an empty array on Linux, such as when
-	// the 'C' locale is the user's only configured locale.
-	// No matter the OS, if the array is empty, default back to 'en'.
-	const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
-	osLocale = processZhLocale(resolved.toLowerCase());
-}
+// Use the most preferred OS language for language recommendation.
+// The API might return an empty array on Linux, such as when
+// the 'C' locale is the user's only configured locale.
+// No matter the OS, if the array is empty, default back to 'en'.
+const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+const osLocale = processZhLocale(resolved.toLowerCase());
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
@@ -254,10 +253,8 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 	});
 
-	/* Following features are disabled from the runtime.
-	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
-	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
-	 */
+	// Following features are disabled from the runtime:
+	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 	// Support JS Flags
@@ -449,11 +446,6 @@ function getJSFlags(cliArgs) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'] ?? '')) {
-		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
-	}
-
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
@@ -468,7 +460,6 @@ function parseCLIArgs() {
 			'user-data-dir',
 			'locale',
 			'js-flags',
-			'max-memory',
 			'crash-reporter-directory'
 		]
 	});

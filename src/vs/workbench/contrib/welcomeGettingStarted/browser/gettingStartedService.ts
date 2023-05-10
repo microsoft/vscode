@@ -97,6 +97,7 @@ export interface IWalkthroughsService {
 	readonly onDidRemoveWalkthrough: Event<string>;
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>;
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>;
+	readonly onDidAddBuiltInWalkthrough: Event<void>;
 
 	readonly installedExtensionsRegistered: Promise<void>;
 
@@ -133,6 +134,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough> = this._onDidChangeWalkthrough.event;
 	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
+
+	private readonly _onDidAddBuiltInWalkthrough = new Emitter<void>();
+	readonly onDidAddBuiltInWalkthrough: Event<void> = this._onDidAddBuiltInWalkthrough.event;
 
 	private memento: Memento;
 	private stepProgress: Record<string, StepProgress | undefined>;
@@ -255,6 +259,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 					})
 			});
 		});
+
+		this._onDidAddBuiltInWalkthrough.fire();
 	}
 
 	private updateWalkthroughContent(walkthrough: BuiltinGettingStartedCategory, experimentTreatment: WalkthroughTreatment): BuiltinGettingStartedCategory {
@@ -371,8 +377,13 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps?.map(s => s.id) ?? [], manaullyOpened: false });
 			}
 
+			const override = await Promise.race([
+				this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${extension.identifier.value + '.' + walkthrough.id}.when`),
+				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
+			]);
+
 			if (this.sessionInstalledExtensions.has(extension.identifier.value.toLowerCase())
-				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true())
+				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value.toLowerCase());
 				if (index < sectionToOpenIndex && isNewlyInstalled) {
@@ -454,7 +465,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 						? FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
 						: DefaultIconPath
 				},
-				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
+				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
 			} as const;
 
 			this._registerWalkthrough(walkthoughDescriptor);

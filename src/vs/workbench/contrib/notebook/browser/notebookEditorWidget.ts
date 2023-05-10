@@ -33,7 +33,6 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditor } from 'vs/editor/common/editorCommon';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -90,6 +89,8 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { Schemas } from 'vs/base/common/network';
+import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
+import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 
 const $ = DOM.$;
 
@@ -233,13 +234,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._notebookViewModel?.options.isReadOnly ?? false;
 	}
 
-	get activeCodeEditor(): IEditor | undefined {
+	get activeCodeEditor(): ICodeEditor | undefined {
 		if (this._isDisposed) {
 			return;
 		}
 
 		const [focused] = this._list.getFocusedElements();
 		return this._renderedEditors.get(focused);
+	}
+
+	get codeEditors(): [ICellViewModel, ICodeEditor][] {
+		return [...this._renderedEditors];
 	}
 
 	get visibleRanges() {
@@ -277,7 +282,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
-		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService readonly logService: INotebookLoggingService,
 	) {
 		super();
@@ -966,11 +971,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._onDidScroll.fire();
 
 			if (e.scrollTop !== e.oldScrollTop) {
-				this._renderedEditors.forEach((editor, cell) => {
-					if (this.getActiveCell() === cell && editor) {
-						SuggestController.get(editor)?.cancelSuggestWidget();
-					}
-				});
+				this.clearActiveCellWidgets();
 			}
 		}));
 
@@ -1035,6 +1036,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	getInnerWebview(): IWebviewElement | undefined {
 		return this._webview?.webview;
+	}
+
+	setEditorProgressService(editorProgressService: IEditorProgressService): void {
+		this.editorProgressService = editorProgressService;
 	}
 
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
@@ -1888,6 +1893,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.visibility = 'hidden';
 		this._overlayContainer.style.left = '-50000px';
 		this._notebookTopToolbarContainer.style.display = 'none';
+		this.clearActiveCellWidgets();
+	}
+
+	private clearActiveCellWidgets() {
+		this._renderedEditors.forEach((editor, cell) => {
+			if (this.getActiveCell() === cell && editor) {
+				SuggestController.get(editor)?.cancelSuggestWidget();
+				DropIntoEditorController.get(editor)?.clearWidgets();
+				CopyPasteController.get(editor)?.clearWidgets();
+			}
+		});
 	}
 
 	private editorHasDomFocus(): boolean {
@@ -2332,6 +2348,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				}
 			}
 			this._list.focusView();
+			this.updateEditorFocus();
 		}
 	}
 
@@ -2412,9 +2429,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}
 
-		if (includeOutput) {
-			for (let i = 0; i < this.getLength(); i++) {
-				const cell = this.cellAt(i);
+		if (includeOutput && this._list) {
+			for (let i = 0; i < this._list.length; i++) {
+				const cell = this._list.element(i);
 
 				if (cell?.cellKind === CellKind.Code) {
 					requests.push(this._warmupCell((cell as CodeCellViewModel)));
@@ -2435,24 +2452,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		if (!options.includeMarkupPreview && !options.includeOutput) {
 			this._webview?.findStop();
-
-			return findMatches.filter(match =>
-				(match.cell.cellKind === CellKind.Code && options.includeCodeInput) ||
-				(match.cell.cellKind === CellKind.Markup && options.includeMarkupInput)
-			);
+			return findMatches;
 		}
 
 		// search in webview enabled
 
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
-			if (match.cell.cellKind === CellKind.Code && options.includeCodeInput) {
-				matchMap[match.cell.id] = match;
-			}
-
-			if (match.cell.cellKind === CellKind.Markup && options.includeMarkupInput) {
-				matchMap[match.cell.id] = match;
-			}
+			matchMap[match.cell.id] = match;
 		});
 
 		if (this._webview) {
@@ -2475,14 +2482,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
-				if (!options.includeMarkupPreview && match.type === 'preview') {
-					// skip outputs if not included
+				const cell = this._notebookViewModel!.viewCells.find(cell => cell.id === match.cellId);
+
+				if (!cell) {
 					return;
 				}
 
-				if (!options.includeOutput && match.type === 'output') {
-					// skip outputs if not included
-					return;
+				if (match.type === 'preview') {
+					// markup preview
+					if (cell.getEditState() === CellEditState.Preview && !options.includeMarkupPreview) {
+						return;
+					}
+
+					if (cell.getEditState() === CellEditState.Editing && options.includeMarkupInput) {
+						return;
+					}
+				} else {
+					if (!options.includeOutput) {
+						// skip outputs if not included
+						return;
+					}
 				}
 
 				const exisitingMatch = matchMap[match.cellId];
@@ -2691,6 +2710,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				// switch mimetype
 				this._webview.removeInsets([output.source]);
 				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
+			} else if (existingOutput.versionId !== output.source.model.versionId) {
+				this._webview.updateOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri, executionId: cell.internalMetadata.executionId }, output, cellTop, offset);
 			} else {
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);
 				const outputOffset = cell.getOutputOffset(outputIndex);

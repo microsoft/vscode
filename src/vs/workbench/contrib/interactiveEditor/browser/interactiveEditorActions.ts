@@ -7,10 +7,10 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { InteractiveEditorController, Recording } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_UNDO, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { InteractiveEditorController, InteractiveEditorRunOptions } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_UNDO, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { IAction2Options } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -20,13 +20,19 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Range } from 'vs/editor/common/core/range';
+import { fromNow } from 'vs/base/common/date';
+import { IInteractiveEditorSessionService, Recording } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+
 
 export class StartSessionAction extends EditorAction2 {
 
 	constructor() {
 		super({
 			id: 'interactiveEditor.start',
-			title: { value: localize('run', 'Start Session'), original: 'Start Session' },
+			title: { value: localize('run', 'Start Code Chat'), original: 'Start Code Chat' },
 			category: AbstractInteractiveEditorAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, EditorContextKeys.writable),
@@ -38,8 +44,24 @@ export class StartSessionAction extends EditorAction2 {
 		});
 	}
 
+	private _isInteractivEditorOptions(options: any): options is InteractiveEditorRunOptions {
+		const { initialRange, message, autoSend } = options;
+		if (
+			typeof message !== 'undefined' && typeof message !== 'string'
+			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
+			|| typeof initialRange !== 'undefined' && !Range.isIRange(initialRange)) {
+			return false;
+		}
+		return true;
+	}
+
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
-		InteractiveEditorController.get(editor)?.run();
+		let options: InteractiveEditorRunOptions | undefined;
+		const arg = _args[0];
+		if (arg && this._isInteractivEditorOptions(arg)) {
+			options = arg;
+		}
+		InteractiveEditorController.get(editor)?.run(options);
 	}
 }
 
@@ -61,6 +83,13 @@ abstract class AbstractInteractiveEditorAction extends EditorAction2 {
 		}
 		const ctrl = InteractiveEditorController.get(editor);
 		if (!ctrl) {
+			for (const diffEditor of accessor.get(ICodeEditorService).listDiffEditors()) {
+				if (diffEditor.getOriginalEditor() === editor || diffEditor.getModifiedEditor() === editor) {
+					if (diffEditor instanceof EmbeddedDiffEditorWidget) {
+						this.runEditorCommand(accessor, diffEditor.getParentEditor(), ..._args);
+					}
+				}
+			}
 			return;
 		}
 		this.runInteractiveEditorCommand(accessor, ctrl, editor, ..._args);
@@ -123,31 +152,12 @@ export class StopRequestAction extends AbstractInteractiveEditorAction {
 	}
 }
 
-export class CancelSessionAction extends AbstractInteractiveEditorAction {
-
-	constructor() {
-		super({
-			id: 'interactiveEditor.cancel',
-			title: localize('cancel', 'Cancel'),
-			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib - 1,
-				primary: KeyCode.Escape
-			}
-		});
-	}
-
-	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.cancelSession();
-	}
-}
-
 export class ArrowOutUpAction extends AbstractInteractiveEditorAction {
 	constructor() {
 		super({
 			id: 'interactiveEditor.arrowOutUp',
 			title: localize('arrowUp', 'Cursor Up'),
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
 				primary: KeyCode.UpArrow
@@ -165,7 +175,7 @@ export class ArrowOutDownAction extends AbstractInteractiveEditorAction {
 		super({
 			id: 'interactiveEditor.arrowOutDown',
 			title: localize('arrowDown', 'Cursor Down'),
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
 				primary: KeyCode.DownArrow
@@ -188,11 +198,11 @@ export class FocusInteractiveEditor extends EditorAction2 {
 			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_FOCUSED.negate()),
 			keybinding: [{
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
-				when: CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.isEqualTo('above'),
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.isEqualTo('above'), CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)),
 				primary: KeyCode.DownArrow,
 			}, {
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
-				when: CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.isEqualTo('below'),
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.isEqualTo('below'), CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)),
 				primary: KeyCode.UpArrow,
 			}]
 		});
@@ -306,6 +316,10 @@ export class UndoCommand extends AbstractInteractiveEditorAction {
 			title: localize('undo', 'Undo'),
 			icon: Codicon.commentDiscussion,
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE.isEqualTo('simple')),
+			// keybinding: {
+			// 	weight: KeybindingWeight.EditorContrib + 10,
+			// 	primary: KeyMod.CtrlCmd | KeyCode.KeyZ,
+			// },
 			menu: {
 				when: CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE.isEqualTo('simple'),
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_UNDO,
@@ -326,11 +340,12 @@ export class FeebackHelpfulCommand extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.feedbackHelpful',
 			title: localize('feedback.helpful', 'Helpful'),
 			icon: Codicon.thumbsup,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE),
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			toggled: CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.isEqualTo('helpful'),
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				group: '1_feedback',
+				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
+				group: '2_feedback',
 				order: 1
 			}
 		});
@@ -347,11 +362,12 @@ export class FeebackUnhelpfulCommand extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.feedbackunhelpful',
 			title: localize('feedback.unhelpful', 'Unhelpful'),
 			icon: Codicon.thumbsdown,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE),
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			toggled: CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.isEqualTo('unhelpful'),
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				group: '1_feedback',
+				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
+				group: '2_feedback',
 				order: 2
 			}
 		});
@@ -369,10 +385,12 @@ export class ToggleInlineDiff extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.toggleInlineDiff',
 			title: localize('toggleInlineDiff', 'Toggle Inline Diff'),
 			icon: Codicon.diff,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE),
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			toggled: CTX_INTERACTIVE_EDITOR_INLNE_DIFF,
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo(EditMode.Live), CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo('message')),
+				group: '1_main',
 				order: 1
 			}
 		});
@@ -380,6 +398,66 @@ export class ToggleInlineDiff extends AbstractInteractiveEditorAction {
 
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController): void {
 		ctrl.toggleInlineDiff();
+	}
+}
+
+export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
+
+	constructor() {
+		super({
+			id: 'interactiveEditor.applyEdits',
+			title: localize('applyEdits', 'Apply Changes'),
+			icon: Codicon.check,
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, ContextKeyExpr.or(CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED.toNegated(), CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.Preview))),
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib + 10,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter
+			},
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
+				group: '0_main',
+				order: 0
+			}
+		});
+	}
+
+	override async runInteractiveEditorCommand(accessor: ServicesAccessor, ctrl: InteractiveEditorController): Promise<void> {
+		const logService = accessor.get(ILogService);
+		const editorService = accessor.get(IEditorService);
+		const edit = await ctrl.applyChanges();
+		if (!edit) {
+			logService.warn('FAILED to apply changes, no edit response');
+			return;
+		}
+		if (edit.singleCreateFileEdit) {
+			editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
+		}
+
+	}
+}
+
+export class CancelSessionAction extends AbstractInteractiveEditorAction {
+
+	constructor() {
+		super({
+			id: 'interactiveEditor.cancel',
+			title: localize('discard', 'Discard Changes'),
+			icon: Codicon.clearAll,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 1,
+				primary: KeyCode.Escape
+			},
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
+				group: '0_main',
+				order: 1
+			}
+		});
+	}
+
+	async runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+		await ctrl.cancelSession();
 	}
 }
 
@@ -395,31 +473,88 @@ export class CopyRecordings extends AbstractInteractiveEditorAction {
 		});
 	}
 
-	override async runInteractiveEditorCommand(accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+	override async runInteractiveEditorCommand(accessor: ServicesAccessor): Promise<void> {
 
 		const clipboardService = accessor.get(IClipboardService);
 		const quickPickService = accessor.get(IQuickInputService);
+		const ieSessionService = accessor.get(IInteractiveEditorSessionService);
 
-		const picks: (IQuickPickItem & { rec: Recording })[] = ctrl.recordings().map(rec => {
-			return {
-				rec,
-				label: localize('label', "{0} messages, started {1}", rec.exchanges.length, rec.when.toLocaleTimeString()),
-				tooltip: rec.exchanges.map(ex => ex.req.prompt).join('\n'),
-			};
-		});
-
-		if (picks.length === 0) {
+		const recordings = ieSessionService.recordings().filter(r => r.exchanges.length > 0);
+		if (recordings.length === 0) {
 			return;
 		}
 
-		let pick: typeof picks[number] | undefined;
-		if (picks.length === 1) {
-			pick = picks[0];
-		} else {
-			pick = await quickPickService.pick(picks, { canPickMany: false });
-		}
+		const picks: (IQuickPickItem & { rec: Recording })[] = recordings.map(rec => {
+			return {
+				rec,
+				label: localize('label', "'{0}' and {1} follow ups ({2})", rec.exchanges[0].prompt, rec.exchanges.length - 1, fromNow(rec.when, true)),
+				tooltip: rec.exchanges.map(ex => ex.prompt).join('\n'),
+			};
+		});
+
+		const pick = await quickPickService.pick(picks, { canPickMany: false });
 		if (pick) {
 			clipboardService.writeText(JSON.stringify(pick.rec, undefined, 2));
 		}
+	}
+}
+
+export class ViewInChatAction extends AbstractInteractiveEditorAction {
+	constructor() {
+		super({
+			id: 'interactiveEditor.viewInChat',
+			title: localize('viewInChat', 'View in Chat'),
+			icon: Codicon.commentDiscussion,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE,
+				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.isEqualTo('message'),
+				group: '1_viewInChat',
+				order: 1
+			}
+		});
+	}
+	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.viewInChat();
+	}
+}
+
+export class ExpandMessageAction extends AbstractInteractiveEditorAction {
+	constructor() {
+		super({
+			id: 'interactiveEditor.expandMessageAction',
+			title: localize('expandMessage', 'Expand Message'),
+			icon: Codicon.chevronDown,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE,
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.isEqualTo('message'), CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.isEqualTo('cropped')),
+				group: '2_expandOrContract',
+				order: 1
+			}
+		});
+	}
+	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.updateExpansionState(true);
+	}
+}
+
+export class ContractMessageAction extends AbstractInteractiveEditorAction {
+	constructor() {
+		super({
+			id: 'interactiveEditor.contractMessageAction',
+			title: localize('contractMessage', 'Contract Message'),
+			icon: Codicon.chevronUp,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE,
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.isEqualTo('message'), CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.isEqualTo('expanded')),
+				group: '2_expandOrContract',
+				order: 1
+			}
+		});
+	}
+	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.updateExpansionState(false);
 	}
 }

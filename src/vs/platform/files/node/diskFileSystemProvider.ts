@@ -19,7 +19,7 @@ import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream'
 import { URI } from 'vs/base/common/uri';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -93,7 +93,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
-				size: stat.size
+				size: stat.size,
+				permissions: (stat.mode & 0o200) === 0 ? FilePermission.Locked : undefined
 			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
@@ -287,7 +288,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		let fd: number | undefined = undefined;
 		try {
 
-			// Determine wether to unlock the file (write only)
+			// Determine whether to unlock the file (write only)
 			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
 				try {
 					const { stat } = await SymlinkSupport.stat(filePath);
@@ -540,11 +541,36 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		try {
 			const filePath = this.toFilePath(resource);
-
 			if (opts.recursive) {
 				await Promises.rm(filePath, RimRafMode.MOVE);
 			} else {
-				await Promises.unlink(filePath);
+				try {
+					await Promises.unlink(filePath);
+				} catch (unlinkError) {
+
+					// `fs.unlink` will throw when used on directories
+					// we try to detect this error and then see if the
+					// provided resource is actually a directory. in that
+					// case we use `fs.rmdir` to delete the directory.
+
+					if (unlinkError.code === 'EPERM' || unlinkError.code === 'EISDIR') {
+						let isDirectory = false;
+						try {
+							const { stat, symbolicLink } = await SymlinkSupport.stat(filePath);
+							isDirectory = stat.isDirectory() && !symbolicLink;
+						} catch (statError) {
+							// ignore
+						}
+
+						if (isDirectory) {
+							await Promises.rmdir(filePath);
+						} else {
+							throw unlinkError;
+						}
+					} else {
+						throw unlinkError;
+					}
+				}
 			}
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
@@ -707,6 +733,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			return error; // avoid double conversion
 		}
 
+		let resultError: Error | string = error;
 		let code: FileSystemProviderErrorCode;
 		switch (error.code) {
 			case 'ENOENT':
@@ -725,11 +752,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			case 'EACCES':
 				code = FileSystemProviderErrorCode.NoPermissions;
 				break;
+			case 'ERR_UNC_HOST_NOT_ALLOWED':
+				resultError = `${error.message}. Please update the 'security.allowedUNCHosts' setting if you want to allow this host.`;
+				code = FileSystemProviderErrorCode.Unknown;
+				break;
 			default:
 				code = FileSystemProviderErrorCode.Unknown;
 		}
 
-		return createFileSystemProviderError(error, code);
+		return createFileSystemProviderError(resultError, code);
 	}
 
 	private async toFileSystemProviderWriteError(resource: URI | undefined, error: NodeJS.ErrnoException): Promise<FileSystemProviderError> {

@@ -15,12 +15,13 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { changeCellToKind, computeCellLinesContents, copyCellRange, joinCellsWithSurrounds, joinSelectedCells, moveCellRange } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { cellExecutionArgs, CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookCellAction, NotebookMultiCellAction, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellOutputViewModel, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 //#region Move/Copy cells
 const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
@@ -381,6 +382,7 @@ const EXPAND_ALL_CELL_INPUTS_COMMAND_ID = 'notebook.cell.expandAllCellInputs';
 const COLLAPSE_ALL_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.collapseAllCellOutputs';
 const EXPAND_ALL_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.expandAllCellOutputs';
 const TOGGLE_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.toggleOutputs';
+const TOGGLE_CELL_OUTPUT_SCROLLING = 'notebook.cell.toggleOutputScrolling';
 
 registerAction2(class CollapseCellInputAction extends NotebookMultiCellAction {
 	constructor() {
@@ -589,6 +591,51 @@ registerAction2(class ExpandAllCellOutputsAction extends NotebookMultiCellAction
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		forEachCell(context.notebookEditor, cell => cell.isOutputCollapsed = false);
+	}
+});
+
+registerAction2(class ToggleCellOutputScrolling extends NotebookMultiCellAction {
+	constructor() {
+		super({
+			id: TOGGLE_CELL_OUTPUT_SCROLLING,
+			title: {
+				value: localize('notebookActions.toggleScrolling', "Toggle Scroll Cell Output"),
+				original: 'Toggle Scroll Cell Output'
+			},
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, InputFocusedContext.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyY),
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	private toggleOutputScrolling(viewModel: ICellOutputViewModel, globalScrollSetting: boolean, collapsed: boolean) {
+		const cellMetadata = viewModel.model.metadata;
+		// TODO: when is cellMetadata undefined? Is that a case we need to support? It is currently a read-only property.
+		if (cellMetadata) {
+			const currentlyEnabled = cellMetadata['scrollable'] !== undefined ? cellMetadata['scrollable'] : globalScrollSetting;
+			const shouldEnableScrolling = collapsed || !currentlyEnabled;
+			cellMetadata['scrollable'] = shouldEnableScrolling;
+			viewModel.resetRenderer();
+		}
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		const globalScrolling = accessor.get(IConfigurationService).getValue<boolean>(NotebookSetting.outputScrolling);
+		if (context.ui) {
+			context.cell.outputsViewModels.forEach((viewModel) => {
+				this.toggleOutputScrolling(viewModel, globalScrolling, context.cell.isOutputCollapsed);
+			});
+			context.cell.isOutputCollapsed = false;
+		} else {
+			context.selectedCells.forEach(cell => {
+				cell.outputsViewModels.forEach((viewModel) => {
+					this.toggleOutputScrolling(viewModel, globalScrolling, cell.isOutputCollapsed);
+				});
+				cell.isOutputCollapsed = false;
+			});
+		}
 	}
 });
 

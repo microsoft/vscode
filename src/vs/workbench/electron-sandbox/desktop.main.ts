@@ -55,7 +55,6 @@ import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class DesktopMain extends Disposable {
 
@@ -187,16 +186,13 @@ export class DesktopMain extends Disposable {
 		if (logService.getLevel() === LogLevel.Trace) {
 			logService.trace('workbench#open(): with configuration', safeStringify(this.configuration));
 		}
-		if (process.sandboxed) {
-			logService.info('Electron sandbox mode is enabled!');
-		}
 
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);
 		serviceCollection.set(ISharedProcessService, sharedProcessService);
 
 		// Utility Process Worker
-		const utilityProcessWorkerWorkbenchService = new UtilityProcessWorkerWorkbenchService(this.configuration.windowId, this.configuration.preferUtilityProcess, logService, sharedProcessService, mainProcessService);
+		const utilityProcessWorkerWorkbenchService = new UtilityProcessWorkerWorkbenchService(this.configuration.windowId, logService, mainProcessService);
 		serviceCollection.set(IUtilityProcessWorkerWorkbenchService, utilityProcessWorkerWorkbenchService);
 
 		// Remote

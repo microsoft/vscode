@@ -35,6 +35,7 @@ import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewE
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -71,6 +72,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 
@@ -199,6 +201,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						title: webviewInput.getTitle(),
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
+						active: webviewInput === this._editorService.activeEditor,
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
 				} catch (error) {
 					onUnexpectedError(error);

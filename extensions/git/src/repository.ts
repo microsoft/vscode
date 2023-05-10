@@ -22,6 +22,7 @@ import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { ActionButtonCommand } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
+import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -604,6 +605,11 @@ class ResourceCommandResolver {
 	}
 }
 
+interface BranchProtectionMatcher {
+	include?: picomatch.Matcher;
+	exclude?: picomatch.Matcher;
+}
+
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -623,6 +629,9 @@ export class Repository implements Disposable {
 
 	private _onDidRunOperation = new EventEmitter<OperationResult>();
 	readonly onDidRunOperation: Event<OperationResult> = this._onDidRunOperation.event;
+
+	private _onDidChangeBranchProtection = new EventEmitter<void>();
+	readonly onDidChangeBranchProtection: Event<void> = this._onDidChangeBranchProtection.event;
 
 	@memoize
 	get onDidChangeOperations(): Event<void> {
@@ -740,7 +749,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
-	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
+	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
@@ -751,6 +760,7 @@ export class Repository implements Disposable {
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
+		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
@@ -816,8 +826,7 @@ export class Repository implements Disposable {
 		}, undefined, this.disposables);
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
-			e.affectsConfiguration('git.branchProtection', root)
-			|| e.affectsConfiguration('git.branchSortOrder', root)
+			e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
@@ -862,9 +871,10 @@ export class Repository implements Disposable {
 			}
 		}, null, this.disposables);
 
-		const onDidChangeBranchProtection = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchProtection', root));
-		onDidChangeBranchProtection(this.updateBranchProtectionMatcher, this, this.disposables);
-		this.updateBranchProtectionMatcher();
+		// Default branch protection provider
+		const onBranchProtectionProviderChanged = filterEvent(this.branchProtectionProviderRegistry.onDidChangeBranchProtectionProviders, e => pathEquals(e.fsPath, root.fsPath));
+		this.disposables.push(onBranchProtectionProviderChanged(root => this.updateBranchProtectionMatchers(root)));
+		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root)));
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
@@ -2358,15 +2368,27 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private updateBranchProtectionMatcher(): void {
-		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const branchProtectionGlobs = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+	private updateBranchProtectionMatchers(root: Uri): void {
+		this.branchProtection.clear();
 
-		if (branchProtectionGlobs.length === 0) {
-			this.isBranchProtectedMatcher = undefined;
-		} else {
-			this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
+		for (const provider of this.branchProtectionProviderRegistry.getBranchProtectionProviders(root)) {
+			for (const { remote, rules } of provider.provideBranchProtection()) {
+				const matchers: BranchProtectionMatcher[] = [];
+
+				for (const rule of rules) {
+					const include = rule.include && rule.include.length !== 0 ? picomatch(rule.include) : undefined;
+					const exclude = rule.exclude && rule.exclude.length !== 0 ? picomatch(rule.exclude) : undefined;
+
+					if (include || exclude) {
+						matchers.push({ include, exclude });
+					}
+				}
+
+				this.branchProtection.set(remote, matchers);
+			}
 		}
+
+		this._onDidChangeBranchProtection.fire();
 	}
 
 	private optimisticUpdateEnabled(): boolean {
@@ -2406,8 +2428,31 @@ export class Repository implements Disposable {
 		return true;
 	}
 
-	public isBranchProtected(name = this.HEAD?.name ?? ''): boolean {
-		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
+	public isBranchProtected(branch = this.HEAD): boolean {
+		if (branch?.name) {
+			// Default branch protection (settings)
+			const defaultBranchProtectionMatcher = this.branchProtection.get('');
+			if (defaultBranchProtectionMatcher?.length === 1 &&
+				defaultBranchProtectionMatcher[0].include &&
+				defaultBranchProtectionMatcher[0].include(branch.name)) {
+				return true;
+			}
+
+			if (branch.upstream?.remote) {
+				// Branch protection (contributed)
+				const remoteBranchProtectionMatcher = this.branchProtection.get(branch.upstream.remote);
+				if (remoteBranchProtectionMatcher && remoteBranchProtectionMatcher?.length !== 0) {
+					return remoteBranchProtectionMatcher.some(matcher => {
+						const include = matcher.include ? matcher.include(branch.name!) : true;
+						const exclude = matcher.exclude ? matcher.exclude(branch.name!) : false;
+
+						return include && !exclude;
+					});
+				}
+			}
+		}
+
+		return false;
 	}
 
 	dispose(): void {

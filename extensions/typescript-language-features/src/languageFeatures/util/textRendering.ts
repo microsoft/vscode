@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { OpenJsDocLinkCommand, OpenJsDocLinkCommand_Args } from '../../commands/openJsDocLink';
 import type * as Proto from '../../tsServer/protocol/protocol';
+import * as typeConverters from '../../typeConverters';
 
 export interface IFilePathToResourceConverter {
 	/**
@@ -130,7 +132,7 @@ function getTagBody(tag: Proto.JSDocTagInfo, filePathConverter: IFilePathToResou
 	return (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
 }
 
-export function plainWithLinks(
+export function asPlainTextWithLinks(
 	parts: readonly Proto.SymbolDisplayPart[] | string,
 	filePathConverter: IFilePathToResourceConverter,
 ): string {
@@ -160,13 +162,15 @@ function convertLinkTags(
 			case 'link':
 				if (currentLink) {
 					if (currentLink.target) {
-						const link = filePathConverter.toResource(currentLink.target.file)
-							.with({
-								fragment: `L${currentLink.target.start.line},${currentLink.target.start.offset}`
-							});
+						const file = filePathConverter.toResource(currentLink.target.file);
+						const args: OpenJsDocLinkCommand_Args = {
+							file: { ...file.toJSON(), $mid: undefined }, // Prevent VS Code from trying to transform the uri,
+							position: typeConverters.Position.fromLocation(currentLink.target.start)
+						};
+						const command = `command:${OpenJsDocLinkCommand.id}?${encodeURIComponent(JSON.stringify([args]))}`;
 
 						const linkText = currentLink.text ? currentLink.text : escapeMarkdownSyntaxTokensForCode(currentLink.name ?? '');
-						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${link.toString()})`);
+						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${command})`);
 					} else {
 						const text = currentLink.text ?? currentLink.name;
 						if (text) {
@@ -212,44 +216,48 @@ function convertLinkTags(
 	return processInlineTags(out.join(''));
 }
 
-export function tagsMarkdownPreview(
+function escapeMarkdownSyntaxTokensForCode(text: string): string {
+	return text.replace(/`/g, '\\$&');
+}
+
+export function tagsToMarkdown(
 	tags: readonly Proto.JSDocTagInfo[],
 	filePathConverter: IFilePathToResourceConverter,
 ): string {
 	return tags.map(tag => getTagDocumentation(tag, filePathConverter)).join('  \n\n');
 }
 
-export function markdownDocumentation(
+export function documentationToMarkdown(
 	documentation: readonly Proto.SymbolDisplayPart[] | string,
 	tags: readonly Proto.JSDocTagInfo[],
 	filePathConverter: IFilePathToResourceConverter,
 	baseUri: vscode.Uri | undefined,
 ): vscode.MarkdownString {
 	const out = new vscode.MarkdownString();
-	addMarkdownDocumentation(out, documentation, tags, filePathConverter);
+	appendDocumentationAsMarkdown(out, documentation, tags, filePathConverter);
 	out.baseUri = baseUri;
+	out.isTrusted = { enabledCommands: [OpenJsDocLinkCommand.id] };
 	return out;
 }
 
-export function addMarkdownDocumentation(
+export function appendDocumentationAsMarkdown(
 	out: vscode.MarkdownString,
 	documentation: readonly Proto.SymbolDisplayPart[] | string | undefined,
 	tags: readonly Proto.JSDocTagInfo[] | undefined,
 	converter: IFilePathToResourceConverter,
 ): vscode.MarkdownString {
 	if (documentation) {
-		out.appendMarkdown(plainWithLinks(documentation, converter));
+		out.appendMarkdown(asPlainTextWithLinks(documentation, converter));
 	}
 
 	if (tags) {
-		const tagsPreview = tagsMarkdownPreview(tags, converter);
+		const tagsPreview = tagsToMarkdown(tags, converter);
 		if (tagsPreview) {
 			out.appendMarkdown('\n\n' + tagsPreview);
 		}
 	}
-	return out;
-}
 
-function escapeMarkdownSyntaxTokensForCode(text: string): string {
-	return text.replace(/`/g, '\\$&');
+	out.isTrusted = { enabledCommands: [OpenJsDocLinkCommand.id] };
+
+	return out;
 }

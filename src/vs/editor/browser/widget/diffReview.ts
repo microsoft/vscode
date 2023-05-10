@@ -30,10 +30,11 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -102,7 +103,8 @@ export class DiffReview extends Disposable {
 	constructor(
 		diffEditor: DiffEditorWidget,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._diffEditor = diffEditor;
@@ -178,6 +180,11 @@ export class DiffReview extends Disposable {
 			) {
 				e.preventDefault();
 				this.accept();
+			}
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.verbosity.diff-editor')) {
+				this._diffEditor.updateOptions({ accessibilityVerbose: this._configurationService.getValue('accessibility.verbosity.diff-editor') });
 			}
 		}));
 		this._diffs = [];

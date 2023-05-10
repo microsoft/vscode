@@ -198,34 +198,34 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	}
 }
 
-export function observableSignal(
+export function observableSignal<TDelta = void>(
 	debugName: string
-): IObservableSignal {
-	return new ObservableSignal(debugName);
+): IObservableSignal<TDelta> {
+	return new ObservableSignal<TDelta>(debugName);
 }
 
-export interface IObservableSignal extends IObservable<void> {
-	trigger(tx: ITransaction | undefined): void;
+export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
+	trigger(tx: ITransaction | undefined, change: TChange): void;
 }
 
-class ObservableSignal extends BaseObservable<void> implements IObservableSignal {
+class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements IObservableSignal<TChange> {
 	constructor(
 		public readonly debugName: string
 	) {
 		super();
 	}
 
-	public trigger(tx: ITransaction | undefined): void {
+	public trigger(tx: ITransaction | undefined, change: TChange): void {
 		if (!tx) {
 			transaction(tx => {
-				this.trigger(tx);
+				this.trigger(tx, change);
 			}, () => `Trigger signal ${this.debugName}`);
 			return;
 		}
 
 		for (const o of this.observers) {
 			tx.updateObserver(o, this);
-			o.handleChange(this, undefined);
+			o.handleChange(this, change);
 		}
 	}
 
@@ -276,15 +276,16 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
 }
 
 /**
- * This ensures the observable cache is kept up-to-date, even if there are no subscribers.
- * This is useful when the observables `get` method is used, but not its `read` method.
+ * This ensures the observable is being observed.
+ * Observed observables (such as {@link derived}s) can maintain a cache, as they receive invalidation events.
+ * Unobserved observables are forced to recompute their value from scratch every time they are read.
  *
- * (Usually, when no one is actually observing the observable, getting its value will
- * compute it from scratch, as the cache cannot be trusted:
- * Because no one is actually observing its value, keeping the cache up-to-date would be too expensive)
+ * @param observable the observable to keep alive
+ * @param forceRecompute if true, the observable will be eagerly recomputed after it changed.
+ * Use this if recomputing the observables causes side-effects.
 */
-export function keepAlive(observable: IObservable<any>): IDisposable {
-	const o = new KeepAliveObserver();
+export function keepAlive(observable: IObservable<any>, forceRecompute?: boolean): IDisposable {
+	const o = new KeepAliveObserver(forceRecompute ?? false);
 	observable.addObserver(o);
 	return toDisposable(() => {
 		observable.removeObserver(o);
@@ -292,15 +293,26 @@ export function keepAlive(observable: IObservable<any>): IDisposable {
 }
 
 class KeepAliveObserver implements IObserver {
+	private counter = 0;
+
+	constructor(private readonly forceRecompute: boolean) { }
+
 	beginUpdate<T>(observable: IObservable<T, void>): void {
+		this.counter++;
+	}
+
+	endUpdate<T>(observable: IObservable<T, void>): void {
+		this.counter--;
+		if (this.counter === 0 && this.forceRecompute) {
+			observable.reportChanges();
+		}
+	}
+
+	handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
 		// NO OP
 	}
 
 	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
-		// NO OP
-	}
-
-	endUpdate<T>(observable: IObservable<T, void>): void {
 		// NO OP
 	}
 }

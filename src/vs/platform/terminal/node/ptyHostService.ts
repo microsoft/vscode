@@ -130,6 +130,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
 		const connection = this._ptyHostStarter.start(lastPtyId);
 		const client = connection.client;
+
 		this._onPtyHostStart.fire();
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts

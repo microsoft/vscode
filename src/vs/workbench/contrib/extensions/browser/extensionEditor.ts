@@ -683,6 +683,7 @@ export class ExtensionEditor extends EditorPane {
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
+					disableServiceWorker: true,
 				},
 				contentOptions: {},
 				extension: undefined,
@@ -765,6 +766,11 @@ export class ExtensionEditor extends EditorPane {
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
+
+					/* prevent scroll-to-top button from blocking the body text */
+					body {
+						padding-bottom: 75px;
+					}
 
 					#scroll-to-top {
 						position: fixed;

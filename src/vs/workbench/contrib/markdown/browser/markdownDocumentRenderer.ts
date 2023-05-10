@@ -115,15 +115,7 @@ pre code {
 
 /** Theming */
 
-.vscode-light pre {
-	background-color: rgba(220, 220, 220, 0.4);
-}
-
-.vscode-dark pre {
-	background-color: rgba(10, 10, 10, 0.4);
-}
-
-.vscode-high-contrast pre {
+.pre {
 	background-color: var(--vscode-textCodeBlock-background);
 }
 
@@ -150,7 +142,6 @@ pre code {
 .vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);
 }
-
 `;
 
 const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];

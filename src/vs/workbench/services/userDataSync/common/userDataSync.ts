@@ -33,7 +33,6 @@ export interface IUserDataSyncWorkbenchService {
 	readonly onDidChangeAccountStatus: Event<AccountStatus>;
 
 	turnOn(): Promise<void>;
-	turnOnUsingCurrentAccount(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
 	signIn(): Promise<void>;
 

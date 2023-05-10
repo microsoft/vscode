@@ -246,7 +246,34 @@ suite('ExtensionService', () => {
 
 	test('issue #152204: Remote extension host not disposed after closing vscode client', async () => {
 		await extService.startExtensionHosts();
-		extService.stopExtensionHosts();
+		extService.stopExtensionHosts(true);
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
+	});
+
+	test('Extension host disposed when awaited', async () => {
+		await extService.startExtensionHosts();
+		await extService.stopExtensionHosts();
+		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
+	});
+
+	test('Extension host not disposed when vetoed (sync)', async () => {
+		await extService.startExtensionHosts();
+
+		extService.onWillStop(e => e.veto(true, 'test 1'));
+		extService.onWillStop(e => e.veto(false, 'test 2'));
+
+		await extService.stopExtensionHosts();
+		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
+	});
+
+	test('Extension host not disposed when vetoed (async)', async () => {
+		await extService.startExtensionHosts();
+
+		extService.onWillStop(e => e.veto(false, 'test 1'));
+		extService.onWillStop(e => e.veto(Promise.resolve(true), 'test 2'));
+		extService.onWillStop(e => e.veto(Promise.resolve(false), 'test 3'));
+
+		await extService.stopExtensionHosts();
+		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
 	});
 });

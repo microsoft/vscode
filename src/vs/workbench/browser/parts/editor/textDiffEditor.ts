@@ -36,6 +36,7 @@ import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -48,6 +49,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
+
+	private inputLifecycleStopWatch: StopWatch | undefined = undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		if (!this.diffEditorControl) {
@@ -96,7 +99,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
-		// Dispose previous diff navigator
+		// Cleanup previous things associated with the input
+		this.inputLifecycleStopWatch = undefined;
 		this.diffNavigatorDisposables.clear();
 
 		// Set input and resolve
@@ -149,6 +153,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				readOnly: resolvedDiffEditorModel.modifiedModel?.isReadonly(),
 				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
 			});
+
+			// Start to measure input lifecycle
+			this.inputLifecycleStopWatch = new StopWatch(false);
 		} catch (error) {
 			await this.handleSetInputError(error, input, options);
 		}
@@ -299,11 +306,33 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	override clearInput(): void {
 		super.clearInput();
 
+		// Log input lifecycle telemetry
+		const inputLifecycleElapsed = this.inputLifecycleStopWatch?.elapsed();
+		this.inputLifecycleStopWatch = undefined;
+		if (typeof inputLifecycleElapsed === 'number') {
+			this.logInputLifecycleTelemetry(inputLifecycleElapsed, this.getControl()?.getModel()?.modified?.getLanguageId());
+		}
+
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
 
 		// Clear Model
 		this.diffEditorControl?.setModel(null);
+	}
+
+	private logInputLifecycleTelemetry(duration: number, languageId: string | undefined): void {
+		this.telemetryService.publicLog2<{
+			editorVisibleTimeMs: number;
+			languageId: string;
+		}, {
+			owner: 'hediet';
+			editorVisibleTimeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates the time the diff editor was visible to the user' };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates for which language the diff editor was shown' };
+			comment: 'This event gives insight about how long the diff editor was visible to the user.';
+		}>('diffEditor.editorVisibleTime', {
+			editorVisibleTimeMs: duration,
+			languageId: languageId ?? '',
+		});
 	}
 
 	getDiffNavigator(): DiffNavigator | undefined {

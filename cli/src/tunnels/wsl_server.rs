@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use std::sync::Arc;
+
 use tokio::sync::mpsc;
 
 use crate::{
@@ -139,12 +141,17 @@ async fn handle_serve(
 		},
 	};
 
-	let sb = ServerBuilder::new(&c.log, &resolved, &c.launcher_paths, c.http.clone());
+	let sb = ServerBuilder::new(
+		&c.log,
+		&resolved,
+		&c.launcher_paths,
+		Arc::new(c.http.clone()),
+	);
 	let code_server = match sb.get_running().await? {
 		Some(AnyCodeServer::Socket(s)) => s,
 		Some(_) => return Err(MismatchedLaunchModeError().into()),
 		None => {
-			sb.setup(Some(params.archive_path.into())).await?;
+			sb.setup().await?;
 			sb.listen_on_default_socket().await?
 		}
 	};

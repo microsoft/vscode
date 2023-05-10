@@ -8,7 +8,7 @@ import { ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/key
 import { OS } from 'vs/base/common/platform';
 import { ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ResolutionResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 
@@ -135,7 +135,7 @@ export class MockKeybindingService implements IKeybindingService {
 		return 0;
 	}
 
-	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
+	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult | null {
 		return null;
 	}
 

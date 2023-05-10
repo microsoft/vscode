@@ -45,6 +45,35 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# Apply EnvironmentVariableCollections if needed
+if [ -n "$VSCODE_ENV_REPLACE" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo $ITEM | cut -d "=" -f 2)"
+		export $VARNAME="$VALUE"
+	done
+	builtin unset VSCODE_ENV_REPLACE
+fi
+if [ -n "$VSCODE_ENV_PREPEND" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo $ITEM | cut -d "=" -f 2)"
+		export $VARNAME="$VALUE${!VARNAME}"
+	done
+	builtin unset VSCODE_ENV_PREPEND
+fi
+if [ -n "$VSCODE_ENV_APPEND" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo $ITEM | cut -d "=" -f 2)"
+		export $VARNAME="${!VARNAME}$VALUE"
+	done
+	builtin unset VSCODE_ENV_APPEND
+fi
+
 __vsc_get_trap() {
 	# 'trap -p DEBUG' outputs a shell command like `trap -- '…shellcode…' DEBUG`.
 	# The terms are quoted literals, but are not guaranteed to be on a single line.
@@ -111,6 +140,10 @@ __vsc_custom_PS2=""
 __vsc_in_command_execution="1"
 __vsc_current_command=""
 
+# It's fine this is in the global scope as it getting at it requires access to the shell environment
+__vsc_nonce="$VSCODE_NONCE"
+unset VSCODE_NONCE
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -125,7 +158,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf '\e]633;C\a'
-	builtin printf '\e]633;E;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")"
+	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 }
 
 __vsc_continuation_start() {

@@ -4,6 +4,13 @@ parameters:
     default: []
 
 steps:
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
+
   - task: UseDotNet@2
     inputs:
       version: 6.x
@@ -19,14 +26,10 @@ steps:
         artifact: ${{ target }}
         path: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}
 
-  - script: |
-      set -e
-      node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
+  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     displayName: Codesign
 
-  - script: |
-      set -e
-      node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
+  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     displayName: Notarize
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalLinkResolver, ResolvedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { removeLinkSuffix, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { removeLinkSuffix, removeLinkQueryString, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Schemas } from 'vs/base/common/network';
@@ -52,9 +52,14 @@ export class TerminalLinkResolver implements ITerminalLinkResolver {
 			}
 		}
 
-		// Remove any line/col suffix before processing the path
+		// Remove any line/col suffix
 		let linkUrl = removeLinkSuffix(link);
-		if (!linkUrl) {
+
+		// Remove any query string
+		linkUrl = removeLinkQueryString(linkUrl);
+
+		// Exit early if the link is determines as not valid already
+		if (linkUrl.length === 0) {
 			cache.set(link, null);
 			return null;
 		}

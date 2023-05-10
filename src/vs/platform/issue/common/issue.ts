@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
@@ -50,6 +53,7 @@ export interface IssueReporterExtensionData {
 	displayName: string | undefined;
 	repositoryUrl: string | undefined;
 	bugsUrl: string | undefined;
+	hasIssueUriRequestHandler?: boolean;
 }
 
 export interface IssueReporterData extends WindowData {
@@ -94,13 +98,6 @@ export interface ProcessExplorerData extends WindowData {
 	applicationName: string;
 }
 
-export interface ICommonIssueService {
-	readonly _serviceBrand: undefined;
-	openReporter(data: IssueReporterData): Promise<void>;
-	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
-	getSystemStatus(): Promise<string>;
-}
-
 export interface IssueReporterWindowConfiguration extends ISandboxConfiguration {
 	disableExtensions: boolean;
 	data: IssueReporterData;
@@ -113,4 +110,24 @@ export interface IssueReporterWindowConfiguration extends ISandboxConfiguration 
 
 export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
 	data: ProcessExplorerData;
+}
+
+export const IIssueMainService = createDecorator<IIssueMainService>('issueService');
+
+export interface IIssueMainService {
+	readonly _serviceBrand: undefined;
+	stopTracing(): Promise<void>;
+	openReporter(data: IssueReporterData): Promise<void>;
+	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
+	getSystemStatus(): Promise<string>;
+
+	// Used by the issue reporter
+
+	$getSystemInfo(): Promise<SystemInfo>;
+	$getPerformanceInfo(): Promise<PerformanceInfo>;
+	$reloadWithExtensionsDisabled(): Promise<void>;
+	$showConfirmCloseDialog(): Promise<void>;
+	$showClipboardDialog(): Promise<boolean>;
+	$getIssueReporterUri(extensionId: string): Promise<URI>;
+	$closeReporter(): Promise<void>;
 }
