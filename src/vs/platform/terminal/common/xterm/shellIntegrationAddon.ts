@@ -345,7 +345,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, isTrusted);
 				}
 				// A nonce may or may not be provided. If it is, then it should be the last argument.
-				return args.length <= 1;
+				return isTrusted ? args.length === 1 : args.length === 0;
 			}
 			case VSCodeOscPt.ContinuationStart: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationStart();
