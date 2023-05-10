@@ -59,6 +59,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { getThemeTypeSelector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -291,7 +292,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			accessibilityVerbose: false
 		});
 
-		this.isEmbeddedDiffEditorKey = this._contextKeyService.createKey<boolean>('isEmbeddedDiffEditor', typeof options.isInEmbeddedEditor !== 'undefined' ? options.isInEmbeddedEditor : false);
+		this.isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
+		this.isEmbeddedDiffEditorKey.set(typeof options.isInEmbeddedEditor !== 'undefined' ? options.isInEmbeddedEditor : false);
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
 
 		this._containerDomElement = document.createElement('div');
