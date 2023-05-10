@@ -48,7 +48,7 @@ import { IEditorWhitespace, InlineDecoration, InlineDecorationType, IViewModel, 
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -239,6 +239,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly _reviewPane: DiffReview;
 
+	private isEmbeddedDiffEditorKey: IContextKey<boolean>;
+
 	constructor(
 		domElement: HTMLElement,
 		options: Readonly<editorBrowser.IDiffEditorConstructionOptions>,
@@ -289,12 +291,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			accessibilityVerbose: false
 		});
 
-		if (typeof options.isInEmbeddedEditor !== 'undefined') {
-			this._contextKeyService.createKey('isInEmbeddedDiffEditor', options.isInEmbeddedEditor);
-		} else {
-			this._contextKeyService.createKey('isInEmbeddedDiffEditor', false);
-		}
-
+		this.isEmbeddedDiffEditorKey = this._contextKeyService.createKey<boolean>('isEmbeddedDiffEditor', typeof options.isInEmbeddedEditor !== 'undefined' ? options.isInEmbeddedEditor : false);
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
 
 		this._containerDomElement = document.createElement('div');
@@ -776,6 +773,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const newOptions = validateDiffEditorOptions(_newOptions, this._options);
 		const changed = changedDiffEditorOptions(this._options, newOptions);
 		this._options = newOptions;
+
+		this.isEmbeddedDiffEditorKey.set(typeof _newOptions.isInEmbeddedEditor !== 'undefined' ? _newOptions.isInEmbeddedEditor : false);
 
 		const beginUpdateDecorations = (changed.ignoreTrimWhitespace || changed.renderIndicators || changed.renderMarginRevertIcon);
 		const beginUpdateDecorationsSoon = (this._isVisible && (changed.maxComputationTime || changed.maxFileSize));
