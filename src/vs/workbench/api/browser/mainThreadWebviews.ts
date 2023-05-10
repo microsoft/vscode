@@ -53,19 +53,14 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	public $setHtml(handle: extHostProtocol.WebviewHandle, value: string): void {
-		const webview = this.tryGetWebview(handle);
-		if (!webview) {
-			return;
-		}
-		webview.setHtml(value);
+		this.tryGetWebview(handle)?.setHtml(value);
 	}
 
 	public $setOptions(handle: extHostProtocol.WebviewHandle, options: extHostProtocol.IWebviewContentOptions): void {
 		const webview = this.tryGetWebview(handle);
-		if (!webview) {
-			return;
+		if (webview) {
+			webview.contentOptions = reviveWebviewContentOptions(options);
 		}
-		webview.contentOptions = reviveWebviewContentOptions(options);
 	}
 
 	public async $postMessage(handle: extHostProtocol.WebviewHandle, jsonMessage: string, ...buffers: VSBuffer[]): Promise<boolean> {

@@ -199,19 +199,14 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 
 	public $setTitle(handle: extHostProtocol.WebviewHandle, value: string): void {
-		const webview = this.tryGetWebviewInput(handle);
-		if (!webview) {
-			return;
-		}
-		webview.setName(value);
+		this.tryGetWebviewInput(handle)?.setName(value);
 	}
 
 	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: extHostProtocol.IWebviewIconPath | undefined): void {
 		const webview = this.tryGetWebviewInput(handle);
-		if (!webview) {
-			return;
+		if (webview) {
+			webview.iconPath = reviveWebviewIcon(value);
 		}
-		webview.iconPath = reviveWebviewIcon(value);
 	}
 
 	public $reveal(handle: extHostProtocol.WebviewHandle, showOptions: extHostProtocol.WebviewPanelShowOptions): void {
