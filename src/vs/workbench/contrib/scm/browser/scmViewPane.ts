@@ -23,7 +23,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, compareInlineMenuWithInlineActionBar } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton } from './util';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
@@ -357,6 +357,7 @@ interface ResourceTemplate {
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
 	actionBarMenu: IMenu | undefined;
+	readonly actionBarMenuListener: MutableDisposable<IDisposable>;
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
 }
@@ -418,9 +419,10 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		});
 
 		const decorationIcon = append(element, $('.decoration-icon'));
-		const disposables = combinedDisposable(actionBar, fileLabel);
+		const actionBarMenuListener = new MutableDisposable<IDisposable>();
+		const disposables = combinedDisposable(actionBar, fileLabel, actionBarMenuListener);
 
-		return { element, name, fileLabel, decorationIcon, actionBar, actionBarMenu: undefined, elementDisposables: new DisposableStore(), disposables };
+		return { element, name, fileLabel, decorationIcon, actionBar, actionBarMenu: undefined, actionBarMenuListener, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
@@ -519,10 +521,11 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	}
 
 	private _renderActionBar(template: ResourceTemplate, resourceOrFolder: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, menu: IMenu): void {
-		if (!template.actionBarMenu || template.actionBarMenu !== menu || !compareInlineMenuWithInlineActionBar(menu, template.actionBar)) {
+		if (!template.actionBarMenu || template.actionBarMenu !== menu) {
 			template.actionBar.clear();
-			template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menu, template.actionBar));
+
 			template.actionBarMenu = menu;
+			template.actionBarMenuListener.value = connectPrimaryMenuToInlineActionBar(menu, template.actionBar);
 		}
 
 		template.actionBar.context = resourceOrFolder;
