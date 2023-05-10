@@ -277,22 +277,18 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
-			try {
-				const { host, port } = parseAuthorityWithPort(remoteAuthority);
-				return {
-					authority: {
-						authority: remoteAuthority,
-						connectTo: {
-							type: RemoteConnectionType.WebSocket,
-							host,
-							port
-						},
-						connectionToken: undefined
-					}
-				};
-			} catch {
-				// continue
-			}
+			const { host, port } = parseAuthorityWithPort(remoteAuthority);
+			return {
+				authority: {
+					authority: remoteAuthority,
+					connectTo: {
+						type: RemoteConnectionType.WebSocket,
+						host,
+						port
+					},
+					connectionToken: undefined
+				}
+			};
 		}
 
 		const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
@@ -398,7 +394,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			performance.mark(`code/willResolveAuthority/${authorityPrefix}`);
 			const result = await this._resolveAuthority(remoteAuthority);
 			performance.mark(`code/didResolveAuthorityOK/${authorityPrefix}`);
-			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority}' after ${sw.elapsed()} ms`);
+			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority.connectTo}' after ${sw.elapsed()} ms`);
 			return result;
 		} catch (err) {
 			performance.mark(`code/didResolveAuthorityError/${authorityPrefix}`);
