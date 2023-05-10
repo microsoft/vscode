@@ -307,7 +307,13 @@
           "description": "%config.npm.scriptHover%",
           "default": true,
           "scope": "window"
-        }
+        },
+        "npm.runDefinedTask": {
+          "type": "boolean",
+          "description": "%config.npm.runDefinedTask%",
+          "default": false,
+          "scope": "window"
+        }        
       }
     },
     "jsonValidation": [
@@ -340,18 +346,18 @@
       }
     ],
     "terminalQuickFixes": [
-        {
-          "id": "ms-vscode.npm-command",
-          "commandLineMatcher": "npm",
-          "commandExitResult": "error",
-          "outputMatcher": {
-            "anchor": "bottom",
-            "length": 8,
-            "lineMatcher": "Did you mean (?:this|one of these)\\?((?:\\n.+?npm .+ #.+)+)",
-            "offset": 2
-          }
+      {
+        "id": "ms-vscode.npm-command",
+        "commandLineMatcher": "npm",
+        "commandExitResult": "error",
+        "outputMatcher": {
+          "anchor": "bottom",
+          "length": 8,
+          "lineMatcher": "Did you mean (?:this|one of these)\\?((?:\\n.+?npm .+ #.+)+)",
+          "offset": 2
         }
-      ]
+      }
+    ]
   },
   "repository": {
     "type": "git",

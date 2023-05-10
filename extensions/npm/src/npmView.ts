@@ -9,7 +9,7 @@ import {
 	Range,
 	Selection, Task,
 	TaskGroup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TreeDataProvider, TreeItem, TreeItemLabel, TreeItemCollapsibleState, Uri,
-	window, workspace, WorkspaceFolder, Position, Location, l10n
+	window, workspace, WorkspaceFolder, Position, Location, l10n, TaskScope
 } from 'vscode';
 import { readScripts } from './readScripts';
 import {
@@ -146,10 +146,38 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		subscriptions.push(commands.registerCommand('npm.runInstall', this.runInstall, this));
 	}
 
+	private async findTask(script: NpmScript) {
+		const lookUpTask = workspace.getConfiguration('npm').get<boolean>('runDefinedTask', false);
+		if (!lookUpTask) { return; }
+		const scopeName = (t: Task) => {
+			return t.scope !== TaskScope.Global && t.scope !== TaskScope.Workspace && t.scope?.name;
+		};
+		const allTasks = await tasks.fetchTasks();
+		const candidateTasks = allTasks.filter(candidate => {
+			const newLocal = candidate.source !== 'Workspace' || candidate.definition.script !== script.label;
+			if (newLocal) { return false; }
+			switch (script.task.scope) {
+				case TaskScope.Global:
+					return true;
+				case TaskScope.Workspace:
+					return true;
+				default:
+					return script.task.scope?.name === scopeName(candidate);
+			}
+		});
+		return candidateTasks[0];
+	}
+
 	private async runScript(script: NpmScript) {
 		// Call getPackageManager to trigger the multiple lock files warning.
-		await getPackageManager(this.context, script.getFolder().uri);
-		tasks.executeTask(script.task);
+		const task = await this.findTask(script);
+		if (task) {
+			tasks.executeTask(task);
+		}
+		else {
+			await getPackageManager(this.context, script.getFolder().uri);
+			tasks.executeTask(script.task);
+		}
 	}
 
 	private async debugScript(script: NpmScript) {
