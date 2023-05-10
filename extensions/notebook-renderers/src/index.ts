@@ -211,12 +211,15 @@ function onKeypressHandler(e: KeyboardEvent) {
 // if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
 function initializeScroll(scrollableElement: HTMLElement, disposables: DisposableStore, scrollTop?: number) {
 	if (scrollableElement.classList.contains(scrollableClass)) {
-		scrollableElement.classList.toggle('scrollbar-visible', scrollableElement.scrollHeight > scrollableElement.clientHeight);
+		const scrollbarVisible = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+		scrollableElement.classList.toggle('scrollbar-visible', scrollbarVisible);
 		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
-		scrollableElement.addEventListener('scroll', onScrollHandler);
-		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
-		scrollableElement.addEventListener('keydown', onKeypressHandler);
-		disposables.push({ dispose: () => scrollableElement.removeEventListener('keydown', onKeypressHandler) });
+		if (scrollbarVisible) {
+			scrollableElement.addEventListener('scroll', onScrollHandler);
+			disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
+			scrollableElement.addEventListener('keydown', onKeypressHandler);
+			disposables.push({ dispose: () => scrollableElement.removeEventListener('keydown', onKeypressHandler) });
+		}
 	}
 }
 
