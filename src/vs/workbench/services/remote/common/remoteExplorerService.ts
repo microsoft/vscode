@@ -44,6 +44,12 @@ export enum TunnelType {
 	Add = 'Add'
 }
 
+export enum TunnelCloseReason {
+	Other = 'Other',
+	User = 'User',
+	AutoForwardEnd = 'AutoForwardEnd',
+}
+
 export interface ITunnelItem {
 	tunnelType: TunnelType;
 	remoteHost: string;
@@ -501,19 +507,21 @@ export class TunnelModel extends Disposable {
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
 		this._register(this.tunnelService.onTunnelClosed(address => {
-			return this.onTunnelClosed(address);
+			return this.onTunnelClosed(address, TunnelCloseReason.Other);
 		}));
 	}
 
-	private async onTunnelClosed(address: { host: string; port: number }) {
+	private async onTunnelClosed(address: { host: string; port: number }, reason: TunnelCloseReason) {
 		const key = makeAddress(address.host, address.port);
 		if (this.forwarded.has(key)) {
 			const oldTunnel = this.forwarded.get(key)!;
-			this.sessionCachedProperties.set(key, {
-				local: oldTunnel.localPort,
-				name: oldTunnel.name,
-				privacy: oldTunnel.privacy,
-			});
+			if (reason === TunnelCloseReason.AutoForwardEnd) {
+				this.sessionCachedProperties.set(key, {
+					local: oldTunnel.localPort,
+					name: oldTunnel.name,
+					privacy: oldTunnel.privacy,
+				});
+			}
 			this.forwarded.delete(key);
 			await this.storeForwarded();
 			this._onClosePort.fire(address);
@@ -718,7 +726,7 @@ export class TunnelModel extends Disposable {
 				break;
 			}
 			case MergedAttributeAction.Reopen: {
-				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
+				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort, TunnelCloseReason.User);
 				await this.forward(tunnelProperties, attributes);
 			}
 		}
@@ -740,9 +748,9 @@ export class TunnelModel extends Disposable {
 		}
 	}
 
-	async close(host: string, port: number): Promise<void> {
+	async close(host: string, port: number, reason: TunnelCloseReason): Promise<void> {
 		await this.tunnelService.closeTunnel(host, port);
-		return this.onTunnelClosed({ host, port });
+		return this.onTunnelClosed({ host, port }, reason);
 	}
 
 	address(host: string, port: number): string | undefined {
@@ -964,7 +972,7 @@ export interface IRemoteExplorerService {
 	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void;
 	getEditableData(tunnelItem: ITunnelItem | undefined, editId?: TunnelEditId): IEditableData | undefined;
 	forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | undefined>;
-	close(remote: { host: string; port: number }): Promise<void>;
+	close(remote: { host: string; port: number }, reason: TunnelCloseReason): Promise<void>;
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void;
 	setCandidateFilter(filter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined): IDisposable;
 	onFoundNewCandidates(candidates: CandidatePort[]): void;
@@ -1026,8 +1034,8 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		return this.tunnelModel.forward(tunnelProperties, attributes);
 	}
 
-	close(remote: { host: string; port: number }): Promise<void> {
-		return this.tunnelModel.close(remote.host, remote.port);
+	close(remote: { host: string; port: number }, reason: TunnelCloseReason): Promise<void> {
+		return this.tunnelModel.close(remote.host, remote.port, reason);
 	}
 
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void {
