@@ -14355,6 +14355,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The contiguous set of modified lines in a diff. These are provided to commands registered on the scm/change/title menu.
+	 */
+	export interface LineChange {
+		readonly originalStartLineNumber: number;
+		readonly originalEndLineNumber: number;
+		readonly modifiedStartLineNumber: number;
+		readonly modifiedEndLineNumber: number;
+	}
+
+	/**
 	 * The theme-aware decorations for a
 	 * {@link SourceControlResourceState source control resource state}.
 	 */

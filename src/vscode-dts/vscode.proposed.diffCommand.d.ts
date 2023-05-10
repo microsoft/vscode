@@ -7,16 +7,6 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/84899
 
-	/**
-	 * The contiguous set of modified lines in a diff.
-	 */
-	export interface LineChange {
-		readonly originalStartLineNumber: number;
-		readonly originalEndLineNumber: number;
-		readonly modifiedStartLineNumber: number;
-		readonly modifiedEndLineNumber: number;
-	}
-
 	export namespace commands {
 
 		/**
