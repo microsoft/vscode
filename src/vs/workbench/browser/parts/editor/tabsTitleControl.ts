@@ -174,6 +174,9 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.setAttribute('role', 'tablist');
 		this.tabsContainer.draggable = true;
 		this.tabsContainer.classList.add('tabs-container');
+		this.tabsContainer.addEventListener('mouseenter', this.fixTabWidths.bind(this));
+		this.tabsContainer.addEventListener('mouseleave', this.relaxTabWidths.bind(this));
+		this.updateTabSizingFixedWidth();
 		this._register(Gesture.addTarget(this.tabsContainer));
 
 		// Tabs Scrollbar
@@ -220,6 +223,14 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsScrollbar?.updateOptions({
 			horizontalScrollbarSize: this.getTabsScrollbarSizing()
 		});
+	}
+
+	private updateTabSizingFixedWidth(): void {
+		const options = this.accessor.partOptions;
+		this.tabsContainer?.style.setProperty(
+			'--tab-sizing-max-width',
+			options.tabSizing === 'fixed' ? `${options.tabSizingFixedWidth}px` : ''
+		);
 	}
 
 	private getTabsScrollbarSizing(): number {
@@ -663,12 +674,17 @@ export class TabsTitleControl extends TitleControl {
 			this.updateTabsScrollbarSizing();
 		}
 
+		if (oldOptions.tabSizingFixedWidth !== newOptions.tabSizingFixedWidth ||
+			oldOptions.tabSizing !== newOptions.tabSizing
+		) {
+			this.updateTabSizingFixedWidth();
+		}
+
 		// Redraw tabs when other options change
 		if (
 			oldOptions.labelFormat !== newOptions.labelFormat ||
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
-			oldOptions.tabSizingFixedWidth !== newOptions.tabSizingFixedWidth ||
 			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
@@ -1233,8 +1249,6 @@ export class TabsTitleControl extends TitleControl {
 		for (const option of ['fit', 'shrink', 'fixed']) {
 			tabContainer.classList.toggle(`sizing-${option}`, tabSizing === option);
 		}
-		tabContainer.style.width = tabSizing === 'fixed' ? `${options.tabSizingFixedWidth}px` : '';
-
 		tabContainer.classList.toggle('has-icon', options.showIcons && options.hasIcons);
 
 		tabContainer.classList.toggle('sticky', isTabSticky);
@@ -1973,6 +1987,23 @@ export class TabsTitleControl extends TitleControl {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 		return !isCopy || sourceGroup === this.group.id;
+	}
+
+	private fixTabWidths() {
+		if (this.accessor.partOptions.tabSizing === 'fixed') {
+			this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+				const { width } = tabContainer.getBoundingClientRect();
+				tabContainer.style.setProperty('--tab-sizing-current-width', width.toFixed(2) + 'px');
+				tabContainer.style.setProperty('--tab-sizing-transition-duration', '0');
+			});
+		}
+	}
+
+	private relaxTabWidths() {
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			tabContainer.style.removeProperty('--tab-sizing-current-width');
+			tabContainer.style.removeProperty('--tab-sizing-transition-duration');
+		});
 	}
 
 	override dispose(): void {

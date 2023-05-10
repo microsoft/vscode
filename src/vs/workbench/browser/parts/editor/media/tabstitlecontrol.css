@@ -123,10 +123,14 @@
 	flex-shrink: 0;
 }
 
-/* fixed-width tabs get their width set in the code */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed {
-	min-width: 50px;
-	flex-shrink: 0;
+	min-width: var(--tab-sizing-current-width, 50px);
+	max-width: var(--tab-sizing-current-width, var(--tab-sizing-max-width, 240px));
+	flex: 1 0 0; /* all tabs are evenly sized and grow */
+
+	/* delay, duration, timing function, all apply to both properties */
+	transition: var(--tab-sizing-transition-duration, 0.25s) var(--tab-sizing-transition-duration, 0.25s) linear;
+	transition-property: min-width, max-width;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit.last-in-row:not(:last-child) {
