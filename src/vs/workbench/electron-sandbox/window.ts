@@ -842,8 +842,7 @@ export class NativeWindow extends Disposable {
 						const remoteAuthority = this.environmentService.remoteAuthority;
 						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
 							getAddress: async (): Promise<IAddress> => {
-								const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
-								return { connectTo: authority.connectTo, connectionToken: authority.connectionToken };
+								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
 							}
 						} : undefined;
 						let tunnel = await this.tunnelService.getExistingTunnel(portMappingRequest.address, portMappingRequest.port);
