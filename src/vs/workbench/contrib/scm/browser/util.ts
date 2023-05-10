@@ -78,6 +78,16 @@ export function collectContextMenuActions(menu: IMenu): IAction[] {
 	return actions;
 }
 
+export function compareInlineMenuWithInlineActionBar(menu: IMenu, actionBar: ActionBar): boolean {
+	const inlineMenuItemActions = menu.getActions().find(a => a[0] === 'inline');
+	if (!inlineMenuItemActions || inlineMenuItemActions[1].length === 0) {
+		return false;
+	}
+
+	const actionBarMenuItemActions = actionBar.viewItems.map(a => a.action);
+	return inlineMenuItemActions[1].every(action => actionBarMenuItemActions.some(a => compareActions(a, action)));
+}
+
 export class StatusBarAction extends Action {
 
 	constructor(
