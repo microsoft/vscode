@@ -23,6 +23,12 @@ const configuration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 			tags: ['accessibility']
+		},
+		'accessibility.verbosity.interactive-session-input': {
+			description: localize('verbosity.interactive-session-input.description', 'Provide information about how to access the interactive session accessibility help menu when the interactive input is focused'),
+			type: 'boolean',
+			default: true,
+			tags: ['accessibility']
 		}
 	}
 };

@@ -17,6 +17,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -75,6 +76,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -152,7 +154,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 
 		const options = getSimpleEditorOptions();
 		options.readOnly = false;
-		options.ariaLabel = localize('interactiveSessionInput', "Interactive Session Input");
+		options.ariaLabel = this.configurationService.getValue<boolean>('accessibility.verbosity.interactive-session-input') ? localize('interactiveSessionInput.accessibilityHelp', "Interactive Session Input,  Type code here and press Enter to run. Use alt+f1 for copilot accessiblity help.") : localize('interactiveSessionInput', "Interactive Session Input,  Type code here and press Enter to run.");
 		options.fontFamily = DEFAULT_FONT_FAMILY;
 		options.fontSize = 13;
 		options.lineHeight = 20;

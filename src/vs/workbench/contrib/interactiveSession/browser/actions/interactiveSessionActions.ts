@@ -11,11 +11,13 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
+import { InteractiveAccessibilityHelpWidget } from 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionAccessibilityHelpWidget';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
@@ -124,6 +126,27 @@ export function registerInteractiveSessionActions() {
 			}
 		}
 	});
+
+	registerEditorAction(class FocusInteractiveSessionAction extends EditorAction {
+		constructor() {
+			super({
+				id: 'interactiveSession.action.accessibilityHelp',
+				label: localize('actions.interactiveSession.accessibiltyHelp', "Interactive Session Accessibility Help"),
+				alias: 'Focus Interactive Session',
+				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
+				kbOpts: {
+					primary: KeyMod.Alt | KeyCode.F1,
+					weight: KeybindingWeight.EditorContrib
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+			const widget = accessor.get(IInstantiationService).createInstance(InteractiveAccessibilityHelpWidget, editor.getContainerDomNode().parentElement?.parentElement!, {}, {});
+			await widget.show();
+		}
+	});
+
 
 	registerAction2(class FocusInteractiveSessionInputAction extends Action2 {
 		constructor() {
