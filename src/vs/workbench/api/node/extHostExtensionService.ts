@@ -17,6 +17,7 @@ import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { realpathSync } from 'vs/base/node/extpath';
 import { ExtHostConsoleForwarder } from 'vs/workbench/api/node/extHostConsoleForwarder';
+import { ExtHostDiskFileSystemProvider } from 'vs/workbench/api/node/extHostDiskFileSystemProvider';
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -73,6 +74,9 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			const cliServer = this._instaService.createInstance(CLIServer);
 			process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
 		}
+
+		// Register local file system shortcut
+		this._instaService.createInstance(ExtHostDiskFileSystemProvider);
 
 		// Module loading tricks
 		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry });

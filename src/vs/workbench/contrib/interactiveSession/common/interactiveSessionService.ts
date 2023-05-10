@@ -9,15 +9,16 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveSessionModel, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSession {
-	id: number; // TODO This is only used by the provider internally, we can probably get rid of it
+	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
 	requesterUsername: string;
 	requesterAvatarIconUri?: URI;
 	responderUsername: string;
 	responderAvatarIconUri?: URI;
 	inputPlaceholder?: string;
+	onDidChangeState?: Event<any>;
 	dispose?(): void;
 }
 
@@ -47,6 +48,7 @@ export type IInteractiveProgress =
 export interface IPersistedInteractiveState { }
 export interface IInteractiveProvider {
 	readonly id: string;
+	readonly displayName: string;
 	readonly iconUrl?: string;
 	prepareSession(initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined>;
 	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
@@ -56,8 +58,15 @@ export interface IInteractiveProvider {
 	provideSlashCommands?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
 }
 
+export interface IInteractiveSlashCommandProvider {
+	chatProviderId: string;
+	provideSlashCommands(token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
+	resolveSlashCommand(command: string, token: CancellationToken): ProviderResult<string>;
+}
+
 export interface IInteractiveSlashCommand {
 	command: string;
+	provider?: IInteractiveSlashCommandProvider;
 	sortText?: string;
 	detail?: string;
 }
@@ -111,6 +120,14 @@ export interface IInteractiveSessionInsertAction {
 	responseId: string;
 	codeBlockIndex: number;
 	totalCharacters: number;
+	newFile?: boolean;
+}
+
+export interface IInteractiveSessionTerminalAction {
+	kind: 'runInTerminal';
+	responseId: string;
+	codeBlockIndex: number;
+	languageId?: string;
 }
 
 export interface IInteractiveSessionCommandAction {
@@ -118,7 +135,7 @@ export interface IInteractiveSessionCommandAction {
 	command: IInteractiveSessionResponseCommandFollowup;
 }
 
-export type InteractiveSessionUserAction = IInteractiveSessionVoteAction | IInteractiveSessionCopyAction | IInteractiveSessionInsertAction | IInteractiveSessionCommandAction;
+export type InteractiveSessionUserAction = IInteractiveSessionVoteAction | IInteractiveSessionCopyAction | IInteractiveSessionInsertAction | IInteractiveSessionTerminalAction | IInteractiveSessionCommandAction;
 
 export interface IInteractiveSessionUserActionEvent {
 	action: InteractiveSessionUserAction;
@@ -142,26 +159,37 @@ export interface IInteractiveSessionCompleteResponse {
 	errorDetails?: IInteractiveResponseErrorDetails;
 }
 
+export interface IInteractiveSessionDetail {
+	sessionId: string;
+	title: string;
+}
+
+export interface IInteractiveProviderInfo {
+	id: string;
+	displayName: string;
+}
+
 export const IInteractiveSessionService = createDecorator<IInteractiveSessionService>('IInteractiveSessionService');
 
 export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
-	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): InteractiveSessionModel | undefined;
-	waitForSessionInitialization(sessionId: number): Promise<InteractiveSessionModel | undefined>;
+	registerSlashCommandProvider(provider: IInteractiveSlashCommandProvider): IDisposable;
+	getProviderInfos(): IInteractiveProviderInfo[];
+	startSession(providerId: string, token: CancellationToken): InteractiveSessionModel | undefined;
+	retrieveSession(sessionId: string): IInteractiveSessionModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): Promise<boolean>;
-	cancelCurrentRequestForSession(sessionId: number): void;
-	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
-	clearSession(sessionId: number): void;
-	acceptNewSessionState(sessionId: number, state: any): void;
+	sendRequest(sessionId: string, message: string | IInteractiveSessionReplyFollowup): Promise<boolean>;
+	cancelCurrentRequestForSession(sessionId: string): void;
+	getSlashCommands(sessionId: string, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
+	clearSession(sessionId: string): void;
 	addInteractiveRequest(context: any): void;
-	addCompleteRequest(message: string, response: IInteractiveSessionCompleteResponse): void;
-	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
-	releaseSession(sessionId: number): void;
+	addCompleteRequest(sessionId: string, message: string, response: IInteractiveSessionCompleteResponse): void;
+	sendInteractiveRequestToProvider(sessionId: string, message: IInteractiveSessionDynamicRequest): void;
+	getHistory(): IInteractiveSessionDetail[];
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
 	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;

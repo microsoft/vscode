@@ -65,8 +65,8 @@ impl<'a> SelfUpdate<'a> {
 	) -> Result<(), AnyError> {
 		// 1. Download the archive into a temporary directory
 		let tempdir = tempdir().map_err(|e| wrap(e, "Failed to create temp dir"))?;
-		let archive_path = tempdir.path().join("archive");
 		let stream = self.update_service.get_download_stream(release).await?;
+		let archive_path = tempdir.path().join(stream.url_path_basename().unwrap());
 		http::download_into_file(&archive_path, progress, stream).await?;
 
 		// 2. Unzip the archive and get the binary

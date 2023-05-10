@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -620,19 +621,29 @@ export enum InlineCompletionTriggerKind {
 }
 
 export interface InlineCompletionContext {
+
 	/**
 	 * How the completion was triggered.
 	 */
 	readonly triggerKind: InlineCompletionTriggerKind;
-
 	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
 }
 
-export interface SelectedSuggestionInfo {
-	range: IRange;
-	text: string;
-	isSnippetText: boolean;
-	completionKind: CompletionItemKind;
+export class SelectedSuggestionInfo {
+	constructor(
+		public readonly range: IRange,
+		public readonly text: string,
+		public readonly completionKind: CompletionItemKind,
+		public readonly isSnippetText: boolean,
+	) {
+	}
+
+	public equals(other: SelectedSuggestionInfo) {
+		return Range.lift(this.range).equalsRange(other.range)
+			&& this.text === other.text
+			&& this.completionKind === other.completionKind
+			&& this.isSnippetText === other.isSnippetText;
+	}
 }
 
 export interface InlineCompletion {
@@ -680,6 +691,13 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	 * A list of commands associated with the inline completions of this list.
 	 */
 	readonly commands?: Command[];
+
+	readonly suppressSuggestions?: boolean | undefined;
+
+	/**
+	 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
+	 */
+	readonly enableForwardStability?: boolean | undefined;
 }
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
@@ -687,8 +705,9 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 
 	/**
 	 * Will be called when an item is shown.
+	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
-	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 
 	/**
 	 * Will be called when an item is partially accepted.
@@ -764,7 +783,11 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	insertText: string | { snippet: string };
+	readonly id: string;
+	readonly label: string;
+	readonly detail: string;
+	readonly priority: number;
+	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 
@@ -773,6 +796,9 @@ export interface DocumentPasteEdit {
  */
 export interface DocumentPasteEditProvider {
 
+	readonly id?: string;
+
+	readonly copyMimeTypes?: readonly string[];
 	readonly pasteMimeTypes: readonly string[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
@@ -1478,7 +1504,11 @@ export interface WorkspaceFileEditOptions {
 	folder?: boolean;
 	skipTrashBin?: boolean;
 	maxSize?: number;
-	contentsBase64?: string;
+
+	/**
+	 * @internal
+	 */
+	contents?: Promise<VSBuffer>;
 }
 
 export interface IWorkspaceFileEdit {
@@ -1917,9 +1947,10 @@ export enum ExternalUriOpenerPriority {
  * @internal
  */
 export interface DocumentOnDropEdit {
+	readonly id: string;
 	readonly label: string;
-
-	insertText: string | { snippet: string };
+	readonly priority: number;
+	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 
@@ -1927,7 +1958,6 @@ export interface DocumentOnDropEdit {
  * @internal
  */
 export interface DocumentOnDropEditProvider {
-	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
 
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;

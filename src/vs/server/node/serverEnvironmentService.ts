@@ -209,6 +209,5 @@ export interface IServerEnvironmentService extends INativeEnvironmentService {
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
-	get isRemoteServer(): boolean { return true; }
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
 }

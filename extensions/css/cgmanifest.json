@@ -6,7 +6,7 @@
 				"git": {
 					"name": "microsoft/vscode-css",
 					"repositoryUrl": "https://github.com/microsoft/vscode-css",
-					"commitHash": "4a6dc90f332bfa72c88192513435a64013d9aad4"
+					"commitHash": "1452547185a1793c946cf67f8c7c9001716e32c3"
 				}
 			},
 			"licenseDetail": [
@@ -46,7 +46,7 @@
 			],
 			"license": "MIT License",
 			"description": "The file syntaxes/css.tmLanguage.json was derived from https://github.com/atom/language-css which was originally converted from the TextMate bundle https://github.com/textmate/css.tmbundle.",
-			"version": "0.45.1"
+			"version": "0.0.0"
 		}
 	],
 	"version": 1

@@ -194,12 +194,13 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'diffEditor.diffAlgorithm': {
 			type: 'string',
-			enum: ['smart', 'experimental'],
-			default: 'smart',
+			enum: ['legacy', 'advanced'],
+			default: 'legacy',
 			markdownEnumDescriptions: [
-				nls.localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
-				nls.localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
-			]
+				nls.localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
+				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
+			],
+			tags: ['experimental'],
 		},
 	}
 };

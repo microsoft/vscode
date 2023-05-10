@@ -155,12 +155,15 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
-			vertical: ScrollbarVisibility.Hidden
+			vertical: ScrollbarVisibility.Visible
 		}, this._scrollable));
 
 		this._register(this._scrollableElement.onScroll(e => {
 			if (e.scrollLeftChanged) {
 				body.scrollLeft = e.scrollLeft;
+			}
+			if (e.scrollTopChanged) {
+				body.scrollTop = e.scrollTop;
 			}
 		}));
 
@@ -168,9 +171,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(onDidScrollViewContainer(_ => {
 			const position = this._scrollableElement.getScrollPosition();
 			const scrollLeft = Math.abs(body.scrollLeft - position.scrollLeft) <= 1 ? undefined : body.scrollLeft;
+			const scrollTop = Math.abs(body.scrollTop - position.scrollTop) <= 1 ? undefined : body.scrollTop;
 
-			if (scrollLeft !== undefined) {
-				this._scrollableElement.setScrollPosition({ scrollLeft });
+			if (scrollLeft !== undefined || scrollTop !== undefined) {
+				this._scrollableElement.setScrollPosition({ scrollLeft, scrollTop });
 			}
 		}));
 
@@ -518,7 +522,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditor?.layout();
 		const scrollWidth = this._body.scrollWidth;
 		const width = dom.getContentWidth(this._body);
-		this._scrollableElement.setScrollDimensions({ width, scrollWidth });
+		const scrollHeight = this._body.scrollHeight;
+		const height = dom.getContentHeight(this._body) + 4;
+		this._scrollableElement.setScrollDimensions({ width, scrollWidth, height, scrollHeight });
 	}
 
 	public switchToEditMode() {

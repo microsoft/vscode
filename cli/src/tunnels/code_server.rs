@@ -2,31 +2,31 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use super::paths::{InstalledServer, LastUsedServers, ServerPaths};
+use super::paths::{InstalledServer, ServerPaths};
 use crate::async_pipe::get_socket_name;
 use crate::constants::{
 	APPLICATION_NAME, EDITOR_WEB_URL, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME,
 };
+use crate::download_cache::DownloadCache;
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
+use crate::tunnels::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
 use crate::util::command::{capture_command, kill_tree};
-use crate::util::errors::{
-	wrap, AnyError, ExtensionInstallFailed, MissingEntrypointError, WrappedError,
-};
+use crate::util::errors::{wrap, AnyError, CodeError, ExtensionInstallFailed, WrappedError};
 use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
-use crate::{debug, info, log, span, spanf, trace, warning};
+use crate::{debug, info, log, spanf, trace, warning};
 use lazy_static::lazy_static;
 use opentelemetry::KeyValue;
 use regex::Regex;
 use serde::Deserialize;
 use std::fs;
 use std::fs::File;
-use std::io::{ErrorKind, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,8 +41,6 @@ lazy_static! {
 		Regex::new(r"Extension host agent listening on (.+)").unwrap();
 	static ref WEB_UI_RE: Regex = Regex::new(r"Web UI available at (.+)").unwrap();
 }
-
-const MAX_RETAINED_SERVERS: usize = 5;
 
 #[derive(Clone, Debug, Default)]
 pub struct CodeServerArgs {
@@ -276,102 +274,6 @@ impl CodeServerOrigin {
 	}
 }
 
-async fn check_and_create_dir(path: &Path) -> Result<(), WrappedError> {
-	tokio::fs::create_dir_all(path)
-		.await
-		.map_err(|e| wrap(e, "error creating server directory"))?;
-	Ok(())
-}
-
-async fn install_server_if_needed(
-	log: &log::Logger,
-	paths: &ServerPaths,
-	release: &Release,
-	http: BoxedHttp,
-	existing_archive_path: Option<PathBuf>,
-) -> Result<(), AnyError> {
-	if paths.executable.exists() {
-		info!(
-			log,
-			"Found existing installation at {}",
-			paths.server_dir.display()
-		);
-		return Ok(());
-	}
-
-	let tar_file_path = match existing_archive_path {
-		Some(p) => p,
-		None => spanf!(
-			log,
-			log.span("server.download"),
-			download_server(&paths.server_dir, release, log, http)
-		)?,
-	};
-
-	span!(
-		log,
-		log.span("server.extract"),
-		install_server(&tar_file_path, paths, log)
-	)?;
-
-	Ok(())
-}
-
-async fn download_server(
-	path: &Path,
-	release: &Release,
-	log: &log::Logger,
-	http: BoxedHttp,
-) -> Result<PathBuf, AnyError> {
-	let response = UpdateService::new(log.clone(), http)
-		.get_download_stream(release)
-		.await?;
-
-	let mut save_path = path.to_owned();
-	save_path.push("archive");
-
-	info!(
-		log,
-		"Downloading {} server -> {}",
-		QUALITYLESS_PRODUCT_NAME,
-		save_path.display()
-	);
-
-	http::download_into_file(
-		&save_path,
-		log.get_download_logger("server download progress:"),
-		response,
-	)
-	.await?;
-
-	Ok(save_path)
-}
-
-fn install_server(
-	compressed_file: &Path,
-	paths: &ServerPaths,
-	log: &log::Logger,
-) -> Result<(), AnyError> {
-	info!(log, "Setting up server...");
-
-	unzip_downloaded_release(compressed_file, &paths.server_dir, SilentCopyProgress())?;
-
-	match fs::remove_file(compressed_file) {
-		Ok(()) => {}
-		Err(e) => {
-			if e.kind() != ErrorKind::NotFound {
-				return Err(AnyError::from(wrap(e, "error removing downloaded file")));
-			}
-		}
-	}
-
-	if !paths.executable.exists() {
-		return Err(AnyError::from(MissingEntrypointError()));
-	}
-
-	Ok(())
-}
-
 /// Ensures the given list of extensions are installed on the running server.
 async fn do_extension_install_on_running_server(
 	start_script_path: &Path,
@@ -406,7 +308,7 @@ async fn do_extension_install_on_running_server(
 pub struct ServerBuilder<'a> {
 	logger: &'a log::Logger,
 	server_params: &'a ResolvedServerParams,
-	last_used: LastUsedServers<'a>,
+	launcher_paths: &'a LauncherPaths,
 	server_paths: ServerPaths,
 	http: BoxedHttp,
 }
@@ -421,7 +323,7 @@ impl<'a> ServerBuilder<'a> {
 		Self {
 			logger,
 			server_params,
-			last_used: LastUsedServers::new(launcher_paths),
+			launcher_paths,
 			server_paths: server_params
 				.as_installed_server()
 				.server_paths(launcher_paths),
@@ -477,31 +379,54 @@ impl<'a> ServerBuilder<'a> {
 	}
 
 	/// Ensures the server is set up in the configured directory.
-	pub async fn setup(&self, existing_archive_path: Option<PathBuf>) -> Result<(), AnyError> {
+	pub async fn setup(&self) -> Result<(), AnyError> {
 		debug!(
 			self.logger,
 			"Installing and setting up {}...", QUALITYLESS_SERVER_NAME
 		);
-		check_and_create_dir(&self.server_paths.server_dir).await?;
-		install_server_if_needed(
-			self.logger,
-			&self.server_paths,
-			&self.server_params.release,
-			self.http.clone(),
-			existing_archive_path,
-		)
-		.await?;
-		debug!(self.logger, "Server setup complete");
 
-		match self.last_used.add(self.server_params.as_installed_server()) {
-			Err(e) => warning!(self.logger, "Error adding server to last used: {}", e),
-			Ok(count) if count > MAX_RETAINED_SERVERS => {
-				if let Err(e) = self.last_used.trim(self.logger, MAX_RETAINED_SERVERS) {
-					warning!(self.logger, "Error trimming old servers: {}", e);
-				}
-			}
-			Ok(_) => {}
-		}
+		let update_service = UpdateService::new(self.logger.clone(), self.http.clone());
+		let name = get_server_folder_name(
+			self.server_params.release.quality,
+			&self.server_params.release.commit,
+		);
+
+		self.launcher_paths
+			.server_cache
+			.create(name, |target_dir| async move {
+				let tmpdir =
+					tempfile::tempdir().map_err(|e| wrap(e, "error creating temp download dir"))?;
+
+				let response = update_service
+					.get_download_stream(&self.server_params.release)
+					.await?;
+				let archive_path = tmpdir.path().join(response.url_path_basename().unwrap());
+
+				info!(
+					self.logger,
+					"Downloading {} server -> {}",
+					QUALITYLESS_PRODUCT_NAME,
+					archive_path.display()
+				);
+
+				http::download_into_file(
+					&archive_path,
+					self.logger.get_download_logger("server download progress:"),
+					response,
+				)
+				.await?;
+
+				unzip_downloaded_release(
+					&archive_path,
+					&target_dir.join(SERVER_FOLDER_NAME),
+					SilentCopyProgress(),
+				)?;
+
+				Ok(())
+			})
+			.await?;
+
+		debug!(self.logger, "Server setup complete");
 
 		Ok(())
 	}
@@ -835,4 +760,40 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 
 	let message = &format!("\nOpen this link in your browser {}\n", addr);
 	log.result(message);
+}
+
+pub async fn download_cli_into_cache(
+	cache: &DownloadCache,
+	release: &Release,
+	update_service: &UpdateService,
+) -> Result<PathBuf, AnyError> {
+	let cache_name = format!(
+		"{}-{}-{}",
+		release.quality, release.commit, release.platform
+	);
+	let cli_dir = cache
+		.create(&cache_name, |target_dir| async move {
+			let tmpdir =
+				tempfile::tempdir().map_err(|e| wrap(e, "error creating temp download dir"))?;
+			let response = update_service.get_download_stream(release).await?;
+
+			let name = response.url_path_basename().unwrap();
+			let archive_path = tmpdir.path().join(name);
+			http::download_into_file(&archive_path, SilentCopyProgress(), response).await?;
+			unzip_downloaded_release(&archive_path, &target_dir, SilentCopyProgress())?;
+			Ok(())
+		})
+		.await?;
+
+	let cli = std::fs::read_dir(cli_dir)
+		.map_err(|_| CodeError::CorruptDownload("could not read cli folder contents"))?
+		.next();
+
+	match cli {
+		Some(Ok(cli)) => Ok(cli.path()),
+		_ => {
+			let _ = cache.delete(&cache_name);
+			Err(CodeError::CorruptDownload("cli directory is empty").into())
+		}
+	}
 }

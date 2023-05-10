@@ -110,7 +110,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		// We only want to fire a telemetry if we haven't seen this account yet in this session.
 		if (!this._accountsSeen.has(session.account.id)) {
 			this._accountsSeen.add(session.account.id);
-			this._githubServer.sendAdditionalTelemetryInfo(session.accessToken);
+			this._githubServer.sendAdditionalTelemetryInfo(session);
 		}
 	}
 

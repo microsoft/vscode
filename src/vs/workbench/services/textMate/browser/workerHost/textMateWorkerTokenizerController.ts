@@ -133,17 +133,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			}
 
 			const curToFutureTransformerTokens = MonotonousIndexTransformer.fromMany(
-				this._pendingChanges.map((c) => new ArrayEdit(
-					c.changes.map(
-						(c) =>
-							new SingleArrayEdit(
-								c.range.startLineNumber - 1,
-								// Expand the edit range to include the entire line
-								(c.range.endLineNumber - c.range.startLineNumber) + 1,
-								countEOL(c.text)[0] + 1
-							)
-					)
-				))
+				this._pendingChanges.map((c) => fullLineArrayEditFromModelContentChange(c.changes))
 			);
 
 			// Filter tokens in lines that got changed in the future to prevent flickering
@@ -171,10 +161,8 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			}
 		}
 
-		this._backgroundTokenizationStore.setTokens(tokens);
-
 		const curToFutureTransformerStates = MonotonousIndexTransformer.fromMany(
-			this._pendingChanges.map((c) => lineArrayEditFromModelContentChange(c.changes))
+			this._pendingChanges.map((c) => fullLineArrayEditFromModelContentChange(c.changes))
 		);
 
 		// Apply state deltas to _states and _backgroundTokenizationStore
@@ -192,6 +180,8 @@ export class TextMateWorkerTokenizerController extends Disposable {
 
 				const offset = curToFutureTransformerStates.transform(d.startLineNumber + i - 1);
 				if (offset !== undefined) {
+					// Only set the state if there is no future change in this line,
+					// as this might make consumers believe that the state/tokens are accurate
 					this._backgroundTokenizationStore.setEndState(offset + 1, state);
 				}
 
@@ -202,17 +192,20 @@ export class TextMateWorkerTokenizerController extends Disposable {
 				prevState = state;
 			}
 		}
+		// First set states, then tokens, so that events fired from set tokens don't read invalid states
+		this._backgroundTokenizationStore.setTokens(tokens);
 	}
 }
 
-function lineArrayEditFromModelContentChange(c: IModelContentChange[]): ArrayEdit {
+function fullLineArrayEditFromModelContentChange(c: IModelContentChange[]): ArrayEdit {
 	return new ArrayEdit(
 		c.map(
 			(c) =>
 				new SingleArrayEdit(
 					c.range.startLineNumber - 1,
-					c.range.endLineNumber - c.range.startLineNumber,
-					countEOL(c.text)[0]
+					// Expand the edit range to include the entire line
+					c.range.endLineNumber - c.range.startLineNumber + 1,
+					countEOL(c.text)[0] + 1
 				)
 		)
 	);

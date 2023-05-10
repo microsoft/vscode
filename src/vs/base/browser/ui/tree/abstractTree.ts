@@ -1318,7 +1318,7 @@ class Trait<T> {
 			} else {
 				const insertedNode = insertedNodesMap.get(id);
 
-				if (insertedNode) {
+				if (insertedNode && insertedNode.visible) {
 					nodes.push(insertedNode);
 				}
 			}
@@ -1359,6 +1359,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return;
 		}
 
+		if (e.browserEvent.isHandledByList) {
+			return;
+		}
+
 		const node = e.element;
 
 		if (!node) {
@@ -1396,6 +1400,8 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			this.tree.toggleCollapsed(location, recursive);
 
 			if (expandOnlyOnTwistieClick && onTwistie) {
+				// Do not set this before calling a handler on the super class, because it will reject it as handled
+				e.browserEvent.isHandledByList = true;
 				return;
 			}
 		}
@@ -1407,6 +1413,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const onTwistie = (e.browserEvent.target as HTMLElement).classList.contains('monaco-tl-twistie');
 
 		if (onTwistie || !this.tree.expandOnDoubleClick) {
+			return;
+		}
+
+		if (e.browserEvent.isHandledByList) {
 			return;
 		}
 
@@ -1747,6 +1757,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	set ariaLabel(value: string) {
 		this.view.ariaLabel = value;
+	}
+
+	get selectionSize() {
+		return this.selection.getNodes().length;
 	}
 
 	domFocus(): void {

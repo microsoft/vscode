@@ -126,7 +126,8 @@ type DisposableStore = ReturnType<typeof createDisposableStore>;
 function renderError(
 	outputInfo: OutputItem,
 	outputElement: HTMLElement,
-	ctx: IRichRenderContext
+	ctx: IRichRenderContext,
+	trustHTML: boolean
 ): IDisposable {
 	const disposableStore = createDisposableStore();
 
@@ -146,14 +147,13 @@ function renderError(
 		outputElement.classList.add('traceback');
 
 		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, true);
+		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, trustHTML);
 		const contentParent = document.createElement('div');
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
 			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
 		contentParent.classList.toggle('scrollable', outputScrolling);
-		outputElement.classList.toggle('remove-padding', outputScrolling);
 
 		contentParent.appendChild(content);
 		outputElement.appendChild(contentParent);
@@ -209,7 +209,8 @@ function initializeScroll(scrollableElement: HTMLElement, disposables: Disposabl
 }
 
 // Find the scrollTop of the existing scrollable output, return undefined if at the bottom or element doesn't exist
-function findScrolledHeight(scrollableElement: HTMLElement): number | undefined {
+function findScrolledHeight(container: HTMLElement): number | undefined {
+	const scrollableElement = container.querySelector('.' + scrollableClass);
 	if (scrollableElement && scrollableElement.scrollHeight - scrollableElement.scrollTop - scrollableElement.clientHeight > 2) {
 		// not scrolled to the bottom
 		return scrollableElement.scrollTop;
@@ -229,7 +230,6 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
 
 	outputElement.classList.add('output-stream');
-	outputElement.classList.toggle('remove-padding', outputScrolling);
 
 	const text = outputInfo.text();
 	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
@@ -284,7 +284,6 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 	}
 
 	content.classList.toggle('scrollable', outputScrolling);
-	outputElement.classList.toggle('remove-padding', outputScrolling);
 	outputElement.appendChild(content);
 	initializeScroll(content, disposableStore);
 
@@ -324,15 +323,27 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	#container div.output_container .word-wrap span {
 		white-space: pre-wrap;
 	}
-	#container div.output .scrollable {
+	#container div.output>div {
 		padding-left: var(--notebook-output-node-left-padding);
 		padding-right: var(--notebook-output-node-padding);
-		overflow-y: scroll;
-		max-height: var(--notebook-cell-output-max-height);
-		border-style: solid;
 		box-sizing: border-box;
 		border-width: 1px;
+		border-style: solid;
 		border-color: transparent;
+	}
+	#container div.output>div:focus {
+		outline: 0;
+		border-color: var(--theme-input-focus-border-color);
+	}
+	#container div.output .scrollable {
+		overflow-y: scroll;
+		max-height: var(--notebook-cell-output-max-height);
+	}
+	#container div.output .scrollable.scrollbar-visible {
+		border-color: var(--vscode-editorWidget-border);
+	}
+	#container div.output .scrollable.scrollbar-visible:focus {
+		border-color: var(--theme-input-focus-border-color);
 	}
 	#container div.truncation-message {
 		font-style: italic;
@@ -347,9 +358,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	}
 	#container div.output .scrollable.more-above {
 		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
-	}
-	#container div.output .scrollable.scrollbar-visible {
-		border-color: var(--vscode-editorWidget-border);
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
@@ -376,6 +384,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 	return {
 		renderOutputItem: async (outputInfo, element, signal?: AbortSignal) => {
+			element.classList.add('remove-padding');
 			switch (outputInfo.mime) {
 				case 'text/html':
 				case 'image/svg+xml': {
@@ -407,7 +416,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'application/vnd.code.notebook.error':
 					{
 						disposables.get(outputInfo.id)?.dispose();
-						const disposable = renderError(outputInfo, element, latestContext);
+						const disposable = renderError(outputInfo, element, latestContext, ctx.workspace.isTrusted);
 						disposables.set(outputInfo.id, disposable);
 					}
 					break;
@@ -438,6 +447,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				default:
 					break;
 			}
+			if (element.querySelector('div')) {
+				element.querySelector('div')!.tabIndex = 0;
+			}
+
 		},
 		disposeOutputItem: (id: string | undefined) => {
 			if (id) {

@@ -24,7 +24,6 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
-import { isWindows } from 'vs/base/common/platform';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -32,6 +31,7 @@ import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/brows
 import { ICellMatch, IFileMatchWithCells } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -223,47 +223,47 @@ suite('SearchResult', () => {
 		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
 	});
 
-	test('Adding multiple raw notebook matches', function () {
+	test('Test that notebook matches get added correctly', function () {
 		const testObject = aSearchResult();
-		const modelTarget = instantiationService.spy(IModelService, 'getModel');
 		const cell1 = { cellKind: CellKind.Code } as ICellViewModel;
 		const cell2 = { cellKind: CellKind.Code } as ICellViewModel;
 
-		sinon.stub(CellMatch.prototype, 'addContext');
-		const target = [
-			aRawFileMatchWithCells('/1',
-				{
-					cell: cell1,
-					index: 0,
-					contentResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-					],
-					webviewResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
-						new TextSearchMatch('preview 2', lineOneRange)
-					]
-				},),
-			aRawFileMatchWithCells('/2',
-				{
-					cell: cell2,
-					index: 0,
-					contentResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-					],
-					webviewResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
-						new TextSearchMatch('preview 2', lineOneRange)
-					]
-				})
-		];
+		const addContext = sinon.stub(CellMatch.prototype, 'addContext');
+
+		const addFileMatch = sinon.spy(FolderMatch.prototype, "addFileMatch");
+		const fileMatch1 = aRawFileMatchWithCells('/1',
+			{
+				cell: cell1,
+				index: 0,
+				contentResults: [
+					new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+				],
+				webviewResults: [
+					new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
+					new TextSearchMatch('preview 2', lineOneRange)
+				]
+			},);
+		const fileMatch2 = aRawFileMatchWithCells('/2',
+			{
+				cell: cell2,
+				index: 0,
+				contentResults: [
+					new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+				],
+				webviewResults: [
+					new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
+					new TextSearchMatch('preview 2', lineOneRange)
+				]
+			});
+		const target = [fileMatch1, fileMatch2];
 
 		testObject.add(target);
 		assert.strictEqual(6, testObject.count());
-
-		// when a model is binded, the results are queried once again.
-		assert.ok(modelTarget.calledTwice);
-		assert.ok(modelTarget.calledWith(testObject.matches()[0].resource));
-		assert.ok(modelTarget.calledWith(testObject.matches()[1].resource));
+		assert.deepStrictEqual(fileMatch1.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][0] as IFileMatchWithCells).cellResults[0].contentResults);
+		assert.deepStrictEqual(fileMatch1.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][0] as IFileMatchWithCells).cellResults[0].webviewResults);
+		assert.deepStrictEqual(fileMatch2.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][1] as IFileMatchWithCells).cellResults[0].contentResults);
+		assert.deepStrictEqual(fileMatch2.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][1] as IFileMatchWithCells).cellResults[0].webviewResults);
+		addContext.restore();
 	});
 
 	test('Dispose disposes matches', function () {
@@ -505,7 +505,10 @@ suite('SearchResult', () => {
 
 	});
 
-	function aFileMatch(path: string, searchResult: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
+	function aFileMatch(path: string, searchResult: SearchResult | undefined, ...lineMatches: ITextSearchMatch[]): FileMatch {
+		if (!searchResult) {
+			searchResult = aSearchResult();
+		}
 		const rawMatch: IFileMatch = {
 			resource: URI.file('/' + path),
 			results: lineMatches
@@ -524,27 +527,6 @@ suite('SearchResult', () => {
 			}
 		};
 		return searchModel.searchResult;
-	}
-
-	function createFileUriFromPathFromRoot(path?: string): URI {
-		const rootName = getRootName();
-		if (path) {
-			return URI.file(`${rootName}${path}`);
-		} else {
-			if (isWindows) {
-				return URI.file(`${rootName}/`);
-			} else {
-				return URI.file(rootName);
-			}
-		}
-	}
-
-	function getRootName(): string {
-		if (isWindows) {
-			return 'c:';
-		} else {
-			return '';
-		}
 	}
 
 	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {

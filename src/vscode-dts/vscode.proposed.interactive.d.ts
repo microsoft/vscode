@@ -159,6 +159,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSessionVoteAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'vote';
 		responseId: string;
 		direction: InteractiveSessionVoteDirection;
@@ -171,6 +172,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSessionCopyAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'copy';
 		responseId: string;
 		codeBlockIndex: number;
@@ -181,18 +183,29 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSessionInsertAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'insert';
 		responseId: string;
 		codeBlockIndex: number;
 		totalCharacters: number;
+		newFile?: boolean;
+	}
+
+	export interface InteractiveSessionTerminalAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'runInTerminal';
+		responseId: string;
+		codeBlockIndex: number;
+		languageId?: string;
 	}
 
 	export interface InteractiveSessionCommandAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'command';
 		command: InteractiveResponseCommand;
 	}
 
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionCommandAction;
+	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
 
 	export interface InteractiveSessionUserActionEvent {
 		action: InteractiveSessionUserAction;

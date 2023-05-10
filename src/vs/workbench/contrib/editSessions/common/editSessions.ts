@@ -70,16 +70,16 @@ export interface Folder {
 	name: string;
 	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
-	// additional data collected from workbench contributions
-	[key: string]: unknown;
+	absoluteUri: string | undefined;
 }
 
-export const EditSessionSchemaVersion = 2;
+export const EditSessionSchemaVersion = 3;
 
 export interface EditSession {
 	version: number;
 	machine?: string;
 	folders: Folder[];
+	state: { [key: string]: unknown };
 }
 
 export const EDIT_SESSIONS_SIGNED_IN_KEY = 'editSessionsSignedIn';

@@ -18,6 +18,7 @@ import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { RemoteAuthorities } from 'vs/base/common/network';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
+import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 const WEB_EXTENSION_RESOURCE_END_POINT = 'web-extension-resource';
 
@@ -42,9 +43,20 @@ export interface IExtensionResourceLoaderService {
 	/**
 	 * Computes the URL of a extension gallery resource. Returns `undefined` if gallery does not provide extension resources.
 	 */
-	getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string }, path?: string): URI | undefined;
+	getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string; targetPlatform?: TargetPlatform }, path?: string): URI | undefined;
 }
 
+export function migratePlatformSpecificExtensionGalleryResourceURL(resource: URI, targetPlatform: TargetPlatform): URI | undefined {
+	if (resource.query !== `target=${targetPlatform}`) {
+		return undefined;
+	}
+	const paths = resource.path.split('/');
+	if (!paths[3]) {
+		return undefined;
+	}
+	paths[3] = `${paths[3]}+${targetPlatform}`;
+	return resource.with({ query: null, path: paths.join('/') });
+}
 
 export abstract class AbstractExtensionResourceLoaderService implements IExtensionResourceLoaderService {
 
@@ -72,14 +84,23 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 		return this._extensionGalleryResourceUrlTemplate !== undefined;
 	}
 
-	public getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string }, path?: string): URI | undefined {
+	public getExtensionGalleryResourceURL({ publisher, name, version, targetPlatform }: { publisher: string; name: string; version: string; targetPlatform?: TargetPlatform }, path?: string): URI | undefined {
 		if (this._extensionGalleryResourceUrlTemplate) {
-			const uri = URI.parse(format2(this._extensionGalleryResourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
+			const uri = URI.parse(format2(this._extensionGalleryResourceUrlTemplate, {
+				publisher,
+				name,
+				version: targetPlatform !== undefined
+					&& targetPlatform !== TargetPlatform.UNDEFINED
+					&& targetPlatform !== TargetPlatform.UNKNOWN
+					&& targetPlatform !== TargetPlatform.UNIVERSAL
+					? `${version}+${targetPlatform}`
+					: version,
+				path: 'extension'
+			}));
 			return this._isWebExtensionResourceEndPoint(uri) ? uri.with({ scheme: RemoteAuthorities.getPreferredWebSchema() }) : uri;
 		}
 		return undefined;
 	}
-
 
 	public abstract readExtensionResource(uri: URI): Promise<string>;
 
