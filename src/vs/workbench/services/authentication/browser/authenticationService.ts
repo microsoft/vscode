@@ -21,7 +21,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { IAuthenticationCreateSessionOptions, AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -742,10 +742,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async createSession(id: string, scopes: string[], activateImmediate: boolean = false): Promise<AuthenticationSession> {
-		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
+	async createSession(id: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
-			return await authProvider.createSession(scopes);
+			return await authProvider.createSession(scopes, {
+				sessionToRecreate: options?.sessionToRecreate
+			});
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

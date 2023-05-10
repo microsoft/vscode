@@ -20,7 +20,7 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
-import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IInteractiveSessionWidget, IInteractiveSessionWidgetViewContext } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
@@ -67,8 +67,6 @@ export interface IInteractiveSessionWidgetStyles {
 	inputEditorBackground: string;
 	resultEditorBackground: string;
 }
-
-export type IInteractiveSessionWidgetViewContext = { viewId: string } | { resource: boolean };
 
 export class InteractiveSessionWidget extends Disposable implements IInteractiveSessionWidget {
 	public static readonly CONTRIBS: { new(...args: [IInteractiveSessionWidget, ...any]): any }[] = [];
