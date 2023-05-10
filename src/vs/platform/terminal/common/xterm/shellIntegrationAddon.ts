@@ -316,12 +316,13 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		// Pass the sequence along to the capability
-		const dataArr = data.split(';');
-		if (!dataArr.length) {
+		const commandAndArgs = data.split(';');
+		if (!commandAndArgs.length) {
+			// No command
 			return false;
 		}
-		const command = dataArr[0];
-		const args: string[] | undefined = dataArr.length > 1 ? dataArr.slice(1) : undefined;
+		const command = commandAndArgs[0];
+		const args: string[] = commandAndArgs.length > 1 ? commandAndArgs.slice(1) : [];
 		switch (command) {
 			case VSCodeOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
@@ -333,17 +334,18 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
 			case VSCodeOscPt.CommandFinished: {
-				const exitCode = command ? parseInt(command) : undefined;
+				const exitCode = parseInt(command);
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
 			}
 			case VSCodeOscPt.CommandLine: {
-				const commandLine: string | undefined = command ? deserializeMessage(command) : undefined;
-				const isTrusted = args ? args[1] === this._nonce : false;
+				const commandLine = deserializeMessage(command);
+				const isTrusted = args[0] === this._nonce;
 				if (commandLine) {
 					this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, isTrusted);
 				}
-				return !!commandLine || (!!args && args.length > 1);
+				// A nonce may or may not be provided. If it is, then it should be the last argument.
+				return args.length <= 1;
 			}
 			case VSCodeOscPt.ContinuationStart: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationStart();
@@ -362,7 +364,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const deserialized = args?.length ? deserializeMessage(args[0]) : '';
+				const deserialized = deserializeMessage(args[0]);
+				if (!deserialized) {
+					return true;
+				}
 				const { key, value } = parseKeyValueAssignment(deserialized);
 				if (value === undefined) {
 					return true;
@@ -384,10 +389,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				}
 			}
 			case VSCodeOscPt.SetMark: {
-				if (args) {
-					this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
-				}
-				return !!args;
+				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
+				return args.length > 0;
 			}
 		}
 
@@ -523,7 +526,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 }
 
-export function deserializeMessage(message: string): string {
+export function deserializeMessage(message: string): string | undefined {
 	return message.replaceAll(
 		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
 		/\\(\\|x([0-9a-f]{2}))/gi,
