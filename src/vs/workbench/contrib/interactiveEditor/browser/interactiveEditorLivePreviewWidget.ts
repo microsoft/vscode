@@ -6,7 +6,7 @@
 import { Dimension, h } from 'vs/base/browser/dom';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
-import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -43,7 +43,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 	private _dim: Dimension | undefined;
 
 	constructor(
-		editor: IActiveCodeEditor,
+		editor: ICodeEditor,
 		private readonly _textModelv0: ITextModel,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -51,6 +51,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 	) {
 		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, allowUnlimitedHeight: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
 		super.create();
+		assertType(editor.hasModel());
 
 		this._inlineDiffDecorations = editor.createDecorationsCollection();
 

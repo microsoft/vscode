@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
-import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -20,6 +20,8 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 
 export type Recording = {
 	when: Date;
@@ -178,7 +180,7 @@ export const IInteractiveEditorSessionService = createDecorator<IInteractiveEdit
 export interface IInteractiveEditorSessionService {
 	_serviceBrand: undefined;
 
-	getOrCreateSession(editor: IActiveCodeEditor, editMode: EditMode, provider: IInteractiveEditorSessionProvider, raw: IInteractiveEditorSession): Promise<Session>;
+	getOrCreateSession(editor: IActiveCodeEditor, editMode: EditMode, token: CancellationToken): Promise<Session | undefined>;
 
 	retrieveSession(editor: ICodeEditor, uri: URI): Session | undefined;
 
@@ -192,7 +194,6 @@ export interface IInteractiveEditorSessionService {
 type SessionData = {
 	session: Session;
 	store: IDisposable;
-	counter: number;
 };
 
 export class InteractiveEditorSessionService implements IInteractiveEditorSessionService {
@@ -203,6 +204,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 	private _recordings: Recording[] = [];
 
 	constructor(
+		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -210,19 +212,37 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 	) { }
 
 
-	async getOrCreateSession(editor: IActiveCodeEditor, editMode: EditMode, provider: IInteractiveEditorSessionProvider, raw: IInteractiveEditorSession) {
+	async getOrCreateSession(editor: IActiveCodeEditor, editMode: EditMode, token: CancellationToken): Promise<Session | undefined> {
 
 		// lookup:
 		const data = this._sessions.get(editor)?.get(editor.getModel().uri);
 		if (data) {
-			this._logService.trace(`[IE] session reuse for ${editor.getId()},  ${provider.debugName}`);
-			data.counter++;
+			this._logService.trace(`[IE] session reuse for ${editor.getId()},  ${data.session.provider.debugName}`);
 			return data.session;
 		}
 
+		return await this._createSession(editor, editMode, token);
+	}
+
+	private async _createSession(editor: IActiveCodeEditor, editMode: EditMode, token: CancellationToken) {
+
+		const provider = Iterable.first(this._interactiveEditorService.getAllProvider());
+		if (!provider) {
+			this._logService.trace('[IE] NO provider found');
+			return undefined;
+		}
+
+		const textModel = editor.getModel();
+		const selection = editor.getSelection();
+		const raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+		if (!raw) {
+			this._logService.trace('[IE] NO session', provider.debugName);
+			return undefined;
+		}
+		this._logService.trace('[IE] NEW session', provider.debugName);
+
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()},  ${provider.debugName}`);
 		const store = new DisposableStore();
-		const textModel = editor.getModel();
 
 		// create: keep a reference to prevent disposal of the "actual" model
 		const refTextModelN = await this._textModelService.createModelReference(textModel.uri);
@@ -247,7 +267,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 		if (map.has(textModel.uri)) {
 			throw new Error(`Session already stored for ${textModel.uri}`);
 		}
-		map.set(textModel.uri, { session, store, counter: 1 });
+		map.set(textModel.uri, { session, store });
 		return session;
 	}
 
@@ -259,8 +279,10 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 		const map = this._sessions.get(editor);
 		if (map) {
 			const data = map.get(model0.uri);
-			if (data && --data.counter === 0) {
+			if (data) {
 				data.store.dispose();
+				data.session.session.dispose?.();
+
 				map.delete(model0.uri);
 			}
 			if (map.size === 0) {
