@@ -10,7 +10,6 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { randomPath } from 'vs/base/common/extpath';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -20,7 +19,7 @@ import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
+import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import { extract, ExtractError, IFile, zip } from 'vs/base/node/zip';
 import * as nls from 'vs/nls';
@@ -410,12 +409,14 @@ export class ExtensionsScanner extends Disposable {
 	private readonly _onExtract = this._register(new Emitter<URI>());
 	readonly onExtract = this._onExtract.event;
 
+	private cleanUpGeneratedFoldersPromise: Promise<void> = Promise.resolve();
+
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -425,6 +426,8 @@ export class ExtensionsScanner extends Disposable {
 
 	async cleanUp(): Promise<void> {
 		await this.removeUninstalledExtensions();
+		this.cleanUpGeneratedFoldersPromise = this.cleanUpGeneratedFoldersPromise.then(() => this.removeGeneratedFolders());
+		await this.cleanUpGeneratedFoldersPromise;
 	}
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI): Promise<ILocalExtension[]> {
@@ -457,8 +460,10 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, token: CancellationToken): Promise<ILocalExtension> {
+		await this.cleanUpGeneratedFoldersPromise.catch(() => undefined);
+
 		const folderName = extensionKey.toString();
-		const tempPath = randomPath(this.environmentService.tmpDir.fsPath);
+		const tempPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName);
 
 		try {
@@ -526,7 +531,9 @@ export class ExtensionsScanner extends Disposable {
 
 	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
 		this.logService.trace(`Deleting ${type} extension from disk`, extension.identifier.id, extension.location.fsPath);
-		await this.fileService.del(extension.location, { recursive: true });
+		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(extension.location), `._${generateUuid()}`);
+		await this.rename(extension.identifier, extension.location.fsPath, renamedLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+		await this.fileService.del(renamedLocation, { recursive: true });
 		this.logService.info('Deleted from disk', extension.identifier.id, extension.location.fsPath);
 	}
 
@@ -685,6 +692,33 @@ export class ExtensionsScanner extends Disposable {
 
 		const toRemove = extensions.filter(e => e.metadata /* Installed by System */ && uninstalled[ExtensionKey.create(e).toString()]);
 		await Promise.allSettled(toRemove.map(e => this.removeUninstalledExtension(e)));
+	}
+
+	private async removeGeneratedFolders(): Promise<void> {
+		this.logService.trace('ExtensionManagementService#removeGeneratedFolders');
+		const promises: Promise<any>[] = [];
+		let stat;
+		try {
+			stat = await this.fileService.resolve(this.extensionsScannerService.userExtensionsLocation);
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
+		}
+		for (const child of stat?.children ?? []) {
+			if (child.isDirectory && child.name.startsWith('._') && isUUID(child.name.substring(2))) {
+				promises.push((async () => {
+					this.logService.trace('Deleting the generated extension folder', child.resource.toString());
+					try {
+						await this.fileService.del(child.resource, { recursive: true });
+						this.logService.info('Deleted the generated extension folder', child.resource.toString());
+					} catch (error) {
+						this.logService.error(error);
+					}
+				})());
+			}
+		}
+		await Promise.allSettled(promises);
 	}
 
 	private joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {

@@ -2195,10 +2195,14 @@ flakySuite('Disk File Service', function () {
 	async function testLockedFiles(expectError: boolean) {
 		const lockedFile = URI.file(join(testDir, 'my-locked-file'));
 
-		await service.writeFile(lockedFile, VSBuffer.fromString('Locked File'));
+		const content = await service.writeFile(lockedFile, VSBuffer.fromString('Locked File'));
+		assert.strictEqual(content.locked, false);
 
 		const stats = await Promises.stat(lockedFile.fsPath);
 		await Promises.chmod(lockedFile.fsPath, stats.mode & ~0o200);
+
+		let stat = await service.stat(lockedFile);
+		assert.strictEqual(stat.locked, true);
 
 		let error;
 		const newContent = 'Updates to locked file';
@@ -2222,6 +2226,9 @@ flakySuite('Disk File Service', function () {
 		} else {
 			await service.writeFile(lockedFile, VSBuffer.fromString(newContent), { unlock: true });
 			assert.strictEqual(readFileSync(lockedFile.fsPath).toString(), newContent);
+
+			stat = await service.stat(lockedFile);
+			assert.strictEqual(stat.locked, false);
 		}
 	}
 

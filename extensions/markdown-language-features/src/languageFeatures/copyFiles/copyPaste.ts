@@ -19,6 +19,8 @@ const supportedImageMimes = new Set([
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
+	private readonly _id = 'insertLink';
+
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
 		_ranges: readonly vscode.Range[],
@@ -36,7 +38,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet, snippet.label) : undefined;
+		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet, this._id, snippet.label) : undefined;
 	}
 
 	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
@@ -87,7 +89,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, snippet.label);
+		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, '', snippet.label);
 		pasteEdit.additionalEdit = workspaceEdit;
 		return pasteEdit;
 	}
