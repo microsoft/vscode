@@ -6,7 +6,7 @@
 extern crate dirs;
 
 use std::{
-	fs::{create_dir, read_to_string, remove_dir_all, write},
+	fs::{create_dir_all, read_to_string, remove_dir_all, write},
 	path::{Path, PathBuf},
 	sync::{Arc, Mutex},
 };
@@ -155,7 +155,7 @@ impl LauncherPaths {
 
 	fn new_for_path(root: PathBuf) -> Result<LauncherPaths, AnyError> {
 		if !root.exists() {
-			create_dir(&root)
+			create_dir_all(&root)
 				.map_err(|e| wrap(e, format!("error creating directory {}", root.display())))?;
 		}
 
