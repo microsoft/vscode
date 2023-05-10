@@ -6,7 +6,7 @@
 import { Verbosity, EditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname, isEqual } from 'vs/base/common/resources';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -20,10 +20,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		let capabilities = EditorInputCapabilities.CanSplitInGroup;
 
 		if (this.fileService.hasProvider(this.resource)) {
-			if (
-				this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
-				this.filesConfigurationService.isReadonly(this.resource)
-			) {
+			if (this.filesConfigurationService.isReadonly(this.resource)) {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
