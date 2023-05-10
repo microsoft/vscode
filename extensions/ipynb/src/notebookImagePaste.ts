@@ -53,7 +53,7 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('pasteImagesAsAttachments.enabled', false);
+		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('pasteImagesAsAttachments.enabled', true);
 		if (!enabled) {
 			return;
 		}
