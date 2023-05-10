@@ -181,6 +181,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		return INTERACTIVE_EDITOR_ID;
 	}
 
+	getWidgetPosition(): Position | undefined {
+		return this._zone.position;
+	}
+
 	private _getMode(): EditMode {
 		return this._configurationService.getValue('interactiveEditor.editMode');
 	}
