@@ -334,7 +334,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.CommandLine: {
 				let commandLine: string;
-				if (args.length === 2) {
+				if (args.length >= 1 || args.length <= 2) {
 					commandLine = deserializeMessage(args[0]);
 				} else {
 					commandLine = '';

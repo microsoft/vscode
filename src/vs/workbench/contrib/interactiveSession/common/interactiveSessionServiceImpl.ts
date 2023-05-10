@@ -243,6 +243,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			}
 		}).catch(err => {
 			this.trace('startSession', `initializeSession failed: ${err}`);
+			model.setInitializationError(err);
 			model.dispose();
 			this._sessionModels.delete(model.sessionId);
 		});
@@ -406,7 +407,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	private async handleSlashCommand(sessionId: string, command: string): Promise<string> {
-		const start = Date.now();
 		const slashCommands = await this.getSlashCommands(sessionId, CancellationToken.None);
 		for (const slashCommand of slashCommands ?? []) {
 			if (command.startsWith(`/${slashCommand.command}`) && slashCommand.provider) {
@@ -414,7 +414,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			}
 		}
 
-		console.log(`${Date.now() - start}ms to resolve slash command`);
 		return command;
 	}
 
@@ -522,7 +521,10 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		this._persistedSessions[sessionId] = model.toJSON();
+		if (model.getRequests().length) {
+			this._persistedSessions[sessionId] = model.toJSON();
+		}
+
 		model.dispose();
 		this._sessionModels.delete(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
