@@ -409,7 +409,6 @@ export class Git {
 		}
 
 		await this.exec(repository, args);
-		return;
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {

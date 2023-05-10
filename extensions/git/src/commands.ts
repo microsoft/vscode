@@ -308,7 +308,7 @@ function getCheckoutProcessor(repository: Repository, type: string): CheckoutPro
 }
 
 function sanitizeBranchName(name: string, whitespaceChar: string): string {
-	return name ? name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, whitespaceChar) : name;
+	return name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, whitespaceChar);
 }
 
 function sanitizeRemoteName(name: string) {
@@ -777,10 +777,10 @@ export class CommandCenter {
 		}
 
 		const config = workspace.getConfiguration('git');
-		const branchName = config.get<string>('branchName', 'main');
+		const defaultBranchName = config.get<string>('defaultBranchName', 'main');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
 
-		await this.git.init(repositoryPath, { defaultBranch: sanitizeBranchName(branchName, branchWhitespaceChar) });
+		await this.git.init(repositoryPath, { defaultBranch: sanitizeBranchName(defaultBranchName, branchWhitespaceChar) });
 
 		let message = l10n.t('Would you like to open the initialized repository?');
 		const open = l10n.t('Open');

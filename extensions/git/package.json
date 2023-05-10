@@ -2073,9 +2073,9 @@
           "markdownDescription": "%config.autofetchPeriod%",
           "default": 180
         },
-        "git.branchName": {
+        "git.defaultBranchName": {
           "type": "string",
-          "description": "%config.branchName%",
+          "description": "%config.defaultBranchName%",
           "default": "main",
           "scope": "resource"
         },
