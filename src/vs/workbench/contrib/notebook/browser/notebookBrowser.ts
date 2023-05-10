@@ -30,6 +30,7 @@ import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -707,6 +708,8 @@ export interface IBaseCellEditorOptions extends IDisposable {
  */
 export interface INotebookEditorDelegate extends INotebookEditor {
 	hasModel(): this is IActiveNotebookEditorDelegate;
+
+	readonly viewContext: ViewContext;
 
 	readonly creationOptions: INotebookEditorCreationOptions;
 	readonly onDidChangeOptions: Event<void>;

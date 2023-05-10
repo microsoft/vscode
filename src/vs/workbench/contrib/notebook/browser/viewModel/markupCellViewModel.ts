@@ -105,7 +105,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	) {
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService, undoRedoService, codeEditorService);
 
-		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType, this.viewContext.getReadOnly());
 
 		this._layoutInfo = {
 			editorHeight: 0,
@@ -132,7 +132,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 	private _computeTotalHeight(): number {
 		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
-		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType, this.viewContext.getReadOnly());
 		const foldHintHeight = this._computeFoldHintHeight();
 
 		if (this.getEditState() === CellEditState.Editing) {
@@ -201,7 +201,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				previewHeight,
 				editorHeight: this._editorHeight,
 				statusBarHeight: this._statusBarHeight,
-				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
+				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType, this.viewContext.getReadOnly()),
 				totalHeight,
 				layoutState: CellLayoutState.Measured,
 				foldHintHeight
@@ -210,7 +210,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			const editorWidth = state.outerWidth !== undefined
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
 				: this._layoutInfo.editorWidth;
-			const totalHeight = this.viewContext.notebookOptions.computeCollapsedMarkdownCellHeight(this.viewType);
+			const totalHeight = this.viewContext.notebookOptions.computeCollapsedMarkdownCellHeight(this.viewType, this.viewContext.getReadOnly());
 
 			state.totalHeight = totalHeight;
 
@@ -220,7 +220,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				editorHeight: this._editorHeight,
 				statusBarHeight: this._statusBarHeight,
 				previewHeight: this._previewHeight,
-				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
+				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType, this.viewContext.getReadOnly()),
 				totalHeight,
 				layoutState: CellLayoutState.Measured,
 				foldHintHeight: 0

@@ -11,7 +11,8 @@ export class ViewContext {
 	constructor(
 		readonly notebookOptions: NotebookOptions,
 		readonly eventDispatcher: NotebookEventDispatcher,
-		readonly getBaseCellEditorOptions: (language: string) => IBaseCellEditorOptions
+		readonly getBaseCellEditorOptions: (language: string) => IBaseCellEditorOptions,
+		readonly getReadOnly: () => boolean,
 	) {
 	}
 }

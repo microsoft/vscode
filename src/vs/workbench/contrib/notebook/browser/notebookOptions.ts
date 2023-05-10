@@ -513,16 +513,16 @@ export class NotebookOptions extends Disposable {
 		return this._layoutConfiguration;
 	}
 
-	computeCollapsedMarkdownCellHeight(viewType: string): number {
-		const { bottomToolbarGap } = this.computeBottomToolbarDimensions(viewType);
+	computeCollapsedMarkdownCellHeight(viewType: string, isReadOnly: boolean): number {
+		const { bottomToolbarGap } = this.computeBottomToolbarDimensions(viewType, isReadOnly);
 		return this._layoutConfiguration.markdownCellTopMargin
 			+ this._layoutConfiguration.collapsedIndicatorHeight
 			+ bottomToolbarGap
 			+ this._layoutConfiguration.markdownCellBottomMargin;
 	}
 
-	computeBottomToolbarOffset(totalHeight: number, viewType: string) {
-		const { bottomToolbarGap, bottomToolbarHeight } = this.computeBottomToolbarDimensions(viewType);
+	computeBottomToolbarOffset(totalHeight: number, viewType: string, isReadOnly: boolean) {
+		const { bottomToolbarGap, bottomToolbarHeight } = this.computeBottomToolbarDimensions(viewType, isReadOnly);
 
 		return totalHeight
 			- bottomToolbarGap
@@ -575,10 +575,10 @@ export class NotebookOptions extends Disposable {
 		};
 	}
 
-	computeBottomToolbarDimensions(viewType?: string): { bottomToolbarGap: number; bottomToolbarHeight: number } {
+	computeBottomToolbarDimensions(viewType?: string, isReadOnly?: boolean): { bottomToolbarGap: number; bottomToolbarHeight: number } {
 		const configuration = this._layoutConfiguration;
 		const cellToolbarPosition = this.computeCellToolbarLocation(viewType);
-		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(configuration.compactView, configuration.insertToolbarBetweenCells, configuration.insertToolbarAlignment, cellToolbarPosition);
+		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(configuration.compactView, configuration.insertToolbarBetweenCells && !isReadOnly, configuration.insertToolbarAlignment, cellToolbarPosition);
 		return {
 			bottomToolbarGap,
 			bottomToolbarHeight
@@ -619,8 +619,8 @@ export class NotebookOptions extends Disposable {
 		return 'right';
 	}
 
-	computeTopInsertToolbarHeight(viewType?: string): number {
-		if (this._layoutConfiguration.insertToolbarBetweenCells) {
+	computeTopInsertToolbarHeight(viewType?: string, isReadOnly?: boolean): number {
+		if (this._layoutConfiguration.insertToolbarBetweenCells && !isReadOnly) {
 			return SCROLLABLE_ELEMENT_PADDING_TOP;
 		}
 
@@ -700,8 +700,8 @@ export class NotebookOptions extends Disposable {
 		};
 	}
 
-	computeIndicatorPosition(totalHeight: number, foldHintHeight: number, viewType?: string) {
-		const { bottomToolbarGap } = this.computeBottomToolbarDimensions(viewType);
+	computeIndicatorPosition(totalHeight: number, foldHintHeight: number, viewType?: string, isReadOnly?: boolean) {
+		const { bottomToolbarGap } = this.computeBottomToolbarDimensions(viewType, isReadOnly);
 
 		return {
 			bottomIndicatorTop: totalHeight - bottomToolbarGap - this._layoutConfiguration.cellBottomMargin - foldHintHeight,
