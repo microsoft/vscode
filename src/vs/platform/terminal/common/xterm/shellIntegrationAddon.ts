@@ -334,7 +334,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
 			case VSCodeOscPt.CommandFinished: {
-				const exitCode = parseInt(command);
+				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
 			}
@@ -364,7 +364,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const deserialized = deserializeMessage(args[0]);
+				const deserialized = args.length === 0 ? undefined : deserializeMessage(args[0]);
 				if (!deserialized) {
 					return true;
 				}
@@ -390,7 +390,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.SetMark: {
 				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
-				return args.length > 0;
+				return true;
 			}
 		}
 
@@ -526,7 +526,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 }
 
-export function deserializeMessage(message: string): string | undefined {
+export function deserializeMessage(message: string): string {
 	return message.replaceAll(
 		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
 		/\\(\\|x([0-9a-f]{2}))/gi,
