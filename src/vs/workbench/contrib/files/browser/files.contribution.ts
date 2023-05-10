@@ -296,7 +296,7 @@ configurationRegistry.registerConfiguration({
 				'.*': { 'type': 'boolean' }
 			},
 			'default': {},
-			'markdownDescription': nls.localize('filesReadonlyExclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to exclude from being marked as read-only if they match as a result of the `#files.readonlyInclude#` setting."),
+			'markdownDescription': nls.localize('filesReadonlyExclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to exclude from being marked as read-only if they match as a result of the `#files.readonlyInclude#` setting. Files from readonly file system providers will always be read-only independent of this setting."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		[FILES_READONLY_FROM_PERMISSIONS_CONFIG]: {

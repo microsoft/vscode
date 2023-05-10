@@ -98,8 +98,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	private currentHotExitConfig: string;
 
-	private readonly readonlyIncludeMatcher = this._register(new IdleValue(() => this.createMatcher(FILES_READONLY_INCLUDE_CONFIG)));
-	private readonly readonlyExcludeMatcher = this._register(new IdleValue(() => this.createMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
+	private readonly readonlyIncludeMatcher = this._register(new IdleValue(() => this.createReadonlyMatcher(FILES_READONLY_INCLUDE_CONFIG)));
+	private readonly readonlyExcludeMatcher = this._register(new IdleValue(() => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 	private configuredReadonlyFromPermissions: boolean | undefined;
 
 	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
@@ -126,7 +126,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		this.registerListeners();
 	}
 
-	private createMatcher(config: string) {
+	private createReadonlyMatcher(config: string) {
 		const matcher = this._register(new ResourceGlobMatcher(
 			resource => this.configurationService.getValue(config, { resource }),
 			event => event.affectsConfiguration(config),
