@@ -138,6 +138,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		heartbeatService.onBeat(() => this._handleHeartbeat());
 		this._handleHeartbeat();
 
+		// Handle exit
 		this._register(connection.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
 			if (!this._isDisposed) {
@@ -151,7 +152,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}
 		}));
 
-		// Setup logging
+		// TODO: Setup logging
 		// this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 
 		// Create proxy and forward events
@@ -321,7 +322,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _handleHeartbeat() {
-		this._logService.info('heartbeat');
 		this._clearHeartbeatTimeouts();
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
 		if (!this._isResponsive) {

@@ -16,7 +16,6 @@ import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/
 
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
-// registerSharedProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
 registerSingleton(ITerminalProfileResolverService, ElectronTerminalProfileResolverService, InstantiationType.Delayed);
 
 // Register workbench contributions
