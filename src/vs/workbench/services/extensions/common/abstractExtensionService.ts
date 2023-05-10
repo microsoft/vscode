@@ -966,7 +966,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			},
 			_onExtensionRuntimeError: (extensionId: ExtensionIdentifier, err: Error): void => {
 				return this._onExtensionRuntimeError(extensionId, err);
-			},
+			}
 		};
 	}
 
