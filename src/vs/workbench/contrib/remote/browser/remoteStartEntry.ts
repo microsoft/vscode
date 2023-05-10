@@ -325,38 +325,10 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 
 	private async showRemoteTunnelStartActions() {
 		await this._init();
-
-		const computeItems = async () => {
-			const metadata = this.remoteExtensionMetadata[0];
-			if (!metadata) {
-				return [];
-			}
-
-			if (!metadata.installed) {
-				await this.installAndRunStartCommand(metadata);
-			}
-
-			return this.getRemoteCommandQuickPickItems(metadata.remoteCommands);
-		};
-
-		const quickPick = this.quickInputService.createQuickPick();
-		quickPick.placeholder = nls.localize('remote.startActions.quickPickPlaceholder', 'Select an option to connect');
-		quickPick.items = await computeItems();
-		quickPick.sortByLabel = false;
-		quickPick.canSelectMany = false;
-		quickPick.ignoreFocusOut = false;
-		once(quickPick.onDidAccept)(async () => {
-
-			const selectedItems = quickPick.selectedItems;
-			if (selectedItems.length === 1) {
-				const selectedItem = selectedItems[0].id!;
-				this.executeCommandWithTelemetry(selectedItem);
-				quickPick.dispose();
-			}
-		});
-
-		quickPick.onDidHide(() => quickPick.dispose());
-		quickPick.show();
+		const metadata = this.remoteExtensionMetadata[0];
+		if (metadata.installed) {
+			this.executeCommandWithTelemetry(metadata.startCommand);
+		}
 	}
 
 	private async installAndRunStartCommand(metadata: RemoteExtensionMetadata) {
