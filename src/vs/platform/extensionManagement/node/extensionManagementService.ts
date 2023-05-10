@@ -10,7 +10,6 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { randomPath } from 'vs/base/common/extpath';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -415,7 +414,6 @@ export class ExtensionsScanner extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -458,7 +456,7 @@ export class ExtensionsScanner extends Disposable {
 
 	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, token: CancellationToken): Promise<ILocalExtension> {
 		const folderName = extensionKey.toString();
-		const tempPath = randomPath(this.environmentService.tmpDir.fsPath);
+		const tempPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName);
 
 		try {
