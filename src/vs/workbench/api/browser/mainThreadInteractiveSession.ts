@@ -39,6 +39,29 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 		}));
 	}
 
+	async $registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void> {
+		if (this.productService.quality === 'stable') {
+			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);
+			return;
+		}
+
+		const unreg = this._interactiveSessionService.registerSlashCommandProvider({
+			chatProviderId,
+			provideSlashCommands: async token => {
+				return this._proxy.$provideProviderSlashCommands(handle, token);
+			},
+			resolveSlashCommand: async (command, token) => {
+				return this._proxy.$resolveSlashCommand(handle, command, token);
+			}
+		});
+
+		this._providerRegistrations.set(handle, unreg);
+	}
+
+	async $unregisterSlashCommandProvider(handle: number): Promise<void> {
+		this._providerRegistrations.deleteAndDispose(handle);
+	}
+
 	async $registerInteractiveSessionProvider(handle: number, id: string): Promise<void> {
 		if (this.productService.quality === 'stable') {
 			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);

@@ -104,7 +104,7 @@ suite('Workbench - TerminalProcessManager', () => {
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 
 		const configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		manager = instantiationService.createInstance(TerminalProcessManager, 1, configHelper, undefined, undefined);
+		manager = instantiationService.createInstance(TerminalProcessManager, 1, configHelper, undefined, undefined, undefined);
 	});
 
 	teardown(() => {

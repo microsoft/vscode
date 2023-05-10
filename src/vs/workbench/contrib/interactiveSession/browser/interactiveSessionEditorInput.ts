@@ -22,7 +22,6 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	static count = 0;
 
 	private readonly inputCount: number;
-	public model: IInteractiveSessionModel | undefined;
 	public sessionId: string | undefined;
 	public providerId: string | undefined;
 
@@ -77,9 +76,9 @@ export class InteractiveSessionEditorInput extends EditorInput {
 			return null;
 		}
 
-		await model.waitForInitialization();
 		this.sessionId = model.sessionId;
-		return new InteractiveSessionEditorModel(model);
+		await model.waitForInitialization();
+		return this._register(new InteractiveSessionEditorModel(model));
 	}
 
 	override dispose(): void {

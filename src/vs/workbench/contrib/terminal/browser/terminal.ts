@@ -184,7 +184,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
-	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
+	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
+	revealActiveTerminal(): Promise<void>;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
@@ -262,6 +263,7 @@ interface ITerminalEditorInputObject {
 	readonly isFeatureTerminal?: boolean;
 	readonly hideFromUser?: boolean;
 	readonly reconnectionProperties?: IReconnectionProperties;
+	readonly shellIntegrationNonce: string;
 }
 
 export interface ISerializedTerminalEditorInput extends ITerminalEditorInputObject {
@@ -467,11 +469,6 @@ export interface ITerminalInstance {
 	target?: TerminalLocation;
 
 	/**
-	 * Whether or not shell integration telemetry / warnings should be reported for this terminal.
-	 */
-	disableShellIntegrationReporting: boolean;
-
-	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
 	 * that supports reconnection.
 	 */
@@ -649,6 +646,11 @@ export interface ITerminalInstance {
 	 * The remote-aware $HOME directory (or Windows equivalent) of the terminal.
 	 */
 	userHome: string | undefined;
+
+	/**
+	 * The nonce used to verify commands coming from shell integration.
+	 */
+	shellIntegrationNonce: string;
 
 	/**
 	 * Registers and returns a marker

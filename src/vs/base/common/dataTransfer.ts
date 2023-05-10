@@ -62,40 +62,19 @@ export class VSDataTransfer {
 	}
 
 	/**
-	 * Check if this data transfer contains data matching `mimeTypeGlob`.
+	 * Check if this data transfer contains data matching `pattern`.
 	 *
 	 * This allows matching for wildcards, such as `image/*`.
 	 *
 	 * Use the special `files` mime type to match any file in the data transfer.
 	 */
-	public matches(mimeTypeGlob: string): boolean {
-		// Exact match
-		if (this.has(mimeTypeGlob)) {
-			return true;
+	public matches(pattern: string): boolean {
+		const mimes = [...this._entries.keys()];
+		if (Iterable.some(this.values(), item => item.asFile())) {
+			mimes.push('files');
 		}
 
-		// Special `files` mime type matches any file
-		if (mimeTypeGlob.toLowerCase() === 'files') {
-			return Iterable.some(this.values(), item => item.asFile());
-		}
-
-		// Anything glob
-		if (mimeTypeGlob === '*/*') {
-			return this._entries.size > 0;
-		}
-
-		// Wildcard, such as `image/*`
-		const wildcard = this.toKey(mimeTypeGlob).match(/^([a-z]+)\/([a-z]+|\*)$/i);
-		if (!wildcard) {
-			return false;
-		}
-
-		const [_, type, subtype] = wildcard;
-		if (subtype === '*') {
-			return Iterable.some(this._entries.keys(), key => key.startsWith(type + '/'));
-		}
-
-		return false;
+		return matchesMimeType_normalized(normalizeMimeType(pattern), mimes);
 	}
 
 	/**
@@ -171,8 +150,43 @@ export class VSDataTransfer {
 	}
 
 	private toKey(mimeType: string): string {
-		return mimeType.toLowerCase();
+		return normalizeMimeType(mimeType);
 	}
+}
+
+function normalizeMimeType(mimeType: string): string {
+	return mimeType.toLowerCase();
+}
+
+export function matchesMimeType(pattern: string, mimeTypes: readonly string[]): boolean {
+	return matchesMimeType_normalized(
+		normalizeMimeType(pattern),
+		mimeTypes.map(normalizeMimeType));
+}
+
+function matchesMimeType_normalized(normalizedPattern: string, normalizedMimeTypes: readonly string[]): boolean {
+	// Anything wildcard
+	if (normalizedPattern === '*/*') {
+		return normalizedMimeTypes.length > 0;
+	}
+
+	// Exact match
+	if (normalizedMimeTypes.includes(normalizedPattern)) {
+		return true;
+	}
+
+	// Wildcard, such as `image/*`
+	const wildcard = normalizedPattern.match(/^([a-z]+)\/([a-z]+|\*)$/i);
+	if (!wildcard) {
+		return false;
+	}
+
+	const [_, type, subtype] = wildcard;
+	if (subtype === '*') {
+		return normalizedMimeTypes.some(mime => mime.startsWith(type + '/'));
+	}
+
+	return false;
 }
 
 

@@ -793,6 +793,9 @@ export interface DocumentPasteEdit {
  */
 export interface DocumentPasteEditProvider {
 
+	readonly id?: string;
+
+	readonly copyMimeTypes?: readonly string[];
 	readonly pasteMimeTypes: readonly string[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
@@ -1943,7 +1946,7 @@ export enum ExternalUriOpenerPriority {
 export interface DocumentOnDropEdit {
 	readonly label: string;
 
-	insertText: string | { snippet: string };
+	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
 
