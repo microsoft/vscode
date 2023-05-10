@@ -23,9 +23,7 @@ export function setUNCHostAllowlist(allowedHosts: string[]): void {
 	const allowlist = processUNCHostAllowlist();
 	if (allowlist) {
 		for (const allowedHost of allowedHosts) {
-			if (!allowlist.has(allowedHost)) {
-				allowlist.add(allowedHost);
-			}
+			allowlist.add(allowedHost);
 		}
 	}
 }
