@@ -1108,7 +1108,7 @@ export class FocusNextCursor extends EditorAction {
 		previousCursorState.push(firstCursor);
 
 		viewModel.setCursorStates(args.source, CursorChangeReason.Explicit, previousCursorState);
-		viewModel.revealAllCursors(args.source, true);
+		viewModel.revealPrimaryCursor(args.source, true);
 		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
@@ -1147,7 +1147,7 @@ export class FocusPreviousCursor extends EditorAction {
 		previousCursorState.unshift(firstCursor);
 
 		viewModel.setCursorStates(args.source, CursorChangeReason.Explicit, previousCursorState);
-		viewModel.revealAllCursors(args.source, true);
+		viewModel.revealPrimaryCursor(args.source, true);
 		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
