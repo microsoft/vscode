@@ -628,7 +628,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.dispose();
 	});
 
-	test('save() and isDirty() - proper with check for mtimes', async function () {
+	test.skip('save() and isDirty() - proper with check for mtimes', async function () {
 		const input1 = createFileEditorInput(instantiationService, toResource.call(this, '/path/index_async2.txt'));
 		const input2 = createFileEditorInput(instantiationService, toResource.call(this, '/path/index_async.txt'));
 

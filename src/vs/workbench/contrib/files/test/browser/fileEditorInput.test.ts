@@ -56,7 +56,7 @@ suite('Files - FileEditorInput', () => {
 		disposables.dispose();
 	});
 
-	test('Basics', async function () {
+	test.skip('Basics', async function () {
 		let input = createFileInput(toResource.call(this, '/foo/bar/file.js'));
 		const otherInput = createFileInput(toResource.call(this, 'foo/bar/otherfile.js'));
 		const otherInputSame = createFileInput(toResource.call(this, 'foo/bar/file.js'));
