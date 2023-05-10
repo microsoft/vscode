@@ -9,7 +9,7 @@ import { Command, commands, Disposable, LineChange, MessageOptions, Position, Pr
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
-import { Git, Stash, sanitizeBranchName } from './git';
+import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
@@ -305,6 +305,10 @@ function getCheckoutProcessor(repository: Repository, type: string): CheckoutPro
 	}
 
 	return undefined;
+}
+
+function sanitizeBranchName(name: string, whitespaceChar: string): string {
+	return name ? name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, whitespaceChar) : name;
 }
 
 function sanitizeRemoteName(name: string) {
@@ -772,7 +776,11 @@ export class CommandCenter {
 			}
 		}
 
-		await this.git.init(repositoryPath);
+		const config = workspace.getConfiguration('git');
+		const branchName = config.get<string>('branchName', 'main');
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
+
+		await this.git.init(repositoryPath, { defaultBranch: sanitizeBranchName(branchName, branchWhitespaceChar) });
 
 		let message = l10n.t('Would you like to open the initialized repository?');
 		const open = l10n.t('Open');
