@@ -45,6 +45,13 @@ declare module 'vscode' {
 	 */
 	class DocumentPasteEdit {
 		/**
+		 * Identifies the type of edit.
+		 *
+		 * This id should be unique within the extension but does not need to be unique across extensions.
+		 */
+		id: string;
+
+		/**
 		 * Human readable label that describes the edit.
 		 */
 		label: string;
@@ -64,7 +71,7 @@ declare module 'vscode' {
 		 *
 		 * TODO: Reverse args, but this will break existing consumers :(
 		 */
-		constructor(insertText: string | SnippetString, label: string);
+		constructor(insertText: string | SnippetString, id: string, label: string);
 	}
 
 	interface DocumentPasteProviderMetadata {
