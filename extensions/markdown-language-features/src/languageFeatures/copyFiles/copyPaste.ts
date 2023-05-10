@@ -21,6 +21,8 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 	private readonly _id = 'insertLink';
 
+	private readonly _priority = -10;
+
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
 		_ranges: readonly vscode.Range[],
@@ -43,7 +45,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		const uriEdit = new vscode.DocumentPasteEdit(snippet.snippet, this._id, snippet.label);
-		uriEdit.priority = -1;
+		uriEdit.priority = this._priority;
 		return uriEdit;
 	}
 
@@ -97,7 +99,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, this._id, snippet.label);
 		pasteEdit.additionalEdit = workspaceEdit;
-		pasteEdit.priority = -1;
+		pasteEdit.priority = this._priority;
 		return pasteEdit;
 	}
 }
