@@ -57,6 +57,13 @@ declare module 'vscode' {
 		label: string;
 
 		/**
+		 * The relative priority of this edit. Higher priority items are shown first in the UI.
+		 *
+		 * Defaults to `0`.
+		 */
+		priority?: number;
+
+		/**
 		 * The text or snippet to insert at the pasted locations.
 		 */
 		insertText: string | SnippetString;

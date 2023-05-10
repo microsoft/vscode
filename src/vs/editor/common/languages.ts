@@ -786,6 +786,7 @@ export interface DocumentPasteEdit {
 	readonly id: string;
 	readonly label: string;
 	readonly detail: string;
+	readonly priority: number;
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -1948,6 +1949,7 @@ export enum ExternalUriOpenerPriority {
 export interface DocumentOnDropEdit {
 	readonly id: string;
 	readonly label: string;
+	readonly priority: number;
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
