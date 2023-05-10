@@ -301,7 +301,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[FILES_READONLY_FROM_PERMISSIONS_CONFIG]: {
 			'type': 'boolean',
-			'description': nls.localize('filesReadonlyFromPermissions', "Marks files as readonly when their file permissions indicate as such. This can be overridden via `#files.readonlyInclude#` and `#files.readonlyExclude#` settings."),
+			'markdownDescription': nls.localize('filesReadonlyFromPermissions', "Marks files as readonly when their file permissions indicate as such. This can be overridden via `#files.readonlyInclude#` and `#files.readonlyExclude#` settings."),
 			'default': false
 		},
 		'files.restoreUndoStack': {
