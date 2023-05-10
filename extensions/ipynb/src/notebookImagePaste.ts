@@ -48,7 +48,6 @@ function getImageMimeType(uri: vscode.Uri): string | undefined {
 class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscode.DocumentDropEditProvider {
 
 	private readonly id = 'insertAttachment';
-	private readonly priority = -1;
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
@@ -67,7 +66,7 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 		}
 
 		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, this.id, vscode.l10n.t('Insert Image as Attachment'));
-		pasteEdit.priority = this.priority;
+		pasteEdit.priority = this.getPriority(dataTransfer);
 		pasteEdit.additionalEdit = insert.additionalEdit;
 		return pasteEdit;
 	}
@@ -85,10 +84,20 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 
 		const dropEdit = new vscode.DocumentDropEdit(insert.insertText);
 		dropEdit.id = this.id;
-		dropEdit.priority = this.priority;
+		dropEdit.priority = this.getPriority(dataTransfer);
 		dropEdit.additionalEdit = insert.additionalEdit;
 		dropEdit.label = vscode.l10n.t('Insert Image as Attachment');
 		return dropEdit;
+	}
+
+	private getPriority(dataTransfer: vscode.DataTransfer): number {
+		if (dataTransfer.get('text/plain')) {
+			// Deprioritize in favor of normal text content
+			return -5;
+		}
+
+		// Otherwise boost priority so attachments are preferred
+		return 5;
 	}
 
 	private async createInsertImageAttachmentEdit(
