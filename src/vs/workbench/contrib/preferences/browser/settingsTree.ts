@@ -1499,7 +1499,7 @@ abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer imp
 export class SettingExcludeRenderer extends SettingIncludeExcludeRenderer {
 	templateId = SETTINGS_EXCLUDE_TEMPLATE_ID;
 
-	isExclude(): boolean {
+	protected override isExclude(): boolean {
 		return true;
 	}
 }
@@ -1507,7 +1507,7 @@ export class SettingExcludeRenderer extends SettingIncludeExcludeRenderer {
 export class SettingIncludeRenderer extends SettingIncludeExcludeRenderer {
 	templateId = SETTINGS_INCLUDE_TEMPLATE_ID;
 
-	isExclude(): boolean {
+	protected override isExclude(): boolean {
 		return false;
 	}
 }
