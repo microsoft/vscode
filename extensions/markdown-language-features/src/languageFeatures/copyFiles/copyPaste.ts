@@ -89,7 +89,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, snippet.label);
+		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, '', snippet.label);
 		pasteEdit.additionalEdit = workspaceEdit;
 		return pasteEdit;
 	}
