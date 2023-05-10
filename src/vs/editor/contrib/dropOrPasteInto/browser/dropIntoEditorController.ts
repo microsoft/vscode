@@ -22,7 +22,6 @@ import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PostEditWidgetManager } from './postEditWidget';
 
 export const changeDropTypeCommandId = 'editor.changeDropType';
@@ -47,7 +46,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	constructor(
 		editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITreeViewsDnDService private readonly _treeViewsDragAndDropService: ITreeViewsDnDService
 	) {
@@ -113,7 +111,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 					// Pass in the parent token here as it tracks cancelling the entire drop operation.
 
 					const canShowWidget = editor.getOption(EditorOption.dropIntoEditor).showDropSelector === 'afterDrop';
-					await this._postDropWidgetManager.applyEditAndShowIfNeeded(Range.fromPositions(position), { activeEditIndex: 0, allEdits }, canShowWidget, token);
+					await this._postDropWidgetManager.applyEditAndShowIfNeeded([Range.fromPositions(position)], { activeEditIndex: 0, allEdits }, canShowWidget, token);
 				}
 			} finally {
 				tokenSource.dispose();

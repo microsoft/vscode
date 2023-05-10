@@ -330,7 +330,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	initialize(session: IInteractiveSession, welcomeMessage: InteractiveSessionWelcomeMessageModel | undefined): void {
-		if (this._session) {
+		if (this._session || this._isInitializedDeferred.isSettled) {
 			throw new Error('InteractiveSessionModel is already initialized');
 		}
 
@@ -349,6 +349,12 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 			}));
 		}
 		this._onDidChange.fire({ kind: 'initialize' });
+	}
+
+	setInitializationError(error: Error): void {
+		if (!this._isInitializedDeferred.isSettled) {
+			this._isInitializedDeferred.error(error);
+		}
 	}
 
 	waitForInitialization(): Promise<void> {

@@ -8,22 +8,41 @@ import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { getParentDocumentUri } from './dropIntoEditor';
 
+export class NewFilePathGenerator {
 
-export async function getNewFileName(document: vscode.TextDocument, file: vscode.DataTransferFile): Promise<vscode.Uri> {
-	const desiredPath = getDesiredNewFilePath(document, file);
+	private readonly _usedPaths = new Set<string>();
 
-	const root = Utils.dirname(desiredPath);
-	const ext = path.extname(file.name);
-	const baseName = path.basename(file.name, ext);
-	for (let i = 0; ; ++i) {
-		const name = i === 0 ? baseName : `${baseName}-${i}`;
-		const uri = vscode.Uri.joinPath(root, `${name}${ext}`);
-		try {
-			await vscode.workspace.fs.stat(uri);
-		} catch {
-			// Does not exist
-			return uri;
+	async getNewFilePath(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.Uri | undefined> {
+		const desiredPath = getDesiredNewFilePath(document, file);
+
+		const root = Utils.dirname(desiredPath);
+		const ext = path.extname(file.name);
+		const baseName = path.basename(file.name, ext);
+		for (let i = 0; ; ++i) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			const name = i === 0 ? baseName : `${baseName}-${i}`;
+			const uri = vscode.Uri.joinPath(root, name + ext);
+			if (this._wasPathAlreadyUsed(uri)) {
+				continue;
+			}
+
+			try {
+				await vscode.workspace.fs.stat(uri);
+			} catch {
+				if (!this._wasPathAlreadyUsed(uri)) {
+					// Does not exist
+					this._usedPaths.add(uri.toString());
+					return uri;
+				}
+			}
 		}
+	}
+
+	private _wasPathAlreadyUsed(uri: vscode.Uri) {
+		return this._usedPaths.has(uri.toString());
 	}
 }
 

@@ -145,7 +145,7 @@ export class PlaywrightDriver {
 		const logs = await this.getLogs();
 
 		for (const log of logs) {
-			const absoluteLogsPath = join(this.options.logsPath, log.name);
+			const absoluteLogsPath = join(this.options.logsPath, log.relativePath);
 
 			await promises.mkdir(dirname(absoluteLogsPath), { recursive: true });
 			await promises.writeFile(absoluteLogsPath, log.contents);

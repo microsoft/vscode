@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -19,9 +19,8 @@ import { Memento } from 'vs/workbench/common/memento';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveSessionEditorOptions extends IEditorOptions {
 	target: { sessionId: string } | { providerId: string };
@@ -39,8 +38,6 @@ export class InteractiveSessionEditor extends EditorPane {
 
 	private _memento: Memento | undefined;
 	private _viewState: IViewState | undefined;
-
-	private _modelDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -64,7 +61,15 @@ export class InteractiveSessionEditor extends EditorPane {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
 
 		this.widget = this._register(
-			scopedInstantiationService.createInstance(InteractiveSessionWidget, { resource: true }, () => editorBackground, () => SIDE_BAR_BACKGROUND, () => SIDE_BAR_BACKGROUND));
+			scopedInstantiationService.createInstance(
+				InteractiveSessionWidget,
+				{ resource: true },
+				{
+					listForeground: editorForeground,
+					listBackground: editorBackground,
+					inputEditorBackground: SIDE_BAR_BACKGROUND,
+					resultEditorBackground: SIDE_BAR_BACKGROUND
+				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}
@@ -96,19 +101,9 @@ export class InteractiveSessionEditor extends EditorPane {
 	}
 
 	private updateModel(model: IInteractiveSessionModel): void {
-		this._modelDisposables.clear();
-
 		this._memento = new Memento('interactive-session-editor-' + model.sessionId, this.storageService);
 		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewState;
 		this.widget.setModel(model, { ...this._viewState });
-		this._modelDisposables.add(model.onDidDispose(() => {
-			// TODO go back to swapping out the EditorInput when the session is restarted instead of this listener
-			const newModel = this.interactiveSessionService.startSession(model.providerId, CancellationToken.None);
-			if (newModel) {
-				(this.input as InteractiveSessionEditorInput).sessionId = newModel.sessionId;
-				this.updateModel(newModel);
-			}
-		}));
 	}
 
 	protected override saveState(): void {

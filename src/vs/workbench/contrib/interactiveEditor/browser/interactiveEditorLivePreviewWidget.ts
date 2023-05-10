@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, h } from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -24,8 +24,14 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { lineRangeAsRange, invertLineRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { URI } from 'vs/base/common/uri';
+import { TextEdit } from 'vs/editor/common/languages';
+import { FileKind } from 'vs/platform/files/common/files';
+import { IModelService } from 'vs/editor/common/services/model';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
-export class InteractiveEditorDiffWidget extends ZoneWidget {
+export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 	private static readonly _hideId = 'overlayDiff';
 
@@ -231,9 +237,9 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 	}
 
 	private _cleanupFullDiff() {
-		this.editor.setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
-		this._diffEditor.getOriginalEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
-		this._diffEditor.getModifiedEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
+		this.editor.setHiddenAreas([], InteractiveEditorLivePreviewWidget._hideId);
+		this._diffEditor.getOriginalEditor().setHiddenAreas([], InteractiveEditorLivePreviewWidget._hideId);
+		this._diffEditor.getModifiedEditor().setHiddenAreas([], InteractiveEditorLivePreviewWidget._hideId);
 		super.hide();
 	}
 
@@ -279,7 +285,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			return;
 		}
 		const ranges = lineRanges.map(lineRangeAsRange);
-		editor.setHiddenAreas(ranges, InteractiveEditorDiffWidget._hideId);
+		editor.setHiddenAreas(ranges, InteractiveEditorLivePreviewWidget._hideId);
 		this._logService.debug(`[IE] diff HIDING ${ranges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 	}
 
@@ -305,8 +311,6 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 	}
 }
 
-
-
 function isInlineDiffFriendly(mapping: LineRangeMapping): boolean {
 	if (!mapping.modifiedRange.equals(mapping.originalRange)) {
 		return false;
@@ -320,4 +324,105 @@ function isInlineDiffFriendly(mapping: LineRangeMapping): boolean {
 		}
 	}
 	return true;
+}
+
+
+export class InteractiveEditorFileCreatePreviewWidget extends ZoneWidget {
+
+	private readonly _elements = h('div.interactive-editor-newfile-widget@domNode', [
+		h('div.title.show-file-icons@title'),
+		h('div.editor@editor'),
+	]);
+
+	private readonly _title: ResourceLabel;
+	private readonly _previewEditor: ICodeEditor;
+	private readonly _previewModel = new MutableDisposable();
+	private _dim: Dimension | undefined;
+
+	constructor(
+		parentEditor: ICodeEditor,
+		@IInstantiationService instaService: IInstantiationService,
+		@IModelService private readonly _modelService: IModelService,
+		@IThemeService themeService: IThemeService,
+
+	) {
+		super(parentEditor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, showInHiddenAreas: true, ordinal: 10000 + 2 });
+		super.create();
+
+		this._title = instaService.createInstance(ResourceLabel, this._elements.title, { supportIcons: true });
+		this._previewEditor = instaService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, { scrollBeyondLastLine: false, stickyScroll: { enabled: false }, readOnly: true, minimap: { enabled: false } }, { isSimpleWidget: true, contributions: [] }, parentEditor);
+
+		const doStyle = () => {
+			const theme = themeService.getColorTheme();
+			const overrides: [target: string, source: string][] = [
+				[colorRegistry.editorBackground, interactiveEditorRegionHighlight],
+				[editorColorRegistry.editorGutter, interactiveEditorRegionHighlight],
+			];
+
+			for (const [target, source] of overrides) {
+				const value = theme.getColor(source);
+				if (value) {
+					this._elements.domNode.style.setProperty(colorRegistry.asCssVariableName(target), String(value));
+				}
+			}
+		};
+		doStyle();
+		this._disposables.add(themeService.onDidColorThemeChange(doStyle));
+	}
+
+	override dispose(): void {
+		this._title.dispose();
+		this._previewEditor.dispose();
+		this._previewModel.dispose();
+		super.dispose();
+	}
+
+	protected override _fillContainer(container: HTMLElement): void {
+		container.appendChild(this._elements.domNode);
+	}
+
+	override show(): void {
+		throw new Error('Use showFileCreation');
+	}
+
+	showCreation(where: Range, uri: URI, edits: TextEdit[]): void {
+
+		this._title.element.setFile(uri, { fileKind: FileKind.FILE });
+
+		const model = this._modelService.createModel('', null, undefined, true);
+		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+		this._previewModel.value = model;
+		this._previewEditor.setModel(model);
+
+		const lines = Math.min(7, model.getLineCount());
+		const lineHeightPadding = (this.editor.getOption(EditorOption.lineHeight) / 12) /* padding-top/bottom*/;
+
+
+		super.show(where, lines + 1 + lineHeightPadding);
+	}
+
+	// --- layout
+
+	protected override revealRange(range: Range, isLastLine: boolean): void {
+		// ignore
+	}
+
+	protected override _onWidth(widthInPixel: number): void {
+		if (this._dim) {
+			this._doLayout(this._dim.height, widthInPixel);
+		}
+	}
+
+	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
+
+		const { lineNumbersLeft } = this.editor.getLayoutInfo();
+		this._elements.title.style.marginLeft = `${lineNumbersLeft}px`;
+
+		const newDim = new Dimension(widthInPixel, heightInPixel);
+		if (!Dimension.equals(this._dim, newDim)) {
+			this._dim = newDim;
+			const oneLineHeightInPx = this.editor.getOption(EditorOption.lineHeight);
+			this._previewEditor.layout(this._dim.with(undefined, this._dim.height - oneLineHeightInPx /* title */));
+		}
+	}
 }
