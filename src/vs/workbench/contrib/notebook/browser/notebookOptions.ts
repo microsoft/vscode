@@ -426,7 +426,7 @@ export class NotebookOptions extends Disposable {
 			configuration.showFoldingControls = this._computeShowFoldingControlsOption();
 		}
 
-		if (dragAndDropEnabled) {
+		if (dragAndDropEnabled && this.overrides?.dragAndDropEnabled === undefined) {
 			configuration.dragAndDropEnabled = this.configurationService.getValue<boolean>(NotebookSetting.dragAndDropEnabled) ?? true;
 		}
 

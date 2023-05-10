@@ -325,8 +325,10 @@ export class CellDragAndDropController extends Disposable {
 			}
 
 			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
+				event.dataTransfer.effectAllowed = 'none';
 				return;
 			}
+			event.dataTransfer.effectAllowed = 'move';
 
 			this.currentDraggedCell = templateData.currentRenderedCell!;
 			this.draggedCells = this.notebookEditor.getSelections().map(range => this.notebookEditor.getCellsInRange(range)).flat();
