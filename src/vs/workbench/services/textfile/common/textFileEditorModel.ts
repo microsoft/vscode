@@ -1160,8 +1160,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly ||
-			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
 			this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
 	}
 

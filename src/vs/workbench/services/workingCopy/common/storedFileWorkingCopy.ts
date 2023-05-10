@@ -1245,8 +1245,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	//#region Utilities
 
 	isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly ||
-			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly) ||
 			this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
 	}
 
