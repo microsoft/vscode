@@ -366,7 +366,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return new Map(this._context);
 	}
 
-
 	public get cellContext(): Map<string, Map<number, string>> {
 		const cellContext = new Map<string, Map<number, string>>();
 		this._cellMatches.forEach(cellMatch => {
