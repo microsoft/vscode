@@ -1516,6 +1516,10 @@ begin
 
     StopTunnelServiceIfNeeded();
 
+    if CheckForMutexes('{#TunnelMutex}') then begin
+      MsgBox('{#NameShort} is still running a tunnel. Please stop the tunnel before continuing.', mbInformation, MB_OK);
+    end;
+
     Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
   end;
 
