@@ -166,7 +166,12 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
+
 		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
+
+		folderMatch.onChange(() => {
+			IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
+		});
 
 		this.renderFolderDetails(folderMatch, templateData);
 	}
@@ -259,6 +264,10 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
 
 		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
+
+		fileMatch.onChange(() => {
+			IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
+		});
 
 		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
 		// be hard to tell whether the node is collapsed or expanded.

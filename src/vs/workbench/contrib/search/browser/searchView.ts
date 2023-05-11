@@ -599,19 +599,6 @@ export class SearchView extends ViewPane {
 				event.elements.forEach(element => {
 					this.tree.setChildren(element, this.createIterator(element, collapseResults));
 					this.tree.rerender(element);
-
-					const treeView = this.isTreeLayoutViewVisible;
-					if (treeView) {
-						let parent: FolderMatch | SearchResult = element.parent();
-						while (parent instanceof FolderMatch) {
-							if (this.tree.hasElement(parent)) {
-								this.tree.rerender(parent);
-							}
-							parent = parent.parent();
-						}
-					} else if (element.closestRoot && this.tree.hasElement(element.closestRoot)) {
-						this.tree.rerender(element.closestRoot ?? undefined);
-					}
 				});
 			}
 		}
