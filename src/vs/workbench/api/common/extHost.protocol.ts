@@ -1493,12 +1493,12 @@ export interface ExtHostDocumentsAndEditorsShape {
 }
 
 export interface IDataTransferFileDTO {
+	readonly id: string;
 	readonly name: string;
 	readonly uri?: UriComponents;
 }
 
 export interface DataTransferItemDTO {
-	readonly id: string;
 	readonly asString: string;
 	readonly fileData: IDataTransferFileDTO | undefined;
 	readonly uriListData?: ReadonlyArray<string | UriComponents>;

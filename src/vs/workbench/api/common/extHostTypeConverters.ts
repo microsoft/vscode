@@ -5,7 +5,7 @@
 
 import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { VSBuffer, encodeBase64 } from 'vs/base/common/buffer';
-import { IDataTransferItem, UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { IDataTransferFile, IDataTransferItem, UriList } from 'vs/base/common/dataTransfer';
 import { once } from 'vs/base/common/functional';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -2035,21 +2035,18 @@ export namespace ViewBadge {
 }
 
 export namespace DataTransferItem {
-	export function to(mime: string, item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>): types.DataTransferItem {
+	export function to(mime: string, item: extHostProtocol.DataTransferItemDTO, resolveFileData: (id: string) => Promise<Uint8Array>): types.DataTransferItem {
 		const file = item.fileData;
 		if (file) {
-			return new class extends types.DataTransferItem {
-				override asFile() {
-					return new types.DataTransferFile(file.name, URI.revive(file.uri), item.id, once(() => resolveFileData()));
-				}
-			}('', item.id);
+			return new types.InternalFileDataTransferItem(
+				new types.DataTransferFile(file.name, URI.revive(file.uri), file.id, once(() => resolveFileData(file.id))));
 		}
 
 		if (mime === Mimes.uriList && item.uriListData) {
-			return new types.DataTransferItem(reviveUriList(item.uriListData));
+			return new types.InternalDataTransferItem(reviveUriList(item.uriListData));
 		}
 
-		return new types.DataTransferItem(item.asString);
+		return new types.InternalDataTransferItem(item.asString);
 	}
 
 	export async function from(mime: string, item: vscode.DataTransferItem | IDataTransferItem): Promise<extHostProtocol.DataTransferItemDTO> {
@@ -2057,7 +2054,6 @@ export namespace DataTransferItem {
 
 		if (mime === Mimes.uriList) {
 			return {
-				id: (item as IDataTransferItem | types.DataTransferItem).id,
 				asString: stringValue,
 				fileData: undefined,
 				uriListData: serializeUriList(stringValue),
@@ -2066,9 +2062,12 @@ export namespace DataTransferItem {
 
 		const fileValue = item.asFile();
 		return {
-			id: (item as IDataTransferItem | types.DataTransferItem).id,
 			asString: stringValue,
-			fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
+			fileData: fileValue ? {
+				name: fileValue.name,
+				uri: fileValue.uri,
+				id: (fileValue as types.DataTransferFile)._itemId ?? (fileValue as IDataTransferFile).id,
+			} : undefined,
 		};
 	}
 
@@ -2098,21 +2097,20 @@ export namespace DataTransferItem {
 export namespace DataTransfer {
 	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (itemId: string) => Promise<Uint8Array>): types.DataTransfer {
 		const init = value.items.map(([type, item]) => {
-			return [type, DataTransferItem.to(type, item, () => resolveFileData(item.id))] as const;
+			return [type, DataTransferItem.to(type, item, resolveFileData)] as const;
 		});
 		return new types.DataTransfer(init);
 	}
 
-	export async function toDataTransferDTO(value: vscode.DataTransfer | VSDataTransfer): Promise<extHostProtocol.DataTransferDTO> {
+	export async function from(dataTransfer: Iterable<readonly [string, vscode.DataTransferItem | IDataTransferItem]>): Promise<extHostProtocol.DataTransferDTO> {
 		const newDTO: extHostProtocol.DataTransferDTO = { items: [] };
 
 		const promises: Promise<any>[] = [];
-
-		value.forEach((value, key) => {
+		for (const [mime, value] of dataTransfer) {
 			promises.push((async () => {
-				newDTO.items.push([key, await DataTransferItem.from(key, value)]);
+				newDTO.items.push([mime, await DataTransferItem.from(mime, value)]);
 			})());
-		});
+		}
 
 		await Promise.all(promises);
 

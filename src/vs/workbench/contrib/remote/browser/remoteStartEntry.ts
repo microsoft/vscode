@@ -86,24 +86,19 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 
 		if (isWeb) {
 			const remoteExtensionTips = this.productService.remoteExtensionTips?.['tunnel'];
-			if (remoteExtensionTips) {
-				const metadata: RemoteExtensionMetadata = {
-					id: remoteExtensionTips.extensionId,
-					installed: false,
-					friendlyName: remoteExtensionTips.friendlyName,
-					remoteCommands: [],
-					isPlatformCompatible: false,
-					dependencies: [],
-					helpLink: remoteExtensionTips.startEntry?.helpLink ?? '',
-					startConnectLabel: remoteExtensionTips.startEntry?.startConnectLabel ?? '',
-					startCommand: remoteExtensionTips.startEntry?.startCommand ?? '',
-					priority: remoteExtensionTips.startEntry?.priority ?? 10
+			this.remoteExtensionMetadata = remoteExtensionTips ? [{
+				id: remoteExtensionTips.extensionId,
+				installed: false,
+				friendlyName: remoteExtensionTips.friendlyName,
+				remoteCommands: [],
+				isPlatformCompatible: false,
+				dependencies: [],
+				helpLink: remoteExtensionTips.startEntry?.helpLink ?? '',
+				startConnectLabel: remoteExtensionTips.startEntry?.startConnectLabel ?? '',
+				startCommand: remoteExtensionTips.startEntry?.startCommand ?? '',
+				priority: remoteExtensionTips.startEntry?.priority ?? 10
 
-				};
-				this.remoteExtensionMetadata = [metadata];
-			} else {
-				this.remoteExtensionMetadata = [];
-			}
+			}] : [];
 		}
 		else {
 			const remoteExtensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };

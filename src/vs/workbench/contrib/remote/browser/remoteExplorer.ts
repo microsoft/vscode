@@ -21,7 +21,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isWeb, OperatingSystem } from 'vs/base/common/platform';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
+import { ITunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -348,6 +348,10 @@ class OnAutoForwardedAction extends Disposable {
 			choices.unshift(this.elevateChoice(tunnel));
 		}
 
+		if (tunnel.privacy === TunnelPrivacyId.Private && isWeb && this.tunnelService.canChangePrivacy) {
+			choices.push(this.makePublicChoice(tunnel));
+		}
+
 		message += this.linkMessage();
 
 		this.lastNotification = this.notificationService.prompt(Severity.Info, message, choices, { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
@@ -357,6 +361,20 @@ class OnAutoForwardedAction extends Disposable {
 			this.lastNotification = undefined;
 			this.lastShownPort = undefined;
 		});
+	}
+
+	private makePublicChoice(tunnel: RemoteTunnel): IPromptChoice {
+		return {
+			label: nls.localize('remote.tunnelsView.makePublic', "Make Public"),
+			run: async () => {
+				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, TunnelCloseReason.Other);
+				return this.remoteExplorerService.forward({
+					remote: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort },
+					local: tunnel.tunnelLocalPort,
+					privacy: TunnelPrivacyId.Public,
+				});
+			}
+		};
 	}
 
 	private openBrowserChoice(tunnel: RemoteTunnel): IPromptChoice {
