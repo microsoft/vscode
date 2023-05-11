@@ -14,7 +14,7 @@ declare module 'vscode' {
 		 *
 		 * @param scope The scope to which the environment variable collection applies to.
 		 */
-		readonly environmentVariableCollection: EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope?: EnvironmentVariableScope): EnvironmentVariableCollection };
+		readonly environmentVariableCollection: EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: EnvironmentVariableScope): EnvironmentVariableCollection };
 	}
 
 	export type EnvironmentVariableScope = {
