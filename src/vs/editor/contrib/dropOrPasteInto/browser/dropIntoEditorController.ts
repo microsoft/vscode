@@ -145,7 +145,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				for (const id of data) {
 					const treeDataTransfer = await this._treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
 					if (treeDataTransfer) {
-						for (const [type, value] of treeDataTransfer.entries()) {
+						for (const [type, value] of treeDataTransfer) {
 							dataTransfer.replace(type, value);
 						}
 					}
