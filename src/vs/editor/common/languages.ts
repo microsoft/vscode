@@ -783,7 +783,10 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
+	readonly id: string;
 	readonly label: string;
+	readonly detail: string;
+	readonly priority: number;
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -1944,8 +1947,9 @@ export enum ExternalUriOpenerPriority {
  * @internal
  */
 export interface DocumentOnDropEdit {
+	readonly id: string;
 	readonly label: string;
-
+	readonly priority: number;
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -1954,7 +1958,6 @@ export interface DocumentOnDropEdit {
  * @internal
  */
 export interface DocumentOnDropEditProvider {
-	readonly id: string;
 	readonly dropMimeTypes?: readonly string[];
 
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;

@@ -394,9 +394,17 @@ export enum FileType {
 export enum FilePermission {
 
 	/**
-	 * File is readonly.
+	 * File is readonly. Components like editors should not
+	 * offer to edit the contents.
 	 */
-	Readonly = 1
+	Readonly = 1,
+
+	/**
+	 * File is locked. Components like editors should offer
+	 * to edit the contents and ask the user upon saving to
+	 * remove the lock.
+	 */
+	Locked = 2
 }
 
 export interface IStat {
@@ -1008,9 +1016,17 @@ interface IBaseFileStat {
 	readonly etag?: string;
 
 	/**
-	 * The file is read-only.
+	 * File is readonly. Components like editors should not
+	 * offer to edit the contents.
 	 */
 	readonly readonly?: boolean;
+
+	/**
+	 * File is locked. Components like editors should offer
+	 * to edit the contents and ask the user upon saving to
+	 * remove the lock.
+	 */
+	readonly locked?: boolean;
 }
 
 export interface IBaseFileStatWithMetadata extends Required<IBaseFileStat> { }
@@ -1050,6 +1066,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetad
 	readonly etag: string;
 	readonly size: number;
 	readonly readonly: boolean;
+	readonly locked: boolean;
 	readonly children: IFileStatWithMetadata[] | undefined;
 }
 
@@ -1229,12 +1246,19 @@ export const HotExitConfiguration = {
 
 export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
 export const FILES_EXCLUDE_CONFIG = 'files.exclude';
+export const FILES_READONLY_INCLUDE_CONFIG = 'files.readonlyInclude';
+export const FILES_READONLY_EXCLUDE_CONFIG = 'files.readonlyExclude';
+export const FILES_READONLY_FROM_PERMISSIONS_CONFIG = 'files.readonlyFromPermissions';
+
+export interface IGlobPatterns {
+	[filepattern: string]: boolean;
+}
 
 export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
 		exclude: IExpression;
-		watcherExclude: { [filepattern: string]: boolean };
+		watcherExclude: IGlobPatterns;
 		watcherInclude: string[];
 		encoding: string;
 		autoGuessEncoding: boolean;
@@ -1246,6 +1270,9 @@ export interface IFilesConfiguration {
 		enableTrash: boolean;
 		hotExit: string;
 		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
+		readonlyInclude: IGlobPatterns;
+		readonlyExclude: IGlobPatterns;
+		readonlyFromPermissions: boolean;
 	};
 }
 

@@ -292,7 +292,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
 
-		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.configurationService, notebookExecutionStateService);
+		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.configurationService, notebookExecutionStateService, this._readOnly);
 		this._register(this._notebookOptions);
 		this._viewContext = new ViewContext(
 			this._notebookOptions,
@@ -1176,6 +1176,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this.viewModel.updateOptions({ isReadOnly: this._readOnly });
+		this.notebookOptions.updateOptions(this._readOnly);
 
 		// reveal cell if editor options tell to do so
 		const cellOptions = options?.cellOptions ?? this._parseIndexedCellOptions(options);
@@ -1364,6 +1365,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
+		this.notebookOptions.updateOptions(this._readOnly);
 
 		this._updateForOptions();
 		this._updateForNotebookConfiguration();

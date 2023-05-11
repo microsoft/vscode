@@ -550,7 +550,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {
-		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
+		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine, isTrusted);
 		this._currentCommand.command = commandLine;
 		this._currentCommand.isTrusted = isTrusted;
 	}

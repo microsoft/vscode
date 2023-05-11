@@ -19,6 +19,8 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
+const builtInLabel = localize('builtIn', 'Built-in');
+
 abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvider {
 
 	abstract readonly id: string;
@@ -27,12 +29,12 @@ abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider,
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
-		return edit ? { insertText: edit.insertText, label: edit.label } : undefined;
+		return edit ? { id: this.id, insertText: edit.insertText, label: edit.label, detail: edit.detail, priority: edit.priority } : undefined;
 	}
 
 	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
-		return edit ? { insertText: edit.insertText, label: edit.label } : undefined;
+		return edit ? { id: this.id, insertText: edit.insertText, label: edit.label, priority: edit.priority } : undefined;
 	}
 
 	protected abstract getEdit(dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
@@ -58,7 +60,10 @@ class DefaultTextProvider extends SimplePasteAndDropProvider {
 
 		const insertText = await textEntry.asString();
 		return {
+			id: this.id,
+			priority: 0,
 			label: localize('text.label', "Insert Plain Text"),
+			detail: builtInLabel,
 			insertText
 		};
 	}
@@ -101,7 +106,13 @@ class PathProvider extends SimplePasteAndDropProvider {
 				: localize('defaultDropProvider.uriList.path', "Insert Path");
 		}
 
-		return { insertText, label };
+		return {
+			id: this.id,
+			priority: 0,
+			insertText,
+			label,
+			detail: builtInLabel,
+		};
 	}
 }
 
@@ -133,10 +144,13 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 		}
 
 		return {
+			id: this.id,
+			priority: 0,
 			insertText: relativeUris.join(' '),
 			label: entries.length > 1
 				? localize('defaultDropProvider.uriList.relativePaths', "Insert Relative Paths")
-				: localize('defaultDropProvider.uriList.relativePath', "Insert Relative Path")
+				: localize('defaultDropProvider.uriList.relativePath', "Insert Relative Path"),
+			detail: builtInLabel,
 		};
 	}
 }

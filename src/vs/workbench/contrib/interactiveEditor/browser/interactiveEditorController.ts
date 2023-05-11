@@ -266,7 +266,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		let autoSend = options?.autoSend ?? false;
 
 		this._zone.widget.updateSlashCommands(session.slashCommands ?? []);
-		this._zone.widget.updateStatus(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
+		this._zone.widget.updateStatus(session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 
 		// CANCEL when input changes
 		this._editor.onDidChangeModel(this.cancelSession, this, store);
@@ -413,7 +413,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				this._zone.widget.updateStatus(localize('empty', "No results, please refine your input and try again."), { classes: ['warn'] });
+				this._zone.widget.updateStatus(localize('empty', "No results, please refine your input and try again"), { classes: ['warn'] });
 				continue;
 			}
 
@@ -803,9 +803,9 @@ class LiveStrategy extends EditModeStrategy {
 		if (linesChanged === 0) {
 			message = localize('lines.0', "Generated reply");
 		} else if (linesChanged === 1) {
-			message = localize('lines.1', "Generated reply and changed 1 line.");
+			message = localize('lines.1', "Generated reply and changed 1 line");
 		} else {
-			message = localize('lines.N', "Generated reply and changed {0} lines.", linesChanged);
+			message = localize('lines.N', "Generated reply and changed {0} lines", linesChanged);
 		}
 		this._widget.updateStatus(message);
 	}

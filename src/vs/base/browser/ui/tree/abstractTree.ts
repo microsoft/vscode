@@ -1394,14 +1394,14 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		if (node.collapsible) {
-			// Do not set this before calling a handler on the super class, because it will reject it as handled
-			e.browserEvent.isHandledByList = true;
 			const location = this.tree.getNodeLocation(node);
 			const recursive = e.browserEvent.altKey;
 			this.tree.setFocus([location]);
 			this.tree.toggleCollapsed(location, recursive);
 
 			if (expandOnlyOnTwistieClick && onTwistie) {
+				// Do not set this before calling a handler on the super class, because it will reject it as handled
+				e.browserEvent.isHandledByList = true;
 				return;
 			}
 		}

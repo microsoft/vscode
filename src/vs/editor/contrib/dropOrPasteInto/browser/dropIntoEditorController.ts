@@ -13,6 +13,8 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { DocumentOnDropEditProvider } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
@@ -99,19 +101,15 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 						return provider.dropMimeTypes.some(mime => ourDataTransfer.matches(mime));
 					});
 
-				const possibleDropEdits = await raceCancellation(Promise.all(providers.map(provider => {
-					return provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, tokenSource.token);
-				})), tokenSource.token);
+				const edits = await this.getDropEdits(providers, model, position, ourDataTransfer, tokenSource);
 				if (tokenSource.token.isCancellationRequested) {
 					return;
 				}
 
-				if (possibleDropEdits) {
-					const allEdits = coalesce(possibleDropEdits);
-					// Pass in the parent token here as it tracks cancelling the entire drop operation.
-
+				if (edits.length) {
 					const canShowWidget = editor.getOption(EditorOption.dropIntoEditor).showDropSelector === 'afterDrop';
-					await this._postDropWidgetManager.applyEditAndShowIfNeeded([Range.fromPositions(position)], { activeEditIndex: 0, allEdits }, canShowWidget, token);
+					// Pass in the parent token here as it tracks cancelling the entire drop operation
+					await this._postDropWidgetManager.applyEditAndShowIfNeeded([Range.fromPositions(position)], { activeEditIndex: 0, allEdits: edits }, canShowWidget, token);
 				}
 			} finally {
 				tokenSource.dispose();
@@ -123,6 +121,15 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 
 		this._dropProgressManager.showWhile(position, localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel"), p);
 		this._currentOperation = p;
+	}
+
+	private async getDropEdits(providers: DocumentOnDropEditProvider[], model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, tokenSource: EditorStateCancellationTokenSource) {
+		const results = await raceCancellation(Promise.all(providers.map(provider => {
+			return provider.provideDocumentOnDropEdits(model, position, dataTransfer, tokenSource.token);
+		})), tokenSource.token);
+		const edits = coalesce(results ?? []);
+		edits.sort((a, b) => b.priority - a.priority);
+		return edits;
 	}
 
 	private async extractDataTransferData(dragEvent: DragEvent): Promise<VSDataTransfer> {
