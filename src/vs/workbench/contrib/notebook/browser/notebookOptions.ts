@@ -133,6 +133,7 @@ export class NotebookOptions extends Disposable {
 	constructor(
 		private readonly configurationService: IConfigurationService,
 		private readonly notebookExecutionStateService: INotebookExecutionStateService,
+		private isReadonly: boolean,
 		private readonly overrides?: { cellToolbarInteraction: string; globalToolbar: boolean; dragAndDropEnabled: boolean }
 	) {
 		super();
@@ -145,7 +146,7 @@ export class NotebookOptions extends Disposable {
 		const cellToolbarInteraction = overrides?.cellToolbarInteraction ?? this.configurationService.getValue<string>(NotebookSetting.cellToolbarVisibility);
 		const compactView = this.configurationService.getValue<boolean | undefined>(NotebookSetting.compactView) ?? true;
 		const focusIndicator = this._computeFocusIndicatorOption();
-		const insertToolbarPosition = this._computeInsertToolbarPositionOption();
+		const insertToolbarPosition = this._computeInsertToolbarPositionOption(this.isReadonly);
 		const insertToolbarAlignment = this._computeInsertToolbarAlignmentOption();
 		const showFoldingControls = this._computeShowFoldingControlsOption();
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
@@ -246,6 +247,22 @@ export class NotebookOptions extends Disposable {
 			this._layoutConfiguration = configuration;
 			this._onDidChangeOptions.fire({ editorTopPadding: true });
 		}));
+	}
+
+	updateOptions(isReadonly: boolean) {
+		if (this.isReadonly !== isReadonly) {
+			this.isReadonly = isReadonly;
+
+			this._updateConfiguration({
+				affectsConfiguration(configuration: string): boolean {
+					return configuration === NotebookSetting.insertToolbarLocation;
+				},
+				source: ConfigurationTarget.DEFAULT,
+				affectedKeys: new Set([NotebookSetting.insertToolbarLocation]),
+				change: { keys: [NotebookSetting.insertToolbarLocation], overrides: [] },
+				sourceConfig: undefined
+			});
+		}
 	}
 
 	private _migrateDeprecatedSetting(deprecatedKey: string, key: string): void {
@@ -390,7 +407,7 @@ export class NotebookOptions extends Disposable {
 		}
 
 		if (insertToolbarPosition) {
-			configuration.insertToolbarPosition = this._computeInsertToolbarPositionOption();
+			configuration.insertToolbarPosition = this._computeInsertToolbarPositionOption(this.isReadonly);
 		}
 
 		if (globalToolbar && this.overrides?.globalToolbar === undefined) {
@@ -479,8 +496,8 @@ export class NotebookOptions extends Disposable {
 		});
 	}
 
-	private _computeInsertToolbarPositionOption() {
-		return this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(NotebookSetting.insertToolbarLocation) ?? 'both';
+	private _computeInsertToolbarPositionOption(isReadOnly: boolean) {
+		return isReadOnly ? 'hidden' : this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(NotebookSetting.insertToolbarLocation) ?? 'both';
 	}
 
 	private _computeInsertToolbarAlignmentOption() {

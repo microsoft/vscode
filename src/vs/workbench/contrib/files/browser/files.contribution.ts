@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, FILES_READONLY_FROM_PERMISSIONS_CONFIG } from 'vs/platform/files/common/files';
 import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE, UndoConfirmLevel, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
@@ -260,6 +260,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.watcherExclude': {
 			'type': 'object',
+			'patternProperties': {
+				'.*': { 'type': 'boolean' }
+			},
 			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
 			'markdownDescription': nls.localize('watcherExclude', "Configure paths or glob patterns to exclude from file watching. Paths can either be relative to the watched folder or absolute. Glob patterns are matched relative from the watched folder. When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
 			'scope': ConfigurationScope.RESOURCE
@@ -277,6 +280,29 @@ configurationRegistry.registerConfiguration({
 		'files.defaultLanguage': {
 			'type': 'string',
 			'markdownDescription': nls.localize('defaultLanguage', "The default language identifier that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language identifier of the currently active text editor if any.")
+		},
+		[FILES_READONLY_INCLUDE_CONFIG]: {
+			'type': 'object',
+			'patternProperties': {
+				'.*': { 'type': 'boolean' }
+			},
+			'default': {},
+			'markdownDescription': nls.localize('filesReadonlyInclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to mark as read-only. You can exclude matching paths via the `#files.readonlyExclude#` setting. Files from readonly file system providers will always be read-only independent of this setting."),
+			'scope': ConfigurationScope.RESOURCE
+		},
+		[FILES_READONLY_EXCLUDE_CONFIG]: {
+			'type': 'object',
+			'patternProperties': {
+				'.*': { 'type': 'boolean' }
+			},
+			'default': {},
+			'markdownDescription': nls.localize('filesReadonlyExclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to exclude from being marked as read-only if they match as a result of the `#files.readonlyInclude#` setting. Files from readonly file system providers will always be read-only independent of this setting."),
+			'scope': ConfigurationScope.RESOURCE
+		},
+		[FILES_READONLY_FROM_PERMISSIONS_CONFIG]: {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('filesReadonlyFromPermissions', "Marks files as readonly when their file permissions indicate as such. This can be overridden via `#files.readonlyInclude#` and `#files.readonlyExclude#` settings."),
+			'default': false
 		},
 		'files.restoreUndoStack': {
 			'type': 'boolean',

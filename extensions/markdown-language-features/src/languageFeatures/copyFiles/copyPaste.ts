@@ -19,6 +19,8 @@ const supportedImageMimes = new Set([
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
+	private readonly _id = 'insertLink';
+
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
 		_ranges: readonly vscode.Range[],
@@ -30,13 +32,19 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const edit = await this._makeCreateImagePasteEdit(document, dataTransfer, token);
-		if (edit) {
-			return edit;
+		const createEdit = await this._makeCreateImagePasteEdit(document, dataTransfer, token);
+		if (createEdit) {
+			return createEdit;
 		}
 
 		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet, snippet.label) : undefined;
+		if (!snippet) {
+			return;
+		}
+
+		const uriEdit = new vscode.DocumentPasteEdit(snippet.snippet, this._id, snippet.label);
+		uriEdit.priority = this._getPriority(dataTransfer);
+		return uriEdit;
 	}
 
 	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
@@ -87,9 +95,18 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, snippet.label);
+		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, this._id, snippet.label);
 		pasteEdit.additionalEdit = workspaceEdit;
+		pasteEdit.priority = this._getPriority(dataTransfer);
 		return pasteEdit;
+	}
+
+	private _getPriority(dataTransfer: vscode.DataTransfer): number {
+		if (dataTransfer.get('text/plain')) {
+			// Deprioritize in favor of normal text content
+			return -10;
+		}
+		return 0;
 	}
 }
 

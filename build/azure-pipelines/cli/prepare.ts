@@ -54,6 +54,7 @@ const setLauncherEnvironmentVars = () => {
 		['VSCODE_CLI_TUNNEL_SERVICE_MUTEX', product.win32TunnelServiceMutex],
 		['VSCODE_CLI_TUNNEL_CLI_MUTEX', product.win32TunnelMutex],
 		['VSCODE_CLI_COMMIT', commit],
+		['VSCODE_CLI_DEFAULT_PARENT_DATA_DIR', product.dataFolderName],
 		[
 			'VSCODE_CLI_WIN32_APP_IDS',
 			!isOSS && JSON.stringify(

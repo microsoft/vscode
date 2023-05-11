@@ -75,12 +75,18 @@
 
  const NONINTERACTIVE_VAR: &str = "VSCODE_CLI_NONINTERACTIVE";
 
- pub fn get_default_user_agent() -> String {
-	 format!(
-		 "vscode-server-launcher/{}",
-		 VSCODE_CLI_VERSION.unwrap_or("dev")
-	 )
- }
+/// Default data CLI data directory.
+pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DEFAULT_PARENT_DATA_DIR") {
+	Some(n) => n,
+	None => ".vscode-oss",
+};
+
+pub fn get_default_user_agent() -> String {
+	format!(
+		"vscode-server-launcher/{}",
+		VSCODE_CLI_VERSION.unwrap_or("dev")
+	)
+}
 
  const NO_COLOR_ENV: &str = "NO_COLOR";
 

@@ -8,6 +8,10 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/152399
 
 	export interface AuthenticationForceNewSessionOptions {
+		/**
+		 * The session that you are asking to be recreated. The Auth Provider can use this to
+		 * help guide the user to log in to the correct account.
+		 */
 		sessionToRecreate?: AuthenticationSession;
 	}
 
