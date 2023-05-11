@@ -49,7 +49,7 @@ export interface IOutputBlurMessage extends BaseToWebviewMessage {
 
 export interface IOutputInputFocusMessage extends BaseToWebviewMessage {
 	readonly type: 'outputInputFocus';
-	readonly hasFocus: boolean;
+	readonly inputFocused: boolean;
 }
 
 export interface IScrollToRevealMessage extends BaseToWebviewMessage {

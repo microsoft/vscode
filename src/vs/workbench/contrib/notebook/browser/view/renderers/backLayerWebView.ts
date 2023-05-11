@@ -94,7 +94,7 @@ export interface INotebookDelegateForWebview {
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
 	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void;
-	didFocusOutputInputChange(focus: boolean): void;
+	didFocusOutputInputChange(inputFocused: boolean): void;
 }
 
 interface BacklayerWebviewOptions {
@@ -879,7 +879,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					break;
 				}
 				case 'outputInputFocus': {
-					this.notebookEditor.didFocusOutputInputChange(data.hasFocus);
+					this.notebookEditor.didFocusOutputInputChange(data.inputFocused);
 				}
 			}
 		}));

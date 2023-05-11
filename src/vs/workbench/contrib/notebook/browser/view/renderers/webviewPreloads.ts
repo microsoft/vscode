@@ -146,10 +146,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
-			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { hasFocus: true });
+			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true });
 
-			activeElement.addEventListener('onblur', () => {
-				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { hasFocus: false });
+			activeElement.addEventListener('blur', () => {
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false });
 			}, { once: true });
 		}
 	};
@@ -158,8 +158,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		if (!event || !event.view || !event.view.document) {
 			return;
 		}
-
-		checkOutputInputFocus();
 
 		for (const node of event.composedPath()) {
 			if (node instanceof HTMLElement && node.classList.contains('output')) {
@@ -241,6 +239,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	document.body.addEventListener('click', handleInnerClick);
+	document.body.addEventListener('focusin', checkOutputInputFocus);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;

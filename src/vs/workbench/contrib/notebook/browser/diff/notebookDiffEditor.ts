@@ -183,7 +183,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// throw new Error('Method not implemented.');
 	}
 
-	didFocusOutputInputChange(focus: boolean): void {
+	didFocusOutputInputChange(inputFocused: boolean): void {
 		// noop
 	}
 
