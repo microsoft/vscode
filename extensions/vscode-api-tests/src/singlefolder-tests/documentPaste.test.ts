@@ -47,8 +47,10 @@ suite('vscode API - Copy Paste', () => {
 				const existing = dataTransfer.get(textPlain);
 				if (existing) {
 					const str = await existing.asString();
-					// Don't include the trailing new line when reversing
-					const reversed = reverseString(str.slice(0, -1));
+					// text/plain includes the trailing new line in this case
+					// On windows, this will always be `\r\n` even if the document uses `\n`
+					const eol = str.match(/\r?\n$/);
+					const reversed = reverseString(str.slice(0, eol!.length));
 					dataTransfer.set(textPlain, new vscode.DataTransferItem(reversed + '\n'));
 				}
 			}
