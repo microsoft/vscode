@@ -94,8 +94,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	let currentRenderOptions = ctx.renderOptions;
 	const settingChange: EmitterLike<RenderOptions> = createEmitter<RenderOptions>();
 
-	let isInputElementFocused: boolean | undefined = undefined;
-
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -140,19 +138,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		};
 
 	// check if an input element is focused within the output element
-	const checkOutputInputFocus = () => {
-
+	const handleOutputFocus = () => {
 		const activeElement = document.activeElement;
 		if (!activeElement) {
 			return;
 		}
 
-		isInputElementFocused = !!activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
-
-		if (isInputElementFocused) {
+		if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { hasFocus: true });
 
-			activeElement.addEventListener('onblur', () => {
+			activeElement.addEventListener('blur', () => {
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { hasFocus: false });
 			}, { once: true });
 		}
@@ -163,7 +158,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 
-		checkOutputInputFocus();
+		handleOutputFocus();
 
 		for (const node of event.composedPath()) {
 			if (node instanceof HTMLElement && node.classList.contains('output')) {
@@ -245,6 +240,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	document.body.addEventListener('click', handleInnerClick);
+	document.body.addEventListener('focusin', handleOutputFocus);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;

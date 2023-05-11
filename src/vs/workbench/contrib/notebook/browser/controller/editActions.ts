@@ -126,61 +126,6 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 	}
 });
 
-registerAction2(class UnfocusCellOutput extends NotebookCellAction {
-	constructor() {
-		super(
-			{
-				id: 'notebook.cell.unfocusOutput',
-				title: localize('notebookActions.unfocusOutput', "Stop Editing Cell"),
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(
-						NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
-						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE,
-						NOTEBOOK_CELL_EDITABLE),
-					order: CellToolbarOrder.SaveCell,
-					group: CELL_TITLE_CELL_GROUP_ID
-				},
-				icon: icons.stopEditIcon,
-				keybinding: [
-					{
-						when: ContextKeyExpr.and(quitEditCondition,
-							EditorContextKeys.hoverVisible.toNegated(),
-							EditorContextKeys.hasNonEmptySelection.toNegated(),
-							EditorContextKeys.hasMultipleSelections.toNegated()),
-						primary: KeyCode.Escape,
-						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
-					},
-					{
-						when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED,
-							NOTEBOOK_OUTPUT_FOCUSED,
-							NOTEBOOK_OUPTUT_INPUT_FOCUSED.toNegated()),
-						primary: KeyCode.Escape,
-						weight: KeybindingWeight.WorkbenchContrib + 1
-					},
-					{
-						when: ContextKeyExpr.and(
-							quitEditCondition,
-							NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
-						primary: KeyMod.WinCtrl | KeyCode.Enter,
-						win: {
-							primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
-						},
-						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT - 5
-					},
-				]
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		if (context.cell.cellKind === CellKind.Markup) {
-			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
-		}
-
-		await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
-	}
-});
-
 registerAction2(class DeleteCellAction extends NotebookCellAction {
 	constructor() {
 		super(
