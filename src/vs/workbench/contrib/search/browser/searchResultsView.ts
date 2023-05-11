@@ -36,7 +36,7 @@ interface IFolderMatchTemplate {
 	badge: CountBadge;
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
-	disposableActions: DisposableStore;
+	elementDisposables: DisposableStore;
 	contextKeyService: IContextKeyService;
 }
 
@@ -46,6 +46,7 @@ interface IFileMatchTemplate {
 	badge: CountBadge;
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
+	elementDisposables: DisposableStore;
 	contextKeyService: IContextKeyService;
 }
 
@@ -125,8 +126,8 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')), {}, defaultCountBadgeStyles);
 		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
 
-		const disposableElements = new DisposableStore();
-		disposables.add(disposableElements);
+		const elementDisposables = new DisposableStore();
+		disposables.add(elementDisposables);
 
 		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
 		MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
@@ -149,7 +150,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			badge,
 			actions,
 			disposables,
-			disposableActions: disposableElements,
+			elementDisposables,
 			contextKeyService: contextKeyServiceMain
 		};
 	}
@@ -169,19 +170,19 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 
 		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
 
-		folderMatch.onChange(() => {
+		templateData.elementDisposables.add(folderMatch.onChange(() => {
 			IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
-		});
+		}));
 
 		this.renderFolderDetails(folderMatch, templateData);
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
-		templateData.disposableActions.clear();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<FolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
-		templateData.disposableActions.clear();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IFolderMatchTemplate): void {
@@ -219,6 +220,8 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 
 	renderTemplate(container: HTMLElement): IFileMatchTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
+		disposables.add(elementDisposables);
 		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
 		const label = this.labels.create(fileMatchElement);
 		disposables.add(label);
@@ -247,6 +250,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 			badge,
 			actions,
 			disposables,
+			elementDisposables,
 			contextKeyService: contextKeyServiceMain
 		};
 	}
@@ -265,9 +269,9 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 
 		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
 
-		fileMatch.onChange(() => {
+		templateData.elementDisposables.add(fileMatch.onChange(() => {
 			IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
-		});
+		}));
 
 		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
 		// be hard to tell whether the node is collapsed or expanded.
@@ -276,6 +280,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFileMatchTemplate): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IFileMatchTemplate): void {
