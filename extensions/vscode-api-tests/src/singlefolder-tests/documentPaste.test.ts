@@ -21,7 +21,7 @@ suite('vscode API - Copy Paste', () => {
 		editor.selections = [new vscode.Selection(0, 1, 0, 6)];
 
 		disposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
-			async prepareDocumentPaste?(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
 				const existing = dataTransfer.get(textPlain);
 				if (existing) {
 					const str = await existing.asString();
@@ -29,9 +29,7 @@ suite('vscode API - Copy Paste', () => {
 					dataTransfer.set(textPlain, new vscode.DataTransferItem(reversed));
 				}
 			}
-		}, {
-			copyMimeTypes: [textPlain],
-		}));
+		}, { copyMimeTypes: [textPlain] }));
 
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		const newDocContent = getNextDocumentText(disposables, doc);
@@ -45,7 +43,7 @@ suite('vscode API - Copy Paste', () => {
 		await vscode.window.showTextDocument(doc);
 
 		disposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
-			async prepareDocumentPaste?(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
 				const existing = dataTransfer.get(textPlain);
 				if (existing) {
 					const str = await existing.asString();
@@ -55,14 +53,12 @@ suite('vscode API - Copy Paste', () => {
 					dataTransfer.set(textPlain, new vscode.DataTransferItem(reversed + eol));
 				}
 			}
-		}, {
-			copyMimeTypes: [textPlain],
-		}));
+		}, { copyMimeTypes: [textPlain] }));
 
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		const newDocContent = getNextDocumentText(disposables, doc);
 		await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
-		assert.strictEqual(await newDocContent, 'cba\nabc');
+		assert.strictEqual(await newDocContent, `cba${doc.eol}abc`);
 	}));
 
 	test('Copy with multiple selections should get all selections', usingDisposables(async (disposables) => {
@@ -76,23 +72,66 @@ suite('vscode API - Copy Paste', () => {
 		];
 
 		disposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
-			async prepareDocumentPaste?(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+			async prepareDocumentPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
 				const existing = dataTransfer.get(textPlain);
 				if (existing) {
 					const selections = ranges.map(range => document.getText(range));
 					dataTransfer.set(textPlain, new vscode.DataTransferItem(`(${ranges.length})${selections.join(' ')}`));
 				}
 			}
-		}, {
-			copyMimeTypes: [textPlain],
-		}));
+		}, { copyMimeTypes: [textPlain] }));
 
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		editor.selections = [new vscode.Selection(0, 0, 0, 0)];
 		const newDocContent = getNextDocumentText(disposables, doc);
 		await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
 
-		assert.strictEqual(await newDocContent, '(2)111 333111\n222\n333');
+		assert.strictEqual(await newDocContent, `(2)111 333111${doc.eol}222${doc.eol}333`);
+	}));
+
+	test('Earlier invoked copy providers should win when writing values', usingDisposables(async (disposables) => {
+		const file = await createRandomFile('abc');
+		const doc = await vscode.workspace.openTextDocument(file);
+
+		const editor = await vscode.window.showTextDocument(doc);
+		editor.selections = [new vscode.Selection(0, 0, 0, 3)];
+
+		const callOrder: string[] = [];
+		const a_id = 'a';
+		const b_id = 'b';
+
+		let providerAResolve: () => void;
+		const providerAFinished = new Promise<void>(resolve => providerAResolve = resolve);
+
+		disposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
+			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+				callOrder.push(a_id);
+				dataTransfer.set(textPlain, new vscode.DataTransferItem('a'));
+				providerAResolve();
+			}
+		}, { copyMimeTypes: [textPlain] }));
+
+		// Later registered providers will be called first
+		disposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
+			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+				callOrder.push(b_id);
+
+				// Wait for the first provider to finish even though we were called first.
+				// This tests that resulting order does not depend on the order the providers
+				// return in.
+				await providerAFinished;
+
+				dataTransfer.set(textPlain, new vscode.DataTransferItem('b'));
+			}
+		}, { copyMimeTypes: [textPlain] }));
+
+		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
+		const newDocContent = getNextDocumentText(disposables, doc);
+		await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+		assert.strictEqual(await newDocContent, 'b');
+
+		// Confirm provider call order is what we expected
+		assert.deepStrictEqual(callOrder, [b_id, a_id]);
 	}));
 });
 
