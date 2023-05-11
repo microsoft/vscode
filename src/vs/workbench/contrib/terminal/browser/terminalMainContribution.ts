@@ -55,7 +55,7 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 
 						const primaryBackend = terminalService.getPrimaryBackend();
 						if (!primaryBackend) {
-							throw new Error('No terminal primaty backend');
+							throw new Error('No terminal primary backend');
 						}
 
 						const attachPersistentProcess = await primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
