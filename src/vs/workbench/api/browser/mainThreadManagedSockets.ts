@@ -10,7 +10,7 @@ import { ManagedRemoteConnection, RemoteConnectionType } from 'vs/platform/remot
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteSocketFactoryService, ISocketFactory } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ISocket, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { makeRawSocketHeaders, socketRawEndHeaderSequence } from 'vs/platform/remote/common/managedSocket';
 
 @extHostNamedCustomer(MainContext.MainThreadManagedSockets)
@@ -30,7 +30,7 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 
 	async $registerSocketFactory(socketFactoryId: number): Promise<void> {
 		const that = this;
-		const scoketFactory = new class implements ISocketFactory<RemoteConnectionType.Managed> {
+		const socketFactory = new class implements ISocketFactory<RemoteConnectionType.Managed> {
 
 			supports(connectTo: ManagedRemoteConnection): boolean {
 				return (connectTo.id === socketFactoryId);
@@ -65,7 +65,7 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 				});
 			}
 		};
-		this._registrations.set(socketFactoryId, this._remoteSocketFactoryService.register(RemoteConnectionType.Managed, scoketFactory));
+		this._registrations.set(socketFactoryId, this._remoteSocketFactoryService.register(RemoteConnectionType.Managed, socketFactory));
 
 	}
 
@@ -91,7 +91,7 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 	}
 }
 
-interface RemoteSocketHalf {
+export interface RemoteSocketHalf {
 	onData: Emitter<VSBuffer>;
 	onClose: Emitter<SocketCloseEvent>;
 	onEnd: Emitter<void>;
@@ -103,11 +103,7 @@ export class ManagedSocket extends Disposable implements ISocket {
 		proxy: ExtHostManagedSocketsShape,
 		path: string, query: string, debugLabel: string,
 
-		half: {
-			onClose: Emitter<SocketCloseEvent>;
-			onData: Emitter<VSBuffer>;
-			onEnd: Emitter<void>;
-		}
+		half: RemoteSocketHalf
 	): Promise<ManagedSocket> {
 		const socket = new ManagedSocket(socketId, proxy, debugLabel, half.onClose, half.onData, half.onEnd);
 
@@ -115,9 +111,28 @@ export class ManagedSocket extends Disposable implements ISocket {
 
 		const d = new DisposableStore();
 		return new Promise<ManagedSocket>((resolve, reject) => {
+			let dataSoFar: VSBuffer | undefined;
 			d.add(socket.onData(d => {
-				if (d.indexOf(socketRawEndHeaderSequence) !== -1) {
-					resolve(socket);
+				if (!dataSoFar) {
+					dataSoFar = d;
+				} else {
+					dataSoFar = VSBuffer.concat([dataSoFar, d], dataSoFar.byteLength + d.byteLength);
+				}
+
+				const index = dataSoFar.indexOf(socketRawEndHeaderSequence);
+				if (index === -1) {
+					return;
+				}
+
+				resolve(socket);
+				// pause data events until the socket consumer is hooked up. We may
+				// immediately emit remaining data, but if not there may still be
+				// microtasks queued which would fire data into the abyss.
+				socket.pauseData();
+
+				const rest = dataSoFar.slice(index + socketRawEndHeaderSequence.byteLength);
+				if (rest.byteLength) {
+					half.onData.fire(rest);
 				}
 			}));
 
@@ -126,7 +141,14 @@ export class ManagedSocket extends Disposable implements ISocket {
 		}).finally(() => d.dispose());
 	}
 
-	public onData: Event<VSBuffer>;
+	private readonly pausableDataEmitter = this._register(new PauseableEmitter<VSBuffer>());
+
+	public onData: Event<VSBuffer> = (...args) => {
+		if (this.pausableDataEmitter.isPaused) {
+			queueMicrotask(() => this.pausableDataEmitter.resume());
+		}
+		return this.pausableDataEmitter.event(...args);
+	};
 	public onClose: Event<SocketCloseEvent>;
 	public onEnd: Event<void>;
 
@@ -144,9 +166,17 @@ export class ManagedSocket extends Disposable implements ISocket {
 		onEndEmitter: Emitter<void>,
 	) {
 		super();
+
+		this._register(onDataEmitter);
+		this._register(onDataEmitter.event(data => this.pausableDataEmitter.fire(data)));
+
 		this.onClose = this._register(onCloseEmitter).event;
-		this.onData = this._register(onDataEmitter).event;
 		this.onEnd = this._register(onEndEmitter).event;
+	}
+
+	/** Pauses data events until a new listener comes in onData() */
+	pauseData() {
+		this.pausableDataEmitter.pause();
 	}
 
 	write(buffer: VSBuffer): void {

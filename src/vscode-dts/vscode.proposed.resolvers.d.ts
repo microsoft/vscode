@@ -31,9 +31,9 @@ declare module 'vscode' {
 		onDidClose: Event<Error | undefined>;
 		onDidEnd: Event<void>;
 
-		dataHandler: (data: Uint8Array) => void;
-		endHandler: () => void;
-		drainHandler?: () => void;
+		send: (data: Uint8Array) => void;
+		end: () => void;
+		drain?: () => Thenable<void>;
 	}
 
 	export class ManagedResolvedAuthority {

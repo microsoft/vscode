@@ -71,19 +71,19 @@ export class ExtHostManagedSockets implements IExtHostManagedSockets {
 	}
 
 	$remoteSocketWrite(socketId: number, buffer: VSBuffer): void {
-		this._managedRemoteSockets.get(socketId)?.actual.dataHandler(buffer.buffer);
+		this._managedRemoteSockets.get(socketId)?.actual.send(buffer.buffer);
 	}
 
 	$remoteSocketEnd(socketId: number): void {
 		const socket = this._managedRemoteSockets.get(socketId);
 		if (socket) {
-			socket.actual.endHandler();
+			socket.actual.end();
 			socket.dispose();
 		}
 	}
 
-	$remoteSocketDrain(socketId: number): Promise<void> {
-		return this._managedRemoteSockets.get(socketId)?.actual.drainHandler?.() ?? Promise.resolve();
+	async $remoteSocketDrain(socketId: number): Promise<void> {
+		await this._managedRemoteSockets.get(socketId)?.actual.drain?.();
 	}
 }
 

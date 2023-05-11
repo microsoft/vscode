@@ -196,8 +196,8 @@ export function activate(context: vscode.ExtensionContext) {
 						onDidReceiveMessage: dataEmitter.event,
 						onDidClose: closeEmitter.event,
 						onDidEnd: endEmitter.event,
-						dataHandler: d => remoteSocket.write(d),
-						endHandler: () => remoteSocket.end(),
+						send: d => remoteSocket.write(d),
+						end: () => remoteSocket.end(),
 					};
 				}, connectionToken));
 			}
