@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { deepClone, equals } from 'vs/base/common/objects';
+import { equals } from 'vs/base/common/objects';
 import { isAbsolute } from 'vs/base/common/path';
 import { Emitter } from 'vs/base/common/event';
 import { relativePath } from 'vs/base/common/resources';
@@ -64,11 +64,11 @@ export class ResourceGlobMatcher extends Disposable {
 			const currentExpression = this.mapFolderToConfiguredExpression.get(folderUriStr);
 
 			if (newExpression) {
-				if (!currentExpression || !equals(currentExpression.expression, newExpression)) {
+				if (!currentExpression || !equals(currentExpression.expression, newExpression.expression)) {
 					changed = true;
 
-					this.mapFolderToParsedExpression.set(folderUriStr, parse(newExpression));
-					this.mapFolderToConfiguredExpression.set(folderUriStr, this.toConfiguredExpression(newExpression));
+					this.mapFolderToParsedExpression.set(folderUriStr, parse(newExpression.expression));
+					this.mapFolderToConfiguredExpression.set(folderUriStr, newExpression);
 				}
 			} else {
 				if (currentExpression) {
@@ -99,11 +99,11 @@ export class ResourceGlobMatcher extends Disposable {
 		const globalNewExpression = this.doGetExpression(undefined);
 		const globalCurrentExpression = this.mapFolderToConfiguredExpression.get(ResourceGlobMatcher.NO_FOLDER);
 		if (globalNewExpression) {
-			if (!globalCurrentExpression || !equals(globalCurrentExpression.expression, globalNewExpression)) {
+			if (!globalCurrentExpression || !equals(globalCurrentExpression.expression, globalNewExpression.expression)) {
 				changed = true;
 
-				this.mapFolderToParsedExpression.set(ResourceGlobMatcher.NO_FOLDER, parse(globalNewExpression));
-				this.mapFolderToConfiguredExpression.set(ResourceGlobMatcher.NO_FOLDER, this.toConfiguredExpression(globalNewExpression));
+				this.mapFolderToParsedExpression.set(ResourceGlobMatcher.NO_FOLDER, parse(globalNewExpression.expression));
+				this.mapFolderToConfiguredExpression.set(ResourceGlobMatcher.NO_FOLDER, globalNewExpression);
 			}
 		} else {
 			if (globalCurrentExpression) {
@@ -119,19 +119,20 @@ export class ResourceGlobMatcher extends Disposable {
 		}
 	}
 
-	private doGetExpression(resource: URI | undefined): IExpression | undefined {
+	private doGetExpression(resource: URI | undefined): IConfiguredExpression | undefined {
 		const expression = this.getExpression(resource);
-		if (expression && Object.keys(expression).length > 0) {
-			return expression;
+		if (!expression) {
+			return undefined;
 		}
 
-		return undefined;
-	}
+		const keys = Object.keys(expression);
+		if (keys.length === 0) {
+			return undefined;
+		}
 
-	private toConfiguredExpression(expression: IExpression): IConfiguredExpression {
 		return {
-			expression: deepClone(expression),
-			hasAbsolutePath: Object.keys(expression).some(key => expression[key] === true && isAbsolute(key))
+			expression,
+			hasAbsolutePath: keys.some(key => expression[key] === true && isAbsolute(key))
 		};
 	}
 
