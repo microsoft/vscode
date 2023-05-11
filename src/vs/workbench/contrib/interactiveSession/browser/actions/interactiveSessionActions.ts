@@ -157,7 +157,9 @@ export function registerInteractiveSessionActions() {
 			if (!widget) {
 				return;
 			}
-			widget.acceptInput('To go back to the interactive editor input, press tab or escape.\n\n To access the chat response, use Ctrl or Cmd and Up Arrow and then arrow keys to navigate prior requests/responses.\n\n Return to the interactive input via Ctrl or Cmd and Down Arrow.', true);
+
+			const helpText = 'To go back to the interactive editor input, press tab or escape.\n\n To access the chat response, use Ctrl or Cmd and Up Arrow and then arrow keys to navigate prior requests/responses.\n\n Return to the interactive input via Ctrl or Cmd and Down Arrow.';
+			widget.acceptInput(helpText, true);
 
 			const domNode = withNullAsUndefined(inputEditor.getDomNode());
 			if (!domNode) {
@@ -166,8 +168,11 @@ export function registerInteractiveSessionActions() {
 			addStandardDisposableListener(domNode, 'keydown', e => {
 				if (e.keyCode === KeyCode.Escape && editorUri) {
 					inputEditor.setPosition(cachedPosition!);
-					widget.acceptInput(cachedInput, true);
-					widget.focusInput();
+					inputEditor.updateOptions({ readOnly: false });
+					if (inputEditor.getValue() === helpText) {
+						widget.acceptInput(cachedInput, true);
+						widget.focusInput();
+					}
 				}
 			});
 		}
