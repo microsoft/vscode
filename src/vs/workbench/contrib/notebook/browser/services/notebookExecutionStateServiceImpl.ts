@@ -24,7 +24,7 @@ import { EditResponse, IInteractiveEditorSessionService, Session } from 'vs/work
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/model';
 
