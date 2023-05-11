@@ -13,6 +13,7 @@ import { assertType } from 'vs/base/common/types';
 import 'vs/css!./interactiveEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -121,17 +122,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	getWidgetPosition(): Position | undefined {
 		return this._zone.position;
-	}
-
-	private _getMode(): EditMode {
-		return this._configurationService.getValue('interactiveEditor.editMode');
-	}
-
-	private get _activeSession(): Session | undefined {
-		if (!this._editor.hasModel()) {
-			return undefined;
-		}
-		return this._interactiveEditorSessionService.retrieveSession(this._editor, this._editor.getModel().uri);
 	}
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
