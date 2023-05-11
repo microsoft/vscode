@@ -2607,13 +2607,34 @@ export class DataTransferItem implements vscode.DataTransferItem {
 		return undefined;
 	}
 
-	public readonly id: string;
-
 	constructor(
 		public readonly value: any,
-		id?: string,
-	) {
-		this.id = id ?? generateUuid();
+	) { }
+}
+
+/**
+ * A data transfer item that has been created by VS Code instead of by a extension.
+ *
+ * Intentionally not exported to extensions.
+ */
+export class InternalDataTransferItem extends DataTransferItem { }
+
+/**
+ * A data transfer item for a file.
+ *
+ * Intentionally not exported to extensions as only we can create these.
+ */
+export class InternalFileDataTransferItem extends InternalDataTransferItem {
+
+	readonly #file: vscode.DataTransferFile;
+
+	constructor(file: vscode.DataTransferFile) {
+		super('');
+		this.#file = file;
+	}
+
+	override asFile() {
+		return this.#file;
 	}
 }
 
@@ -2688,6 +2709,8 @@ export class DataTransfer implements vscode.DataTransfer {
 
 @es5ClassCompat
 export class DocumentDropEdit {
+	id: string | undefined;
+
 	insertText: string | SnippetString;
 
 	additionalEdit?: WorkspaceEdit;
@@ -2699,13 +2722,16 @@ export class DocumentDropEdit {
 
 @es5ClassCompat
 export class DocumentPasteEdit {
+	id: string;
+
 	label: string;
 
 	insertText: string | SnippetString;
 
 	additionalEdit?: WorkspaceEdit;
 
-	constructor(insertText: string | SnippetString, label: string) {
+	constructor(insertText: string | SnippetString, id: string, label: string) {
+		this.id = id;
 		this.label = label;
 		this.insertText = insertText;
 	}

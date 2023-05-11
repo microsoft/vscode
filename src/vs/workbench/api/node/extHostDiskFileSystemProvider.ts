@@ -8,6 +8,7 @@ import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileS
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { FilePermission } from 'vs/platform/files/common/files';
 
 export class ExtHostDiskFileSystemProvider {
 
@@ -29,8 +30,16 @@ class DiskFileSystemProviderAdapter implements vscode.FileSystemProvider {
 
 	constructor(private readonly logService: ILogService) { }
 
-	stat(uri: vscode.Uri): Promise<vscode.FileStat> {
-		return this.impl.stat(uri);
+	async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
+		const stat = await this.impl.stat(uri);
+
+		return {
+			type: stat.type,
+			ctime: stat.ctime,
+			mtime: stat.mtime,
+			size: stat.size,
+			permissions: stat.permissions === FilePermission.Readonly ? 1 : undefined
+		};
 	}
 
 	readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {

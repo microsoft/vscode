@@ -59,11 +59,16 @@ interface ITerminalData {
 	group?: string;
 }
 
+interface IInstanceCount {
+	count: number;
+}
+
 interface IActiveTerminalData {
 	terminal?: ITerminalInstance;
 	task: Task;
 	promise: Promise<ITaskSummary>;
 	state?: TaskEventKind;
+	count: IInstanceCount;
 }
 
 interface IReconnectionTaskData {
@@ -74,25 +79,6 @@ interface IReconnectionTaskData {
 }
 
 const ReconnectionType = 'Task';
-
-class InstanceManager {
-	private _currentInstances: number = 0;
-	private _counter: number = 0;
-
-	addInstance() {
-		this._currentInstances++;
-		this._counter++;
-	}
-	removeInstance() {
-		this._currentInstances--;
-	}
-	get instances() {
-		return this._currentInstances;
-	}
-	get counter() {
-		return this._counter;
-	}
-}
 
 class VariableResolver {
 	private static _regex = /\$\{(.*?)\}/g;
@@ -197,7 +183,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	};
 
 	private _activeTasks: IStringDictionary<IActiveTerminalData>;
-	private _instances: IStringDictionary<InstanceManager>;
 	private _busyTasks: IStringDictionary<Task>;
 	private _terminals: IStringDictionary<ITerminalData>;
 	private _idleTaskTerminals: LinkedMap<string, string>;
@@ -256,7 +241,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		super();
 
 		this._activeTasks = Object.create(null);
-		this._instances = Object.create(null);
 		this._busyTasks = Object.create(null);
 		this._terminals = Object.create(null);
 		this._idleTaskTerminals = new LinkedMap<string, string>();
@@ -285,21 +269,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		task = task.clone(); // A small amount of task state is stored in the task (instance) and tasks passed in to run may have that set already.
-		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
-		const validInstance = !this._instances[recentTaskKey] || this._instances[recentTaskKey].instances < ((task.runOptions && task.runOptions.instanceLimit) ?? 0);
-		const instance = this._instances[recentTaskKey] ? this._instances[recentTaskKey].instances : 0;
+		const instances = InMemoryTask.is(task) || this._isTaskEmpty(task) ? [] : this._getInstances(task);
+		const validInstance = instances.length < ((task.runOptions && task.runOptions.instanceLimit) ?? 1);
+		const instance = instances[0]?.count?.count ?? 0;
 		this._currentTask = new VerifiedTask(task, resolver, trigger);
 		if (instance > 0) {
-			task.instance = this._instances[recentTaskKey].counter;
+			task.instance = instance;
 		}
-		const lastTaskInstance = this.getLastInstance(task);
-		const terminalData = lastTaskInstance ? this._activeTasks[lastTaskInstance.getMapKey()] : undefined;
 		if (!validInstance) {
-			if (terminalData && terminalData.promise) {
-				this._lastTask = this._currentTask;
-				return { kind: TaskExecuteKind.Active, task: terminalData.task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
-			}
-			throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+			const terminalData = instances[instances.length - 1];
+			this._lastTask = this._currentTask;
+			return { kind: TaskExecuteKind.Active, task: terminalData.task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
 		}
 
 		try {
@@ -307,12 +287,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			executeResult.promise.then(summary => {
 				this._lastTask = this._currentTask;
 			});
-			if (InMemoryTask.is(task) || !this._isTaskEmpty(task)) {
-				if (!this._instances[recentTaskKey]) {
-					this._instances[recentTaskKey] = new InstanceManager();
-				}
-				this._instances[recentTaskKey].addInstance();
-			}
 			return executeResult;
 		} catch (error) {
 			if (error instanceof TaskError) {
@@ -438,14 +412,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		});
 	}
 
-	private _removeInstances(task: Task) {
-		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
-		if (this._instances[recentTaskKey]) {
-			this._instances[recentTaskKey].removeInstance();
-			if (this._instances[recentTaskKey].instances === 0) {
-				delete this._instances[recentTaskKey];
-			}
-		}
+	private _getInstances(task: Task): IActiveTerminalData[] {
+		const recentKey = task.getRecentlyUsedKey();
+		return Object.values(this._activeTasks).filter(
+			(value) => recentKey && recentKey === value.task.getRecentlyUsedKey());
 	}
 
 	private _removeFromActiveTasks(task: Task | string): void {
@@ -455,7 +425,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return;
 		}
 		delete this._activeTasks[key];
-		this._removeInstances(taskToRemove.task);
 	}
 
 	private _fireTaskEvent(event: ITaskEvent) {
@@ -551,8 +520,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						} else {
 							taskResult = encounteredTasks.get(commonKey);
 							if (!taskResult) {
-								const key = dependencyTask.getMapKey();
-								taskResult = this._activeTasks[key] ? this._getDependencyPromise(this._activeTasks[key]) : undefined;
+								const activeTask = this._activeTasks[dependencyTask.getMapKey()] ?? this._getInstances(dependencyTask).pop();
+								taskResult = activeTask && this._getDependencyPromise(activeTask);
 							}
 						}
 						if (!taskResult) {
@@ -578,36 +547,30 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 			}
 
-			if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
-				return Promise.all(promises).then((summaries): Promise<ITaskSummary> | ITaskSummary => {
-					for (const summary of summaries) {
-						if (summary.exitCode !== 0) {
-							this._removeInstances(task);
-							return { exitCode: summary.exitCode };
-						}
+			return Promise.all(promises).then((summaries): Promise<ITaskSummary> | ITaskSummary => {
+				for (const summary of summaries) {
+					if (summary.exitCode !== 0) {
+						return { exitCode: summary.exitCode };
 					}
+				}
+				if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
 					if (this._isRerun) {
 						return this._reexecuteCommand(task, trigger, alreadyResolved!);
 					} else {
 						return this._executeCommand(task, trigger, alreadyResolved!);
 					}
-				});
-			} else {
-				return Promise.all(promises).then((summaries): ITaskSummary => {
-					for (const summary of summaries) {
-						if (summary.exitCode !== 0) {
-							return { exitCode: summary.exitCode };
-						}
-					}
-					return { exitCode: 0 };
-				});
-			}
+				}
+				return { exitCode: 0 };
+			});
 		}).finally(() => {
 			if (this._activeTasks[mapKey] === activeTask) {
 				delete this._activeTasks[mapKey];
 			}
 		});
-		const activeTask = { task, promise };
+		const lastInstance = this._getInstances(task).pop();
+		const count = lastInstance?.count ?? { count: 0 };
+		count.count++;
+		const activeTask = { task, promise, count };
 		this._activeTasks[mapKey] = activeTask;
 		return promise;
 	}

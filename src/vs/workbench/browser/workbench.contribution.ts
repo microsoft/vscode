@@ -317,6 +317,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.localHistory.exclude': {
 				'type': 'object',
+				'patternProperties': {
+					'.*': { 'type': 'boolean' }
+				},
 				'markdownDescription': localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
@@ -697,7 +700,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				},
 				'default': [],
 				'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
-				'included': isWindows,
+				'included': isWeb ? true /* web maybe connected to a windows machine */ : isWindows,
 				'scope': ConfigurationScope.MACHINE
 			}
 		}
