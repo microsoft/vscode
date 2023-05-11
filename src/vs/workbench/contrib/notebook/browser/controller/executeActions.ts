@@ -29,7 +29,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IInteractiveEditorRequest, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, IInteractiveEditorRequest, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 
@@ -418,7 +418,10 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			precondition: ContextKeyExpr.or(executeThisCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
-				when: NOTEBOOK_CELL_LIST_FOCUSED,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_CELL_LIST_FOCUSED,
+					CTX_INTERACTIVE_EDITOR_FOCUSED.negate()
+				),
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			},
