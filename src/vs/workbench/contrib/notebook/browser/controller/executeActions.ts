@@ -6,10 +6,6 @@
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -29,9 +25,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IInteractiveEditorRequest, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -785,55 +780,18 @@ registerAction2(class FixCellErrorction extends NotebookCellAction<ICellRange> {
 			try {
 				err = <ErrorLike>JSON.parse(textDecoder.decode(output.data.buffer));
 
-				if (!err.message) {
-					return;
-				}
-				const textModel = context.notebookEditor.activeCodeEditor?.getModel() as ITextModel | null;
-
-				if (!textModel) {
+				if (!err.name && !err.message) {
 					return;
 				}
 
-				const interactiveEditorService = accessor.get(IInteractiveEditorService);
-				const provider = Iterable.first(interactiveEditorService.getAllProvider());
-				if (!provider) {
-					return;
-				}
-
+				const errString = [err.name, err.message].filter(Boolean).join(': ');
 				context.notebookEditor.showProgress();
 
-				const _ctsSession: CancellationTokenSource = new CancellationTokenSource();
-
-				const range = textModel.getFullModelRange();
-				const selection: ISelection = {
-					selectionStartLineNumber: range.startLineNumber,
-					selectionStartColumn: range.startColumn,
-					positionLineNumber: range.endLineNumber,
-					positionColumn: range.endColumn
-				};
-
-				const session = await provider.prepareInteractiveEditorSession(textModel, selection, _ctsSession.token);
-
-				if (!session) {
-					context.notebookEditor.hideProgress();
-					return;
-				}
-
-				const request: IInteractiveEditorRequest = {
-					prompt: `/fix ${err.message}`,
-					selection: selection,
-					wholeRange: textModel.getFullModelRange()
-				};
-
-				const reply = await provider.provideResponse(session, request, _ctsSession.token);
-
-				if (reply && reply.type === 'editorEdit') {
-					textModel.pushStackElement();
-					const edits = reply.edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-					textModel.pushEditOperations(null, edits, () => null);
-					textModel.pushStackElement();
-				}
-
+				const commandService = accessor.get(ICommandService);
+				await commandService.executeCommand('interactiveEditor.start', {
+					autoSend: true,
+					message: `/fix ${errString}`,
+				});
 				context.notebookEditor.hideProgress();
 			} catch (e) {
 				console.log(e);
