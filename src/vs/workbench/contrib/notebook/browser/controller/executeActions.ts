@@ -32,6 +32,10 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IInteractiveEditorRequest, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isEqual } from 'vs/base/common/resources';
+import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
+import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/services/notebookExecutionStateServiceImpl';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -203,12 +207,43 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService) as NotebookExecutionStateService;
 
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		}
 
-		return runCell(editorGroupsService, context);
+		if (!context.notebookEditor.hasModel()) {
+			return;
+		}
+
+		const targetCell = (context.cell ?? context.selectedCells?.[0]);
+
+		if (!targetCell) {
+			return;
+		}
+
+		let foundEditor: ICodeEditor | undefined = undefined;
+		for (const [, codeEditor] of context.notebookEditor.codeEditors) {
+			if (isEqual(codeEditor.getModel()?.uri, targetCell.uri)) {
+				foundEditor = codeEditor;
+				break;
+			}
+		}
+
+		if (!foundEditor) {
+			return runCell(editorGroupsService, context);
+		}
+
+		const controller = InteractiveEditorController.get(foundEditor);
+		if (!controller || !controller.activeSession) {
+			return runCell(editorGroupsService, context);
+		}
+
+		// there is an active interactive session, track the text buffer after successful execution
+		await runCell(editorGroupsService, context);
+
+		notebookExecutionStateService.trackNotebookCellLastRunTextBuffer(context.notebookEditor.textModel, targetCell.model, controller.activeSession);
 	}
 });
 

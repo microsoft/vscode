@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -13,12 +13,20 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookExecutionState, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IExecutionStateChangedEvent, IFailedCellInfo, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { EditResponse, IInteractiveEditorSessionService, Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { IModelService } from 'vs/editor/common/services/model';
 
 export class NotebookExecutionStateService extends Disposable implements INotebookExecutionStateService {
 	declare _serviceBrand: undefined;
@@ -39,7 +47,10 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IModelService private readonly _modelService: IModelService,
+		@IInteractiveEditorSessionService private readonly _interactiveEditorService: IInteractiveEditorSessionService,
 	) {
 		super();
 	}
@@ -269,6 +280,51 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 				});
 			}
 		});
+	}
+
+	private readonly _textbufferEditingMapping = new ResourceMap<Map<number, IDisposable>>();
+
+	trackNotebookCellLastRunTextBuffer(notebook: NotebookTextModel, cell: NotebookCellTextModel, session: Session) {
+		const notebookMapping = this._textbufferEditingMapping.get(notebook.uri);
+		if (notebookMapping) {
+			const existing = notebookMapping.get(cell.handle);
+			if (existing) {
+				existing.dispose();
+			}
+			notebookMapping.set(cell.handle, this._trackCellLastRunTextBuffer(cell, session));
+		} else {
+			const newMap = new Map<number, IDisposable>();
+			newMap.set(cell.handle, this._trackCellLastRunTextBuffer(cell, session));
+			this._textbufferEditingMapping.set(notebook.uri, newMap);
+		}
+	}
+
+	private _trackCellLastRunTextBuffer(cell: NotebookCellTextModel, session: Session): IDisposable {
+		const sessionDisposables = new DisposableStore();
+		if (session.lastExchange && session.lastExchange.response instanceof EditResponse) {
+
+			let textBufferFactory0: ITextBufferFactory | null = createTextBufferFactoryFromSnapshot(cell.textBuffer.createSnapshot(false));
+
+			sessionDisposables.add(this._interactiveEditorService.onDidReleaseSession(async s => {
+				if (s === session && textBufferFactory0) {
+					const { modelN } = session;
+					const originalModel = this._modelService.createModel(textBufferFactory0, null);
+					const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: originalModel.getValue() }]);
+
+					if (edits) {
+						const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));
+						modelN.pushEditOperations(null, operations, () => null);
+					}
+				}
+			}));
+
+
+			sessionDisposables.add(toDisposable(() => {
+				textBufferFactory0 = null;
+			}));
+		}
+
+		return sessionDisposables;
 	}
 
 	override dispose(): void {

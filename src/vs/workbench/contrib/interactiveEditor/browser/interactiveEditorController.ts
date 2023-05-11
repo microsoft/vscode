@@ -185,6 +185,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		return this._configurationService.getValue('interactiveEditor.editMode');
 	}
 
+	get activeSession(): Session | undefined {
+		return this._activeSession;
+	}
+
 	private get _activeSession(): Session | undefined {
 		if (!this._editor.hasModel()) {
 			return undefined;

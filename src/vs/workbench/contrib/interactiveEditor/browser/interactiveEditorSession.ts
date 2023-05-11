@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isEqual } from 'vs/base/common/resources';
+import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
@@ -170,6 +171,7 @@ export const IInteractiveEditorSessionService = createDecorator<IInteractiveEdit
 
 export interface IInteractiveEditorSessionService {
 	_serviceBrand: undefined;
+	readonly onDidReleaseSession: Event<Session>;
 
 	retrieveSession(editor: ICodeEditor, uri: URI): Session | undefined;
 
@@ -188,6 +190,9 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 	declare _serviceBrand: undefined;
 
 	private readonly _sessions = new Map<ICodeEditor, ResourceMap<Session>>();
+	private readonly _onDidReleaseSession = new Emitter<Session>();
+	readonly onDidReleaseSession = this._onDidReleaseSession.event;
+
 	private _recordings: Recording[] = [];
 
 	constructor(
@@ -214,6 +219,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 			map.delete(uri);
 			if (map.size === 0) {
 				this._sessions.delete(editor);
+				this._onDidReleaseSession.fire(session);
 			}
 		}
 
