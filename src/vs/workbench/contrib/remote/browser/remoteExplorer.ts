@@ -367,7 +367,7 @@ class OnAutoForwardedAction extends Disposable {
 		return {
 			label: nls.localize('remote.tunnelsView.makePublic', "Make Public"),
 			run: async () => {
-				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
+				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, TunnelCloseReason.Other);
 				return this.remoteExplorerService.forward({
 					remote: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort },
 					local: tunnel.tunnelLocalPort,
