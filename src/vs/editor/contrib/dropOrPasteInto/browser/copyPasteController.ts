@@ -391,6 +391,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				providers.map(provider => provider.provideDocumentPasteEdits(model, selections, dataTransfer, token))
 			).then(coalesce),
 			token);
+		result?.sort((a, b) => b.priority - a.priority);
 		return result ?? [];
 	}
 
