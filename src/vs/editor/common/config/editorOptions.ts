@@ -800,6 +800,11 @@ export interface IDiffEditorBaseOptions {
  * Configuration options for the diff editor.
  */
 export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
 }
 
 /**

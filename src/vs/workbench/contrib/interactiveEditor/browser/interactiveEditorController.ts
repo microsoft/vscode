@@ -202,7 +202,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		this._zone.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._zone.widget.placeholder = this._activeSession.session.placeholder ?? '';
-		this._zone.widget.updateStatus(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
+		this._zone.widget.updateStatus(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 
 		this._sessionStore?.dispose();
 		this._sessionStore = new DisposableStore();
@@ -363,7 +363,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		if (response instanceof EmptyResponse) {
 			// show status message
-			this._zone.widget.updateStatus(localize('empty', "No results, please refine your input and try again."), { classes: ['warn'] });
+			this._zone.widget.updateStatus(localize('empty', "No results, please refine your input and try again"), { classes: ['warn'] });
 			return SessionState.WAIT_FOR_INPUT;
 
 		} else if (response instanceof ErrorResponse) {
