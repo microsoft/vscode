@@ -38,7 +38,7 @@ suite('vscode API - Copy Paste', () => {
 	}));
 
 	test('Copy with empty selection should copy entire line', usingDisposables(async (disposables) => {
-		const file = await createRandomFile('abc');
+		const file = await createRandomFile('abc\ndef');
 		const doc = await vscode.workspace.openTextDocument(file);
 		await vscode.window.showTextDocument(doc);
 
@@ -58,7 +58,7 @@ suite('vscode API - Copy Paste', () => {
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		const newDocContent = getNextDocumentText(disposables, doc);
 		await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
-		assert.strictEqual(await newDocContent, `cba${doc.eol}abc`);
+		assert.strictEqual(await newDocContent, `cba\nabc\ndef`);
 	}));
 
 	test('Copy with multiple selections should get all selections', usingDisposables(async (disposables) => {
@@ -86,11 +86,11 @@ suite('vscode API - Copy Paste', () => {
 		const newDocContent = getNextDocumentText(disposables, doc);
 		await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
 
-		assert.strictEqual(await newDocContent, `(2)111 333111${doc.eol}222${doc.eol}333`);
+		assert.strictEqual(await newDocContent, `(2)111 333111\n222\n333`);
 	}));
 
 	test('Earlier invoked copy providers should win when writing values', usingDisposables(async (disposables) => {
-		const file = await createRandomFile('abc');
+		const file = await createRandomFile('abc\ndef');
 		const doc = await vscode.workspace.openTextDocument(file);
 
 		const editor = await vscode.window.showTextDocument(doc);
@@ -128,7 +128,7 @@ suite('vscode API - Copy Paste', () => {
 		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 		const newDocContent = getNextDocumentText(disposables, doc);
 		await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
-		assert.strictEqual(await newDocContent, 'b');
+		assert.strictEqual(await newDocContent, 'b\ndef');
 
 		// Confirm provider call order is what we expected
 		assert.deepStrictEqual(callOrder, [b_id, a_id]);
