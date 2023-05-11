@@ -337,7 +337,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						padding-left: var(--notebook-output-node-left-padding);
 						box-sizing: border-box;
 						border-top: none;
-						border: 1px solid var(--theme-notebook-output-border);
 					}
 
 					/* markdown */

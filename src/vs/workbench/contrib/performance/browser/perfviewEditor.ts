@@ -24,6 +24,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isWeb } from 'vs/base/common/platform';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class PerfviewContrib {
 
@@ -55,7 +56,8 @@ export class PerfviewInput extends TextResourceEditorInput {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(
 			PerfviewInput.Uri,
@@ -67,7 +69,8 @@ export class PerfviewInput extends TextResourceEditorInput {
 			textFileService,
 			editorService,
 			fileService,
-			labelService
+			labelService,
+			filesConfigurationService
 		);
 	}
 }
