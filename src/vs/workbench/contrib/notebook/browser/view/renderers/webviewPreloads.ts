@@ -94,8 +94,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	let currentRenderOptions = ctx.renderOptions;
 	const settingChange: EmitterLike<RenderOptions> = createEmitter<RenderOptions>();
 
-	let isInputElementFocused: boolean | undefined = undefined;
-
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -147,9 +145,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 
-		isInputElementFocused = !!activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
-
-		if (isInputElementFocused) {
+		if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { hasFocus: true });
 
 			activeElement.addEventListener('onblur', () => {
