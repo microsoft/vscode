@@ -487,7 +487,7 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 (function () {
 
 	// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
-	// See https://github.com/microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
+	// See https://github.com/microsoft/node-native-keymap/blob/88c0b0e5/deps/chromium/keyboard_codes_win.h
 
 	const empty = '';
 	type IMappingEntry = [0 | 1, ScanCode, string, KeyCode, string, number, string, string, string];
