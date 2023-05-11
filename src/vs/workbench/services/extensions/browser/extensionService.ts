@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { StopWatch } from 'vs/base/common/stopwatch';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -16,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -27,7 +26,6 @@ import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, W
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { AbstractExtensionService, IExtensionHostFactory, ResolvedExtensions, checkEnabledAndProposedAPI } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionRunningLocationTracker, filterExtensionDescriptions } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
@@ -42,8 +40,6 @@ import { IUserDataInitializationService } from 'vs/workbench/services/userData/b
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
-
-	private _resolveAuthorityAttempt: number = 0;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -62,7 +58,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteExtensionsScannerService remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -75,7 +71,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			() => this._getExtensions(),
 			instantiationService,
 			remoteAgentService,
-			_remoteAuthorityResolverService,
+			remoteAuthorityResolverService,
 			extensionEnablementService
 		);
 		super(
@@ -96,7 +92,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			logService,
 			remoteAgentService,
 			remoteExtensionsScannerService,
-			lifecycleService
+			lifecycleService,
+			remoteAuthorityResolverService
 		);
 
 		// Initialize installed extensions first and do it only after workbench is ready
@@ -205,93 +202,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
-	// impl
-
-	private async _resolveAuthorityAgain(): Promise<void> {
-		const remoteAuthority = this._environmentService.remoteAuthority;
-		if (!remoteAuthority) {
-			return;
-		}
-
-		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
-		try {
-			const result = await this._resolveAuthorityWithLogging(remoteAuthority);
-			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
-		} catch (err) {
-			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
-		}
-	}
-
-	private async _resolveAuthorityInitial(remoteAuthority: string): Promise<ResolverResult> {
-		const MAX_ATTEMPTS = 5;
-
-		for (let attempt = 1; ; attempt++) {
-			try {
-				return this._resolveAuthorityWithLogging(remoteAuthority);
-			} catch (err) {
-				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
-					// There is no point in retrying if there is no resolver found
-					throw err;
-				}
-
-				if (RemoteAuthorityResolverError.isNotAvailable(err)) {
-					// The resolver is not available and asked us to not retry
-					throw err;
-				}
-
-				if (attempt >= MAX_ATTEMPTS) {
-					// Too many failed attempts, give up
-					throw err;
-				}
-			}
-		}
-	}
-
-	private async _resolveAuthorityWithLogging(remoteAuthority: string): Promise<ResolverResult> {
-		const authorityPrefix = getRemoteAuthorityPrefix(remoteAuthority);
-		const sw = StopWatch.create(false);
-		this._logService.info(`Invoking resolveAuthority(${authorityPrefix})...`);
-		try {
-			performance.mark(`code/willResolveAuthority/${authorityPrefix}`);
-			const result = await this._resolveAuthority(remoteAuthority);
-			performance.mark(`code/didResolveAuthorityOK/${authorityPrefix}`);
-			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority.connectTo}' after ${sw.elapsed()} ms`);
-			return result;
-		} catch (err) {
-			performance.mark(`code/didResolveAuthorityError/${authorityPrefix}`);
-			this._logService.error(`resolveAuthority(${authorityPrefix}) returned an error after ${sw.elapsed()} ms`, err);
-			throw err;
-		}
-	}
-
-	private async _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
-		const localWebWorkerExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalWebWorker);
-		if (localWebWorkerExtensionHosts.length === 0) {
-			// no local process extension hosts
-			throw new Error(`Cannot resolve authority`);
-		}
-
-		this._resolveAuthorityAttempt++;
-		const results = await Promise.all(localWebWorkerExtensionHosts.map(extHost => extHost.resolveAuthority(remoteAuthority, this._resolveAuthorityAttempt)));
-
-		let bestErrorResult: IResolveAuthorityErrorResult | null = null;
-		for (const result of results) {
-			if (result.type === 'ok') {
-				return result.value;
-			}
-			if (!bestErrorResult) {
-				bestErrorResult = result;
-				continue;
-			}
-			const bestErrorIsUnknown = (bestErrorResult.error.code === RemoteAuthorityResolverErrorCode.Unknown);
-			const errorIsUnknown = (result.error.code === RemoteAuthorityResolverErrorCode.Unknown);
-			if (bestErrorIsUnknown && !errorIsUnknown) {
-				bestErrorResult = result;
-			}
-		}
-
-		// we can only reach this if there is an error
-		throw new RemoteAuthorityResolverError(bestErrorResult!.error.message, bestErrorResult!.error.code, bestErrorResult!.error.detail);
+	protected async _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
+		return this._resolveAuthorityOnExtensionHosts(ExtensionHostKind.LocalWebWorker, remoteAuthority);
 	}
 }
 
