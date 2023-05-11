@@ -104,6 +104,7 @@
 	overflow: hidden;
 	padding-left: 10px;
 	margin-left: auto;
+	color: var(--vscode-descriptionForeground);
 }
 
 .monaco-editor .interactive-editor .status .label.hidden {
