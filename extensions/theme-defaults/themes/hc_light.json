@@ -27,7 +27,11 @@
 			}
 		},
 		{
-			"scope": "comment",
+			"name": "Comments",
+			"scope": [
+				"comment",
+				"string.quoted.docstring.multi.python"
+			],
 			"settings": {
 				"foreground": "#515151"
 			}

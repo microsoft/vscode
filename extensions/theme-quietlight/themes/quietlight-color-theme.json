@@ -20,7 +20,8 @@
 			"name": "Comments",
 			"scope": [
 				"comment",
-				"punctuation.definition.comment"
+				"punctuation.definition.comment",
+				"string.quoted.docstring.multi.python"
 			],
 			"settings": {
 				"fontStyle": "italic",

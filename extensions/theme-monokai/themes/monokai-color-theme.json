@@ -118,7 +118,7 @@
 			}
 		},
 		{
-			"name": "Comment",
+			"name": "Comments",
 			"scope": [
 				"comment",
 				"string.quoted.docstring.multi.python"

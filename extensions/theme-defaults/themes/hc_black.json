@@ -43,7 +43,11 @@
 			}
 		},
 		{
-			"scope": "comment",
+			"name": "Comments",
+			"scope": [
+				"comment",
+				"string.quoted.docstring.multi.python"
+			],
 			"settings": {
 				"foreground": "#7ca668"
 			}
