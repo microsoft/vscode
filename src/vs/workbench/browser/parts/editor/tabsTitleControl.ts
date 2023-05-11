@@ -226,11 +226,14 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private updateTabSizingMaxWidth(): void {
-		const options = this.accessor.partOptions;
-		this.tabsContainer?.style.setProperty(
-			'--tab-sizing-max-width',
-			options.tabSizing === 'fixed' ? `${options.tabSizingMaxWidth}px` : ''
-		);
+		if (this.tabsContainer) {
+			const options = this.accessor.partOptions;
+			if (options.tabSizing === 'fixed') {
+				this.tabsContainer.style.setProperty('--tab-sizing-max-width', options.tabSizingMaxWidth + 'px');
+			} else {
+				this.tabsContainer.style.removeProperty('--tab-sizing-max-width');
+			}
+		}
 	}
 
 	private getTabsScrollbarSizing(): number {
