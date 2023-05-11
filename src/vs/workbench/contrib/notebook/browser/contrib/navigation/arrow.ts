@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import { CTX_INTERACTIVE_EDITOR_EDIT_MODE, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, EditMode } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -66,6 +66,7 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
 						),
+						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
 					primary: KeyCode.DownArrow,
 					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, // code cell keybinding, focus inside editor: lower weight to not override suggest widget
@@ -78,7 +79,8 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 						ContextKeyExpr.and(
 							NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
 							NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.isEqualTo(false),
-							NOTEBOOK_CURSOR_NAVIGATION_MODE)
+							NOTEBOOK_CURSOR_NAVIGATION_MODE),
+						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
 					primary: KeyCode.DownArrow,
 					weight: KeybindingWeight.WorkbenchContrib, // markdown keybinding, focus on list: higher weight to override list.focusDown
@@ -101,7 +103,7 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 						),
 						CTX_INTERACTIVE_EDITOR_FOCUSED,
 						CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST,
-						CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)
+						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
 					primary: KeyCode.DownArrow,
 					weight: KeybindingWeight.EditorCore
@@ -117,7 +119,7 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 							NOTEBOOK_CURSOR_NAVIGATION_MODE),
 						CTX_INTERACTIVE_EDITOR_FOCUSED,
 						CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST,
-						CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)
+						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
 					primary: KeyCode.DownArrow,
 					weight: KeybindingWeight.EditorCore
@@ -173,6 +175,7 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
 						),
+						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
 					primary: KeyCode.UpArrow,
 					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, // code cell keybinding, focus inside editor: lower weight to not override suggest widget
@@ -186,7 +189,8 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 							NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
 							NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.isEqualTo(false),
 							NOTEBOOK_CURSOR_NAVIGATION_MODE
-						)
+						),
+						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
 					primary: KeyCode.UpArrow,
 					weight: KeybindingWeight.WorkbenchContrib, // markdown keybinding, focus on list: higher weight to override list.focusDown

@@ -99,6 +99,7 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	modifiedAriaLabel: localize('original', 'Original'),
 	diffAlgorithm: 'advanced',
 	readOnly: true,
+	isInEmbeddedEditor: true
 };
 
 export interface InteractiveEditorWidgetViewState {
