@@ -7,7 +7,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { parse, stringify } from 'vs/base/common/marshalling';
-import { isUndefinedOrNull, isObject } from 'vs/base/common/types';
+import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
 
 export enum StorageHint {
 
@@ -240,7 +240,7 @@ export class Storage extends Disposable implements IStorage {
 		}
 
 		// Otherwise, convert to String and store
-		const valueStr = isObject(value) ? stringify(value) : String(value);
+		const valueStr = isObject(value) || Array.isArray(value) ? stringify(value) : String(value);
 
 		// Return early if value already set
 		const currentValue = this.cache.get(key);
