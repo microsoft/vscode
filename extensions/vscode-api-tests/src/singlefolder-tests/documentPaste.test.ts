@@ -9,7 +9,7 @@ import { assertNoRpc, createRandomFile, usingDisposables } from '../utils';
 
 const textPlain = 'text/plain';
 
-suite('vscode API - Copy Paste', () => {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('vscode API - Copy Paste', () => {
 
 	teardown(assertNoRpc);
 
