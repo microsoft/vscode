@@ -5,7 +5,6 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -39,8 +38,6 @@ export class InteractiveSessionEditor extends EditorPane {
 
 	private _memento: Memento | undefined;
 	private _viewState: IViewState | undefined;
-
-	private _modelDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -104,19 +101,9 @@ export class InteractiveSessionEditor extends EditorPane {
 	}
 
 	private updateModel(model: IInteractiveSessionModel): void {
-		this._modelDisposables.clear();
-
 		this._memento = new Memento('interactive-session-editor-' + model.sessionId, this.storageService);
 		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewState;
 		this.widget.setModel(model, { ...this._viewState });
-		this._modelDisposables.add(model.onDidDispose(() => {
-			// TODO go back to swapping out the EditorInput when the session is restarted instead of this listener
-			const newModel = this.interactiveSessionService.startSession(model.providerId, CancellationToken.None);
-			if (newModel) {
-				(this.input as InteractiveSessionEditorInput).sessionId = newModel.sessionId;
-				this.updateModel(newModel);
-			}
-		}));
 	}
 
 	protected override saveState(): void {

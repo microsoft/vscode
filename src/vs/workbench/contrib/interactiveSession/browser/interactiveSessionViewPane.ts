@@ -75,9 +75,6 @@ export class InteractiveSessionViewPane extends ViewPane {
 
 		this._widget.setModel(model, { ...this.viewState });
 		this.viewState.sessionId = model.sessionId;
-		this.modelDisposables.add(model.onDidDispose(() => {
-			this.updateModel();
-		}));
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -110,6 +107,7 @@ export class InteractiveSessionViewPane extends ViewPane {
 	async clear(): Promise<void> {
 		if (this.widget.viewModel) {
 			this.interactiveSessionService.clearSession(this.widget.viewModel.sessionId);
+			this.updateModel();
 		}
 	}
 
