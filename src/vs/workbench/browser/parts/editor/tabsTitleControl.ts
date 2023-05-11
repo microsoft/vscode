@@ -174,9 +174,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.setAttribute('role', 'tablist');
 		this.tabsContainer.draggable = true;
 		this.tabsContainer.classList.add('tabs-container');
-		this.tabsContainer.addEventListener('mouseenter', this.fixTabWidths.bind(this));
-		this.tabsContainer.addEventListener('mouseleave', this.relaxTabWidths.bind(this));
-		this.updateTabSizingMaxWidth();
+		this.updateTabSizing();
 		this._register(Gesture.addTarget(this.tabsContainer));
 
 		// Tabs Scrollbar
@@ -225,16 +223,39 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private updateTabSizingMaxWidth(): void {
+	private updateTabSizing(): void {
 		if (this.tabsContainer) {
 			const options = this.accessor.partOptions;
 			if (options.tabSizing === 'fixed') {
 				this.tabsContainer.style.setProperty('--tab-sizing-max-width', options.tabSizingMaxWidth + 'px');
+				this.tabsContainer.onmouseenter = () => this.fixTabWidths();
+				this.tabsContainer.onmouseleave = () => this.relaxTabWidths();
 			} else {
 				this.tabsContainer.style.removeProperty('--tab-sizing-max-width');
+				this.tabsContainer.onmouseenter = null;
+				this.tabsContainer.onmouseleave = null;
+				this.relaxTabWidths();
 			}
 		}
 	}
+
+	private fixTabWidths() {
+		if (this.accessor.partOptions.tabSizing === 'fixed') {
+			this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+				const { width } = tabContainer.getBoundingClientRect();
+				tabContainer.style.setProperty('--tab-sizing-current-width', width.toFixed(2) + 'px');
+				tabContainer.style.setProperty('--tab-sizing-transition-duration', '0');
+			});
+		}
+	}
+
+	private relaxTabWidths() {
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			tabContainer.style.removeProperty('--tab-sizing-current-width');
+			tabContainer.style.removeProperty('--tab-sizing-transition-duration');
+		});
+	}
+
 
 	private getTabsScrollbarSizing(): number {
 		if (this.accessor.partOptions.titleScrollbarSizing !== 'large') {
@@ -680,7 +701,7 @@ export class TabsTitleControl extends TitleControl {
 		if (oldOptions.tabSizingMaxWidth !== newOptions.tabSizingMaxWidth ||
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
-			this.updateTabSizingMaxWidth();
+			this.updateTabSizing();
 		}
 
 		// Redraw tabs when other options change
@@ -1990,23 +2011,6 @@ export class TabsTitleControl extends TitleControl {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 		return !isCopy || sourceGroup === this.group.id;
-	}
-
-	private fixTabWidths() {
-		if (this.accessor.partOptions.tabSizing === 'fixed') {
-			this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-				const { width } = tabContainer.getBoundingClientRect();
-				tabContainer.style.setProperty('--tab-sizing-current-width', width.toFixed(2) + 'px');
-				tabContainer.style.setProperty('--tab-sizing-transition-duration', '0');
-			});
-		}
-	}
-
-	private relaxTabWidths() {
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			tabContainer.style.removeProperty('--tab-sizing-current-width');
-			tabContainer.style.removeProperty('--tab-sizing-transition-duration');
-		});
 	}
 
 	override dispose(): void {
