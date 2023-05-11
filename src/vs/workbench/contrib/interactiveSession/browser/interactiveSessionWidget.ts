@@ -377,7 +377,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
+	async acceptInput(query?: string | IInteractiveSessionReplyFollowup, noRun?: boolean): Promise<void> {
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
 
@@ -390,10 +390,14 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			}
 
 			const input = query ?? editorValue;
-			const result = await this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
-			if (result) {
-				revealLastElement(this.tree);
-				this.inputPart.acceptInput(query);
+			if (!noRun) {
+				const result = await this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
+				if (result) {
+					revealLastElement(this.tree);
+					this.inputPart.acceptInput(query);
+				}
+			} else {
+				this.inputPart.acceptInput(query, noRun);
 			}
 		}
 	}

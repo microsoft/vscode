@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addStandardDisposableListener } from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
-import { InteractiveAccessibilityHelpWidget } from 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionAccessibilityHelpWidget';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
@@ -142,11 +142,34 @@ export function registerInteractiveSessionActions() {
 		}
 
 		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-			const widget = accessor.get(IInstantiationService).createInstance(InteractiveAccessibilityHelpWidget, editor);
-			// editor.layout({height: 200, width: 200});
-			editor.addOverlayWidget(widget);
-			await widget.show();
-			// editor.layoutOverlayWidget(widget);
+			const widgetService = accessor.get(IInteractiveSessionWidgetService);
+			const inputEditor = widgetService.lastFocusedWidget?.inputEditor;
+			if (!inputEditor) {
+				return;
+			}
+			const cachedInput = inputEditor.getValue();
+			const cachedPosition = inputEditor.getPosition();
+			const editorUri = editor.getModel()?.uri;
+			if (!editorUri) {
+				return;
+			}
+			const widget = widgetService.getWidgetByInputUri(editorUri);
+			if (!widget) {
+				return;
+			}
+			widget.acceptInput('To go back to the interactive editor input, press tab or escape.\n\n To access the chat response, use Ctrl or Cmd and Up Arrow and then arrow keys to navigate prior requests/responses.\n\n Return to the interactive input via Ctrl or Cmd and Down Arrow.', true);
+
+			const domNode = withNullAsUndefined(inputEditor.getDomNode());
+			if (!domNode) {
+				return;
+			}
+			addStandardDisposableListener(domNode, 'keydown', e => {
+				if (e.keyCode === KeyCode.Escape && editorUri) {
+					inputEditor.setPosition(cachedPosition!);
+					widget.acceptInput(cachedInput, true);
+					widget.focusInput();
+				}
+			});
 		}
 	});
 
