@@ -186,6 +186,18 @@ suite('ShellIntegrationAddon', () => {
 			await writeP(xterm, '\x1b]633;D;7\x07');
 			mock.verify();
 		});
+		test('should pass command line sequence to the capability', async () => {
+			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
+			mock.expects('setCommandLine').once().withExactArgs('', false);
+			await writeP(xterm, '\x1b]633;E\x07');
+			mock.verify();
+
+			const mock2 = shellIntegrationAddon.getCommandDetectionMock(xterm);
+			mock2.expects('setCommandLine').twice().withExactArgs('cmd', false);
+			await writeP(xterm, '\x1b]633;E;cmd\x07');
+			await writeP(xterm, '\x1b]633;E;cmd;invalid-nonce\x07');
+			mock2.verify();
+		});
 		test('should not activate capability on the cwd sequence (OSC 633 ; P=Cwd=<cwd> ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 			await writeP(xterm, 'foo');
