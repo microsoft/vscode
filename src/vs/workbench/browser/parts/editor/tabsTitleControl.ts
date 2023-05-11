@@ -1273,6 +1273,7 @@ export class TabsTitleControl extends TitleControl {
 		for (const option of ['fit', 'shrink', 'fixed']) {
 			tabContainer.classList.toggle(`sizing-${option}`, tabSizing === option);
 		}
+
 		tabContainer.classList.toggle('has-icon', options.showIcons && options.hasIcons);
 
 		tabContainer.classList.toggle('sticky', isTabSticky);
