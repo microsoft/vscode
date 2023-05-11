@@ -351,7 +351,13 @@ export class InteractiveEditorFileCreatePreviewWidget extends ZoneWidget {
 		super.create();
 
 		this._title = instaService.createInstance(ResourceLabel, this._elements.title, { supportIcons: true });
-		this._previewEditor = instaService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, { scrollBeyondLastLine: false, stickyScroll: { enabled: false }, readOnly: true, minimap: { enabled: false } }, { isSimpleWidget: true, contributions: [] }, parentEditor);
+		this._previewEditor = instaService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, {
+			scrollBeyondLastLine: false,
+			stickyScroll: { enabled: false },
+			readOnly: true,
+			minimap: { enabled: false },
+			scrollbar: { alwaysConsumeMouseWheel: false },
+		}, { isSimpleWidget: true, contributions: [] }, parentEditor);
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();

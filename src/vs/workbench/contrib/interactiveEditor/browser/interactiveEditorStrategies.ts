@@ -108,7 +108,7 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	override async renderChanges(response: EditResponse, edits: ISingleEditOperation[], changes: LineRangeMapping[]): Promise<void> {
 		if (response.localEdits.length > 0) {
-			this._widget.showEditsPreview(this._session.textModelN, edits, changes);
+			this._widget.showEditsPreview(this._session.textModel0, edits, changes);
 		} else {
 			this._widget.hideEditsPreview();
 		}

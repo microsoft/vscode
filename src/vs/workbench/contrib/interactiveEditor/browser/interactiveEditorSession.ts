@@ -10,18 +10,20 @@ import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/brow
 import { TextEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { isCancellationError } from 'vs/base/common/errors';
 
 export type Recording = {
 	when: Date;
@@ -53,6 +55,7 @@ type TelemetryDataClassification = {
 
 export class Session {
 
+	private _lastInput: string | undefined;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
 	private readonly _teldata: Partial<TelemetryData>;
@@ -64,6 +67,7 @@ export class Session {
 		readonly textModelN: ITextModel,
 		readonly provider: IInteractiveEditorSessionProvider,
 		readonly session: IInteractiveEditorSession,
+		private readonly _wholeRangeMarkerId: string
 	) {
 		this._teldata = {
 			extension: provider.debugName,
@@ -73,6 +77,19 @@ export class Session {
 			undos: '',
 			editMode
 		};
+	}
+
+	addInput(input: string): void {
+		this._lastInput = input;
+	}
+
+	get lastInput() {
+		return this._lastInput;
+	}
+
+	get wholeRange(): Range {
+		return this.textModelN.getDecorationRange(this._wholeRangeMarkerId)!;
+		// return new Range(1, 1, 1, 1);
 	}
 
 	addExchange(exchange: SessionExchange): void {
@@ -96,11 +113,18 @@ export class Session {
 	}
 
 	asRecording(): Recording {
-		return {
+		const result: Recording = {
 			session: this.session,
 			when: this._startTime,
-			exchanges: this._exchange.map(e => ({ prompt: e.prompt, res: e.response.raw }))
+			exchanges: []
 		};
+		for (const exchange of this._exchange) {
+			const response = exchange.response;
+			if (response instanceof MarkdownResponse || response instanceof EditResponse) {
+				result.exchanges.push({ prompt: exchange.prompt, res: response.raw });
+			}
+		}
+		return result;
 	}
 }
 
@@ -108,8 +132,25 @@ export class Session {
 export class SessionExchange {
 	constructor(
 		readonly prompt: string,
-		readonly response: MarkdownResponse | EditResponse
+		readonly response: MarkdownResponse | EditResponse | EmptyResponse | ErrorResponse
 	) { }
+}
+
+export class EmptyResponse {
+
+}
+
+export class ErrorResponse {
+
+	readonly message: string;
+	readonly isCancellation: boolean;
+
+	constructor(
+		readonly error: any
+	) {
+		this.message = toErrorMessage(error, false);
+		this.isCancellation = isCancellationError(error);
+	}
 }
 
 export class MarkdownResponse {
@@ -180,9 +221,9 @@ export const IInteractiveEditorSessionService = createDecorator<IInteractiveEdit
 export interface IInteractiveEditorSessionService {
 	_serviceBrand: undefined;
 
-	getOrCreateSession(editor: IActiveCodeEditor, editMode: EditMode, token: CancellationToken): Promise<Session | undefined>;
+	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
-	retrieveSession(editor: ICodeEditor, uri: URI): Session | undefined;
+	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
 
 	releaseSession(session: Session): void;
 
@@ -212,19 +253,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 	) { }
 
 
-	async getOrCreateSession(editor: IActiveCodeEditor, editMode: EditMode, token: CancellationToken): Promise<Session | undefined> {
-
-		// lookup:
-		const data = this._sessions.get(editor)?.get(editor.getModel().uri);
-		if (data) {
-			this._logService.trace(`[IE] session reuse for ${editor.getId()},  ${data.session.provider.debugName}`);
-			return data.session;
-		}
-
-		return await this._createSession(editor, editMode, token);
-	}
-
-	private async _createSession(editor: IActiveCodeEditor, editMode: EditMode, token: CancellationToken) {
+	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 
 		const provider = Iterable.first(this._interactiveEditorService.getAllProvider());
 		if (!provider) {
@@ -256,7 +285,19 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 		);
 		store.add(textModel0);
 
-		const session = new Session(editMode, editor, textModel0, textModel, provider, raw);
+		let wholeRange = options.wholeRange;
+		if (!wholeRange) {
+			wholeRange = raw.wholeRange ? Range.lift(raw.wholeRange) : editor.getSelection();
+		}
+		if (Range.isEmpty(wholeRange)) {
+			wholeRange = new Range(wholeRange.startLineNumber, 1, wholeRange.endLineNumber, textModel.getLineMaxColumn(wholeRange.endLineNumber));
+		}
+
+		// install a marker for the decoration range
+		const [wholeRangeDecorationId] = textModel.deltaDecorations([], [{ range: wholeRange, options: { description: 'interactiveEditor/session/wholeRange' } }]);
+		store.add(toDisposable(() => textModel.deltaDecorations([wholeRangeDecorationId], [])));
+
+		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeDecorationId);
 
 		// store: editor -> uri -> session
 		let map = this._sessions.get(editor);
@@ -273,17 +314,17 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 	releaseSession(session: Session): void {
 
-		const { editor, textModel0: model0 } = session;
+		const { editor, textModelN } = session;
 
 		// cleanup
 		const map = this._sessions.get(editor);
 		if (map) {
-			const data = map.get(model0.uri);
+			const data = map.get(textModelN.uri);
 			if (data) {
 				data.store.dispose();
 				data.session.session.dispose?.();
 
-				map.delete(model0.uri);
+				map.delete(textModelN.uri);
 			}
 			if (map.size === 0) {
 				this._sessions.delete(editor);
@@ -300,7 +341,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
 	}
 
-	retrieveSession(editor: ICodeEditor, uri: URI): Session | undefined {
+	getSession(editor: ICodeEditor, uri: URI): Session | undefined {
 		return this._sessions.get(editor)?.get(uri)?.session;
 	}
 
