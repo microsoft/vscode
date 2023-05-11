@@ -5,7 +5,7 @@
 
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
-import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
+import * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 import type { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as rendererApi from 'vscode-notebook-renderer';
 
@@ -94,6 +94,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	let currentRenderOptions = ctx.renderOptions;
 	const settingChange: EmitterLike<RenderOptions> = createEmitter<RenderOptions>();
 
+	let isInputElementFocused: boolean | undefined = undefined;
+
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
@@ -137,10 +139,31 @@ async function webviewPreloads(ctx: PreloadContext) {
 			};
 		};
 
+	// check if an input element is focused within the output element
+	const checkOutputInputFocus = () => {
+
+		const activeElement = document.activeElement;
+		if (!activeElement) {
+			return;
+		}
+
+		isInputElementFocused = !!activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
+
+		if (isInputElementFocused) {
+			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { hasFocus: true });
+
+			activeElement.addEventListener('onblur', () => {
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { hasFocus: false });
+			}, { once: true });
+		}
+	};
+
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
 			return;
 		}
+
+		checkOutputInputFocus();
 
 		for (const node of event.composedPath()) {
 			if (node instanceof HTMLElement && node.classList.contains('output')) {

@@ -183,6 +183,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// throw new Error('Method not implemented.');
 	}
 
+	didFocusOutputInputChange(focus: boolean): void {
+		// noop
+	}
+
 	getScrollTop() {
 		return this._list?.scrollTop ?? 0;
 	}
