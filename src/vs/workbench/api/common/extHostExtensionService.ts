@@ -8,7 +8,7 @@ import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { asPromise, Barrier, IntervalTimer, timeout } from 'vs/base/common/async';
-import { dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -43,6 +43,8 @@ import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -78,8 +80,6 @@ type TelemetryActivationEventFragment = {
 export abstract class AbstractExtHostExtensionService extends Disposable implements ExtHostExtensionServiceShape {
 
 	readonly _serviceBrand: undefined;
-
-	private static remoteSocketIdCounter = 0;
 
 	abstract readonly extensionRuntime: ExtensionRuntime;
 
@@ -120,11 +120,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private _started: boolean;
 	private _isTerminating: boolean = false;
 	private _remoteConnectionData: IRemoteConnectionData | null;
-	private readonly _managedSocketFactories: Map<number, () => Thenable<vscode.ManagedMessagePassing>>;
-	private readonly _managedRemoteSockets: Map<number, {
-		object: vscode.ManagedMessagePassing;
-		disposer: DisposableStore;
-	}>;
 
 	constructor(
 		@IInstantiationService instaService: IInstantiationService,
@@ -137,7 +132,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
 		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
-		@IExtHostLocalizationService extHostLocalizationService: IExtHostLocalizationService
+		@IExtHostLocalizationService extHostLocalizationService: IExtHostLocalizationService,
+		@IExtHostManagedSockets private readonly _extHostManagedSockets: IExtHostManagedSockets,
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -198,8 +194,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._resolvers = Object.create(null);
 		this._started = false;
 		this._remoteConnectionData = this._initData.remote.connectionData;
-		this._managedSocketFactories = new Map();
-		this._managedRemoteSockets = new Map();
 	}
 
 	public getRemoteConnectionData(): IRemoteConnectionData | null {
@@ -800,7 +794,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return { authorityPrefix, resolver: this._resolvers[authorityPrefix] };
 	}
 
-	public async $resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+	public async $resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<Dto<IResolveAuthorityResult>> {
 		const sw = StopWatch.create(false);
 		const prefix = () => `[resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)},${resolveAttempt})][${sw.elapsed()}ms] `;
 		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
@@ -854,11 +848,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					connectionToken: result.connectionToken
 				};
 			} else {
-				const factoryId = AbstractExtHostExtensionService.remoteSocketIdCounter++;
-				this._managedSocketFactories.set(factoryId, result.makeConnection);
+				// The socket factory is identified by the `resolveAttempt`, since that is a number which
+				// always increments and is unique over all resolve() calls in a workbench session.
+				const socketFactoryId = resolveAttempt;
+
+				// There is only on managed socket factory at a time, so we can just overwrite the old one.
+				this._extHostManagedSockets.setFactory(socketFactoryId, result.makeConnection);
+
 				authority = {
 					authority: remoteAuthority,
-					connectTo: new ManagedRemoteConnection(factoryId),
+					connectTo: new ManagedRemoteConnection(socketFactoryId),
 					connectionToken: result.connectionToken
 				};
 			}
@@ -866,7 +865,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			return {
 				type: 'ok',
 				value: {
-					authority,
+					authority: authority as Dto<ResolvedAuthority>,
 					options,
 					tunnelInformation,
 				}
@@ -887,47 +886,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			}
 			throw err;
 		}
-	}
-
-	public async $openRemoteSocket(factoryId: number): Promise<number> {
-		const factory = this._managedSocketFactories.get(factoryId);
-		if (!factory) {
-			throw new Error(`No socket factory with id ${factoryId}`);
-		}
-
-		const id = AbstractExtHostExtensionService.remoteSocketIdCounter++;
-		const socket = await factory();
-		const disposable = new DisposableStore();
-
-		this._managedRemoteSockets.set(id, { object: socket, disposer: disposable });
-		disposable.add(toDisposable(() => this._managedRemoteSockets.delete(id)));
-		disposable.add(socket.onDidEnd(() => {
-			this._mainThreadExtensionsProxy.$onDidRemoteSocketEnd(id);
-			disposable.dispose();
-		}));
-		disposable.add(socket.onDidClose(e => {
-			this._mainThreadExtensionsProxy.$onDidRemoteSocketClose(id, e?.stack ?? e?.message);
-			disposable.dispose();
-		}));
-		disposable.add(socket.onDidReceiveMessage(e => this._mainThreadExtensionsProxy.$onDidRemoteSocketHaveData(id, VSBuffer.wrap(e))));
-
-		return id;
-	}
-
-	public $remoteSocketDrain(id: number): Promise<void> {
-		return this._managedRemoteSockets.get(id)?.object.drainHandler?.() ?? Promise.resolve();
-	}
-
-	public $remoteSocketEnd(id: number): void {
-		const socket = this._managedRemoteSockets.get(id);
-		if (socket) {
-			socket.object.endHandler();
-			socket.disposer.dispose();
-		}
-	}
-
-	public $remoteSocketWrite(id: number, buffer: VSBuffer): void {
-		this._managedRemoteSockets.get(id)?.object.dataHandler(buffer.buffer);
 	}
 
 	public async $getCanonicalURI(remoteAuthority: string, uriComponents: UriComponents): Promise<UriComponents | null> {

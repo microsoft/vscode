@@ -11,15 +11,13 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ISocket, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import * as nls from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ManagedRemoteConnection, RemoteConnectionType, RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteSocketFactoryService, ISocketFactory } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -31,7 +29,6 @@ import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/commo
 import { ActivationKind, ExtensionActivationReason, ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ManagedSocket } from 'vs/workbench/services/remote/common/managedSocket';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -88,13 +85,6 @@ type ExtensionHostStartupEvent = {
 	errorStack?: string;
 };
 
-
-interface RemoteSocketHalf {
-	onData: Emitter<VSBuffer>;
-	onClose: Emitter<SocketCloseEvent>;
-	onEnd: Emitter<void>;
-}
-
 class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 	public readonly onDidExit: Event<[number, string | null]>;
@@ -112,7 +102,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	private readonly _extensionHost: IExtensionHost;
 	private _proxy: Promise<IExtensionHostProxy | null> | null;
 	private _hasStarted = false;
-	private readonly _remoteSockets = new Map<number, RemoteSocketHalf>();
 
 	public get kind(): ExtensionHostKind {
 		return this._extensionHost.runningLocation.kind;
@@ -126,7 +115,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		extensionHost: IExtensionHost,
 		initialActivationEvents: string[],
 		private readonly _internalExtensionService: IInternalExtensionService,
-		@IRemoteSocketFactoryService private readonly _remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -299,23 +287,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 			//#region internal
 			internalExtensionService: this._internalExtensionService,
-			managedSocketCallbacks: {
-				onDidRemoteSocketHaveData: (id, data) => {
-					this._remoteSockets.get(id)?.onData.fire(data);
-				},
-				onDidRemoteSocketEnd: id => {
-					this._remoteSockets.get(id)?.onEnd.fire();
-					this._remoteSockets.delete(id);
-				},
-				onDidRemoteSocketClose: (id, error) => {
-					this._remoteSockets.get(id)?.onClose.fire({
-						type: SocketCloseEventType.NodeSocketCloseEvent,
-						error,
-						hadError: !!error
-					});
-					this._remoteSockets.delete(id);
-				},
-			},
 			_setExtensionHostProxy: (value: IExtensionHostProxy): void => {
 				extensionHostProxy = value;
 			},
@@ -438,10 +409,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			const resolverResult = await proxy.resolveAuthority(remoteAuthority, resolveAttempt);
 			intervalLogger.dispose();
 			if (resolverResult.type === 'ok') {
-				logInfo(`returned ${resolverResult.value.authority}`);
-				if (resolverResult.value.authority.connectTo.type === RemoteConnectionType.Managed) {
-					this.registerManagedSocketFactory(resolverResult.value.authority.connectTo, proxy);
-				}
+				logInfo(`returned ${resolverResult.value.authority.connectTo}`);
 			} else {
 				logError(`returned an error`, resolverResult.error);
 			}
@@ -458,45 +426,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				}
 			};
 		}
-	}
-
-	private registerManagedSocketFactory(messaging: ManagedRemoteConnection, proxy: IExtensionHostProxy) {
-		const that = this;
-		this._remoteSocketFactoryService.register(RemoteConnectionType.Managed, new class implements ISocketFactory<RemoteConnectionType.Managed> {
-
-			supports(connectTo: ManagedRemoteConnection): boolean {
-				return (connectTo.id === messaging.id);
-			}
-
-			connect(connectTo: ManagedRemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
-				return new Promise<ISocket>((resolve, reject) => {
-					if (connectTo.id !== messaging.id) {
-						return reject(new Error('Invalid connectTo'));
-					}
-
-					const factoryId = connectTo.id;
-					proxy.openRemoteSocket(factoryId).then(socketId => {
-						const half: RemoteSocketHalf = {
-							onClose: new Emitter(),
-							onData: new Emitter(),
-							onEnd: new Emitter(),
-						};
-						that._remoteSockets.set(socketId, half);
-
-						ManagedSocket.connect(socketId, proxy, path, query, debugLabel, half)
-							.then(
-								socket => {
-									socket.onDidDispose(() => that._remoteSockets.delete(socketId));
-									resolve(socket);
-								},
-								err => {
-									that._remoteSockets.delete(socketId);
-									reject(err);
-								});
-					}).catch(reject);
-				});
-			}
-		});
 	}
 
 	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null> {

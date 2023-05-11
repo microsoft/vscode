@@ -255,7 +255,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			performance.mark(`code/willResolveAuthority/${authorityPrefix}`);
 			const result = await this._resolveAuthority(remoteAuthority);
 			performance.mark(`code/didResolveAuthorityOK/${authorityPrefix}`);
-			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority}' after ${sw.elapsed()} ms`);
+			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority.connectTo}' after ${sw.elapsed()} ms`);
 			return result;
 		} catch (err) {
 			performance.mark(`code/didResolveAuthorityError/${authorityPrefix}`);
