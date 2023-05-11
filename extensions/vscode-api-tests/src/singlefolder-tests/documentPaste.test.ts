@@ -48,9 +48,8 @@ suite('vscode API - Copy Paste', () => {
 				if (existing) {
 					const str = await existing.asString();
 					// Don't include the trailing new line when reversing
-					const eol = str.match(/\r?\n$/);
-					const reversed = reverseString(str.slice(0, -eol!.length));
-					dataTransfer.set(textPlain, new vscode.DataTransferItem(reversed + eol));
+					const reversed = reverseString(str.slice(0, -1));
+					dataTransfer.set(textPlain, new vscode.DataTransferItem(reversed + '\n'));
 				}
 			}
 		}, { copyMimeTypes: [textPlain] }));
@@ -132,6 +131,44 @@ suite('vscode API - Copy Paste', () => {
 
 		// Confirm provider call order is what we expected
 		assert.deepStrictEqual(callOrder, [b_id, a_id]);
+	}));
+
+	test('Copy providers should not be able to effect the data transfer of another', usingDisposables(async (disposables) => {
+		const file = await createRandomFile('abc\ndef');
+		const doc = await vscode.workspace.openTextDocument(file);
+
+		const editor = await vscode.window.showTextDocument(doc);
+		editor.selections = [new vscode.Selection(0, 0, 0, 3)];
+
+
+		let providerAResolve: () => void;
+		const providerAFinished = new Promise<void>(resolve => providerAResolve = resolve);
+
+		disposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
+			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+				dataTransfer.set(textPlain, new vscode.DataTransferItem('xyz'));
+				providerAResolve();
+			}
+		}, { copyMimeTypes: [textPlain] }));
+
+		disposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
+			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+
+				// Wait for the first provider to finish
+				await providerAFinished;
+
+				// We we access the data transfer here, we should not see changes made by the first provider
+				const entry = dataTransfer.get(textPlain);
+				const str = await entry!.asString();
+				dataTransfer.set(textPlain, new vscode.DataTransferItem(reverseString(str)));
+			}
+		}, { copyMimeTypes: [textPlain] }));
+
+		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
+		const newDocContent = getNextDocumentText(disposables, doc);
+		await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+		assert.strictEqual(await newDocContent, 'cba\ndef');
+
 	}));
 });
 
