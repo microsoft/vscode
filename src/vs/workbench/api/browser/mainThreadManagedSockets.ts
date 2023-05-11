@@ -88,7 +88,6 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 
 	$onDidManagedSocketEnd(socketId: number): void {
 		this._remoteSockets.get(socketId)?.onEnd.fire();
-		this._remoteSockets.delete(socketId);
 	}
 }
 
