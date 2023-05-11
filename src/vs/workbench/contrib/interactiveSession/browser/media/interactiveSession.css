@@ -346,9 +346,7 @@
 }
 
 interactive-session-accessibility-help-widget {
-	position: fixed;
 	z-index: 30;
-	height: 200px;
 }
 
 interactive-session-accessibility-help-widget.hide {

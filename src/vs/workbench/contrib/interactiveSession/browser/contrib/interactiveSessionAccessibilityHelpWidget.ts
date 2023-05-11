@@ -2,55 +2,78 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { addStandardDisposableListener } from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
-export class InteractiveAccessibilityHelpWidget extends CodeEditorWidget {
+export class InteractiveAccessibilityHelpWidget extends Disposable implements IOverlayWidget  {
+	private readonly _domElement: HTMLElement;
+	private _editorWidget?: CodeEditorWidget;
+
 	constructor(
-		domElement: HTMLElement,
-		_options: Readonly<IEditorConstructionOptions>,
-		codeEditorWidgetOptions: ICodeEditorWidgetOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		private readonly _editor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
-		@IInteractiveSessionWidgetService private readonly _widgetService: IInteractiveSessionWidgetService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
-		super(domElement, _options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
-		this._register(this.onKeyDown((e) => {
-			switch (e.keyCode) {
-				case KeyCode.Escape:
-					// On escape, hide the accessible buffer and force focus onto the terminal
-					this.hide();
-					break;
-				case KeyCode.Tab:
-					// On tab or shift+tab, hide the accessible buffer and perform the default tab
-					// behavior
-					this.hide();
-					break;
+		super();
+		this._domElement = document.createElement('div');
+		this._domElement.classList.add('interactive-session-accessibility-help-widget');
+	}
+	async show(): Promise<void> {
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
+		};
+		const editorOptions: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(),
+			lineDecorationsWidth: 6,
+			dragAndDrop: true,
+			cursorWidth: 1,
+			wrappingStrategy: 'advanced',
+			wrappingIndent: 'none',
+			padding: { top: 2, bottom: 2 },
+			quickSuggestions: false,
+			renderWhitespace: 'none',
+			dropIntoEditor: { enabled: true },
+			readOnly: true
+		};
+		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._domElement, editorOptions, codeEditorWidgetOptions));
+		let model = this._editorWidget.getModel();
+		if (model) {
+			model.setValue(`testing\\n1\\2n\\3n
+			\\4n\\
+			5n\\nlfsjdkfjsdlkfjsldkj`);
+		} else {
+			model = await this.getTextModel();
+		}
+
+		this._editorWidget.setModel(model);
+		const layoutInfo = this._editor.getLayoutInfo();
+		this._editor.layout({width: 300, height: 300});
+		this._editorWidget.layout({ width: 300, height: 300 });
+		this._register(addStandardDisposableListener(this._editorWidget.getDomNode()!, 'keydown', (e) => {
+			if (e.keyCode === KeyCode.Escape) {
+				this._editor.layout(layoutInfo);
+				this._editor.focus();
+				this.dispose();
 			}
 		}));
-		this.getDomNode()?.classList.add('interactive-session-accessibility-help-widget');
+	}
+	getDomNode(): HTMLElement {
+		return this._domElement;
+	}
+	getId(): string {
+		return 'interactiveSession';
 	}
 	async getTextModel(): Promise<ITextModel> {
 		const existing = this._modelService.getModel(URI.from({ scheme: 'interactiveSession', path: 'interactiveSession' }));
@@ -61,23 +84,9 @@ export class InteractiveAccessibilityHelpWidget extends CodeEditorWidget {
 		\\4n\\
 		5n\\nlfsjdkfjsdlkfjsldkj`, null, URI.from({ scheme: 'interactiveSession', path: 'interactiveSession' }), false);
 	}
-	async show(): Promise<void> {
-		let model = this.getModel();
-		if (model) {
-			model.setValue(`testing\\n1\\2n\\3n
-			\\4n\\
-			5n\\nlfsjdkfjsdlkfjsldkj`);
-		} else {
-			model = await this.getTextModel();
-		}
-		this.setModel(model);
-		this.getDomNode()?.classList.remove('hide');
-		this.focus();
-	}
-	hide(): void {
-		this.getDomNode()?.remove();
-		this._modelData = null;
-		this.dispose();
-		this._widgetService.lastFocusedWidget?.focusInput();
+	getPosition(): IOverlayWidgetPosition {
+		return {
+			preference: OverlayWidgetPositionPreference.TOP_CENTER
+		};
 	}
 }

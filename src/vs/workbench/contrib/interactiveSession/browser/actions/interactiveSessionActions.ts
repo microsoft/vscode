@@ -142,8 +142,11 @@ export function registerInteractiveSessionActions() {
 		}
 
 		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-			const widget = accessor.get(IInstantiationService).createInstance(InteractiveAccessibilityHelpWidget, editor.getContainerDomNode().parentElement?.parentElement!, {}, {});
+			const widget = accessor.get(IInstantiationService).createInstance(InteractiveAccessibilityHelpWidget, editor);
+			// editor.layout({height: 200, width: 200});
+			editor.addOverlayWidget(widget);
 			await widget.show();
+			// editor.layoutOverlayWidget(widget);
 		}
 	});
 
