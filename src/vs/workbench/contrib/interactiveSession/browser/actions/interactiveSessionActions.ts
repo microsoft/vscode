@@ -3,22 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addStandardDisposableListener } from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { getAccessibilityHelpText } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionAccessibilityHelp';
+import { runAccessibilityHelpAction } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionAccessibilityHelp';
 import { clearChatEditor, clearChatSession } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionClear';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { IInteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
@@ -128,11 +125,11 @@ export function registerInteractiveSessionActions() {
 		}
 	});
 
-	registerEditorAction(class AccessibilityHelpInteractiveSessionAction extends EditorAction {
+	registerEditorAction(class AccessibilityHelpChatAction extends EditorAction {
 		constructor() {
 			super({
-				id: 'interactiveSession.action.accessibilityHelp',
-				label: localize('actions.interactiveSession.accessibiltyHelp', "Chat View Accessibility Help"),
+				id: 'interactiveSession.action.accessibilityHelpChat',
+				label: localize('actions.interactiveSession.accessibiltyHelpChat', "Chat View Accessibility Help"),
 				alias: 'Chat View Accessibility Help',
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
 				kbOpts: {
@@ -141,42 +138,26 @@ export function registerInteractiveSessionActions() {
 				}
 			});
 		}
-
 		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-			const widgetService = accessor.get(IInteractiveSessionWidgetService);
-			const keybindingService = accessor.get(IKeybindingService);
-			const inputEditor = widgetService.lastFocusedWidget?.inputEditor;
-			const editorUri = editor.getModel()?.uri;
+			runAccessibilityHelpAction(accessor, editor, 'chat');
+		}
+	});
 
-			if (!inputEditor || !editorUri) {
-				return;
-			}
-
-			const widget = widgetService.getWidgetByInputUri(editorUri);
-			const domNode = withNullAsUndefined(inputEditor.getDomNode());
-
-			if (!domNode || !widget) {
-				return;
-			}
-
-			const cachedInput = inputEditor.getValue();
-			const cachedPosition = inputEditor.getPosition();
-
-			const helpText = getAccessibilityHelpText(keybindingService);
-			inputEditor.setValue(helpText);
-			inputEditor.updateOptions({ readOnly: true });
-			inputEditor.focus();
-			const disposable = addStandardDisposableListener(domNode, 'keydown', e => {
-				if (e.keyCode === KeyCode.Escape && inputEditor.getValue() === helpText) {
-					inputEditor.updateOptions({ readOnly: false });
-					inputEditor.setValue(cachedInput);
-					if (cachedPosition) {
-						inputEditor.setPosition(cachedPosition);
-					}
-					widget.focusInput();
-					disposable.dispose();
+	registerEditorAction(class AccessibilityHelpEditorAction extends EditorAction {
+		constructor() {
+			super({
+				id: 'interactiveSession.action.accessibilityHelpEditor',
+				label: localize('actions.interactiveSession.accessibiltyHelpEditor', "Interactive Session Editor Accessibility Help"),
+				alias: 'Interactive Session Editor Accessibility Help',
+				precondition: ContextKeyExpr.has('interactiveEditorFocused'),
+				kbOpts: {
+					primary: KeyMod.Alt | KeyCode.F1,
+					weight: KeybindingWeight.EditorContrib
 				}
 			});
+		}
+		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+			runAccessibilityHelpAction(accessor, editor, 'editor');
 		}
 	});
 
