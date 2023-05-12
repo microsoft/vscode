@@ -574,13 +574,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const sw = StopWatch.create(false);
 		this._logService.info(`Invoking resolveAuthority(${authorityPrefix})...`);
 		try {
-			performance.mark(`code/willResolveAuthority/${authorityPrefix}`);
+			perf.mark(`code/willResolveAuthority/${authorityPrefix}`);
 			const result = await this._resolveAuthority(remoteAuthority);
-			performance.mark(`code/didResolveAuthorityOK/${authorityPrefix}`);
+			perf.mark(`code/didResolveAuthorityOK/${authorityPrefix}`);
 			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority.connectTo}' after ${sw.elapsed()} ms`);
 			return result;
 		} catch (err) {
-			performance.mark(`code/didResolveAuthorityError/${authorityPrefix}`);
+			perf.mark(`code/didResolveAuthorityError/${authorityPrefix}`);
 			this._logService.error(`resolveAuthority(${authorityPrefix}) returned an error after ${sw.elapsed()} ms`, err);
 			throw err;
 		}
