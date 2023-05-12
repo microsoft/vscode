@@ -14,6 +14,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
 import { ResourceSet } from 'vs/base/common/map';
+import { getDriveLetter } from 'vs/base/common/extpath';
 
 interface IConfiguredExpression {
 	readonly expression: IExpression;
@@ -130,9 +131,36 @@ export class ResourceGlobMatcher extends Disposable {
 			return undefined;
 		}
 
+		let hasAbsolutePath = false;
+
+		// Check the expression for absolute paths/globs
+		// and specifically for Windows, make sure the
+		// drive letter is lowercased, because we later
+		// check with `URI.fsPath` which is always putting
+		// the drive letter lowercased.
+
+		const massagedExpression: IExpression = Object.create(null);
+		for (const key of keys) {
+			if (!hasAbsolutePath) {
+				hasAbsolutePath = isAbsolute(key);
+			}
+
+			let massagedKey = key;
+
+			const driveLetter = getDriveLetter(massagedKey, true /* probe for windows */);
+			if (driveLetter) {
+				const driveLetterLower = driveLetter.toLowerCase();
+				if (driveLetter !== driveLetter.toLowerCase()) {
+					massagedKey = `${driveLetterLower}${massagedKey.substring(1)}`;
+				}
+			}
+
+			massagedExpression[massagedKey] = expression[key];
+		}
+
 		return {
-			expression,
-			hasAbsolutePath: keys.some(key => expression[key] === true && isAbsolute(key))
+			expression: massagedExpression,
+			hasAbsolutePath
 		};
 	}
 
