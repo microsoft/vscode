@@ -131,9 +131,9 @@ export function registerInteractiveSessionActions() {
 	registerEditorAction(class FocusInteractiveSessionAction extends EditorAction {
 		constructor() {
 			super({
-				id: 'interactiveSession.action.accessibilityHelp',
-				label: localize('actions.interactiveSession.accessibiltyHelp', "Interactive Session Accessibility Help"),
-				alias: 'Focus Interactive Session',
+				id: 'chatView.action.accessibilityHelp',
+				label: localize('actions.chatView.accessibiltyHelp', "Chat View Accessibility Help"),
+				alias: 'Chat View Accessibility Help',
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
 				kbOpts: {
 					primary: KeyMod.Alt | KeyCode.F1,
