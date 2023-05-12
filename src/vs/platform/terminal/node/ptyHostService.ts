@@ -36,9 +36,10 @@ let lastPtyId = 0;
 export class PtyHostService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
-	private _connection: IPtyHostConnection;
+	// TODO: Avoid ! ?
+	private _connection!: IPtyHostConnection;
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
-	private _proxy: IPtyService;
+	private _proxy!: IPtyService;
 
 	private readonly _shellEnv: Promise<typeof process.env>;
 	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string; originalText: string[] }>;
@@ -93,17 +94,17 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
 
-		[this._connection, this._proxy] = this._startPtyHost();
+		this._startPtyHost().then(value => {
+			this._connection = value[0];
+			this._proxy = value[1];
 
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
-				await this._refreshIgnoreProcessNames();
-			}
-		}));
-	}
-
-	initialize(): void {
-		this._refreshIgnoreProcessNames();
+			this._register(this._configurationService.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
+					await this._refreshIgnoreProcessNames();
+				}
+			}));
+			this._refreshIgnoreProcessNames();
+		});
 	}
 
 	private get _ignoreProcessNames(): string[] {
@@ -128,8 +129,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 	}
 
-	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
-		const connection = this._ptyHostStarter.start(lastPtyId);
+	private async _startPtyHost(): Promise<[IPtyHostConnection, IPtyService]> {
+		const connection = await this._ptyHostStarter.start(lastPtyId);
 		const client = connection.client;
 
 		this._onPtyHostStart.fire();
@@ -317,7 +318,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	async restartPtyHost(): Promise<void> {
 		this._isResponsive = true;
 		this._disposePtyHost();
-		[this._connection, this._proxy] = this._startPtyHost();
+		[this._connection, this._proxy] = await this._startPtyHost();
 	}
 
 	private _disposePtyHost(): void {
