@@ -5,31 +5,31 @@
 
 import 'vs/css!./media/actions';
 
-import { localize } from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { $, append, createCSSRule, createStyleSheet, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { clamp } from 'vs/base/common/numbers';
+import { Color } from 'vs/base/common/color';
+import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
+import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { Action2, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolutionResult, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 class InspectContextKeysAction extends Action2 {
 

@@ -365,4 +365,7 @@ import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairC
 // Accessibility
 import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 
+// Workbench State Logger
+import 'vs/workbench/contrib/stateLogger/browser/stateLoggerAction';
+
 //#endregion

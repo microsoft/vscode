@@ -203,6 +203,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/stateLogger",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/format",
 			"project": "vscode-workbench"
 		},
