@@ -5,6 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -131,7 +132,9 @@ export class InteractiveSessionViewPane extends ViewPane {
 		this._widget.saveState();
 
 		const widgetViewState = this._widget.getViewState();
-		this.viewState.inputValue = widgetViewState.inputValue;
+
+		// do not save input if it is the accessibility help text
+		this.viewState.inputValue = this._widget.inputEditor.getOption(EditorOption.readOnly) ? '' : widgetViewState.inputValue;
 		this.memento.saveMemento();
 
 		super.saveState();
