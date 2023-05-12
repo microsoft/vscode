@@ -286,7 +286,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		return model;
 	}
 
-	retrieveSession(sessionId: string): InteractiveSessionModel | undefined {
+	getOrRestoreSession(sessionId: string): InteractiveSessionModel | undefined {
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
 			return model;

@@ -49,7 +49,6 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
@@ -526,13 +525,13 @@ interface IInteractiveResultCodeBlockPart {
 	dispose(): void;
 }
 
-export interface IInteractiveResultCodeBlockInfo {
-	providerId: string;
-	responseId: string;
+export interface IInteractiveSessionCodeBlockInfo {
 	codeBlockIndex: number;
+	element: IInteractiveResponseViewModel;
 }
 
-export const codeBlockInfosByModelUri = new ResourceMap<IInteractiveResultCodeBlockInfo>();
+// Enable actions to look this up by editor URI. An alternative would be writing lots of details to element attributes.
+export const codeBlockInfoByModelUri = new ResourceMap<IInteractiveSessionCodeBlockInfo>();
 
 const defaultCodeblockPadding = 10;
 
@@ -671,17 +670,15 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		this.layout(width);
 
 		if (isResponseVM(data.element) && data.element.providerResponseId) {
-			// For telemetry reporting
-			codeBlockInfosByModelUri.set(this.textModel.uri, {
-				providerId: data.element.providerId,
-				responseId: data.element.providerResponseId,
-				codeBlockIndex: data.codeBlockIndex
+			codeBlockInfoByModelUri.set(this.textModel.uri, {
+				element: data.element,
+				codeBlockIndex: data.codeBlockIndex,
 			});
 		} else {
-			codeBlockInfosByModelUri.delete(this.textModel.uri);
+			codeBlockInfoByModelUri.delete(this.textModel.uri);
 		}
 
-		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
+		this.toolbar.context = <IInteractiveSessionCodeBlockInfo>{
 			code: data.text,
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
