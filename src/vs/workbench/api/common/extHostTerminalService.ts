@@ -874,24 +874,9 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 class EnvironmentVariableCollection {
 	readonly map: Map<string, IEnvironmentVariableMutator> = new Map();
 	readonly scopedCollections: Map<string, vscode.EnvironmentVariableCollection & { onDidChangeCollection: Event<void> }> = new Map();
-	readonly keyToScope = new Map<string, vscode.EnvironmentVariableScope | undefined>();
+	readonly descriptionMap: Map<string, IEnvironmentDescriptionMutator> = new Map();
 	private _persistent: boolean = true;
 
-	public get descriptionMap(): Map<string, IEnvironmentDescriptionMutator> {
-		const descriptionMap: Map<string, IEnvironmentDescriptionMutator> = new Map();
-		this.scopedCollections.forEach((collection, scopeKey) => {
-			const description = collection.description;
-			let descriptionStr: string | undefined;
-			if (typeof description === 'string') {
-				descriptionStr = description;
-			} else {
-				// Only take the description before the first `\n\n`, so that the description doesn't mess up the UI
-				descriptionStr = description?.value.split('\n\n')[0];
-			}
-			descriptionMap.set(scopeKey, { description: descriptionStr, scope: this.keyToScope.get(scopeKey) });
-		});
-		return descriptionMap;
-	}
 	public get persistent(): boolean { return this._persistent; }
 	public set persistent(value: boolean) {
 		this._persistent = value;
@@ -907,17 +892,12 @@ class EnvironmentVariableCollection {
 		this.map = new Map(serialized);
 	}
 
-	get size(): number {
-		return this.map.size;
-	}
-
 	getScopedEnvironmentVariableCollection(scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection {
 		const scopedCollectionKey = this.getScopeKey(scope);
 		let scopedCollection = this.scopedCollections.get(scopedCollectionKey);
 		if (!scopedCollection) {
-			scopedCollection = new ScopedEnvironmentVariableCollection(this.getScopedMap(scope), this.getDescription(scope));
+			scopedCollection = new ScopedEnvironmentVariableCollection(this, scope);
 			this.scopedCollections.set(scopedCollectionKey, scopedCollection);
-			this.keyToScope.set(scopedCollectionKey, scope);
 			scopedCollection.onDidChangeCollection(() => this._onDidChangeCollection.fire());
 		}
 		return scopedCollection;
@@ -949,21 +929,6 @@ class EnvironmentVariableCollection {
 		}
 	}
 
-	private getScopeKey(scope?: vscode.EnvironmentVariableScope): string {
-		return this.getWorkspaceKey(scope?.workspaceFolder) ?? '';
-	}
-
-	private getScopedMap(scope?: vscode.EnvironmentVariableScope): Map<string, IEnvironmentVariableMutator> {
-		const scopedMap = new Map<string, IEnvironmentVariableMutator>();
-		const scopeKey = this.getScopeKey(scope);
-		for (const [key, value] of this.map.entries()) {
-			if (key === scopeKey) {
-				scopedMap.set(key, value);
-			}
-		}
-		return scopedMap;
-	}
-
 	get(variable: string, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableMutator | undefined {
 		const key = this.getKey(variable, scope);
 		const value = this.map.get(key);
@@ -979,20 +944,19 @@ class EnvironmentVariableCollection {
 		return workspaceFolder ? workspaceFolder.uri.toString() : undefined;
 	}
 
-	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
-		this.map.forEach((value, _) => callback.call(thisArg, value.variable, convertMutator(value), this.getScopedEnvironmentVariableCollection(undefined)));
+	private getScopeKey(scope?: vscode.EnvironmentVariableScope): string {
+		return this.getWorkspaceKey(scope?.workspaceFolder) ?? '';
 	}
 
-	[Symbol.iterator](): IterableIterator<[variable: string, mutator: vscode.EnvironmentVariableMutator]> {
-		const map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
-		this.map.forEach((mutator, _key) => {
-			if (mutator.scope) {
-				// Scoped mutators are not supported via this iterator, as it returns variable as the key which is supposed to be unique.
-				return;
+	public getVariableMap(scope?: vscode.EnvironmentVariableScope): Map<string, IEnvironmentVariableMutator> {
+		const scopedMap = new Map<string, IEnvironmentVariableMutator>();
+		const scopeKey = this.getScopeKey(scope);
+		for (const [key, value] of this.map.entries()) {
+			if (key === scopeKey) {
+				scopedMap.set(value.variable, value);
 			}
-			map.set(mutator.variable, convertMutator(mutator));
-		});
-		return map.entries();
+		}
+		return scopedMap;
 	}
 
 	delete(variable: string, scope?: vscode.EnvironmentVariableScope): void {
@@ -1033,11 +997,7 @@ class EnvironmentVariableCollection {
 		}
 	}
 
-	private getDescriptionMap(scope?: vscode.EnvironmentVariableScope): Map<string, IEnvironmentDescriptionMutator> {
-
-	}
-
-	private getDescription(scope?: vscode.EnvironmentVariableScope): string | vscode.MarkdownString | undefined {
+	public getDescription(scope?: vscode.EnvironmentVariableScope): string | vscode.MarkdownString | undefined {
 		const key = this.getKey('', scope);
 		const value = this.descriptionMap.get(key);
 		return value?.description;
@@ -1062,72 +1022,52 @@ class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableC
 	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
 
 	constructor(
-		private readonly map: Map<string, vscode.EnvironmentVariableMutator>,
-		private _description: string | vscode.MarkdownString | undefined,
+		private readonly collection: EnvironmentVariableCollection,
+		private readonly scope: vscode.EnvironmentVariableScope | undefined
 	) {
 	}
 
-	get size(): number {
-		return this.map.size;
-	}
-
 	replace(variable: string, value: string): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace });
+		this.collection.replace(variable, value, this.scope);
 	}
 
 	append(variable: string, value: string): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append });
+		this.collection.append(variable, value, this.scope);
 	}
 
 	prepend(variable: string, value: string): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend });
-	}
-
-	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator): void {
-		const current = this.map.get(variable);
-		if (!current || current.value !== mutator.value || current.type !== mutator.type) {
-			this.map.set(variable, mutator);
-			this._onDidChangeCollection.fire(undefined);
-		}
+		this.collection.prepend(variable, value, this.scope);
 	}
 
 	get(variable: string): vscode.EnvironmentVariableMutator | undefined {
-		return this.map.get(variable);
+		return this.collection.get(variable, this.scope);
 	}
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
-		this.map.forEach((value, key) => callback.call(thisArg, key, value, this));
+		this.collection.getVariableMap(this.scope).forEach((value, variable) => callback.call(thisArg, variable, convertMutator(value), this), this.scope);
 	}
 
 	[Symbol.iterator](): IterableIterator<[variable: string, mutator: vscode.EnvironmentVariableMutator]> {
-		return this.map.entries();
+		return this.collection.getVariableMap(this.scope).entries();
 	}
 
 	delete(variable: string): void {
-		this.map.delete(variable);
+		this.collection.delete(variable, this.scope);
 		this._onDidChangeCollection.fire(undefined);
 	}
 
 	clear(): void {
-		this.map.clear();
-		this._description = undefined;
-		this._onDidChangeCollection.fire(undefined);
+		this.collection.clear(this.scope);
 	}
 
 	set description(description: string | vscode.MarkdownString | undefined) {
-		if (this._description === description) {
-			return;
-		}
-		this._description = description;
-		this._onDidChangeCollection.fire(undefined);
+		this.collection.setDescription(description, this.scope);
 	}
 
 	get description(): string | vscode.MarkdownString | undefined {
-		return this._description;
+		return this.collection.getDescription(this.scope);
 	}
 }
-
-
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	constructor(
