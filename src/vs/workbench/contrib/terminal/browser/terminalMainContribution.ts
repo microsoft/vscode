@@ -5,10 +5,11 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 
@@ -24,7 +25,7 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
-		@IConfigurationService configurationService: IConfigurationService
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
 	) {
 		super();
 
@@ -41,14 +42,31 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 				singlePerResource: true
 			},
 			{
-				createEditorInput: ({ resource, options }) => {
-					const instance = terminalService.getInstanceFromResource(resource);
+				createEditorInput: async ({ resource, options }) => {
+					let instance = terminalService.getInstanceFromResource(resource);
 					if (instance) {
 						const sourceGroup = terminalGroupService.getGroupForInstance(instance);
 						sourceGroup?.removeInstance(instance);
+					} else { // Terminal from a different window
+						const terminalIdentifier = parseTerminalUri(resource);
+						if (!terminalIdentifier.instanceId) {
+							throw new Error('Terminal identifier without instanceId');
+						}
+
+						const primaryBackend = terminalService.getPrimaryBackend();
+						if (!primaryBackend) {
+							throw new Error('No terminal primary backend');
+						}
+
+						const attachPersistentProcess = await primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId);
+						if (!attachPersistentProcess) {
+							throw new Error('No terminal persistent process to attach');
+						}
+						instance = terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor);
 					}
-					const resolvedResource = terminalEditorService.resolveResource(instance || resource);
-					const editor = terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
+
+					const resolvedResource = terminalEditorService.resolveResource(instance);
+					const editor = terminalEditorService.getInputFromResource(resolvedResource);
 					return {
 						editor,
 						options: {
