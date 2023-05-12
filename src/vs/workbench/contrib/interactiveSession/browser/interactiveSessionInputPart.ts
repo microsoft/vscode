@@ -141,17 +141,11 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		this._inputEditor.focus();
 	}
 
-	async acceptInput(query?: string | IInteractiveSessionReplyFollowup, skipExecution?: boolean): Promise<void> {
+	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
 		const editorValue = this._inputEditor.getValue();
-		if (!query && editorValue && !skipExecution) {
-			// Followups, programmatic messages, and accessibility help text don't go to history
+		if (!query && editorValue) {
+			// Followups and programmatic messages don't go to history
 			this.history.add(editorValue);
-		}
-		if (skipExecution && typeof query === 'string') {
-			this.inputEditor.setValue(query);
-		} else {
-			this._inputEditor.updateOptions({ readOnly: false });
-			this._inputEditor.setValue('');
 		}
 		this._inputEditor.focus();
 	}

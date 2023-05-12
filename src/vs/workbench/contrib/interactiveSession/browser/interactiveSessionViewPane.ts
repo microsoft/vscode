@@ -133,9 +133,7 @@ export class InteractiveSessionViewPane extends ViewPane implements IInteractive
 		this._widget.saveState();
 
 		const widgetViewState = this._widget.getViewState();
-
-		// do not save input if it is the accessibility help text
-		this.viewState.inputValue = this._widget.inputEditor.getOption(EditorOption.readOnly) ? '' : widgetViewState.inputValue;
+		this.viewState.inputValue = widgetViewState.inputValue;
 		this.memento.saveMemento();
 
 		super.saveState();

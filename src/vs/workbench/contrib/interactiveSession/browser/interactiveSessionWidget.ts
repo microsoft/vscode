@@ -12,6 +12,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/interactiveSession';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -359,7 +360,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	async acceptInput(query?: string | IInteractiveSessionReplyFollowup, skipExecution?: boolean): Promise<void> {
+	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
 
@@ -367,12 +368,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			if (!query && editorValue.trim() === '/clear') {
 				// Small hack, if this becomes a repeated pattern, we should have a real internal slash command provider system
 				this.instantiationService.invokeFunction(clearChatSession, this);
-				return;
-			}
-
-			// Apply accessibility help text
-			if (skipExecution) {
-				this.inputPart.acceptInput(query, skipExecution);
 				return;
 			}
 
@@ -423,6 +418,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	getViewState(): IViewState {
+		if (this.inputEditor.getOption(EditorOption.readOnly)) {
+			return { inputValue: undefined };
+		}
 		this.inputPart.saveState();
 		return { inputValue: this.inputPart.inputEditor.getValue() };
 	}

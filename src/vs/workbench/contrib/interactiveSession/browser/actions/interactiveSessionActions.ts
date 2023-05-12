@@ -131,8 +131,8 @@ export function registerInteractiveSessionActions() {
 	registerEditorAction(class FocusInteractiveSessionAction extends EditorAction {
 		constructor() {
 			super({
-				id: 'chatView.action.accessibilityHelp',
-				label: localize('actions.chatView.accessibiltyHelp', "Chat View Accessibility Help"),
+				id: 'interactiveSession.action.accessibilityHelp',
+				label: localize('actions.interactiveSession.accessibiltyHelp', "Chat View Accessibility Help"),
 				alias: 'Chat View Accessibility Help',
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
 				kbOpts: {
@@ -163,13 +163,13 @@ export function registerInteractiveSessionActions() {
 			const cachedPosition = inputEditor.getPosition();
 
 			const helpText = getAccessibilityHelpText(keybindingService);
-			widget.acceptInput(helpText, true);
+			inputEditor.setValue(helpText);
 			inputEditor.updateOptions({ readOnly: true });
-
+			inputEditor.focus();
 			const disposable = addStandardDisposableListener(domNode, 'keydown', e => {
 				if (e.keyCode === KeyCode.Escape && inputEditor.getValue() === helpText) {
 					inputEditor.updateOptions({ readOnly: false });
-					widget.acceptInput(cachedInput, true);
+					inputEditor.setValue(cachedInput);
 					inputEditor.setPosition(cachedPosition!);
 					widget.focusInput();
 					disposable.dispose();

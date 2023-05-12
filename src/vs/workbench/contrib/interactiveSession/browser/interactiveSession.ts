@@ -38,7 +38,7 @@ export interface IInteractiveSessionWidget {
 	readonly inputEditor: ICodeEditor;
 	readonly providerId: string;
 
-	acceptInput(query?: string, skipExecution?: boolean): void;
+	acceptInput(query?: string): void;
 	focusLastMessage(): void;
 	focusInput(): void;
 	getSlashCommands(): Promise<IInteractiveSlashCommand[] | undefined>;
