@@ -154,9 +154,9 @@ export const startEntries: GettingStartedStartEntryContent = [
 		}
 	},
 	{
-		id: 'topLevelConnectToTunnel',
-		title: localize('gettingStarted.topLevelConnectToTunnel.title', "Connect via Remote Tunnel"),
-		description: localize('gettingStarted.topLevelConnectToTunnel.description', "Connect to a remote machine via Tunnel"),
+		id: 'topLevelOpenTunnel',
+		title: localize('gettingStarted.topLevelOpenTunnel.title', "Open Tunnel..."),
+		description: localize('gettingStarted.topLevelOpenTunnel.description', "Connect to a remote machine through a Tunnel"),
 		when: 'isWeb && config.workbench.remote.experimental.showStartListEntry',
 		icon: Codicon.remote,
 		content: {
