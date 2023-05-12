@@ -133,7 +133,6 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		}
 		if (noRun && query && typeof query === 'string') {
 			this.inputEditor.setValue(query);
-			this._inputEditor.updateOptions({ readOnly: true });
 		} else {
 			this._inputEditor.updateOptions({ readOnly: false });
 			this._inputEditor.setValue('');
