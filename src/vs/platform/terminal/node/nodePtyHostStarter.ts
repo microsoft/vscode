@@ -13,7 +13,6 @@ import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/p
 export class NodePtyHostStarter implements IPtyHostStarter {
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
-		private readonly _isRemote: boolean,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService
 	) {
 	}
@@ -24,7 +23,6 @@ export class NodePtyHostStarter implements IPtyHostStarter {
 			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
 			env: {
 				VSCODE_LAST_PTY_ID: lastPtyId,
-				VSCODE_PTY_REMOTE: this._isRemote,
 				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,

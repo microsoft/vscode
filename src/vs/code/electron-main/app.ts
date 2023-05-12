@@ -931,7 +931,7 @@ export class CodeApplication extends Disposable {
 			graceTime: LocalReconnectConstants.GraceTime,
 			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 			scrollback: this.configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		}, false, this.environmentMainService);
+		}, this.environmentMainService);
 		const ptyHostService = new PtyHostService(
 			ptyHostStarter,
 			this.configurationService,

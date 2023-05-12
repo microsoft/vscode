@@ -18,13 +18,12 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
-		private readonly _isRemote: boolean,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService
 	) {
 	}
 
 	start(lastPtyId: number): IPtyHostConnection {
-		return new NodePtyHostStarter(this._reconnectConstants, this._isRemote, this._environmentService).start(lastPtyId);
+		return new NodePtyHostStarter(this._reconnectConstants, this._environmentService).start(lastPtyId);
 
 		// console.log('use utility proc');
 
