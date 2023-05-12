@@ -10,6 +10,7 @@
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentPaste",
     "editorInsets",
     "extensionRuntime",
     "extensionsAny",

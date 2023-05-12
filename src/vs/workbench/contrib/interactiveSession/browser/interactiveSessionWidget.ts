@@ -16,11 +16,12 @@ import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
-import { IInteractiveSessionWidget, IInteractiveSessionWidgetViewContext } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { clearChatSession } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionClear';
+import { IInteractiveSessionWidget, IInteractiveSessionWidgetService, IInteractiveSessionWidgetViewContext } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
@@ -30,25 +31,6 @@ import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/int
 import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
-
-export const IInteractiveSessionWidgetService = createDecorator<IInteractiveSessionWidgetService>('interactiveSessionWidgetService');
-
-export interface IInteractiveSessionWidgetService {
-
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Returns the most recently focused widget if any.
-	 */
-	readonly lastFocusedWidget: IInteractiveSessionWidget | undefined;
-
-	/**
-	 * Returns whether a view was successfully revealed.
-	 */
-	revealViewForProvider(providerId: string): Promise<IInteractiveSessionWidget | undefined>;
-
-	getWidgetByInputUri(uri: URI): IInteractiveSessionWidget | undefined;
-}
 
 const $ = dom.$;
 
@@ -383,9 +365,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 			// Shortcut for /clear command
 			if (!query && editorValue.trim() === '/clear') {
-				// If this becomes a repeated pattern, we should have a real internal slash command provider system
-				this.interactiveSessionService.clearSession(this.viewModel.sessionId);
-				this.inputPart.inputEditor.setValue('');
+				// Small hack, if this becomes a repeated pattern, we should have a real internal slash command provider system
+				this.instantiationService.invokeFunction(clearChatSession, this);
 				return;
 			}
 

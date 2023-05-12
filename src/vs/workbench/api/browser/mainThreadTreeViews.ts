@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
+import { DataTransferFileCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
@@ -210,7 +210,7 @@ type TreeItemHandle = string;
 
 class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
-	private readonly dataTransfersCache = new DataTransferCache();
+	private readonly dataTransfersCache = new DataTransferFileCache();
 
 	constructor(private readonly treeViewId: string,
 		readonly dropMimeTypes: string[],
@@ -222,7 +222,11 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
 		const request = this.dataTransfersCache.add(dataTransfer);
 		try {
-			return await this._proxy.$handleDrop(this.treeViewId, request.id, await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer), targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
+			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			return await this._proxy.$handleDrop(this.treeViewId, request.id, dataTransferDto, targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
 		} finally {
 			request.dispose();
 		}

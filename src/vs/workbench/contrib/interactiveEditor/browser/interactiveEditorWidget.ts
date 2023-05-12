@@ -31,7 +31,7 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IAction } from 'vs/base/common/actions';
@@ -99,6 +99,7 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	modifiedAriaLabel: localize('original', 'Original'),
 	diffAlgorithm: 'advanced',
 	readOnly: true,
+	isInEmbeddedEditor: true
 };
 
 export interface InteractiveEditorWidgetViewState {
@@ -167,6 +168,7 @@ export class InteractiveEditorWidget {
 	constructor(
 		parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -326,13 +328,13 @@ export class InteractiveEditorWidget {
 		const editorViewState = this._inputEditor.saveViewState();
 		return {
 			editorViewState,
-			input: this.input,
+			input: this.value,
 			placeholder: this.placeholder
 		};
 	}
 
 	restoreViewState(state: InteractiveEditorWidgetViewState) {
-		this.input = state.input;
+		this.value = state.input;
 		this.placeholder = state.placeholder;
 		this._inputEditor.restoreViewState(state.editorViewState);
 	}
@@ -345,11 +347,11 @@ export class InteractiveEditorWidget {
 		}
 	}
 
-	get input(): string {
+	get value(): string {
 		return this._inputModel.getValue();
 	}
 
-	set input(value: string) {
+	set value(value: string) {
 		this._inputModel.setValue(value);
 		this._inputEditor.setPosition(this._inputModel.getFullModelRange().getEndPosition());
 	}
@@ -367,14 +369,19 @@ export class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	updateMarkdownMessage(message: Node) {
-		const messageDom = this._elements.message;
-		reset(messageDom, message);
-		this._elements.markdownMessage.classList.toggle('hidden', false);
-		if (messageDom.scrollHeight > messageDom.clientHeight) {
-			this._ctxMessageCropState.set('cropped');
+	updateMarkdownMessage(message: Node | undefined) {
+		this._elements.markdownMessage.classList.toggle('hidden', !message);
+		if (!message) {
+			this._ctxMessageCropState.reset();
+			reset(this._elements.message);
+
 		} else {
-			this._ctxMessageCropState.set('not_cropped');
+			reset(this._elements.message, message);
+			if (this._elements.message.scrollHeight > this._elements.message.clientHeight) {
+				this._ctxMessageCropState.set('cropped');
+			} else {
+				this._ctxMessageCropState.set('not_cropped');
+			}
 		}
 		this._onDidChangeHeight.fire();
 	}
@@ -387,8 +394,6 @@ export class InteractiveEditorWidget {
 			setTimeout(() => {
 				this.updateStatus(statusLabel, { classes, keepMessage: true });
 			}, ops.resetAfter);
-		} else if (!isTempMessage && !ops.keepMessage) {
-			this._elements.markdownMessage.classList.toggle('hidden', true);
 		}
 		reset(this._elements.statusLabel, message);
 		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
@@ -403,6 +408,9 @@ export class InteractiveEditorWidget {
 
 	reset() {
 		this._ctxInputEmpty.reset();
+		this.value = '';
+		this.updateMarkdownMessage(undefined);
+
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.statusToolbar.classList.add('hidden');
@@ -424,6 +432,11 @@ export class InteractiveEditorWidget {
 	// --- preview
 
 	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: LineRangeMapping[]) {
+		if (changes.length === 0) {
+			this.hideEditsPreview();
+			return;
+		}
+
 		this._elements.previewDiff.classList.remove('hidden');
 
 		const languageSelection: ILanguageSelection = { languageId: textModelv0.getLanguageId(), onDidChange: Event.None };
@@ -445,8 +458,10 @@ export class InteractiveEditorWidget {
 		modifiedLineRange = new LineRange(newStartLine, modifiedLineRange.endLineNumberExclusive);
 		originalLineRange = new LineRange(newStartLine, originalLineRange.endLineNumberExclusive);
 
-		modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber, modifiedLineRange.endLineNumberExclusive + pad);
-		originalLineRange = new LineRange(originalLineRange.startLineNumber, originalLineRange.endLineNumberExclusive + pad);
+		const newEndLineModified = Math.min(modifiedLineRange.endLineNumberExclusive + pad, modified.getLineCount());
+		modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber, newEndLineModified);
+		const newEndLineOriginal = Math.min(originalLineRange.endLineNumberExclusive + pad, textModelv0.getLineCount());
+		originalLineRange = new LineRange(originalLineRange.startLineNumber, newEndLineOriginal);
 
 		const hiddenOriginal = invertLineRange(originalLineRange, textModelv0);
 		const hiddenModified = invertLineRange(modifiedLineRange, modified);
@@ -470,7 +485,8 @@ export class InteractiveEditorWidget {
 
 		this._previewCreateTitle.element.setFile(uri, { fileKind: FileKind.FILE });
 
-		const model = this._modelService.createModel('', null, undefined, true);
+		const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
+		const model = this._modelService.createModel('', langSelection, undefined, true);
 		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		this._previewCreateModel.value = model;
 		this._previewCreateEditor.setModel(model);

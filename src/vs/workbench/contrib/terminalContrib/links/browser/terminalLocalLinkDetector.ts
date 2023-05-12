@@ -13,6 +13,7 @@ import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/termin
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { detectLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const enum Constants {
 	/**
@@ -69,6 +70,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> },
 		private readonly _linkResolver: ITerminalLinkResolver,
+		@ILogService private readonly _logService: ILogService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
@@ -88,7 +90,10 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 		const os = this._processManager.os || OS;
 		const parsedLinks = detectLinks(text, os);
+		this._logService.trace('terminalLocaLinkDetector#detect text', text);
+		this._logService.trace('terminalLocaLinkDetector#detect parsedLinks', parsedLinks);
 		for (const parsedLink of parsedLinks) {
+
 			// Don't try resolve any links of excessive length
 			if (parsedLink.path.text.length > Constants.MaxResolvedLinkLength) {
 				continue;
@@ -147,6 +152,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				}
 			}
 			linkCandidates.push(...specialEndLinkCandidates);
+			this._logService.trace('terminalLocaLinkDetector#detect linkCandidates', linkCandidates);
 
 			// Validate the path and convert to the outgoing type
 			const simpleLink = await this._validateAndGetLink(undefined, bufferRange, linkCandidates, trimRangeMap);
@@ -156,6 +162,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					parsedLink.prefix?.index ?? parsedLink.path.index,
 					parsedLink.suffix ? parsedLink.suffix.suffix.index + parsedLink.suffix.suffix.text.length : parsedLink.path.index + parsedLink.path.text.length
 				);
+				this._logService.trace('terminalLocaLinkDetector#detect verified link', simpleLink);
 				links.push(simpleLink);
 			}
 
