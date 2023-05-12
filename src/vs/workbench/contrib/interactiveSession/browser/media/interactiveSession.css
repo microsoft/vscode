@@ -345,10 +345,3 @@
 	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
 }
 
-interactive-session-accessibility-help-widget {
-	z-index: 30;
-}
-
-interactive-session-accessibility-help-widget.hide {
-	z-index: 0;
-}
