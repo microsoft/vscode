@@ -873,7 +873,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 class EnvironmentVariableCollection {
 	readonly map: Map<string, IEnvironmentVariableMutator> = new Map();
-	readonly scopedCollections: Map<string, vscode.EnvironmentVariableCollection & { onDidChangeCollection: Event<void> }> = new Map();
+	private readonly scopedCollections: Map<string, ScopedEnvironmentVariableCollection> = new Map();
 	readonly descriptionMap: Map<string, IEnvironmentDescriptionMutator> = new Map();
 	private _persistent: boolean = true;
 
