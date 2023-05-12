@@ -14,7 +14,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { mark } from 'vs/base/common/performance';
-import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/common/resources';
+import { basename, dirname, extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath, joinPath } from 'vs/base/common/resources';
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -356,6 +356,29 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	async writeFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+		if (options?.atomic) {
+			return this.doWriteFileAtomic(resource, bufferOrReadableOrStream, options);
+		}
+
+		return this.doWriteFile(resource, bufferOrReadableOrStream, options);
+	}
+
+	private async doWriteFileAtomic(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+
+		// write to a temp resource first
+		const tempResource = joinPath(dirname(resource), `${basename(resource)}.vsctmp`);
+		await this.doWriteFile(tempResource, bufferOrReadableOrStream, options, true /* skip events */);
+
+		// then rename to target
+		const stat = await this.move(tempResource, resource, true, true);
+
+		// events
+		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.WRITE));
+
+		return stat;
+	}
+
+	private async doWriteFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions, skipEvents?: boolean): Promise<IFileStatWithMetadata> {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(resource), resource);
 		const { providerExtUri } = this.getExtUri(provider);
 
@@ -400,7 +423,9 @@ export class FileService extends Disposable implements IFileService {
 			}
 
 			// events
-			this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.WRITE));
+			if (!skipEvents) {
+				this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.WRITE));
+			}
 		} catch (error) {
 			throw new FileOperationError(localize('err.write', "Unable to write file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
 		}
@@ -696,7 +721,7 @@ export class FileService extends Disposable implements IFileService {
 		return true;
 	}
 
-	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+	async move(source: URI, target: URI, overwrite?: boolean, skipEvents?: boolean): Promise<IFileStatWithMetadata> {
 		const sourceProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(source), source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
@@ -705,7 +730,9 @@ export class FileService extends Disposable implements IFileService {
 
 		// resolve and send events
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
-		this._onDidRunOperation.fire(new FileOperationEvent(source, mode === 'move' ? FileOperation.MOVE : FileOperation.COPY, fileStat));
+		if (!skipEvents) {
+			this._onDidRunOperation.fire(new FileOperationEvent(source, mode === 'move' ? FileOperation.MOVE : FileOperation.COPY, fileStat));
+		}
 
 		return fileStat;
 	}

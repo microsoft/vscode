@@ -1146,6 +1146,12 @@ export interface IWriteFileOptions {
 	 * Whether to attempt to unlock a file before writing.
 	 */
 	readonly unlock?: boolean;
+
+	/**
+	 * Whether to write in an atomic way by first writing to a different
+	 * file in the same folder and then renaming to the target file.
+	 */
+	readonly atomic?: boolean;
 }
 
 export interface IResolveFileOptions {
