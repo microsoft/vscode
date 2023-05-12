@@ -196,7 +196,10 @@ class QuickInput extends Disposable implements IQuickInput {
 		return this._widget;
 	}
 
-	set widget(widget: HTMLElement | undefined) {
+	set widget(widget: unknown | undefined) {
+		if (!(widget instanceof HTMLElement)) {
+			return;
+		}
 		if (this._widget !== widget) {
 			this._widget = widget;
 			this._widgetUpdated = true;
@@ -368,8 +371,8 @@ class QuickInput extends Disposable implements IQuickInput {
 		}
 		if (this._widgetUpdated) {
 			this._widgetUpdated = false;
-			if (this.widget) {
-				dom.reset(this.ui.widget, this.widget);
+			if (this._widget) {
+				dom.reset(this.ui.widget, this._widget);
 			} else {
 				dom.reset(this.ui.widget);
 			}

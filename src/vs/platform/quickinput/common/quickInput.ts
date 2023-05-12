@@ -212,7 +212,10 @@ export interface IQuickInput extends IDisposable {
 
 	description: string | undefined;
 
-	widget: HTMLElement | undefined;
+	/**
+	 * Should be an HTMLElement (TODO: move this entire file into browser)
+	 */
+	widget: any | undefined;
 
 	step: number | undefined;
 
