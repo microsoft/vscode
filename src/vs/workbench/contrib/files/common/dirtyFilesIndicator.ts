@@ -54,7 +54,6 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 
 	private updateActivityBadge(): void {
 		const dirtyCount = this.lastKnownDirtyCount = this.workingCopyService.dirtyCount;
-
 		// Indicate dirty count in badge if any
 		if (dirtyCount > 0) {
 			this.badgeHandle.value = this.activityService.showViewContainerActivity(

@@ -181,7 +181,8 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
-	 * Returns if the input has changes that are not backed up
+	 * Returns if the input has changes that are not backed up,
+	 * whether or not it is marked dirty.
 	 */
 	hasUnsavedContent(): boolean {
 		return this.isDirty();

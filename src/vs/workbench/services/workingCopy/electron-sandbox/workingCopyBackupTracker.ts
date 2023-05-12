@@ -267,7 +267,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// Save
 		const confirm = await this.fileDialogService.showSaveConfirm(dirtyWorkingCopies.map(workingCopy => workingCopy.name));
 		if (confirm === ConfirmResult.SAVE) {
-			const dirtyCount = this.workingCopyService.dirtyCount;
+			const dirtyCountBeforeSave = this.workingCopyService.dirtyCount;
 
 			try {
 				await this.doSaveAllBeforeShutdown(dirtyWorkingCopies, SaveReason.EXPLICIT);
@@ -275,7 +275,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 				this.logService.error(`[backup tracker] error saving dirty working copies: ${error}`); // guard against misbehaving saves, we handle remaining dirty below
 			}
 
-			const savedWorkingCopies = dirtyCount - this.workingCopyService.dirtyCount;
+			const savedWorkingCopies = dirtyCountBeforeSave - this.workingCopyService.dirtyCount;
 			if (savedWorkingCopies < dirtyWorkingCopies.length) {
 				return true; // veto (save failed or was canceled)
 			}

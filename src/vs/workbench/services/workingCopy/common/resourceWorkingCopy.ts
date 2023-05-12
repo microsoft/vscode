@@ -161,8 +161,4 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 	abstract revert(options?: IRevertOptions): Promise<void>;
 
 	//#endregion
-
-	isModified(): boolean {
-		return this.isDirty();
-	}
 }

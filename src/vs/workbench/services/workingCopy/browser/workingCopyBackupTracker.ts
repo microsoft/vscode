@@ -41,6 +41,10 @@ export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker im
 			return false; // no dirty: no veto
 		}
 
+		if (!this.filesConfigurationService.isHotExitEnabled) {
+			return true; // dirty without backup: veto
+		}
+
 		for (const dirtyWorkingCopy of dirtyWorkingCopies) {
 			if (!this.workingCopyBackupService.hasBackupSync(dirtyWorkingCopy, this.getContentVersion(dirtyWorkingCopy))) {
 				this.logService.warn('Unload veto: pending backups');

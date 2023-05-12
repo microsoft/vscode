@@ -440,11 +440,11 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}
 
-		const unsaved = this.workingCopyService.dirtyCount;
-		if (unsaved === 0) {
+		const dirty = this.workingCopyService.dirtyCount;
+		if (dirty === 0) {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {
-			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", unsaved);
+			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
 			this.dirtyCountElement.classList.remove('hidden');
 		}
 	}
