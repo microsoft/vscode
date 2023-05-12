@@ -147,8 +147,7 @@ export function registerInteractiveSessionActions() {
 			if (!inputEditor) {
 				return;
 			}
-			const cachedInput = inputEditor.getValue();
-			const cachedPosition = inputEditor.getPosition();
+
 			const editorUri = editor.getModel()?.uri;
 			if (!editorUri) {
 				return;
@@ -157,7 +156,8 @@ export function registerInteractiveSessionActions() {
 			if (!widget) {
 				return;
 			}
-
+			const cachedInput = inputEditor.getValue();
+			const cachedPosition = inputEditor.getPosition();
 			const helpText = 'To go back to the interactive editor input, press tab or escape.\n\n To access the chat response, use Ctrl or Cmd and Up Arrow and then arrow keys to navigate prior requests/responses.\n\n Return to the interactive input via Ctrl or Cmd and Down Arrow.';
 			widget.acceptInput(helpText, true);
 
