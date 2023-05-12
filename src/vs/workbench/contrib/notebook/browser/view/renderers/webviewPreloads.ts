@@ -137,6 +137,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 			};
 		};
 
+	// check if an input element is focused within the output element
+	const checkOutputInputFocus = () => {
+
+		const activeElement = document.activeElement;
+		if (!activeElement) {
+			return;
+		}
+
+		if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true });
+
+			activeElement.addEventListener('blur', () => {
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false });
+			}, { once: true });
+		}
+	};
+
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
 			return;
@@ -222,6 +239,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	document.body.addEventListener('click', handleInnerClick);
+	document.body.addEventListener('focusin', checkOutputInputFocus);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;

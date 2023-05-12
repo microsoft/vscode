@@ -7,6 +7,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isEqual } from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -28,8 +29,10 @@ import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/co
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IInteractiveEditorRequest, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, IInteractiveEditorRequest, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -92,6 +95,25 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		}
 	}
+
+	let foundEditor: ICodeEditor | undefined = undefined;
+	for (const [, codeEditor] of context.notebookEditor.codeEditors) {
+		if (isEqual(codeEditor.getModel()?.uri, (context.cell ?? context.selectedCells?.[0])?.uri)) {
+			foundEditor = codeEditor;
+			break;
+		}
+	}
+
+	if (!foundEditor) {
+		return;
+	}
+
+	const controller = InteractiveEditorController.get(foundEditor);
+	if (!controller) {
+		return;
+	}
+
+	controller.createSnapshot();
 }
 
 registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
@@ -207,7 +229,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		}
 
-		return runCell(editorGroupsService, context);
+		await runCell(editorGroupsService, context);
 	}
 });
 
@@ -417,7 +439,10 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			precondition: ContextKeyExpr.or(executeThisCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
-				when: NOTEBOOK_CELL_LIST_FOCUSED,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_CELL_LIST_FOCUSED,
+					CTX_INTERACTIVE_EDITOR_FOCUSED.negate()
+				),
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			},

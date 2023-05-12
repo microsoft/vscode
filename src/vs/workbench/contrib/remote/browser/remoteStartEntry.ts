@@ -26,7 +26,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { infoIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
-import { isWeb } from 'vs/base/common/platform';
+import { PlatformName, PlatformToString, isWeb, platform } from 'vs/base/common/platform';
 
 const STATUSBAR_REMOTEINDICATOR_CONTRIBUTION = 'statusBar/remoteIndicator';
 
@@ -58,6 +58,7 @@ interface RemoteExtensionMetadata {
 	startConnectLabel: string;
 	startCommand: string;
 	priority: number;
+	supportedPlatforms?: PlatformName[];
 }
 
 export class RemoteStartEntry extends Disposable implements IWorkbenchContribution {
@@ -97,7 +98,6 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 				startConnectLabel: remoteExtensionTips.startEntry?.startConnectLabel ?? '',
 				startCommand: remoteExtensionTips.startEntry?.startCommand ?? '',
 				priority: remoteExtensionTips.startEntry?.priority ?? 10
-
 			}] : [];
 		}
 		else {
@@ -113,7 +113,8 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 					helpLink: value.startEntry?.helpLink ?? '',
 					startConnectLabel: value.startEntry?.startConnectLabel ?? '',
 					startCommand: value.startEntry?.startCommand ?? '',
-					priority: value.startEntry?.priority ?? 10
+					priority: value.startEntry?.priority ?? 10,
+					supportedPlatforms: value.supportedPlatforms
 				};
 			});
 
@@ -195,13 +196,16 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 		if (this._isInitialized) {
 			return;
 		}
-
+		const currentPlatform = PlatformToString(platform);
 		for (let i = 0; i < this.remoteExtensionMetadata.length; i++) {
 			const extensionId = this.remoteExtensionMetadata[i].id;
-
+			const supportedPlatforms = this.remoteExtensionMetadata[i].supportedPlatforms;
 			// Update compatibility
 			const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 			if (!await this.extensionManagementService.canInstall(galleryExtension)) {
+				this.remoteExtensionMetadata[i].isPlatformCompatible = false;
+			}
+			else if (supportedPlatforms && !supportedPlatforms.includes(currentPlatform)) {
 				this.remoteExtensionMetadata[i].isPlatformCompatible = false;
 			}
 			else {

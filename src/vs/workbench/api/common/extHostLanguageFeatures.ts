@@ -530,6 +530,10 @@ class DocumentPasteEditProvider {
 	}
 
 	async providePasteEdits(requestId: number, resource: URI, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<undefined | extHostProtocol.IPasteEditDto> {
+		if (!this._provider.provideDocumentPasteEdits) {
+			return;
+		}
+
 		const doc = this._documents.getDocument(resource);
 		const vscodeRanges = ranges.map(range => typeConvert.Range.to(range));
 
@@ -2420,6 +2424,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._adapter.set(handle, new AdapterData(new DocumentPasteEditProvider(this._proxy, this._documents, provider, handle, extension), extension));
 		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector, extension), {
 			supportsCopy: !!provider.prepareDocumentPaste,
+			supportsPaste: !!provider.provideDocumentPasteEdits,
 			copyMimeTypes: metadata.copyMimeTypes,
 			pasteMimeTypes: metadata.pasteMimeTypes,
 		});
