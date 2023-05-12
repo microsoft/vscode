@@ -336,7 +336,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		session: Session,
 		editor: ICodeEditor,
 		widget: InteractiveEditorWidget,
-		private _getWholeRange: () => Range,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
 		@IBulkEditService bulkEditService: IBulkEditService,
@@ -370,11 +369,11 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override async renderChanges(response: EditResponse, changes: LineRangeMapping[]) {
 
-		this._diffZone.showDiff(() => this._getWholeRange(), changes);
+		this._diffZone.showDiff(() => this._session.wholeRange, changes);
 		this._updateSummaryMessage(changes);
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.showCreation(this._getWholeRange(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.showCreation(this._session.wholeRange, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.hide();
 		}

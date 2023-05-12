@@ -213,7 +213,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.widget);
 				break;
 			case EditMode.LivePreview:
-				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.widget, () => session!.wholeRange);
+				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.widget);
 				break;
 			case EditMode.Preview:
 				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.widget);
