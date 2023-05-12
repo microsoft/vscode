@@ -13,11 +13,13 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
+import { getAccessibilityHelpText } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionAccessibilityHelp';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
@@ -143,6 +145,7 @@ export function registerInteractiveSessionActions() {
 
 		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 			const widgetService = accessor.get(IInteractiveSessionWidgetService);
+			const keybindingService = accessor.get(IKeybindingService);
 			const inputEditor = widgetService.lastFocusedWidget?.inputEditor;
 			if (!inputEditor) {
 				return;
@@ -158,7 +161,7 @@ export function registerInteractiveSessionActions() {
 			}
 			const cachedInput = inputEditor.getValue();
 			const cachedPosition = inputEditor.getPosition();
-			const helpText = 'To go back to the interactive editor input, press tab or escape.\n\n To access the chat response, use Ctrl or Cmd and Up Arrow and then arrow keys to navigate prior requests/responses.\n\n Return to the interactive input via Ctrl or Cmd and Down Arrow.';
+			const helpText = getAccessibilityHelpText(keybindingService);
 			widget.acceptInput(helpText, true);
 
 			const domNode = withNullAsUndefined(inputEditor.getDomNode());
