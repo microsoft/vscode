@@ -27,8 +27,6 @@ export interface IInteractiveSessionEditorOptions extends IEditorOptions {
 }
 
 export class InteractiveSessionEditor extends EditorPane {
-	static readonly ID: string = 'workbench.editor.interactiveSession';
-
 	private widget!: InteractiveSessionWidget;
 
 	private _scopedContextKeyService!: IScopedContextKeyService;
@@ -47,7 +45,7 @@ export class InteractiveSessionEditor extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 	) {
-		super(InteractiveSessionEditor.ID, telemetryService, themeService, storageService);
+		super(InteractiveSessionEditorInput.EditorID, telemetryService, themeService, storageService);
 	}
 
 	public async clear() {
