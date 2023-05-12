@@ -21,7 +21,7 @@
 			"scope": [
 				"comment",
 				"punctuation.definition.comment",
-				"string.quoted.docstring.multi.python"
+				"string.quoted.docstring"
 			],
 			"settings": {
 				"fontStyle": "italic",

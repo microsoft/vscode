@@ -121,7 +121,7 @@
 			"name": "Comments",
 			"scope": [
 				"comment",
-				"string.quoted.docstring.multi.python"
+				"string.quoted.docstring"
 			],
 			"settings": {
 				"foreground": "#88846f"

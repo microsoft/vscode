@@ -20,7 +20,7 @@
 			"name": "Comments",
 			"scope": [
 				"comment",
-				"string.quoted.docstring.multi.python"
+				"string.quoted.docstring"
 			],
 			"settings": {
 				"foreground": "#384887"
