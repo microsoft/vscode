@@ -936,16 +936,16 @@ class EnvironmentVariableCollection {
 	}
 
 	private getKey(variable: string, scope: vscode.EnvironmentVariableScope | undefined) {
-		const workspaceKey = this.getWorkspaceKey(scope?.workspaceFolder);
-		return workspaceKey ? `${variable}:::${workspaceKey}` : variable;
-	}
-
-	private getWorkspaceKey(workspaceFolder: vscode.WorkspaceFolder | undefined): string | undefined {
-		return workspaceFolder ? workspaceFolder.uri.toString() : undefined;
+		const scopeKey = this.getScopeKey(scope);
+		return scopeKey.length ? `${variable}:::${scopeKey}` : variable;
 	}
 
 	private getScopeKey(scope: vscode.EnvironmentVariableScope | undefined): string {
 		return this.getWorkspaceKey(scope?.workspaceFolder) ?? '';
+	}
+
+	private getWorkspaceKey(workspaceFolder: vscode.WorkspaceFolder | undefined): string | undefined {
+		return workspaceFolder ? workspaceFolder.uri.toString() : undefined;
 	}
 
 	public getVariableMap(scope: vscode.EnvironmentVariableScope | undefined): Map<string, IEnvironmentVariableMutator> {
@@ -981,7 +981,7 @@ class EnvironmentVariableCollection {
 	}
 
 	setDescription(description: string | vscode.MarkdownString | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
-		const key = this.getKey('', scope);
+		const key = this.getScopeKey(scope);
 		const current = this.descriptionMap.get(key);
 		if (!current || current.description !== description) {
 			let descriptionStr: string | undefined;
@@ -998,7 +998,7 @@ class EnvironmentVariableCollection {
 	}
 
 	public getDescription(scope: vscode.EnvironmentVariableScope | undefined): string | vscode.MarkdownString | undefined {
-		const key = this.getKey('', scope);
+		const key = this.getScopeKey(scope);
 		const value = this.descriptionMap.get(key);
 		return value?.description;
 	}
