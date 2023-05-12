@@ -147,6 +147,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 			// Followups and programmatic messages don't go to history
 			this.history.add(editorValue);
 		}
+
 		this._inputEditor.focus();
 		this._inputEditor.setValue('');
 	}
