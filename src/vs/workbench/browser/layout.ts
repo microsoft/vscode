@@ -49,6 +49,7 @@ import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxili
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { mainWindow } from 'vs/base/browser/window';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
 //#region Layout Implementation
 
@@ -1083,18 +1084,43 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(delegate.onDidChangeNotificationsVisibility(visible => this._onDidChangeNotificationsVisibility.fire(visible)));
 	}
 
-	hasFocus(part: Parts): boolean {
+	hasFocus(part: Parts, viewContainerId?: string): boolean {
 		const container = this.getContainer(getActiveWindow(), part);
 		if (!container) {
 			return false;
 		}
 
-		const activeElement = container.ownerDocument.activeElement;
+		const activeElement = document.activeElement;
 		if (!activeElement) {
 			return false;
 		}
 
-		return isAncestorUsingFlowTo(activeElement, container);
+		const activePanel = this.getFocusWebviewPart(part);
+		if (viewContainerId && viewContainerId === activePanel?.getId()) {
+			return true;
+		}
+
+		return !!container && isAncestorUsingFlowTo(activeElement, container);
+	}
+
+	getFocusWebviewPart(part: Parts): IPaneComposite | undefined {
+		let focusPart: IPaneComposite | undefined;
+		// only these two part will combine webview view container
+		switch (part) {
+			case Parts.PANEL_PART: {
+				focusPart = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+				break;
+			}
+			case Parts.SIDEBAR_PART: {
+				focusPart = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+				break;
+			}
+			case Parts.AUXILIARYBAR_PART: {
+				focusPart = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+				break;
+			}
+		}
+		return focusPart;
 	}
 
 	focusPart(part: MULTI_WINDOW_PARTS, targetWindow: Window): void;
@@ -1104,7 +1130,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (container) {
 			focusWindow(container);
 		}
-
 		switch (part) {
 			case Parts.EDITOR_PART:
 				this.editorGroupService.getPart(container).activeGroup.focus();
