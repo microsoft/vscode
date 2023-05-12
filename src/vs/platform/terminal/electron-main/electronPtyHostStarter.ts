@@ -12,6 +12,8 @@ import { IReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
+import { MessageChannelMain, MessagePortMain } from 'electron';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
 
@@ -51,6 +53,8 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 
 		return {
 			client,
+			port,
+			connect: () => assertIsDefined(this.utilityProcess).connect(),
 			dispose: client.dispose,
 			onDidProcessExit: this.utilityProcess.onExit
 		};

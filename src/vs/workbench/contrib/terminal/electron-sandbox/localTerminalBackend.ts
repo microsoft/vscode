@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILocalPtyService, IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ILocalPtyService, IProcessPropertyMap, IPtyService, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -30,6 +30,10 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
 import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
+import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -66,8 +70,29 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@INotificationService notificationService: INotificationService,
 		@IHistoryService historyService: IHistoryService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(_localPtyService, logService, notificationService, historyService, _configurationResolverService, workspaceContextService);
+
+
+
+
+		(async () => {
+			// mark('code/willConnectSharedProcess');
+			// this.logService.trace('Renderer->SharedProcess#connect: before acquirePort');
+			const port = await acquirePort('vscode:createPtyHostMessageChannel', 'vscode:createPtyHostMessageChannelResult');
+			// mark('code/didConnectSharedProcess');
+			// this.logService.trace('Renderer->SharedProcess#connect: connection established');
+
+			const client = new MessagePortClient(port, `window:${environmentService.window.id}`);
+			const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHostWindow));
+
+			logService.info('latency: ', proxy.getLatency(0));
+			proxy.onProcessData(e => {
+				logService.info('message port process data: ' + e.event);
+			});
+		})();
+
 
 		// Attach process listeners
 		this._localPtyService.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));

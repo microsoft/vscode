@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IpcMainEvent, MessagePortMain } from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem, isWindows } from 'vs/base/common/platform';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
@@ -94,6 +96,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
 
+		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
+
+		// TODO: Start on demand on first window connection (see SharedProcess.onWindowConnection
+		// TODO: Make direct message port connection to each window when requested
+
 		this._startPtyHost().then(value => {
 			this._connection = value[0];
 			this._proxy = value[1];
@@ -105,6 +112,22 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}));
 			this._refreshIgnoreProcessNames();
 		});
+	}
+
+	private _onWindowConnection(e: IpcMainEvent, nonce: string) {
+		const port = this._connection.connect!() as MessagePortMain;
+
+
+		// Check back if the requesting window meanwhile closed
+		// Since shared process is delayed on startup there is
+		// a chance that the window close before the shared process
+		// was ready for a connection.
+
+		if (e.sender.isDestroyed()) {
+			return port.close();
+		}
+
+		e.sender.postMessage('vscode:createPtyHostMessageChannelResult', nonce, [port]);
 	}
 
 	private get _ignoreProcessNames(): string[] {

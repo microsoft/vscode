@@ -9,6 +9,9 @@ import { IChannelClient } from 'vs/base/parts/ipc/common/ipc';
 
 export interface IPtyHostConnection extends IDisposable {
 	readonly client: IChannelClient;
+	// TODO: Type
+	readonly port?: any;
+	connect?(): any;
 	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
 }
 

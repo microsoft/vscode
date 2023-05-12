@@ -207,6 +207,8 @@ export enum TerminalIpcChannels {
 	 * Communicates between the shared process and the pty host process.
 	 */
 	PtyHost = 'ptyHost',
+
+	PtyHostWindow = 'ptyHostWindow',
 	/**
 	 * Deals with logging from the pty host process.
 	 */
