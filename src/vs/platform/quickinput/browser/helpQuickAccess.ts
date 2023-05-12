@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { Extensions, IQuickAccessProvider, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 interface IHelpQuickAccessPickItem extends IQuickPickItem {
-	prefix: string;
+	readonly prefix: string;
 }
 
 export class HelpQuickAccessProvider implements IQuickAccessProvider {
@@ -19,7 +20,10 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 
 	private readonly registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
 
-	constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }
+	constructor(
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
+	) { }
 
 	provide(picker: IQuickPick<IHelpQuickAccessPickItem>): IDisposable {
 		const disposables = new DisposableStore();
@@ -41,49 +45,33 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 			}
 		}));
 
-		// Fill in all providers separated by editor/global scope
-		const { editorProviders, globalProviders } = this.getQuickAccessProviders();
-		picker.items = editorProviders.length === 0 || globalProviders.length === 0 ?
-
-			// Without groups
-			[
-				...(editorProviders.length === 0 ? globalProviders : editorProviders)
-			] :
-
-			// With groups
-			[
-				{ label: localize('globalCommands', "global commands"), type: 'separator' },
-				...globalProviders,
-				{ label: localize('editorCommands', "editor commands"), type: 'separator' },
-				...editorProviders
-			];
+		// Fill in all providers
+		picker.items = this.getQuickAccessProviders().filter(p => p.prefix !== HelpQuickAccessProvider.PREFIX);
 
 		return disposables;
 	}
 
-	private getQuickAccessProviders(): { editorProviders: IHelpQuickAccessPickItem[]; globalProviders: IHelpQuickAccessPickItem[] } {
-		const globalProviders: IHelpQuickAccessPickItem[] = [];
-		const editorProviders: IHelpQuickAccessPickItem[] = [];
+	getQuickAccessProviders(): IHelpQuickAccessPickItem[] {
+		const providers: IHelpQuickAccessPickItem[] = this.registry
+			.getQuickAccessProviders()
+			.sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))
+			.flatMap(provider => this.createPicks(provider));
 
-		for (const provider of this.registry.getQuickAccessProviders().sort((providerA, providerB) => providerA.prefix.localeCompare(providerB.prefix))) {
-			if (provider.prefix === HelpQuickAccessProvider.PREFIX) {
-				continue; // exclude help which is already active
-			}
+		return providers;
+	}
 
-			for (const helpEntry of provider.helpEntries) {
-				const prefix = helpEntry.prefix || provider.prefix;
-				const label = prefix || '\u2026' /* ... */;
+	private createPicks(provider: IQuickAccessProviderDescriptor): IHelpQuickAccessPickItem[] {
+		return provider.helpEntries.map(helpEntry => {
+			const prefix = helpEntry.prefix || provider.prefix;
+			const label = prefix || '\u2026' /* ... */;
 
-				(helpEntry.needsEditor ? editorProviders : globalProviders).push({
-					prefix,
-					label,
-					ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
-					description: helpEntry.description
-				});
-			}
-		}
-
-		return { editorProviders, globalProviders };
+			return {
+				prefix,
+				label,
+				keybinding: helpEntry.commandId ? this.keybindingService.lookupKeybinding(helpEntry.commandId) : undefined,
+				ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
+				description: helpEntry.description
+			};
+		});
 	}
 }
-

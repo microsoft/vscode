@@ -62,11 +62,11 @@ class UXState {
 
 		// (2) close preview editors
 		if (editors) {
-			for (let group of this._editorGroupsService.groups) {
-				let previewEditors: EditorInput[] = [];
-				for (let input of group.editors) {
+			for (const group of this._editorGroupsService.groups) {
+				const previewEditors: EditorInput[] = [];
+				for (const input of group.editors) {
 
-					let resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
+					const resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
 					if (resource?.scheme === BulkEditPreviewProvider.Schema) {
 						previewEditors.push(input);
 					}
@@ -119,15 +119,14 @@ class BulkEditPreviewContribution {
 
 		// check for active preview session and let the user decide
 		if (view.hasInput()) {
-			const choice = await this._dialogService.show(
-				Severity.Info,
-				localize('overlap', "Another refactoring is being previewed."),
-				[localize('cancel', "Cancel"), localize('continue', "Continue")],
-				{ detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring.") }
-			);
+			const { confirmed } = await this._dialogService.confirm({
+				type: Severity.Info,
+				message: localize('overlap', "Another refactoring is being previewed."),
+				detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring."),
+				primaryButton: localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
+			});
 
-			if (choice.choice === 0) {
-				// this refactoring is being cancelled
+			if (!confirmed) {
 				return [];
 			}
 		}
@@ -186,9 +185,7 @@ registerAction2(class ApplyAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<any> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.accept();
-		}
+		view?.accept();
 	}
 });
 
@@ -212,9 +209,7 @@ registerAction2(class DiscardAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.discard();
-		}
+		view?.discard();
 	}
 });
 
@@ -243,9 +238,7 @@ registerAction2(class ToggleAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.toggleChecked();
-		}
+		view?.toggleChecked();
 	}
 });
 
@@ -272,9 +265,7 @@ registerAction2(class GroupByFile extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.groupByFile();
-		}
+		view?.groupByFile();
 	}
 });
 
@@ -299,9 +290,7 @@ registerAction2(class GroupByType extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.groupByType();
-		}
+		view?.groupByType();
 	}
 });
 
@@ -325,9 +314,7 @@ registerAction2(class ToggleGrouping extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const view = await getBulkEditPane(viewsService);
-		if (view) {
-			view.toggleGrouping();
-		}
+		view?.toggleGrouping();
 	}
 });
 
@@ -343,7 +330,7 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 	hideIfEmpty: true,
 	ctorDescriptor: new SyncDescriptor(
 		ViewPaneContainer,
-		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
+		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true }]
 	),
 	icon: refactorPreviewViewIcon,
 	storageId: BulkEditPane.ID

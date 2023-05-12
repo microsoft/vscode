@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { isWindows } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileDeleteOptions, IFileChange, IWatchOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { IFileDeleteOptions, IFileChange, IWatchOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { basename, normalize } from 'vs/base/common/path';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -37,7 +37,7 @@ export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProvide
 
 	//#region Delete: override to support Electron's trash support
 
-	protected override async delete(uriTransformer: IURITransformer, _resource: UriComponents, opts: FileDeleteOptions): Promise<void> {
+	protected override async delete(uriTransformer: IURITransformer, _resource: UriComponents, opts: IFileDeleteOptions): Promise<void> {
 		if (!opts.useTrash) {
 			return super.delete(uriTransformer, _resource, opts);
 		}

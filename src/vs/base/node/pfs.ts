@@ -43,7 +43,7 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	// delete: via rmDir
+	// delete: via rm
 	if (mode === RimRafMode.UNLINK) {
 		return rimrafUnlink(path);
 	}
@@ -66,7 +66,11 @@ async function rimrafMove(path: string): Promise<void> {
 			// https://github.com/microsoft/vscode/issues/139908
 			await fs.promises.rename(path, pathInTemp);
 		} catch (error) {
-			return rimrafUnlink(path); // if rename fails, delete without tmp dir
+			if (error.code === 'ENOENT') {
+				return; // ignore - path to delete did not exist
+			}
+
+			return rimrafUnlink(path); // otherwise fallback to unlink
 		}
 
 		// Delete but do not return as promise
@@ -79,7 +83,7 @@ async function rimrafMove(path: string): Promise<void> {
 }
 
 async function rimrafUnlink(path: string): Promise<void> {
-	return Promises.rmdir(path, { recursive: true, maxRetries: 3 });
+	return promisify(fs.rm)(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 export function rimrafSync(path: string): void {
@@ -87,7 +91,7 @@ export function rimrafSync(path: string): void {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	fs.rmdirSync(path, { recursive: true });
+	fs.rmSync(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 //#endregion
@@ -390,6 +394,9 @@ interface IEnsuredWriteFileOptions extends IWriteFileOptions {
 }
 
 let canFlush = true;
+export function configureFlushOnWrite(enabled: boolean): void {
+	canFlush = enabled;
+}
 
 // Calls fs.writeFile() followed by a fs.sync() call to flush the changes to disk
 // We do this in cases where we want to make sure the data is really on disk and
@@ -421,7 +428,7 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 				// In that case we disable flushing and warn to the console
 				if (syncError) {
 					console.warn('[node.js fs] fdatasync is now disabled for this session because it failed: ', syncError);
-					canFlush = false;
+					configureFlushOnWrite(false);
 				}
 
 				return fs.close(fd, closeError => callback(closeError));
@@ -455,7 +462,7 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 			fs.fdatasyncSync(fd); // https://github.com/microsoft/vscode/issues/9589
 		} catch (syncError) {
 			console.warn('[node.js fs] fdatasyncSync is now disabled for this session because it failed: ', syncError);
-			canFlush = false;
+			configureFlushOnWrite(false);
 		}
 	} finally {
 		fs.closeSync(fd);

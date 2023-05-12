@@ -25,11 +25,8 @@ suite('Iterable', function () {
 		assert.strictEqual(Iterable.first(customIterable), 'one'); // fresh
 	});
 
-	test('equals', () => {
-		assert.strictEqual(Iterable.equals([1, 2], [1, 2]), true);
-		assert.strictEqual(Iterable.equals([1, 2], [1]), false);
-		assert.strictEqual(Iterable.equals([1], [1, 2]), false);
-		assert.strictEqual(Iterable.equals([2, 1], [1, 2]), false);
+	test('wrap', function () {
+		assert.deepStrictEqual([...Iterable.wrap(1)], [1]);
+		assert.deepStrictEqual([...Iterable.wrap([1, 2, 3])], [1, 2, 3]);
 	});
-
 });

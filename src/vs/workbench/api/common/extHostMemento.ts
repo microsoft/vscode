@@ -78,7 +78,7 @@ export class ExtensionMemento implements vscode.Memento {
 	update(key: string, value: any): Promise<void> {
 		this._value![key] = value;
 
-		let record = this._deferredPromises.get(key);
+		const record = this._deferredPromises.get(key);
 		if (record !== undefined) {
 			return record.p;
 		}

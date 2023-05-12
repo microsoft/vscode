@@ -6,27 +6,44 @@
 		".build": true,
 		".profile-oss": true,
 		"**/.DS_Store": true,
+		"cli/target": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
 		}
 	},
 	"files.associations": {
-		"cglicenses.json": "jsonc"
+		"cglicenses.json": "jsonc",
+		"*.tst": "typescript"
 	},
 	"search.exclude": {
 		"**/node_modules": true,
-		"**/bower_components": true,
+		"cli/target/**": true,
 		".build/**": true,
 		"out/**": true,
 		"out-build/**": true,
 		"out-vscode/**": true,
 		"i18n/**": true,
+		"extensions/**/dist/**": true,
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
+		"src/vs/base/test/common/filters.perf.data.js": true,
 		"src/vs/base/test/node/uri.test.data.txt": true,
-		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true
+		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
+		"src/vs/editor/test/node/diffing/fixtures/**": true,
+	},
+	"files.readonlyInclude": {
+		"**/node_modules/**": true,
+		"out/**": true,
+		"out-build/**": true,
+		"out-vscode/**": true,
+		"out-vscode-reh/**": true,
+		"extensions/**/dist/**": true,
+		"extensions/**/out/**": true,
+		"test/smoke/out/**": true,
+		"test/automation/out/**": true,
+		"test/integration/browser/out/**": true,
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -41,11 +58,6 @@
 			}
 		}
 	],
-	"eslint.options": {
-		"rulePaths": [
-			"./build/lib/eslint"
-		]
-	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "yarn",
@@ -57,7 +69,7 @@
 			"fileMatch": [
 				"cgmanifest.json"
 			],
-			"url": "./.vscode/cgmanifest.schema.json"
+			"url": "https://json.schemastore.org/component-detection-manifest.json",
 		},
 		{
 			"fileMatch": [
@@ -67,6 +79,15 @@
 		}
 	],
 	"git.ignoreLimitWarning": true,
+	"git.branchProtection": [
+		"main",
+		"distro",
+		"release/*"
+	],
+	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
+	"git.branchRandomName.enable": true,
+	"git.pullBeforeCheckout": true,
+	"git.mergeEditor": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
@@ -83,6 +104,13 @@
 		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true
 	},
+	"[rust]": {
+		"editor.defaultFormatter": "rust-lang.rust-analyzer",
+		"editor.formatOnSave": true,
+	},
+	"rust-analyzer.linkedProjects": [
+		"cli/Cargo.toml"
+	],
 	"typescript.tsc.autoDetect": "off",
 	"testing.autoRun.mode": "rerun",
 	"conventionalCommits.scopes": [
@@ -95,8 +123,18 @@
 		"git",
 		"sash"
 	],
-	"explorer.experimental.fileNesting.patterns": {
-		"*.js": "$(capture).*.js",
-		"bootstrap.js": "bootstrap-*.js"
-	}
+	"debug.javascript.terminalOptions": {
+		"outFiles": [
+			"${workspaceFolder}/out/**/*.js",
+			"${workspaceFolder}/build/**/*.js"
+		]
+	},
+	"githubPullRequests.assignCreated": "${user}",
+	"githubPullRequests.defaultMergeMethod": "squash",
+	"githubPullRequests.ignoredPullRequestBranches": [
+		"main"
+	],
+	"application.experimental.rendererProfiling": true,
+	"editor.experimental.asyncTokenization": true,
+	"editor.experimental.asyncTokenizationVerification": true
 }

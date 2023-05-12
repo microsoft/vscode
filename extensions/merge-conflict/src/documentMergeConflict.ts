@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as interfaces from './interfaces';
 import * as vscode from 'vscode';
+import type TelemetryReporter from '@vscode/extension-telemetry';
 
 export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict {
 
@@ -12,8 +13,9 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 	public incoming: interfaces.IMergeRegion;
 	public commonAncestors: interfaces.IMergeRegion[];
 	public splitter: vscode.Range;
+	private applied = false;
 
-	constructor(descriptor: interfaces.IDocumentMergeConflictDescriptor) {
+	constructor(descriptor: interfaces.IDocumentMergeConflictDescriptor, private readonly telemetryReporter: TelemetryReporter) {
 		this.range = descriptor.range;
 		this.current = descriptor.current;
 		this.incoming = descriptor.incoming;
@@ -22,6 +24,25 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 	}
 
 	public commitEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Thenable<boolean> {
+		function commitTypeToString(type: interfaces.CommitType): string {
+			switch (type) {
+				case interfaces.CommitType.Current:
+					return 'current';
+				case interfaces.CommitType.Incoming:
+					return 'incoming';
+				case interfaces.CommitType.Both:
+					return 'both';
+			}
+		}
+
+		/* __GDPR__
+			"mergeMarkers.accept" : {
+				"owner": "hediet",
+				"comment": "Used to understand how the inline merge editor experience is used.",
+				"resolution": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates how the merge conflict was resolved by the user" }
+			}
+		*/
+		this.telemetryReporter.sendTelemetryEvent('mergeMarkers.accept', { resolution: commitTypeToString(type) });
 
 		if (edit) {
 
@@ -33,6 +54,10 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 	}
 
 	public applyEdit(type: interfaces.CommitType, document: vscode.TextDocument, edit: { replace(range: vscode.Range, newText: string): void }): void {
+		if (this.applied) {
+			return;
+		}
+		this.applied = true;
 
 		// Each conflict is a set of ranges as follows, note placements or newlines
 		// which may not in spans
@@ -45,11 +70,11 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 		// ]
 		if (type === interfaces.CommitType.Current) {
 			// Replace [ Conflict Range ] with [ Current Content ]
-			let content = document.getText(this.current.content);
+			const content = document.getText(this.current.content);
 			this.replaceRangeWithContent(content, edit);
 		}
 		else if (type === interfaces.CommitType.Incoming) {
-			let content = document.getText(this.incoming.content);
+			const content = document.getText(this.incoming.content);
 			this.replaceRangeWithContent(content, edit);
 		}
 		else if (type === interfaces.CommitType.Both) {

@@ -149,7 +149,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				query: '',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -159,7 +160,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				query: '',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -169,7 +171,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				query: '',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -179,7 +182,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				query: 'foo',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -189,7 +193,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				query: '',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -199,7 +204,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				query: 'my query',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -209,7 +215,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				query: 'test  query',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -219,7 +226,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				query: 'test',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -229,7 +237,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				query: 'query has @ for some reason',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -239,7 +248,8 @@ suite('SettingsTree', () => {
 				extensionFilters: ['github.vscode-pull-request-github'],
 				query: '',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -249,7 +259,8 @@ suite('SettingsTree', () => {
 				extensionFilters: ['github.vscode-pull-request-github', 'vscode.git'],
 				query: '',
 				featureFilters: [],
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 		testParseQuery(
 			'@feature:scm',
@@ -258,7 +269,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				featureFilters: ['scm'],
 				query: '',
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -268,7 +280,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				featureFilters: ['scm', 'terminal'],
 				query: '',
-				idFilters: []
+				idFilters: [],
+				languageFilter: undefined
 			});
 		testParseQuery(
 			'@id:files.autoSave',
@@ -277,7 +290,8 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				featureFilters: [],
 				query: '',
-				idFilters: ['files.autoSave']
+				idFilters: ['files.autoSave'],
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -287,7 +301,30 @@ suite('SettingsTree', () => {
 				extensionFilters: [],
 				featureFilters: [],
 				query: '',
-				idFilters: ['files.autoSave', 'terminal.integrated.commandsToSkipShell']
+				idFilters: ['files.autoSave', 'terminal.integrated.commandsToSkipShell'],
+				languageFilter: undefined
+			});
+
+		testParseQuery(
+			'@lang:cpp',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: [],
+				query: '',
+				idFilters: [],
+				languageFilter: 'cpp'
+			});
+
+		testParseQuery(
+			'@lang:cpp,python',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: [],
+				query: '',
+				idFilters: [],
+				languageFilter: 'cpp'
 			});
 	});
 });

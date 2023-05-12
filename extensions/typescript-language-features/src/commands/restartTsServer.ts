@@ -15,6 +15,6 @@ export class RestartTsServerCommand implements Command {
 	) { }
 
 	public execute() {
-		this.lazyClientHost.value.serviceClient.restartTsServer();
+		this.lazyClientHost.value.serviceClient.restartTsServer(true);
 	}
 }

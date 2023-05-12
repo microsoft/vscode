@@ -6,48 +6,37 @@
 import { promises as fs } from 'fs';
 import { createServer, Server } from 'net';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 
-const localize = nls.loadMessageBundle();
+const enum State {
+	Disabled = 'disabled',
+	OnlyWithFlag = 'onlyWithFlag',
+	Smart = 'smart',
+	Always = 'always',
+}
 const TEXT_STATUSBAR_LABEL = {
-	[State.Disabled]: localize('status.text.auto.attach.disabled', 'Auto Attach: Disabled'),
-	[State.Always]: localize('status.text.auto.attach.always', 'Auto Attach: Always'),
-	[State.Smart]: localize('status.text.auto.attach.smart', 'Auto Attach: Smart'),
-	[State.OnlyWithFlag]: localize('status.text.auto.attach.withFlag', 'Auto Attach: With Flag'),
+	[State.Disabled]: vscode.l10n.t('Auto Attach: Disabled'),
+	[State.Always]: vscode.l10n.t('Auto Attach: Always'),
+	[State.Smart]: vscode.l10n.t('Auto Attach: Smart'),
+	[State.OnlyWithFlag]: vscode.l10n.t('Auto Attach: With Flag'),
 };
 
 const TEXT_STATE_LABEL = {
-	[State.Disabled]: localize('debug.javascript.autoAttach.disabled.label', 'Disabled'),
-	[State.Always]: localize('debug.javascript.autoAttach.always.label', 'Always'),
-	[State.Smart]: localize('debug.javascript.autoAttach.smart.label', 'Smart'),
-	[State.OnlyWithFlag]: localize(
-		'debug.javascript.autoAttach.onlyWithFlag.label',
-		'Only With Flag',
-	),
+	[State.Disabled]: vscode.l10n.t('Disabled'),
+	[State.Always]: vscode.l10n.t('Always'),
+	[State.Smart]: vscode.l10n.t('Smart'),
+	[State.OnlyWithFlag]: vscode.l10n.t('Only With Flag'),
 };
 const TEXT_STATE_DESCRIPTION = {
-	[State.Disabled]: localize(
-		'debug.javascript.autoAttach.disabled.description',
-		'Auto attach is disabled and not shown in status bar',
-	),
-	[State.Always]: localize(
-		'debug.javascript.autoAttach.always.description',
-		'Auto attach to every Node.js process launched in the terminal',
-	),
-	[State.Smart]: localize(
-		'debug.javascript.autoAttach.smart.description',
-		"Auto attach when running scripts that aren't in a node_modules folder",
-	),
-	[State.OnlyWithFlag]: localize(
-		'debug.javascript.autoAttach.onlyWithFlag.description',
-		'Only auto attach when the `--inspect` flag is given',
-	),
+	[State.Disabled]: vscode.l10n.t('Auto attach is disabled and not shown in status bar'),
+	[State.Always]: vscode.l10n.t('Auto attach to every Node.js process launched in the terminal'),
+	[State.Smart]: vscode.l10n.t("Auto attach when running scripts that aren't in a node_modules folder"),
+	[State.OnlyWithFlag]: vscode.l10n.t('Only auto attach when the `--inspect` flag is given')
 };
-const TEXT_TOGGLE_WORKSPACE = localize('scope.workspace', 'Toggle auto attach in this workspace');
-const TEXT_TOGGLE_GLOBAL = localize('scope.global', 'Toggle auto attach on this machine');
-const TEXT_TEMP_DISABLE = localize('tempDisable.disable', 'Temporarily disable auto attach in this session');
-const TEXT_TEMP_ENABLE = localize('tempDisable.enable', 'Re-enable auto attach');
-const TEXT_TEMP_DISABLE_LABEL = localize('tempDisable.suffix', 'Auto Attach: Disabled');
+const TEXT_TOGGLE_WORKSPACE = vscode.l10n.t('Toggle auto attach in this workspace');
+const TEXT_TOGGLE_GLOBAL = vscode.l10n.t('Toggle auto attach on this machine');
+const TEXT_TEMP_DISABLE = vscode.l10n.t('Temporarily disable auto attach in this session');
+const TEXT_TEMP_ENABLE = vscode.l10n.t('Re-enable auto attach');
+const TEXT_TEMP_DISABLE_LABEL = vscode.l10n.t('Auto Attach: Disabled');
 
 const TOGGLE_COMMAND = 'extension.node-debug.toggleAutoAttach';
 const STORAGE_IPC = 'jsDebugIpcState';
@@ -62,12 +51,6 @@ const SETTINGS_CAUSE_REFRESH = new Set(
 	['autoAttachSmartPattern', SETTING_STATE].map(s => `${SETTING_SECTION}.${s}`),
 );
 
-const enum State {
-	Disabled = 'disabled',
-	OnlyWithFlag = 'onlyWithFlag',
-	Smart = 'smart',
-	Always = 'always',
-}
 
 let currentState: Promise<{ context: vscode.ExtensionContext; state: State | null }>;
 let statusItem: vscode.StatusBarItem | undefined; // and there is no status bar item
@@ -243,7 +226,7 @@ const createServerInner = async (ipcAddress: string) => {
 const createServerInstance = (ipcAddress: string) =>
 	new Promise<Server>((resolve, reject) => {
 		const s = createServer(socket => {
-			let data: Buffer[] = [];
+			const data: Buffer[] = [];
 			socket.on('data', async chunk => {
 				if (chunk[chunk.length - 1] !== 0) {
 					// terminated with NUL byte
@@ -318,9 +301,9 @@ function updateStatusBar(context: vscode.ExtensionContext, state: State, busy = 
 
 	if (!statusItem) {
 		statusItem = vscode.window.createStatusBarItem('status.debug.autoAttach', vscode.StatusBarAlignment.Left);
-		statusItem.name = localize('status.name.auto.attach', "Debug Auto Attach");
+		statusItem.name = vscode.l10n.t("Debug Auto Attach");
 		statusItem.command = TOGGLE_COMMAND;
-		statusItem.tooltip = localize('status.tooltip.auto.attach', "Automatically attach to node.js processes in debug mode");
+		statusItem.tooltip = vscode.l10n.t("Automatically attach to node.js processes in debug mode");
 		context.subscriptions.push(statusItem);
 	}
 
@@ -392,7 +375,7 @@ async function getIpcAddress(context: vscode.ExtensionContext) {
 }
 
 function getJsDebugSettingKey() {
-	let o: { [key: string]: unknown } = {};
+	const o: { [key: string]: unknown } = {};
 	const config = vscode.workspace.getConfiguration(SETTING_SECTION);
 	for (const setting of SETTINGS_CAUSE_REFRESH) {
 		o[setting] = config.get(setting);

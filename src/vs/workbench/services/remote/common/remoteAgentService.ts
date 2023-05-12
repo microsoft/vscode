@@ -10,10 +10,6 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { Event } from 'vs/base/common/event';
 import { PersistentConnectionEvent, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-
-export const RemoteExtensionLogFileName = 'remoteagent';
 
 export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteAgentService');
 
@@ -31,20 +27,26 @@ export interface IRemoteAgentService {
 	 * Get the remote environment. Can return an error.
 	 */
 	getRawEnvironment(): Promise<IRemoteAgentEnvironment | null>;
+	/**
+	 * Get exit information for a remote extension host.
+	 */
+	getExtensionHostExitInfo(reconnectionToken: string): Promise<IExtensionHostExitInfo | null>;
 
-	whenExtensionsReady(): Promise<void>;
 	/**
-	 * Scan remote extensions.
+	 * Gets the round trip time from the remote extension host. Note that this
+	 * may be delayed if the extension host is busy.
 	 */
-	scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]>;
-	/**
-	 * Scan a single remote extension.
-	 */
-	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null>;
+	getRoundTripTime(): Promise<number | undefined>;
+
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined>;
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>;
 	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void>;
 	flushTelemetry(): Promise<void>;
+}
+
+export interface IExtensionHostExitInfo {
+	code: number;
+	signal: string;
 }
 
 export interface IRemoteAgentConnection {
@@ -53,7 +55,9 @@ export interface IRemoteAgentConnection {
 	readonly onReconnecting: Event<void>;
 	readonly onDidStateChange: Event<PersistentConnectionEvent>;
 
+	dispose(): void;
 	getChannel<T extends IChannel>(channelName: string): T;
 	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R>;
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void;
+	getInitialConnectionTimeMs(): Promise<number>;
 }

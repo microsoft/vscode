@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
-import { ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalOptions, TerminalState, UIKind, window, workspace } from 'vscode';
+import { ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, window, workspace } from 'vscode';
 import { assertNoRpc, poll } from '../utils';
 
 // Disable terminal tests:
@@ -26,15 +26,18 @@ import { assertNoRpc, poll } from '../utils';
 		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
 		// Disable env var relaunch for tests to prevent terminals relaunching themselves
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+		await config.update('shellIntegration.enabled', false);
 	});
 
 	suite('Terminal', () => {
-		let disposables: Disposable[] = [];
+		const disposables: Disposable[] = [];
 
-		teardown(() => {
+		teardown(async () => {
 			assertNoRpc();
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
+			const config = workspace.getConfiguration('terminal.integrated');
+			await config.update('shellIntegration.enabled', undefined);
 		});
 
 		test('sendText immediately after createTerminal should not throw', async () => {
@@ -129,7 +132,7 @@ import { assertNoRpc, poll } from '../utils';
 				}));
 			});
 			equal(result, terminal);
-			let pid = await result.processId;
+			const pid = await result.processId;
 			equal(true, pid && pid > 0);
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
@@ -220,7 +223,7 @@ import { assertNoRpc, poll } from '../utils';
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
-						deepStrictEqual(t.exitStatus, { code: undefined });
+						deepStrictEqual(t.exitStatus, { code: undefined, reason: TerminalExitReason.Extension });
 						r();
 					}
 				}));
@@ -576,7 +579,7 @@ import { assertNoRpc, poll } from '../utils';
 							strictEqual(created.exitStatus, undefined);
 							disposables.push(window.onDidCloseTerminal(t2 => {
 								if (t2 === created) {
-									deepStrictEqual(created.exitStatus, { code: undefined });
+									deepStrictEqual(created.exitStatus, { code: undefined, reason: TerminalExitReason.Process });
 									r();
 								}
 							}));
@@ -601,7 +604,7 @@ import { assertNoRpc, poll } from '../utils';
 							strictEqual(created.exitStatus, undefined);
 							disposables.push(window.onDidCloseTerminal(t2 => {
 								if (t2 === created) {
-									deepStrictEqual(created.exitStatus, { code: 0 });
+									deepStrictEqual(created.exitStatus, { code: 0, reason: TerminalExitReason.Process });
 									r();
 								}
 							}));
@@ -631,7 +634,7 @@ import { assertNoRpc, poll } from '../utils';
 							strictEqual(created.exitStatus, undefined);
 							disposables.push(window.onDidCloseTerminal(t2 => {
 								if (t2 === created) {
-									deepStrictEqual(created.exitStatus, { code: 22 });
+									deepStrictEqual(created.exitStatus, { code: 22, reason: TerminalExitReason.Process });
 									r();
 								}
 							}));
@@ -847,17 +850,17 @@ import { assertNoRpc, poll } from '../utils';
 				collection.prepend('C', '~c2~');
 
 				// Verify get
-				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
-				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
-				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
+				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, scope: undefined });
+				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append, scope: undefined });
+				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, scope: undefined });
 
 				// Verify forEach
 				const entries: [string, EnvironmentVariableMutator][] = [];
 				collection.forEach((v, m) => entries.push([v, m]));
 				deepStrictEqual(entries, [
-					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
-					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
-					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
+					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, scope: undefined }],
+					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append, scope: undefined }],
+					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, scope: undefined }]
 				]);
 			});
 		});

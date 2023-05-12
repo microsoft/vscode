@@ -9,12 +9,12 @@ import { CustomEditorPriority, CustomEditorSelector } from 'vs/workbench/contrib
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
 
-namespace Fields {
-	export const viewType = 'viewType';
-	export const displayName = 'displayName';
-	export const selector = 'selector';
-	export const priority = 'priority';
-}
+const Fields = Object.freeze({
+	viewType: 'viewType',
+	displayName: 'displayName',
+	selector: 'selector',
+	priority: 'priority',
+});
 
 export interface ICustomEditorsExtensionPoint {
 	readonly [Fields.viewType]: string;
@@ -89,5 +89,13 @@ const CustomEditorsContribution: IJSONSchema = {
 export const customEditorsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ICustomEditorsExtensionPoint[]>({
 	extensionPoint: 'customEditors',
 	deps: [languagesExtPoint],
-	jsonSchema: CustomEditorsContribution
+	jsonSchema: CustomEditorsContribution,
+	activationEventsGenerator: (contribs: ICustomEditorsExtensionPoint[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			const viewType = contrib[Fields.viewType];
+			if (viewType) {
+				result.push(`onCustomEditor:${viewType}`);
+			}
+		}
+	},
 });

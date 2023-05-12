@@ -24,6 +24,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
 		const remove = this.participants.push(participant);
+
 		return toDisposable(() => remove());
 	}
 

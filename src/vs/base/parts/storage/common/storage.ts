@@ -6,7 +6,8 @@
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { parse, stringify } from 'vs/base/common/marshalling';
+import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
 
 export enum StorageHint {
 
@@ -14,7 +15,11 @@ export enum StorageHint {
 	// does not exist on disk yet. This allows
 	// the storage library to improve startup
 	// time by not checking the storage for data.
-	STORAGE_DOES_NOT_EXIST
+	STORAGE_DOES_NOT_EXIST,
+
+	// A hint to the storage that the storage
+	// is backed by an in-memory storage.
+	STORAGE_IN_MEMORY
 }
 
 export interface IStorageOptions {
@@ -65,7 +70,10 @@ export interface IStorage extends IDisposable {
 	getNumber(key: string, fallbackValue: number): number;
 	getNumber(key: string, fallbackValue?: number): number | undefined;
 
-	set(key: string, value: string | boolean | number | undefined | null): Promise<void>;
+	getObject<T extends object>(key: string, fallbackValue: T): T;
+	getObject<T extends object>(key: string, fallbackValue?: T): T | undefined;
+
+	set(key: string, value: string | boolean | number | undefined | null | object): Promise<void>;
 	delete(key: string): Promise<void>;
 
 	flush(delay?: number): Promise<void>;
@@ -209,7 +217,19 @@ export class Storage extends Disposable implements IStorage {
 		return parseInt(value, 10);
 	}
 
-	async set(key: string, value: string | boolean | number | null | undefined): Promise<void> {
+	getObject(key: string, fallbackValue: object): object;
+	getObject(key: string, fallbackValue?: object | undefined): object | undefined;
+	getObject(key: string, fallbackValue?: object): object | undefined {
+		const value = this.get(key);
+
+		if (isUndefinedOrNull(value)) {
+			return fallbackValue;
+		}
+
+		return parse(value);
+	}
+
+	async set(key: string, value: string | boolean | number | null | undefined | object): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -220,7 +240,7 @@ export class Storage extends Disposable implements IStorage {
 		}
 
 		// Otherwise, convert to String and store
-		const valueStr = String(value);
+		const valueStr = isObject(value) || Array.isArray(value) ? stringify(value) : String(value);
 
 		// Return early if value already set
 		const currentValue = this.cache.get(key);
@@ -339,6 +359,10 @@ export class Storage extends Disposable implements IStorage {
 		return new Promise(resolve => this.whenFlushedCallbacks.push(resolve));
 	}
 
+	isInMemory(): boolean {
+		return this.options.hint === StorageHint.STORAGE_IN_MEMORY;
+	}
+
 	override dispose(): void {
 		this.flushDelayer.dispose();
 
@@ -357,13 +381,9 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
-		if (request.insert) {
-			request.insert.forEach((value, key) => this.items.set(key, value));
-		}
+		request.insert?.forEach((value, key) => this.items.set(key, value));
 
-		if (request.delete) {
-			request.delete.forEach(key => this.items.delete(key));
-		}
+		request.delete?.forEach(key => this.items.delete(key));
 	}
 
 	async close(): Promise<void> { }

@@ -6,27 +6,15 @@
 import { ExtensionContext, workspace } from 'vscode';
 import { filterEvent, IDisposable } from './util';
 
+export interface ITerminalEnvironmentProvider {
+	getTerminalEnv(): { [key: string]: string };
+}
+
 export class TerminalEnvironmentManager {
 
 	private readonly disposable: IDisposable;
 
-	private _enabled = false;
-	private set enabled(enabled: boolean) {
-		if (this._enabled === enabled) {
-			return;
-		}
-
-		this._enabled = enabled;
-		this.context.environmentVariableCollection.clear();
-
-		if (enabled) {
-			for (const name of Object.keys(this.env)) {
-				this.context.environmentVariableCollection.replace(name, this.env[name]);
-			}
-		}
-	}
-
-	constructor(private readonly context: ExtensionContext, private readonly env: { [key: string]: string }) {
+	constructor(private readonly context: ExtensionContext, private readonly envProviders: (ITerminalEnvironmentProvider | undefined)[]) {
 		this.disposable = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'))
 			(this.refresh, this);
 
@@ -35,7 +23,19 @@ export class TerminalEnvironmentManager {
 
 	private refresh(): void {
 		const config = workspace.getConfiguration('git', null);
-		this.enabled = config.get<boolean>('enabled', true) && config.get('terminalAuthentication', true);
+		this.context.environmentVariableCollection.clear();
+
+		if (!config.get<boolean>('enabled', true)) {
+			return;
+		}
+
+		for (const envProvider of this.envProviders) {
+			const terminalEnv = envProvider?.getTerminalEnv() ?? {};
+
+			for (const name of Object.keys(terminalEnv)) {
+				this.context.environmentVariableCollection.replace(name, terminalEnv[name]);
+			}
+		}
 	}
 
 	dispose(): void {

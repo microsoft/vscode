@@ -12,7 +12,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 
 suite('Debug - Debugger', () => {
@@ -58,6 +58,7 @@ suite('Debug - Debugger', () => {
 		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		engines: null!,
+		targetPlatform: TargetPlatform.UNDEFINED,
 		contributes: {
 			'debuggers': [
 				debuggerContribution
@@ -76,6 +77,7 @@ suite('Debug - Debugger', () => {
 		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		engines: null!,
+		targetPlatform: TargetPlatform.UNDEFINED,
 		contributes: {
 			'debuggers': [
 				{
@@ -100,6 +102,7 @@ suite('Debug - Debugger', () => {
 		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		engines: null!,
+		targetPlatform: TargetPlatform.UNDEFINED,
 		contributes: {
 			'debuggers': [
 				{

@@ -118,6 +118,12 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_CURRENT_LINE', 'this is line two');
 		assertVariableResolve(resolver, 'TM_LINE_INDEX', '1');
 		assertVariableResolve(resolver, 'TM_LINE_NUMBER', '2');
+		assertVariableResolve(resolver, 'CURSOR_INDEX', '0');
+		assertVariableResolve(resolver, 'CURSOR_NUMBER', '1');
+
+		resolver = new SelectionBasedVariableResolver(model, new Selection(1, 2, 2, 3), 4, undefined);
+		assertVariableResolve(resolver, 'CURSOR_INDEX', '4');
+		assertVariableResolve(resolver, 'CURSOR_NUMBER', '5');
 
 		resolver = new SelectionBasedVariableResolver(model, new Selection(2, 3, 1, 2), 0, undefined);
 		assertVariableResolve(resolver, 'TM_SELECTED_TEXT', 'his is line one\nth');
@@ -300,6 +306,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_SECONDS_UNIX');
+		assertVariableResolve3(resolver, 'CURRENT_TIMEZONE_OFFSET');
 	});
 
 	test('Time-based snippet variables resolve to the same values even as time progresses', async function () {
@@ -316,6 +323,7 @@ suite('Snippet Variables Resolver', function () {
 			$CURRENT_MONTH_NAME
 			$CURRENT_MONTH_NAME_SHORT
 			$CURRENT_SECONDS_UNIX
+			$CURRENT_TIMEZONE_OFFSET
 		`;
 
 		const clock = sinon.useFakeTimers();
@@ -345,7 +353,6 @@ suite('Snippet Variables Resolver', function () {
 	test('Add workspace name and folder variables for snippets #68261', function () {
 
 		let workspace: IWorkspace;
-		let resolver: VariableResolver;
 		const workspaceService = new class implements IWorkspaceContextService {
 			declare readonly _serviceBrand: undefined;
 			_throw = () => { throw new Error(); };
@@ -361,7 +368,7 @@ suite('Snippet Variables Resolver', function () {
 			isInsideWorkspace = this._throw;
 		};
 
-		resolver = new WorkspaceBasedVariableResolver(workspaceService);
+		const resolver = new WorkspaceBasedVariableResolver(workspaceService);
 
 		// empty workspace
 		workspace = new Workspace('');

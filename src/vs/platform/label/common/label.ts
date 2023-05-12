@@ -21,15 +21,28 @@ export interface ILabelService {
 	 * If `noPrefix` is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
 	 * If `separator` is passed, will use that over the defined path separator of the formatter.
 	 */
-	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; endWithSeparator?: boolean; separator?: '/' | '\\' }): string;
+	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' }): string;
 	getUriBasenameLabel(resource: URI): string;
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: boolean }): string;
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: Verbosity }): string;
 	getHostLabel(scheme: string, authority?: string): string;
 	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
 	onDidChangeFormatters: Event<IFormatterChangeEvent>;
+
+	/**
+	 * Registers a formatter that's cached for the machine beyond the lifecycle
+	 * of the current window. Disposing the formatter _will not_ remove it from
+	 * the cache.
+	 */
+	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable;
+}
+
+export const enum Verbosity {
+	SHORT,
+	MEDIUM,
+	LONG
 }
 
 export interface IFormatterChangeEvent {

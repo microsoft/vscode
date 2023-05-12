@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -32,8 +32,8 @@ export function registerColorThemeExtensionPoint() {
 						type: 'string'
 					},
 					uiTheme: {
-						description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme.'),
-						enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME]
+						description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme, \'hc-light\' is the light high contrast theme.'),
+						enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME]
 					},
 					path: {
 						description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./colorthemes/awesome-color-theme.json\'.'),
@@ -191,40 +191,36 @@ export class ThemeRegistry<T extends IThemeData> {
 				log?.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
 			}
 
-			let themeData = this.create(theme, themeLocation, extensionData);
+			const themeData = this.create(theme, themeLocation, extensionData);
 			resultingThemes.push(themeData);
 		});
 		return resultingThemes;
 	}
 
-	public findThemeById(themeId: string, defaultId?: string): T | undefined {
+	public findThemeById(themeId: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.id === themeId) {
 			return this.builtInTheme;
 		}
 		const allThemes = this.getThemes();
-		let defaultTheme: T | undefined = undefined;
-		for (let t of allThemes) {
+		for (const t of allThemes) {
 			if (t.id === themeId) {
 				return t;
 			}
-			if (t.id === defaultId) {
-				defaultTheme = t;
-			}
 		}
-		return defaultTheme;
+		return undefined;
 	}
 
-	public findThemeBySettingsId(settingsId: string | null, defaultId?: string): T | undefined {
+	public findThemeBySettingsId(settingsId: string | null, defaultSettingsId?: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
 			return this.builtInTheme;
 		}
 		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
-		for (let t of allThemes) {
+		for (const t of allThemes) {
 			if (t.settingsId === settingsId) {
 				return t;
 			}
-			if (t.id === defaultId) {
+			if (t.settingsId === defaultSettingsId) {
 				defaultTheme = t;
 			}
 		}

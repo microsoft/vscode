@@ -40,19 +40,23 @@ export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommand
 	protected async getCommandPicks(): Promise<Array<ICommandQuickPick>> {
 		return this.getCodeEditorCommandPicks();
 	}
-}
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: StandaloneCommandsQuickAccessProvider,
-	prefix: StandaloneCommandsQuickAccessProvider.PREFIX,
-	helpEntries: [{ description: QuickCommandNLS.quickCommandHelp, needsEditor: true }]
-});
+	protected hasAdditionalCommandPicks(): boolean {
+		return false;
+	}
+
+	protected async getAdditionalCommandPicks(): Promise<ICommandQuickPick[]> {
+		return [];
+	}
+}
 
 export class GotoLineAction extends EditorAction {
 
+	static readonly ID = 'editor.action.quickCommand';
+
 	constructor() {
 		super({
-			id: 'editor.action.quickCommand',
+			id: GotoLineAction.ID,
 			label: QuickCommandNLS.quickCommandActionLabel,
 			alias: 'Command Palette',
 			precondition: undefined,
@@ -74,3 +78,9 @@ export class GotoLineAction extends EditorAction {
 }
 
 registerEditorAction(GotoLineAction);
+
+Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
+	ctor: StandaloneCommandsQuickAccessProvider,
+	prefix: StandaloneCommandsQuickAccessProvider.PREFIX,
+	helpEntries: [{ description: QuickCommandNLS.quickCommandHelp, commandId: GotoLineAction.ID }]
+});

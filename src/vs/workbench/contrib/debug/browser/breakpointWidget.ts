@@ -14,7 +14,6 @@ import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser'
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -39,23 +38,20 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
-export interface IPrivateBreakpointWidgetService {
+interface IPrivateBreakpointWidgetService {
 	readonly _serviceBrand: undefined;
 	close(success: boolean): void;
 }
 const DECORATION_KEY = 'breakpointwidgetdecoration';
 
-function isCurlyBracketOpen(input: IActiveCodeEditor): boolean {
+function isPositionInCurlyBracketBlock(input: IActiveCodeEditor): boolean {
 	const model = input.getModel();
-	const prevBracket = model.bracketPairs.findPrevBracket(input.getPosition());
-	if (prevBracket && prevBracket.isOpen) {
-		return true;
-	}
-
-	return false;
+	const bracketPairs = model.bracketPairs.getBracketPairsInRange(Range.fromPositions(input.getPosition()));
+	return bracketPairs.some(p => p.openingBracketInfo.bracketText === '{');
 }
 
 function createDecorations(theme: IColorTheme, placeHolder: string): IDecorationOptions[] {
@@ -173,7 +169,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		if (this.editor.hasModel()) {
 			// Use plaintext language for log messages, otherwise respect underlying editor language #125619
 			const languageId = this.context === Context.LOG_MESSAGE ? PLAINTEXT_LANGUAGE_ID : this.editor.getModel().getLanguageId();
-			this.input.getModel().setMode(languageId);
+			this.input.getModel().setLanguage(languageId);
 		}
 	}
 
@@ -189,8 +185,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, undefined, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
-		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
+		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
 		selectBox.onDidSelect(e => {
@@ -221,6 +216,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.centerInputVertically();
 	}
 
+	protected override _onWidth(widthInPixel: number): void {
+		if (typeof this.heightInPx === 'number') {
+			this._doLayout(this.heightInPx, widthInPixel);
+		}
+	}
+
 	private createBreakpointInput(container: HTMLElement): void {
 		const scopedContextKeyService = this.contextKeyService.createScoped(container);
 		this.toDispose.push(scopedContextKeyService);
@@ -234,7 +235,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
 		if (this.editor.hasModel()) {
-			model.setMode(this.editor.getModel().getLanguageId());
+			model.setLanguage(this.editor.getModel().getLanguageId());
 		}
 		this.input.setModel(model);
 		this.setInputMode();
@@ -242,7 +243,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const setDecorations = () => {
 			const value = this.input.getModel().getValue();
 			const decorations = !!value ? [] : createDecorations(this.themeService.getColorTheme(), this.placeholder);
-			this.input.setDecorations('breakpoint-widget', DECORATION_KEY, decorations);
+			this.input.setDecorationsByType('breakpoint-widget', DECORATION_KEY, decorations);
 		};
 		this.input.getModel().onDidChangeContent(() => setDecorations());
 		this.themeService.onDidColorThemeChange(() => setDecorations());
@@ -251,7 +252,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
 				const underlyingModel = this.editor.getModel();
-				if (underlyingModel && (this.context === Context.CONDITION || (this.context === Context.LOG_MESSAGE && isCurlyBracketOpen(this.input)))) {
+				if (underlyingModel && (this.context === Context.CONDITION || (this.context === Context.LOG_MESSAGE && isPositionInCurlyBracketBlock(this.input)))) {
 					suggestionsPromise = provideSuggestionItems(this.languageFeaturesService.completionProvider, underlyingModel, new Position(this.lineNumber, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)), _context, token).then(suggestions => {
 
 						let overwriteBefore = 0;
@@ -334,7 +335,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					hitCondition,
 					logMessage
 				});
-				this.debugService.updateBreakpoints(this.breakpoint.uri, data, false).then(undefined, onUnexpectedError);
+				this.debugService.updateBreakpoints(this.breakpoint.originalUri, data, false).then(undefined, onUnexpectedError);
 			} else {
 				const model = this.editor.getModel();
 				if (model) {

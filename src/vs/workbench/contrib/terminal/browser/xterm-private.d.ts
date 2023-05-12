@@ -13,6 +13,7 @@ export interface IXtermCore {
 	viewport?: {
 		_innerRefresh(): void;
 	};
+	_onData: IEventEmitter<string>;
 	_onKey: IEventEmitter<{ key: string }>;
 
 	_charSizeService: {
@@ -30,13 +31,17 @@ export interface IXtermCore {
 
 	_renderService: {
 		dimensions: {
-			actualCellWidth: number;
-			actualCellHeight: number;
+			css: {
+				cell: {
+					width: number;
+					height: number;
+				}
+			}
 		},
 		_renderer: {
 			_renderLayers?: any[];
 		};
-		_onIntersectionChange: any;
+		_handleIntersectionChange: any;
 	};
 }
 

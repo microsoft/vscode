@@ -10,7 +10,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 /**
  * A resource based `IWorkingCopy` is backed by a `URI` from a
@@ -152,6 +152,7 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 
 	abstract onDidChangeDirty: Event<void>;
 	abstract onDidChangeContent: Event<void>;
+	abstract onDidSave: Event<IWorkingCopySaveEvent>;
 
 	abstract isDirty(): boolean;
 

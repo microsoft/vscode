@@ -24,6 +24,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isWeb } from 'vs/base/common/platform';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class PerfviewContrib {
 
@@ -55,7 +56,8 @@ export class PerfviewInput extends TextResourceEditorInput {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(
 			PerfviewInput.Uri,
@@ -67,7 +69,8 @@ export class PerfviewInput extends TextResourceEditorInput {
 			textFileService,
 			editorService,
 			fileService,
-			labelService
+			labelService,
+			filesConfigurationService
 		);
 	}
 }
@@ -95,9 +98,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			this._model = this._modelService.getModel(resource) || this._modelService.createModel('Loading...', langId, resource);
 
 			this._modelDisposables.push(langId.onDidChange(e => {
-				if (this._model) {
-					this._model.setMode(e);
-				}
+				this._model?.setLanguage(e);
 			}));
 			this._modelDisposables.push(this._extensionService.onDidChangeExtensionsStatus(this._updateModel, this));
 
@@ -116,8 +117,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		]).then(() => {
 			if (this._model && !this._model.isDisposed()) {
 
-				let stats = LoaderStats.get();
-				let md = new MarkdownBuilder();
+				const stats = LoaderStats.get();
+				const md = new MarkdownBuilder();
 				this._addSummary(md);
 				md.blank();
 				this._addSummaryTable(md, stats);
@@ -126,8 +127,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				md.blank();
 				this._addRawPerfMarks(md);
 				md.blank();
-				// this._addLoaderStats(md, stats);
-				// md.blank();
+				this._addLoaderStats(md, stats);
+				md.blank();
 				this._addCachedDataStats(md);
 
 				this._model.setValue(md.value);
@@ -195,8 +196,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 		const eager: ({ toString(): string })[][] = [];
 		const normal: ({ toString(): string })[][] = [];
-		let extensionsStatus = this._extensionService.getExtensionsStatus();
-		for (let id in extensionsStatus) {
+		const extensionsStatus = this._extensionService.getExtensionsStatus();
+		for (const id in extensionsStatus) {
 			const { activationTimes: times } = extensionsStatus[id];
 			if (!times) {
 				continue;
@@ -220,14 +221,14 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 
 	private _addRawPerfMarks(md: MarkdownBuilder): void {
 
-		for (let [source, marks] of this._timerService.getPerformanceMarks()) {
+		for (const [source, marks] of this._timerService.getPerformanceMarks()) {
 			md.heading(2, `Raw Perf Marks: ${source}`);
 			md.value += '```\n';
 			md.value += `Name\tTimestamp\tDelta\tTotal\n`;
 			let lastStartTime = -1;
 			let total = 0;
 			for (const { name, startTime } of marks) {
-				let delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
+				const delta = lastStartTime !== -1 ? startTime - lastStartTime : 0;
 				total += delta;
 				md.value += `${name}\t${startTime}\t${delta}\t${total}\n`;
 				lastStartTime = startTime;
@@ -236,20 +237,20 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		}
 	}
 
-	// private _addLoaderStats(md: MarkdownBuilder, stats: LoaderStats): void {
-	// 	md.heading(2, 'Loader Stats');
-	// 	md.heading(3, 'Load AMD-module');
-	// 	md.table(['Module', 'Duration'], stats.amdLoad);
-	// 	md.blank();
-	// 	md.heading(3, 'Load commonjs-module');
-	// 	md.table(['Module', 'Duration'], stats.nodeRequire);
-	// 	md.blank();
-	// 	md.heading(3, 'Invoke AMD-module factory');
-	// 	md.table(['Module', 'Duration'], stats.amdInvoke);
-	// 	md.blank();
-	// 	md.heading(3, 'Invoke commonjs-module');
-	// 	md.table(['Module', 'Duration'], stats.nodeEval);
-	// }
+	private _addLoaderStats(md: MarkdownBuilder, stats: LoaderStats): void {
+		md.heading(2, 'Loader Stats');
+		md.heading(3, 'Load AMD-module');
+		md.table(['Module', 'Duration'], stats.amdLoad);
+		md.blank();
+		md.heading(3, 'Load commonjs-module');
+		md.table(['Module', 'Duration'], stats.nodeRequire);
+		md.blank();
+		md.heading(3, 'Invoke AMD-module factory');
+		md.table(['Module', 'Duration'], stats.amdInvoke);
+		md.blank();
+		md.heading(3, 'Invoke commonjs-module');
+		md.table(['Module', 'Duration'], stats.nodeEval);
+	}
 
 	private _addCachedDataStats(md: MarkdownBuilder): void {
 
@@ -258,9 +259,11 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		map.set(LoaderEventType.CachedDataFound, []);
 		map.set(LoaderEventType.CachedDataMissed, []);
 		map.set(LoaderEventType.CachedDataRejected, []);
-		for (const stat of require.getStats()) {
-			if (map.has(stat.type)) {
-				map.get(stat.type)!.push(stat.detail);
+		if (typeof require.getStats === 'function') {
+			for (const stat of require.getStats()) {
+				if (map.has(stat.type)) {
+					map.get(stat.type)!.push(stat.detail);
+				}
 			}
 		}
 

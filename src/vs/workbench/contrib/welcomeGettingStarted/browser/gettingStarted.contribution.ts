@@ -22,17 +22,15 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
-
+import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 
@@ -40,8 +38,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: { value: localize('miGetStarted', "Get Started"), original: 'Get Started' },
-			category: localize('help', "Help"),
+			title: { value: localize('miWelcome', "Welcome"), original: 'Welcome' },
+			category: Categories.Help,
 			f1: true,
 			menu: {
 				id: MenuId.MenubarHelpMenu,
@@ -51,10 +49,15 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, walkthroughID: string | { category: string; step: string } | undefined, toSide: boolean | undefined) {
+	public run(
+		accessor: ServicesAccessor,
+		walkthroughID: string | { category: string; step: string } | undefined,
+		toSide: boolean | undefined
+	) {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
 
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
@@ -73,17 +76,35 @@ registerAction2(class extends Action2 {
 			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, editorId: undefined, resource: GettingStartedInput.RESOURCE });
 			for (const { editor, groupId } of result) {
 				if (editor instanceof GettingStartedInput) {
-					if (!editor.selectedCategory) {
+					const group = editorGroupsService.getGroup(groupId);
+					if (!editor.selectedCategory && group) {
 						editor.selectedCategory = selectedCategory;
 						editor.selectedStep = selectedStep;
-						editorService.openEditor(editor, { revealIfOpened: true, override: EditorResolution.DISABLED }, groupId);
+						group.openEditor(editor, { revealIfOpened: true });
 						return;
 					}
 				}
 			}
 
-			// Otherwise, just make a new one.
-			editorService.openEditor(instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep }), {}, toSide ? SIDE_GROUP : undefined);
+			const activeEditor = editorService.activeEditor;
+			// If the walkthrough is already open just reveal the step
+			if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
+				commandService.executeCommand('walkthroughs.selectStep', selectedStep);
+				return;
+			}
+
+			const gettingStartedInput = instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep });
+			// If it's the extension install page then lets replace it with the getting started page
+			if (activeEditor instanceof ExtensionsInput) {
+				const activeGroup = editorGroupsService.activeGroup;
+				activeGroup.replaceEditors([{
+					editor: activeEditor,
+					replacement: gettingStartedInput
+				}]);
+			} else {
+				// else open respecting toSide
+				editorService.openEditor(gettingStartedInput, { preserveFocus: toSide ?? false }, toSide ? SIDE_GROUP : undefined);
+			}
 		} else {
 			editorService.openEditor(new GettingStartedInput({}), {});
 		}
@@ -95,14 +116,14 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
-		localize('getStarted', "Get Started")
+		localize('welcome', "Welcome")
 	),
 	[
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
 
-const category = localize('getStarted', "Get Started");
+const category = { value: localize('welcome', "Welcome"), original: 'Welcome' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -210,7 +231,7 @@ registerAction2(class extends Action2 {
 		quickPick.canSelectMany = false;
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
-		quickPick.title = localize('pickWalkthroughs', "Open Walkthrough...");
+		quickPick.placeholder = localize('pickWalkthroughs', 'Select a walkthrough to open');
 		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
 		quickPick.busy = true;
 		quickPick.onDidAccept(() => {
@@ -228,53 +249,6 @@ registerAction2(class extends Action2 {
 		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
 	}
 });
-
-const prefersReducedMotionConfig = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.welcomePage.preferReducedMotion': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'boolean',
-			default: true,
-			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
-		}
-	}
-} as const;
-
-const prefersStandardMotionConfig = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.welcomePage.preferReducedMotion': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'boolean',
-			default: false,
-			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
-		}
-	}
-} as const;
-
-class WorkbenchConfigurationContribution {
-	constructor(
-		@IInstantiationService _instantiationService: IInstantiationService,
-		@IConfigurationService _configurationService: IConfigurationService,
-		@IWorkbenchAssignmentService _experimentSevice: IWorkbenchAssignmentService,
-	) {
-		this.registerConfigs(_experimentSevice);
-	}
-
-	private async registerConfigs(_experimentSevice: IWorkbenchAssignmentService) {
-		const preferReduced = await _experimentSevice.getTreatment('welcomePage.preferReducedMotion').catch(e => false);
-		if (preferReduced) {
-			configurationRegistry.updateConfigurations({ add: [prefersReducedMotionConfig], remove: [prefersStandardMotionConfig] });
-		}
-		else {
-			configurationRegistry.updateConfigurations({ add: [prefersStandardMotionConfig], remove: [prefersReducedMotionConfig] });
-		}
-	}
-}
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Restored);
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote or serverless contexts may be different from the platform of the UI"));
 class WorkspacePlatformContribution {
@@ -324,41 +298,30 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install of the extension.")
 		},
-		'workbench.welcomePage.experimental.videoTutorials': {
-			scope: ConfigurationScope.MACHINE,
-			type: 'string',
-			enum: [
-				'off',
-				'on',
-				'experimental'
+		'workbench.startupEditor': {
+			'scope': ConfigurationScope.RESOURCE,
+			'type': 'string',
+			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench'],
+			'enumDescriptions': [
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled text file (only applies when opening an empty window)."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
 			],
-			tags: ['experimental'],
-			default: 'off',
-			description: localize('workbench.welcomePage.videoTutorials', "When enabled, the get started page has additional links to video tutorials.")
+			'default': 'welcomePage',
+			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
+		},
+		'workbench.welcomePage.preferReducedMotion': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: false,
+			deprecationMessage: localize('deprecationMessage', "Deprecated, use the global `workbench.reduceMotion`."),
+			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
 		}
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		'properties': {
-			'workbench.startupEditor': {
-				'scope': ConfigurationScope.RESOURCE,
-				'type': 'string',
-				'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench'],
-				'enumDescriptions': [
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
-				],
-				'default': 'welcomePage',
-				'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
-			},
-		}
-	});
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Restored);

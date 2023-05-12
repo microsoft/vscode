@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Token, IState, LanguageId, MetadataConsts } from 'vs/editor/common/languages';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { Token, IState } from 'vs/editor/common/languages';
+import { LanguageId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
@@ -121,7 +121,7 @@ suite('TokenizationSupport2Adapter', () => {
 
 		const disposables = new DisposableStore();
 		const languageService = disposables.add(new LanguageService());
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		const adapter = new TokenizationSupportAdapter(
 			languageId,
 			new BadTokensProvider(),
@@ -160,8 +160,8 @@ suite('TokenizationSupport2Adapter', () => {
 				new Token(0, 'bar', languageId),
 			],
 			[
-				0, (0 << MetadataConsts.FOREGROUND_OFFSET),
-				0, (1 << MetadataConsts.FOREGROUND_OFFSET)
+				0, (0 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK,
+				0, (1 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK
 			]
 		);
 	});
@@ -179,9 +179,9 @@ suite('TokenizationSupport2Adapter', () => {
 				new Token(5, 'foo', languageId),
 			],
 			[
-				0, (0 << MetadataConsts.FOREGROUND_OFFSET),
-				5, (1 << MetadataConsts.FOREGROUND_OFFSET),
-				5, (2 << MetadataConsts.FOREGROUND_OFFSET)
+				0, (0 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK,
+				5, (1 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK,
+				5, (2 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.BALANCED_BRACKETS_MASK
 			]
 		);
 	});

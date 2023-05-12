@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -17,90 +15,30 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IBaseCellEditorOptions, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
-export class CellEditorOptions extends CellPart {
-	private static fixedEditorOptions: IEditorOptions = {
-		scrollBeyondLastLine: false,
-		scrollbar: {
-			verticalScrollbarSize: 14,
-			horizontal: 'auto',
-			useShadows: true,
-			verticalHasArrows: false,
-			horizontalHasArrows: false,
-			alwaysConsumeMouseWheel: false
-		},
-		renderLineHighlightOnlyWhenFocus: true,
-		overviewRulerLanes: 0,
-		selectOnLineNumbers: false,
-		lineNumbers: 'off',
-		lineDecorationsWidth: 0,
-		folding: true,
-		fixedOverflowWidgets: true,
-		minimap: { enabled: false },
-		renderValidationDecorations: 'on',
-		lineNumbersMinChars: 3
-	};
-
-	private _value: IEditorOptions;
+export class CellEditorOptions extends CellContentPart {
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
-	private _localDisposableStore = this._register(new DisposableStore());
+	private _value: IEditorOptions;
 
-	constructor(readonly notebookEditor: INotebookEditorDelegate, readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService, readonly language: string) {
+	constructor(private readonly base: IBaseCellEditorOptions, readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService) {
 		super();
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
-				this._recomputeOptions();
-			}
+
+		this._register(base.onDidChange(() => {
+			this._recomputeOptions();
 		}));
-
-		this._register(notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.editorTopPadding || e.editorOptionsCustomizations) {
-				this._recomputeOptions();
-			}
-		}));
-
-		this._register(this.notebookEditor.onDidChangeModel(() => {
-			this._localDisposableStore.clear();
-
-			if (this.notebookEditor.hasModel()) {
-				this._localDisposableStore.add(this.notebookEditor.onDidChangeOptions(() => {
-					this._recomputeOptions();
-				}));
-
-				this._recomputeOptions();
-			}
-		}));
-
-		if (this.notebookEditor.hasModel()) {
-			this._localDisposableStore.add(this.notebookEditor.onDidChangeOptions(() => {
-				this._recomputeOptions();
-			}));
-		}
 
 		this._value = this._computeEditorOptions();
 	}
 
-
-	renderCell(element: ICellViewModel): void {
-		// no op
-	}
-
-	prepareLayout(): void {
-		// nothing to read
-	}
-	updateInternalLayoutNow(element: ICellViewModel): void {
-		// nothing to update
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent) {
+	override updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent) {
 		if (e.cellLineNumberChanged) {
 			this.setLineNumbers(element.lineNumbers);
 		}
@@ -112,27 +50,39 @@ export class CellEditorOptions extends CellPart {
 	}
 
 	private _computeEditorOptions() {
-		const renderLineNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-		const lineNumbers: LineNumbersType = renderLineNumbers ? 'on' : 'off';
-		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
-		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
-		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
-		const editorOptionsOverride: { [key: string]: any } = {};
-		for (const key in editorOptionsOverrideRaw) {
-			if (key.indexOf('editor.') === 0) {
-				editorOptionsOverride[key.substring(7)] = editorOptionsOverrideRaw[key];
-			}
-		}
-		const computed = {
-			...editorOptions,
-			...CellEditorOptions.fixedEditorOptions,
-			... { lineNumbers },
-			...editorOptionsOverride,
-			...{ padding: { top: 12, bottom: 12 } },
-			readOnly: this.notebookEditor.isReadOnly
-		};
+		const value = this.base.value;
+		let cellRenderLineNumber = value.lineNumbers;
 
-		return computed;
+		switch (this._lineNumbers) {
+			case 'inherit':
+				// inherit from the notebook setting
+				if (this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on') {
+					if (value.lineNumbers === 'off') {
+						cellRenderLineNumber = 'on';
+					} // otherwise just use the editor setting
+				} else {
+					cellRenderLineNumber = 'off';
+				}
+				break;
+			case 'on':
+				// should turn on, ignore the editor line numbers off options
+				if (value.lineNumbers === 'off') {
+					cellRenderLineNumber = 'on';
+				} // otherwise just use the editor setting
+				break;
+			case 'off':
+				cellRenderLineNumber = 'off';
+				break;
+		}
+
+		if (value.lineNumbers !== cellRenderLineNumber) {
+			return {
+				...value,
+				...{ lineNumbers: cellRenderLineNumber }
+			};
+		} else {
+			return Object.assign({}, value);
+		}
 	}
 
 	getUpdatedValue(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): IEditorOptions {
@@ -162,14 +112,7 @@ export class CellEditorOptions extends CellPart {
 
 	setLineNumbers(lineNumbers: 'on' | 'off' | 'inherit'): void {
 		this._lineNumbers = lineNumbers;
-		if (this._lineNumbers === 'inherit') {
-			const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
-			this._value.lineNumbers = lineNumbers;
-		} else {
-			this._value.lineNumbers = lineNumbers as LineNumbersType;
-		}
-		this._onDidChange.fire();
+		this._recomputeOptions();
 	}
 }
 
@@ -204,7 +147,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			f1: true,
 			toggled: {
 				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
-				title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Show Notebook Line Numbers' },
+				title: localize('notebook.showLineNumbers', "Notebook Line Numbers"),
 			}
 		});
 	}

@@ -16,8 +16,7 @@ export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWor
 export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
 export const VS_HC_THEME = 'hc-black';
-
-export const HC_THEME_ID = 'Default High Contrast';
+export const VS_HC_LIGHT_THEME = 'hc-light';
 
 export const THEME_SCOPE_OPEN_PAREN = '[';
 export const THEME_SCOPE_CLOSE_PAREN = ']';
@@ -35,10 +34,36 @@ export enum ThemeSettings {
 
 	PREFERRED_DARK_THEME = 'workbench.preferredDarkColorTheme',
 	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
-	PREFERRED_HC_THEME = 'workbench.preferredHighContrastColorTheme',
+	PREFERRED_HC_DARK_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
+	PREFERRED_HC_LIGHT_THEME = 'workbench.preferredHighContrastLightColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
 	DETECT_HC = 'window.autoDetectHighContrast'
 }
+
+export enum ThemeSettingDefaults {
+	COLOR_THEME_DARK = 'Default Dark Modern',
+	COLOR_THEME_LIGHT = 'Default Light Modern',
+	COLOR_THEME_HC_DARK = 'Default High Contrast',
+	COLOR_THEME_HC_LIGHT = 'Default High Contrast Light',
+
+	COLOR_THEME_DARK_OLD = 'Default Dark+',
+	COLOR_THEME_LIGHT_OLD = 'Default Light+',
+
+	FILE_ICON_THEME = 'vs-seti',
+	PRODUCT_ICON_THEME = 'Default',
+}
+
+export const COLOR_THEME_DARK_INITIAL_COLORS = {
+	'activityBar.background': '#181818',
+	'statusBar.background': '#181818',
+	'statusBar.noFolderBackground': '#1f1f1f',
+};
+
+export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
+	'activityBar.background': '#f8f8f8',
+	'statusBar.background': '#f8f8f8',
+	'statusBar.noFolderBackground': '#f8f8f8'
+};
 
 export interface IWorkbenchTheme {
 	readonly id: string;
@@ -76,6 +101,8 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
+
+	hasUpdatedDefaultThemes(): boolean;
 
 	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;
@@ -181,12 +208,6 @@ export interface ISemanticTokenColorizationSetting {
 	italic?: boolean;
 }
 
-export interface ExtensionVersion {
-	publisher: string;
-	name: string;
-	version: string;
-}
-
 export interface ExtensionData {
 	extensionId: string;
 	extensionPublisher: string;
@@ -214,6 +235,6 @@ export interface IThemeExtensionPoint {
 	label?: string;
 	description?: string;
 	path: string;
-	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME;
+	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME | typeof VS_HC_LIGHT_THEME;
 	_watch: boolean; // unsupported options to watch location
 }

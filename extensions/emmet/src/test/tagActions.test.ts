@@ -43,7 +43,7 @@ suite('Tests for Emmet actions on html tags', () => {
 	</div>
 	`;
 
-	let contentsWithTemplate = `
+	const contentsWithTemplate = `
 	<script type="text/template">
 		<ul>
 			<li><span>Hello</span></li>
@@ -353,7 +353,7 @@ suite('Tests for Emmet actions on html tags', () => {
 	});
 
 	test('match tag with template scripts', () => {
-		let templateScript = `
+		const templateScript = `
 	<script type="text/template">
 		<div>
 			Hello

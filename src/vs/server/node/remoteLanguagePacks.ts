@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as lp from 'vs/base/node/languagePacks';
 import product from 'vs/platform/product/common/product';
 
-const metaData = path.join(FileAccess.asFileUri('', require).fsPath, 'nls.metadata.json');
+const metaData = path.join(FileAccess.asFileUri('').fsPath, 'nls.metadata.json');
 const _cache: Map<string, Promise<lp.NLSConfiguration>> = new Map();
 
 function exists(file: string) {
@@ -21,12 +21,14 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 	return exists(metaData).then((fileExists) => {
 		if (!fileExists || !product.commit) {
 			// console.log(`==> MetaData or commit unknown. Using default language.`);
-			return Promise.resolve({ locale: 'en', availableLanguages: {} });
+			// The OS Locale on the remote side really doesn't matter, so we return the default locale
+			return Promise.resolve({ locale: 'en', osLocale: 'en', availableLanguages: {} });
 		}
-		let key = `${language}||${userDataPath}`;
+		const key = `${language}||${userDataPath}`;
 		let result = _cache.get(key);
 		if (!result) {
-			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language).then(value => {
+			// The OS Locale on the remote side really doesn't matter, so we pass in the same language
+			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language, language).then(value => {
 				if (InternalNLSConfiguration.is(value)) {
 					value._languagePackSupport = true;
 				}
@@ -40,7 +42,7 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 
 export namespace InternalNLSConfiguration {
 	export function is(value: lp.NLSConfiguration): value is lp.InternalNLSConfiguration {
-		let candidate: lp.InternalNLSConfiguration = value as lp.InternalNLSConfiguration;
+		const candidate: lp.InternalNLSConfiguration = value as lp.InternalNLSConfiguration;
 		return candidate && typeof candidate._languagePackId === 'string';
 	}
 }

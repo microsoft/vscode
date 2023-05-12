@@ -21,15 +21,15 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerData, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
@@ -40,6 +40,10 @@ import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditor
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { isEqual } from 'vs/base/common/resources';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -175,6 +179,7 @@ class EditSettingRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
@@ -283,6 +288,9 @@ class EditSettingRenderer extends Disposable {
 		return this.getSettingsAtLineNumber(lineNumber).filter(setting => {
 			const configurationNode = configurationMap[setting.key];
 			if (configurationNode) {
+				if (configurationNode.policy && this.configurationService.inspect(setting.key).policyValue !== undefined) {
+					return false;
+				}
 				if (this.isDefaultSettings()) {
 					if (setting.key === 'launch') {
 						// Do not show because of https://github.com/microsoft/vscode/issues/32593
@@ -477,6 +485,8 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
@@ -520,8 +530,17 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		for (const settingsGroup of this.settingsEditorModel.settingsGroups) {
 			for (const section of settingsGroup.sections) {
 				for (const setting of section.settings) {
+					if (OVERRIDE_PROPERTY_REGEX.test(setting.key)) {
+						if (setting.overrides) {
+							this.handleOverrides(setting.overrides, configurationRegistry, markerData);
+						}
+						continue;
+					}
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
+						if (this.handlePolicyConfiguration(setting, configuration, markerData)) {
+							continue;
+						}
 						switch (this.settingsEditorModel.configurationTarget) {
 							case ConfigurationTarget.USER_LOCAL:
 								this.handleLocalUserConfiguration(setting, configuration, markerData);
@@ -536,13 +555,8 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 								this.handleWorkspaceFolderConfiguration(setting, configuration, markerData);
 								break;
 						}
-					} else if (!OVERRIDE_PROPERTY_REGEX.test(setting.key)) { // Ignore override settings (language specific settings)
-						markerData.push({
-							severity: MarkerSeverity.Hint,
-							tags: [MarkerTag.Unnecessary],
-							...setting.range,
-							message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
-						});
+					} else {
+						markerData.push(this.gemerateUnknownConfigurationMarker(setting));
 					}
 				}
 			}
@@ -550,7 +564,60 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		return markerData;
 	}
 
+	private handlePolicyConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): boolean {
+		if (!configuration.policy) {
+			return false;
+		}
+		if (this.configurationService.inspect(setting.key).policyValue === undefined) {
+			return false;
+		}
+		if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.DEFAULT) {
+			return false;
+		}
+		markerData.push({
+			severity: MarkerSeverity.Hint,
+			tags: [MarkerTag.Unnecessary],
+			...setting.range,
+			message: nls.localize('unsupportedPolicySetting', "This setting cannot be applied because it is configured in the system policy.")
+		});
+		return true;
+	}
+
+	private handleOverrides(overrides: ISetting[], configurationRegistry: IStringDictionary<IRegisteredConfigurationPropertySchema>, markerData: IMarkerData[]): void {
+		for (const setting of overrides || []) {
+			const configuration = configurationRegistry[setting.key];
+			if (configuration) {
+				if (configuration.scope !== ConfigurationScope.LANGUAGE_OVERRIDABLE) {
+					markerData.push({
+						severity: MarkerSeverity.Hint,
+						tags: [MarkerTag.Unnecessary],
+						...setting.range,
+						message: nls.localize('unsupportLanguageOverrideSetting', "This setting cannot be applied because it is not registered as language override setting.")
+					});
+				}
+			} else {
+				markerData.push(this.gemerateUnknownConfigurationMarker(setting));
+			}
+		}
+	}
+
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
+		if (!this.userDataProfileService.currentProfile.isDefault) {
+			if (isEqual(this.userDataProfilesService.defaultProfile.settingsResource, this.settingsEditorModel.uri) && configuration.scope !== ConfigurationScope.APPLICATION) {
+				// If we're in the default profile setting file, and the setting is not
+				// application-scoped, fade it out.
+				markerData.push({
+					severity: MarkerSeverity.Hint,
+					tags: [MarkerTag.Unnecessary],
+					...setting.range,
+					message: nls.localize('defaultProfileSettingWhileNonDefaultActive', "This setting cannot be applied while a non-default profile is active. It will be applied when the default profile is active.")
+				});
+			} else if (isEqual(this.userDataProfileService.currentProfile.settingsResource, this.settingsEditorModel.uri) && configuration.scope === ConfigurationScope.APPLICATION) {
+				// If we're in a profile setting file, and the setting is
+				// application-scoped, fade it out.
+				markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+			}
+		}
 		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
@@ -615,7 +682,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
 			...setting.range,
-			message: nls.localize('unsupportedApplicationSetting', "This setting can be applied only in application user settings")
+			message: nls.localize('unsupportedApplicationSetting', "This setting has an application scope and can be set only in the user settings file.")
 		};
 	}
 
@@ -633,6 +700,15 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			severity: MarkerSeverity.Warning,
 			...setting.range,
 			message: nls.localize('untrustedSetting', "This setting can only be applied in a trusted workspace.")
+		};
+	}
+
+	private gemerateUnknownConfigurationMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			tags: [MarkerTag.Unnecessary],
+			...setting.range,
+			message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
 		};
 	}
 
@@ -668,7 +744,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 class WorkspaceConfigurationRenderer extends Disposable {
 	private static readonly supportedKeys = ['folders', 'tasks', 'launch', 'extensions', 'settings', 'remoteAuthority', 'transient'];
 
-	private decorationIds: string[] = [];
+	private readonly decorations = this.editor.createDecorationsCollection();
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
@@ -697,7 +773,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 					}
 				}
 			}
-			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range)));
+			this.decorations.set(ranges.map(range => this.createDecoration(range)));
 		}
 		if (markerData.length) {
 			this.markerService.changeOne('WorkspaceConfigurationRenderer', this.workspaceSettingsEditorModel.uri, markerData);
@@ -721,7 +797,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 
 	override dispose(): void {
 		this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
+		this.decorations.clear();
 		super.dispose();
 	}
 }

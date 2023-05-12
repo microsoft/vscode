@@ -8,13 +8,16 @@
  */
 
 import * as path from 'vs/base/common/path';
-import { URI as Uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
-import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
+import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessEnvironment, isWindows, language, OperatingSystem, platform, Platform } from 'vs/base/common/platform';
+import { escapeNonWindowsPath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
+import { isString } from 'vs/base/common/types';
+import { ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
@@ -72,23 +75,23 @@ function mergeNonNullKeys(env: IProcessEnvironment, other: ITerminalEnvironment 
 	}
 	for (const key of Object.keys(other)) {
 		const value = other[key];
-		if (value) {
+		if (value !== undefined && value !== null) {
 			env[key] = value;
 		}
 	}
 }
 
-function resolveConfigurationVariables(variableResolver: VariableResolver, env: ITerminalEnvironment): ITerminalEnvironment {
-	Object.keys(env).forEach((key) => {
-		const value = env[key];
+async function resolveConfigurationVariables(variableResolver: VariableResolver, env: ITerminalEnvironment): Promise<ITerminalEnvironment> {
+	await Promise.all(Object.entries(env).map(async ([key, value]) => {
 		if (typeof value === 'string') {
 			try {
-				env[key] = variableResolver(value);
+				env[key] = await variableResolver(value);
 			} catch (e) {
 				env[key] = value;
 			}
 		}
-	});
+	}));
+
 	return env;
 }
 
@@ -179,25 +182,25 @@ export function getLangEnvVariable(locale?: string): string {
 	return parts.join('_') + '.UTF-8';
 }
 
-export function getCwd(
+export async function getCwd(
 	shell: IShellLaunchConfig,
 	userHome: string | undefined,
 	variableResolver: VariableResolver | undefined,
-	root: Uri | undefined,
+	root: URI | undefined,
 	customCwd: string | undefined,
 	logService?: ILogService
-): string {
+): Promise<string> {
 	if (shell.cwd) {
 		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
-		const resolved = _resolveCwd(unresolved, variableResolver);
-		return _sanitizeCwd(resolved || unresolved);
+		const resolved = await _resolveCwd(unresolved, variableResolver);
+		return sanitizeCwd(resolved || unresolved);
 	}
 
 	let cwd: string | undefined;
 
 	if (!shell.ignoreConfigurationCwd && customCwd) {
 		if (variableResolver) {
-			customCwd = _resolveCwd(customCwd, variableResolver, logService);
+			customCwd = await _resolveCwd(customCwd, variableResolver, logService);
 		}
 		if (customCwd) {
 			if (path.isAbsolute(customCwd)) {
@@ -213,25 +216,17 @@ export function getCwd(
 		cwd = root ? root.fsPath : userHome || '';
 	}
 
-	return _sanitizeCwd(cwd);
+	return sanitizeCwd(cwd);
 }
 
-function _resolveCwd(cwd: string, variableResolver: VariableResolver | undefined, logService?: ILogService): string | undefined {
+async function _resolveCwd(cwd: string, variableResolver: VariableResolver | undefined, logService?: ILogService): Promise<string | undefined> {
 	if (variableResolver) {
 		try {
-			return variableResolver(cwd);
+			return await variableResolver(cwd);
 		} catch (e) {
 			logService?.error('Could not resolve terminal cwd', e);
 			return undefined;
 		}
-	}
-	return cwd;
-}
-
-function _sanitizeCwd(cwd: string): string {
-	// Make the drive letter uppercase on Windows (see #9448)
-	if (OS === OperatingSystem.Windows && cwd && cwd[1] === ':') {
-		return cwd[0].toUpperCase() + cwd.substr(1);
 	}
 	return cwd;
 }
@@ -251,7 +246,7 @@ export type TerminalShellArgsSetting = (
 	| TerminalSettingId.ShellArgsLinux
 );
 
-export type VariableResolver = (str: string) => string;
+export type VariableResolver = (str: string) => Promise<string>;
 
 export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | undefined, env: IProcessEnvironment, configurationResolverService: IConfigurationResolverService | undefined): VariableResolver | undefined {
 	if (!configurationResolverService) {
@@ -263,7 +258,7 @@ export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | u
 /**
  * @deprecated Use ITerminalProfileResolverService
  */
-export function getDefaultShell(
+export async function getDefaultShell(
 	fetchSetting: (key: TerminalShellSetting) => string | undefined,
 	defaultShell: string,
 	isWoW64: boolean,
@@ -272,7 +267,7 @@ export function getDefaultShell(
 	logService: ILogService,
 	useAutomationShell: boolean,
 	platformOverride: Platform = platform
-): string {
+): Promise<string> {
 	let maybeExecutable: string | undefined;
 	if (useAutomationShell) {
 		// If automationShell is specified, this should override the normal setting
@@ -300,7 +295,7 @@ export function getDefaultShell(
 
 	if (variableResolver) {
 		try {
-			executable = variableResolver(executable);
+			executable = await variableResolver(executable);
 		} catch (e) {
 			logService.error(`Could not resolve shell`, e);
 		}
@@ -312,13 +307,13 @@ export function getDefaultShell(
 /**
  * @deprecated Use ITerminalProfileResolverService
  */
-export function getDefaultShellArgs(
+export async function getDefaultShellArgs(
 	fetchSetting: (key: TerminalShellSetting | TerminalShellArgsSetting) => string | string[] | undefined,
 	useAutomationShell: boolean,
 	variableResolver: VariableResolver | undefined,
 	logService: ILogService,
 	platformOverride: Platform = platform,
-): string | string[] {
+): Promise<string | string[]> {
 	if (useAutomationShell) {
 		if (!!getShellSetting(fetchSetting, 'automationShell', platformOverride)) {
 			return [];
@@ -331,13 +326,13 @@ export function getDefaultShellArgs(
 		return [];
 	}
 	if (typeof args === 'string' && platformOverride === Platform.Windows) {
-		return variableResolver ? variableResolver(args) : args;
+		return variableResolver ? await variableResolver(args) : args;
 	}
 	if (variableResolver) {
 		const resolvedArgs: string[] = [];
 		for (const arg of args) {
 			try {
-				resolvedArgs.push(variableResolver(arg));
+				resolvedArgs.push(await variableResolver(arg));
 			} catch (e) {
 				logService.error(`Could not resolve ${TerminalSettingPrefix.ShellArgs}${platformKey}`, e);
 				resolvedArgs.push(arg);
@@ -357,14 +352,14 @@ function getShellSetting(
 	return fetchSetting(<TerminalShellSetting>`terminal.integrated.${type}.${platformKey}`);
 }
 
-export function createTerminalEnvironment(
+export async function createTerminalEnvironment(
 	shellLaunchConfig: IShellLaunchConfig,
 	envFromConfig: ITerminalEnvironment | undefined,
 	variableResolver: VariableResolver | undefined,
 	version: string | undefined,
 	detectLocale: 'auto' | 'off' | 'on',
 	baseEnv: IProcessEnvironment
-): IProcessEnvironment {
+): Promise<IProcessEnvironment> {
 	// Create a terminal environment based on settings, launch config and permissions
 	const env: IProcessEnvironment = {};
 	if (shellLaunchConfig.strictEnv) {
@@ -379,10 +374,10 @@ export function createTerminalEnvironment(
 		// Resolve env vars from config and shell
 		if (variableResolver) {
 			if (allowedEnvFromConfig) {
-				resolveConfigurationVariables(variableResolver, allowedEnvFromConfig);
+				await resolveConfigurationVariables(variableResolver, allowedEnvFromConfig);
 			}
 			if (shellLaunchConfig.env) {
-				resolveConfigurationVariables(variableResolver, shellLaunchConfig.env);
+				await resolveConfigurationVariables(variableResolver, shellLaunchConfig.env);
 			}
 		}
 
@@ -395,7 +390,83 @@ export function createTerminalEnvironment(
 		mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Adding other env keys necessary to create the process
-		addTerminalEnvironmentKeys(env, version, locale, detectLocale);
+		addTerminalEnvironmentKeys(env, version, language, detectLocale);
 	}
 	return env;
+}
+
+/**
+ * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
+ * included trying to prepare the path for WSL if needed.
+ *
+ * @param originalPath The path to be escaped and formatted.
+ * @param executable The executable off the shellLaunchConfig.
+ * @param title The terminal's title.
+ * @param shellType The type of shell the path is being sent to.
+ * @param backend The backend for the terminal.
+ * @param isWindowsFrontend Whether the frontend is Windows, this is only exposed for injection via
+ * tests.
+ * @returns An escaped version of the path to be execuded in the terminal.
+ */
+export async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType | undefined, backend: Pick<ITerminalBackend, 'getWslPath'> | undefined, os: OperatingSystem | undefined, isWindowsFrontend: boolean = isWindows): Promise<string> {
+	let originalPath: string;
+	if (isString(resource)) {
+		originalPath = resource;
+	} else {
+		originalPath = resource.fsPath;
+		// Apply backend OS-specific formatting to the path since URI.fsPath uses the frontend's OS
+		if (isWindowsFrontend && os !== OperatingSystem.Windows) {
+			originalPath = originalPath.replace(/\\/g, '\/');
+		} else if (!isWindowsFrontend && os === OperatingSystem.Windows) {
+			originalPath = originalPath.replace(/\//g, '\\');
+		}
+	}
+
+	if (!executable) {
+		return originalPath;
+	}
+
+	const hasSpace = originalPath.includes(' ');
+	const hasParens = originalPath.includes('(') || originalPath.includes(')');
+
+	const pathBasename = path.basename(executable, '.exe');
+	const isPowerShell = pathBasename === 'pwsh' ||
+		title === 'pwsh' ||
+		pathBasename === 'powershell' ||
+		title === 'powershell';
+
+
+	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
+		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
+	}
+
+	if (hasParens && isPowerShell) {
+		return `& '${originalPath}'`;
+	}
+
+	if (os === OperatingSystem.Windows) {
+		// 17063 is the build number where wsl path was introduced.
+		// Update Windows uriPath to be executed in WSL.
+		if (shellType !== undefined) {
+			if (shellType === WindowsShellType.GitBash) {
+				return escapeNonWindowsPath(originalPath.replace(/\\/g, '/'));
+			}
+			else if (shellType === WindowsShellType.Wsl) {
+				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+			}
+			else if (hasSpace) {
+				return `"${originalPath}"`;
+			}
+			return originalPath;
+		}
+		const lowerExecutable = executable.toLowerCase();
+		if (lowerExecutable.includes('wsl') || (lowerExecutable.includes('bash.exe') && !lowerExecutable.toLowerCase().includes('git'))) {
+			return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+		} else if (hasSpace) {
+			return `"${originalPath}"`;
+		}
+		return originalPath;
+	}
+
+	return escapeNonWindowsPath(originalPath);
 }

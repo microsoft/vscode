@@ -23,7 +23,7 @@ export const enum TestPosition {
 	IsParent,
 }
 
-type TestItemLike = { id: string; parent?: TestItemLike };
+type TestItemLike = { id: string; parent?: TestItemLike; _isRoot?: boolean };
 
 /**
  * The test ID is a stringifiable client that
@@ -35,11 +35,11 @@ export class TestId {
 	 * Creates a test ID from an ext host test item.
 	 */
 	public static fromExtHostTestItem(item: TestItemLike, rootId: string, parent = item.parent) {
-		if (item.id === rootId) {
+		if (item._isRoot) {
 			return new TestId([rootId]);
 		}
 
-		let path = [item.id];
+		const path = [item.id];
 		for (let i = parent; i && i.id !== rootId; i = i.parent) {
 			path.push(i.id);
 		}
@@ -56,7 +56,7 @@ export class TestId {
 	}
 
 	/**
-	 * Cheaply ets whether the ID refers to the root .
+	 * Cheaply gets whether the ID refers to the root .
 	 */
 	public static root(idString: string) {
 		const idx = idString.indexOf(TestIdPathParts.Delimiter);
@@ -85,6 +85,29 @@ export class TestId {
 	}
 
 	/**
+	 * Cheaply gets the parent ID of a test identified with the string.
+	 */
+	public static parentId(idString: string) {
+		const idx = idString.lastIndexOf(TestIdPathParts.Delimiter);
+		return idx === -1 ? undefined : idString.slice(0, idx);
+	}
+
+	/**
+	 * Cheaply gets the local ID of a test identified with the string.
+	 */
+	public static localId(idString: string) {
+		const idx = idString.lastIndexOf(TestIdPathParts.Delimiter);
+		return idx === -1 ? idString : idString.slice(idx + TestIdPathParts.Delimiter.length);
+	}
+
+	/**
+	 * Gets whether maybeChild is a child of maybeParent.
+	 */
+	public static isChild(maybeParent: string, maybeChild: string) {
+		return maybeChild.startsWith(maybeParent) && maybeChild[maybeParent.length] === TestIdPathParts.Delimiter;
+	}
+
+	/**
 	 * Compares the position of the two ID strings.
 	 */
 	public static compare(a: string, b: string) {
@@ -92,11 +115,11 @@ export class TestId {
 			return TestPosition.IsSame;
 		}
 
-		if (b.startsWith(a + TestIdPathParts.Delimiter)) {
+		if (TestId.isChild(a, b)) {
 			return TestPosition.IsChild;
 		}
 
-		if (a.startsWith(b + TestIdPathParts.Delimiter)) {
+		if (TestId.isChild(b, a)) {
 			return TestPosition.IsParent;
 		}
 
@@ -115,8 +138,8 @@ export class TestId {
 	/**
 	 * Gets the ID of the parent test.
 	 */
-	public get parentId(): TestId {
-		return this.viewEnd > 1 ? new TestId(this.path, this.viewEnd - 1) : this;
+	public get parentId(): TestId | undefined {
+		return this.viewEnd > 1 ? new TestId(this.path, this.viewEnd - 1) : undefined;
 	}
 
 	/**
@@ -146,6 +169,16 @@ export class TestId {
 	 */
 	public *idsFromRoot() {
 		for (let i = 1; i <= this.viewEnd; i++) {
+			yield new TestId(this.path, i);
+		}
+	}
+
+	/**
+	 * Returns an iterable that yields IDs of the current item up to the root
+	 * item.
+	 */
+	public *idsToRoot() {
+		for (let i = this.viewEnd; i > 0; i--) {
 			yield new TestId(this.path, i);
 		}
 	}

@@ -3,30 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
 import * as vscode from 'vscode';
 
 import {
 	detectNpmScriptsForFolder,
 	findScriptAtPosition,
 	runScript,
-	FolderTaskItem
+	IFolderTaskItem
 } from './tasks';
 
-const localize = nls.loadMessageBundle();
 
 export function runSelectedScript(context: vscode.ExtensionContext) {
-	let editor = vscode.window.activeTextEditor;
+	const editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		return;
 	}
-	let document = editor.document;
-	let contents = document.getText();
-	let script = findScriptAtPosition(editor.document, contents, editor.selection.anchor);
+	const document = editor.document;
+	const contents = document.getText();
+	const script = findScriptAtPosition(editor.document, contents, editor.selection.anchor);
 	if (script) {
 		runScript(context, script, document);
 	} else {
-		let message = localize('noScriptFound', 'Could not find a valid npm script at the selection.');
+		const message = vscode.l10n.t("Could not find a valid npm script at the selection.");
 		vscode.window.showErrorMessage(message);
 	}
 }
@@ -37,17 +35,16 @@ export async function selectAndRunScriptFromFolder(context: vscode.ExtensionCont
 	}
 	const selectedFolder = selectedFolders[0];
 
-	let taskList: FolderTaskItem[] = await detectNpmScriptsForFolder(context, selectedFolder);
+	const taskList: IFolderTaskItem[] = await detectNpmScriptsForFolder(context, selectedFolder);
 
 	if (taskList && taskList.length > 0) {
-		const quickPick = vscode.window.createQuickPick<FolderTaskItem>();
-		quickPick.title = 'Run NPM script in Folder';
-		quickPick.placeholder = 'Select an npm script';
+		const quickPick = vscode.window.createQuickPick<IFolderTaskItem>();
+		quickPick.placeholder = 'Select an npm script to run in folder';
 		quickPick.items = taskList;
 
 		const toDispose: vscode.Disposable[] = [];
 
-		let pickPromise = new Promise<FolderTaskItem | undefined>((c) => {
+		const pickPromise = new Promise<IFolderTaskItem | undefined>((c) => {
 			toDispose.push(quickPick.onDidAccept(() => {
 				toDispose.forEach(d => d.dispose());
 				c(quickPick.selectedItems[0]);
@@ -58,7 +55,7 @@ export async function selectAndRunScriptFromFolder(context: vscode.ExtensionCont
 			}));
 		});
 		quickPick.show();
-		let result = await pickPromise;
+		const result = await pickPromise;
 		quickPick.dispose();
 		if (result) {
 			vscode.tasks.executeTask(result.task);

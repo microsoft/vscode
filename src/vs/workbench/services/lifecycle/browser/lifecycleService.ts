@@ -7,10 +7,11 @@ import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecyc
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -167,8 +168,10 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		const logService = this.logService;
 		this._onWillShutdown.fire({
 			reason: ShutdownReason.QUIT,
-			join(promise, id) {
-				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${id})`);
+			joiners: () => [], 				// Unsupported in web
+			token: CancellationToken.None, 	// Unsupported in web
+			join(promise, joiner) {
+				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${joiner.id})`);
 			},
 			force: () => { /* No-Op in web */ },
 		});
@@ -198,4 +201,4 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	}
 }
 
-registerSingleton(ILifecycleService, BrowserLifecycleService);
+registerSingleton(ILifecycleService, BrowserLifecycleService, InstantiationType.Eager);

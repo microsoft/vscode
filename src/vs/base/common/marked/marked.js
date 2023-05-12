@@ -19,10 +19,11 @@
 // ESM-uncomment-end
 
  (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   typeof define === 'function' && define.amd ? define(['exports'], factory) :
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.marked = {}));
 })(this, (function (exports) { 'use strict';
+
   function _defineProperties(target, props) {
     for (var i = 0; i < props.length; i++) {
       var descriptor = props[i];
@@ -82,6 +83,7 @@
 
   function getDefaults() {
     return {
+      async: false,
       baseUrl: null,
       breaks: false,
       extensions: null,
@@ -141,6 +143,10 @@
     return html;
   }
   var unescapeTest = /&(#(?:\d+)|(?:#x[0-9A-Fa-f]+)|(?:\w+));?/ig;
+  /**
+   * @param {string} html
+   */
+
   function unescape(html) {
     // explicitly match decimal, hex, and named HTML entities
     return html.replace(unescapeTest, function (_, n) {
@@ -155,8 +161,13 @@
     });
   }
   var caret = /(^|[^\[])\^/g;
+  /**
+   * @param {string | RegExp} regex
+   * @param {string} opt
+   */
+
   function edit(regex, opt) {
-    regex = regex.source || regex;
+    regex = typeof regex === 'string' ? regex : regex.source;
     opt = opt || '';
     var obj = {
       replace: function replace(name, val) {
@@ -173,6 +184,12 @@
   }
   var nonWordAndColonTest = /[^\w:]/g;
   var originIndependentUrl = /^$|^[a-z][a-z0-9+.-]*:|^[?#]/i;
+  /**
+   * @param {boolean} sanitize
+   * @param {string} base
+   * @param {string} href
+   */
+
   function cleanUrl(sanitize, base, href) {
     if (sanitize) {
       var prot;
@@ -204,6 +221,11 @@
   var justDomain = /^[^:]+:\/*[^/]*$/;
   var protocol = /^([^:]+:)[\s\S]*$/;
   var domain = /^([^:]+:\/*[^/]*)[\s\S]*$/;
+  /**
+   * @param {string} base
+   * @param {string} href
+   */
+
   function resolveUrl(base, href) {
     if (!baseUrls[' ' + base]) {
       // we can ignore everything in base after the last slash of its path component,
@@ -282,7 +304,7 @@
       cells.shift();
     }
 
-    if (!cells[cells.length - 1].trim()) {
+    if (cells.length > 0 && !cells[cells.length - 1].trim()) {
       cells.pop();
     }
 
@@ -300,9 +322,15 @@
     }
 
     return cells;
-  } // Remove trailing 'c's. Equivalent to str.replace(/c*$/, '').
-  // /c*$/ is vulnerable to REDOS.
-  // invert: Remove suffix of non-c chars instead. Default falsey.
+  }
+  /**
+   * Remove trailing 'c's. Equivalent to str.replace(/c*$/, '').
+   * /c*$/ is vulnerable to REDOS.
+   *
+   * @param {string} str
+   * @param {string} c
+   * @param {boolean} invert Remove suffix of non-c chars instead. Default falsey.
+   */
 
   function rtrim(str, c, invert) {
     var l = str.length;
@@ -326,7 +354,7 @@
       }
     }
 
-    return str.substr(0, l - suffLen);
+    return str.slice(0, l - suffLen);
   }
   function findClosingBracket(str, b) {
     if (str.indexOf(b[1]) === -1) {
@@ -358,6 +386,11 @@
       console.warn('marked(): sanitize and sanitizer parameters are deprecated since version 0.7.0, should not be used and will be removed in the future. Read more here: https://marked.js.org/#/USING_ADVANCED.md#options');
     }
   } // copied from https://stackoverflow.com/a/5450113/806777
+
+  /**
+   * @param {string} pattern
+   * @param {number} count
+   */
 
   function repeatString(pattern, count) {
     if (count < 1) {
@@ -391,19 +424,19 @@
         href: href,
         title: title,
         text: text,
-        tokens: lexer.inlineTokens(text, [])
+        tokens: lexer.inlineTokens(text)
       };
       lexer.state.inLink = false;
       return token;
-    } else {
-      return {
-        type: 'image',
-        raw: raw,
-        href: href,
-        title: title,
-        text: escape(text)
-      };
     }
+
+    return {
+      type: 'image',
+      raw: raw,
+      href: href,
+      title: title,
+      text: escape(text)
+    };
   }
 
   function indentCodeCompensation(raw, text) {
@@ -446,11 +479,11 @@
       var cap = this.rules.block.newline.exec(src);
 
       if (cap && cap[0].length > 0) {
-          return {
-            type: 'space',
-            raw: cap[0]
-          };
-        }
+        return {
+          type: 'space',
+          raw: cap[0]
+        };
+      }
     };
 
     _proto.code = function code(src) {
@@ -499,15 +532,13 @@
           }
         }
 
-        var token = {
+        return {
           type: 'heading',
           raw: cap[0],
           depth: cap[1].length,
           text: text,
-          tokens: []
+          tokens: this.lexer.inline(text)
         };
-        this.lexer.inline(token.text, token.tokens);
-        return token;
       }
     };
 
@@ -526,7 +557,7 @@
       var cap = this.rules.block.blockquote.exec(src);
 
       if (cap) {
-        var text = cap[0].replace(/^ *> ?/gm, '');
+        var text = cap[0].replace(/^ *>[ \t]?/gm, '');
         return {
           type: 'blockquote',
           raw: cap[0],
@@ -558,7 +589,7 @@
         } // Get next list item
 
 
-        var itemRegex = new RegExp("^( {0,3}" + bull + ")((?: [^\\n]*)?(?:\\n|$))"); // Check if current bullet point can start a new List Item
+        var itemRegex = new RegExp("^( {0,3}" + bull + ")((?:[\t ][^\\n]*)?(?:\\n|$))"); // Check if current bullet point can start a new List Item
 
         while (src) {
           endEarly = false;
@@ -599,31 +630,49 @@
           }
 
           if (!endEarly) {
-            var nextBulletRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}(?:[*+-]|\\d{1,9}[.)])"); // Check if following lines should be included in List Item
+            var nextBulletRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}(?:[*+-]|\\d{1,9}[.)])((?: [^\\n]*)?(?:\\n|$))");
+            var hrRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}((?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$)");
+            var fencesBeginRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}(?:```|~~~)");
+            var headingBeginRegex = new RegExp("^ {0," + Math.min(3, indent - 1) + "}#"); // Check if following lines should be included in List Item
 
             while (src) {
               rawLine = src.split('\n', 1)[0];
               line = rawLine; // Re-align to follow commonmark nesting rules
 
-            if (this.options.pedantic) {
-              line = line.replace(/^ {1,4}(?=( {4})*[^ ])/g, '  ');
-            } // End list item if found start of new bullet
+              if (this.options.pedantic) {
+                line = line.replace(/^ {1,4}(?=( {4})*[^ ])/g, '  ');
+              } // End list item if found code fences
 
 
-            if (nextBulletRegex.test(line)) {
-              break;
+              if (fencesBeginRegex.test(line)) {
+                break;
+              } // End list item if found start of new heading
+
+
+              if (headingBeginRegex.test(line)) {
+                break;
+              } // End list item if found start of new bullet
+
+
+              if (nextBulletRegex.test(line)) {
+                break;
+              } // Horizontal rule found
+
+
+              if (hrRegex.test(src)) {
+                break;
               }
 
-            if (line.search(/[^ ]/) >= indent || !line.trim()) {
+              if (line.search(/[^ ]/) >= indent || !line.trim()) {
                 // Dedent if possible
-              itemContents += '\n' + line.slice(indent);
+                itemContents += '\n' + line.slice(indent);
               } else if (!blankLine) {
                 // Until blank line, item doesn't need indentation
                 itemContents += '\n' + line;
-            } else {
+              } else {
                 // Otherwise, improper indentation ends this item
-              break;
-            }
+                break;
+              }
 
               if (!blankLine && !line.trim()) {
                 // Check if current line is blank
@@ -719,10 +768,10 @@
         };
 
         if (this.options.sanitize) {
+          var text = this.options.sanitizer ? this.options.sanitizer(cap[0]) : escape(cap[0]);
           token.type = 'paragraph';
-          token.text = this.options.sanitizer ? this.options.sanitizer(cap[0]) : escape(cap[0]);
-          token.tokens = [];
-          this.lexer.inline(token.text, token.tokens);
+          token.text = text;
+          token.tokens = this.lexer.inline(text);
         }
 
         return token;
@@ -757,7 +806,7 @@
             };
           }),
           align: cap[2].replace(/^ *|\| *$/g, '').split(/ *\| */),
-          rows: cap[3] ? cap[3].replace(/\n[ \t]*$/, '').split('\n') : []
+          rows: cap[3] && cap[3].trim() ? cap[3].replace(/\n[ \t]*$/, '').split('\n') : []
         };
 
         if (item.header.length === item.align.length) {
@@ -792,8 +841,7 @@
           l = item.header.length;
 
           for (j = 0; j < l; j++) {
-            item.header[j].tokens = [];
-            this.lexer.inlineTokens(item.header[j].text, item.header[j].tokens);
+            item.header[j].tokens = this.lexer.inline(item.header[j].text);
           } // cell child tokens
 
 
@@ -803,8 +851,7 @@
             row = item.rows[j];
 
             for (k = 0; k < row.length; k++) {
-              row[k].tokens = [];
-              this.lexer.inlineTokens(row[k].text, row[k].tokens);
+              row[k].tokens = this.lexer.inline(row[k].text);
             }
           }
 
@@ -817,15 +864,13 @@
       var cap = this.rules.block.lheading.exec(src);
 
       if (cap) {
-        var token = {
+        return {
           type: 'heading',
           raw: cap[0],
           depth: cap[2].charAt(0) === '=' ? 1 : 2,
           text: cap[1],
-          tokens: []
+          tokens: this.lexer.inline(cap[1])
         };
-        this.lexer.inline(token.text, token.tokens);
-        return token;
       }
     };
 
@@ -833,14 +878,13 @@
       var cap = this.rules.block.paragraph.exec(src);
 
       if (cap) {
-        var token = {
+        var text = cap[1].charAt(cap[1].length - 1) === '\n' ? cap[1].slice(0, -1) : cap[1];
+        return {
           type: 'paragraph',
           raw: cap[0],
-          text: cap[1].charAt(cap[1].length - 1) === '\n' ? cap[1].slice(0, -1) : cap[1],
-          tokens: []
+          text: text,
+          tokens: this.lexer.inline(text)
         };
-        this.lexer.inline(token.text, token.tokens);
-        return token;
       }
     };
 
@@ -848,14 +892,12 @@
       var cap = this.rules.block.text.exec(src);
 
       if (cap) {
-        var token = {
+        return {
           type: 'text',
           raw: cap[0],
           text: cap[0],
-          tokens: []
+          tokens: this.lexer.inline(cap[0])
         };
-        this.lexer.inline(token.text, token.tokens);
-        return token;
       }
     };
 
@@ -1034,7 +1076,7 @@
               type: 'em',
               raw: src.slice(0, lLength + match.index + rLength + 1),
               text: _text,
-              tokens: this.lexer.inlineTokens(_text, [])
+              tokens: this.lexer.inlineTokens(_text)
             };
           } // Create 'strong' if smallest delimiter has even char count. **a***
 
@@ -1044,7 +1086,7 @@
             type: 'strong',
             raw: src.slice(0, lLength + match.index + rLength + 1),
             text: text,
-            tokens: this.lexer.inlineTokens(text, [])
+            tokens: this.lexer.inlineTokens(text)
           };
         }
       }
@@ -1090,7 +1132,7 @@
           type: 'del',
           raw: cap[0],
           text: cap[2],
-          tokens: this.lexer.inlineTokens(cap[2], [])
+          tokens: this.lexer.inlineTokens(cap[2])
         };
       }
     };
@@ -1195,10 +1237,10 @@
     newline: /^(?: *(?:\n|$))+/,
     code: /^( {4}[^\n]+(?:\n(?: *(?:\n|$))*)?)+/,
     fences: /^ {0,3}(`{3,}(?=[^`\n]*\n)|~{3,})([^\n]*)\n(?:|([\s\S]*?)\n)(?: {0,3}\1[~`]* *(?=\n|$)|$)/,
-    hr: /^ {0,3}((?:- *){3,}|(?:_ *){3,}|(?:\* *){3,})(?:\n+|$)/,
+    hr: /^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/,
     heading: /^ {0,3}(#{1,6})(?=\s|$)(.*)(?:\n+|$)/,
     blockquote: /^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/,
-    list: /^( {0,3}bull)( [^\n]+?)?(?:\n|$)/,
+    list: /^( {0,3}bull)([ \t][^\n]+?)?(?:\n|$)/,
     html: '^ {0,3}(?:' // optional indentation
     + '<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n+|$)' // (1)
     + '|comment[^\\n]*(\\n+|$)' // (2)
@@ -1288,9 +1330,9 @@
     emStrong: {
       lDelim: /^(?:\*+(?:([punct_])|[^\s*]))|^_+(?:([punct*])|([^\s_]))/,
       //        (1) and (2) can only be a Right Delimiter. (3) and (4) can only be Left.  (5) and (6) can be either Left or Right.
-      //        () Skip orphan delim inside strong    (1) #***                (2) a***#, a***                   (3) #***a, ***a                 (4) ***#              (5) #***#                 (6) a***a
-      rDelimAst: /^[^_*]*?\_\_[^_*]*?\*[^_*]*?(?=\_\_)|[punct_](\*+)(?=[\s]|$)|[^punct*_\s](\*+)(?=[punct_\s]|$)|[punct_\s](\*+)(?=[^punct*_\s])|[\s](\*+)(?=[punct_])|[punct_](\*+)(?=[punct_])|[^punct*_\s](\*+)(?=[^punct*_\s])/,
-      rDelimUnd: /^[^_*]*?\*\*[^_*]*?\_[^_*]*?(?=\*\*)|[punct*](\_+)(?=[\s]|$)|[^punct*_\s](\_+)(?=[punct*\s]|$)|[punct*\s](\_+)(?=[^punct*_\s])|[\s](\_+)(?=[punct*])|[punct*](\_+)(?=[punct*])/ // ^- Not allowed for _
+      //          () Skip orphan inside strong  () Consume to delim (1) #***                (2) a***#, a***                   (3) #***a, ***a                 (4) ***#              (5) #***#                 (6) a***a
+      rDelimAst: /^[^_*]*?\_\_[^_*]*?\*[^_*]*?(?=\_\_)|[^*]+(?=[^*])|[punct_](\*+)(?=[\s]|$)|[^punct*_\s](\*+)(?=[punct_\s]|$)|[punct_\s](\*+)(?=[^punct*_\s])|[\s](\*+)(?=[punct_])|[punct_](\*+)(?=[punct_])|[^punct*_\s](\*+)(?=[^punct*_\s])/,
+      rDelimUnd: /^[^_*]*?\*\*[^_*]*?\_[^_*]*?(?=\*\*)|[^_]+(?=[^_])|[punct*](\_+)(?=[\s]|$)|[^punct*_\s](\_+)(?=[punct*\s]|$)|[punct*\s](\_+)(?=[^punct*_\s])|[\s](\_+)(?=[punct*])|[punct*](\_+)(?=[punct*])/ // ^- Not allowed for _
 
     },
     code: /^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/,
@@ -1372,6 +1414,7 @@
 
   /**
    * smartypants text replacement
+   * @param {string} text
    */
 
   function smartypants(text) {
@@ -1386,6 +1429,7 @@
   }
   /**
    * mangle email addresses
+   * @param {string} text
    */
 
 
@@ -1476,7 +1520,7 @@
     var _proto = Lexer.prototype;
 
     _proto.lex = function lex(src) {
-      src = src.replace(/\r\n|\r/g, '\n').replace(/\t/g, '    ');
+      src = src.replace(/\r\n|\r/g, '\n');
       this.blockTokens(src, this.tokens);
       var next;
 
@@ -1499,7 +1543,11 @@
       }
 
       if (this.options.pedantic) {
-        src = src.replace(/^ +$/gm, '');
+        src = src.replace(/\t/g, '    ').replace(/^ +$/gm, '');
+      } else {
+        src = src.replace(/^( *)(\t+)/gm, function (_, leading, tabs) {
+          return leading + '    '.repeat(tabs.length);
+        });
       }
 
       var token, lastToken, cutSrc, lastParagraphClipped;
@@ -1702,10 +1750,15 @@
     };
 
     _proto.inline = function inline(src, tokens) {
+      if (tokens === void 0) {
+        tokens = [];
+      }
+
       this.inlineQueue.push({
         src: src,
         tokens: tokens
       });
+      return tokens;
     }
     /**
      * Lexing/Compiling
@@ -1959,23 +2012,35 @@
       }
 
       return '<pre><code class="' + this.options.langPrefix + escape(lang, true) + '">' + (escaped ? _code : escape(_code, true)) + '</code></pre>\n';
-    };
+    }
+    /**
+     * @param {string} quote
+     */
+    ;
 
     _proto.blockquote = function blockquote(quote) {
-      return '<blockquote>\n' + quote + '</blockquote>\n';
+      return "<blockquote>\n" + quote + "</blockquote>\n";
     };
 
     _proto.html = function html(_html) {
       return _html;
-    };
+    }
+    /**
+     * @param {string} text
+     * @param {string} level
+     * @param {string} raw
+     * @param {any} slugger
+     */
+    ;
 
     _proto.heading = function heading(text, level, raw, slugger) {
       if (this.options.headerIds) {
-        return '<h' + level + ' id="' + this.options.headerPrefix + slugger.slug(raw) + '">' + text + '</h' + level + '>\n';
+        var id = this.options.headerPrefix + slugger.slug(raw);
+        return "<h" + level + " id=\"" + id + "\">" + text + "</h" + level + ">\n";
       } // ignore IDs
 
 
-      return '<h' + level + '>' + text + '</h' + level + '>\n';
+      return "<h" + level + ">" + text + "</h" + level + ">\n";
     };
 
     _proto.hr = function hr() {
@@ -1986,55 +2051,94 @@
       var type = ordered ? 'ol' : 'ul',
           startatt = ordered && start !== 1 ? ' start="' + start + '"' : '';
       return '<' + type + startatt + '>\n' + body + '</' + type + '>\n';
-    };
+    }
+    /**
+     * @param {string} text
+     */
+    ;
 
     _proto.listitem = function listitem(text) {
-      return '<li>' + text + '</li>\n';
+      return "<li>" + text + "</li>\n";
     };
 
     _proto.checkbox = function checkbox(checked) {
       return '<input ' + (checked ? 'checked="" ' : '') + 'disabled="" type="checkbox"' + (this.options.xhtml ? ' /' : '') + '> ';
-    };
+    }
+    /**
+     * @param {string} text
+     */
+    ;
 
     _proto.paragraph = function paragraph(text) {
-      return '<p>' + text + '</p>\n';
-    };
+      return "<p>" + text + "</p>\n";
+    }
+    /**
+     * @param {string} header
+     * @param {string} body
+     */
+    ;
 
     _proto.table = function table(header, body) {
-      if (body) body = '<tbody>' + body + '</tbody>';
+      if (body) body = "<tbody>" + body + "</tbody>";
       return '<table>\n' + '<thead>\n' + header + '</thead>\n' + body + '</table>\n';
-    };
+    }
+    /**
+     * @param {string} content
+     */
+    ;
 
     _proto.tablerow = function tablerow(content) {
-      return '<tr>\n' + content + '</tr>\n';
+      return "<tr>\n" + content + "</tr>\n";
     };
 
     _proto.tablecell = function tablecell(content, flags) {
       var type = flags.header ? 'th' : 'td';
-      var tag = flags.align ? '<' + type + ' align="' + flags.align + '">' : '<' + type + '>';
-      return tag + content + '</' + type + '>\n';
-    } // span level renderer
+      var tag = flags.align ? "<" + type + " align=\"" + flags.align + "\">" : "<" + type + ">";
+      return tag + content + ("</" + type + ">\n");
+    }
+    /**
+     * span level renderer
+     * @param {string} text
+     */
     ;
 
     _proto.strong = function strong(text) {
-      return '<strong>' + text + '</strong>';
-    };
+      return "<strong>" + text + "</strong>";
+    }
+    /**
+     * @param {string} text
+     */
+    ;
 
     _proto.em = function em(text) {
-      return '<em>' + text + '</em>';
-    };
+      return "<em>" + text + "</em>";
+    }
+    /**
+     * @param {string} text
+     */
+    ;
 
     _proto.codespan = function codespan(text) {
-      return '<code>' + text + '</code>';
+      return "<code>" + text + "</code>";
     };
 
     _proto.br = function br() {
       return this.options.xhtml ? '<br/>' : '<br>';
-    };
+    }
+    /**
+     * @param {string} text
+     */
+    ;
 
     _proto.del = function del(text) {
-      return '<del>' + text + '</del>';
-    };
+      return "<del>" + text + "</del>";
+    }
+    /**
+     * @param {string} href
+     * @param {string} title
+     * @param {string} text
+     */
+    ;
 
     _proto.link = function link(href, title, text) {
       href = cleanUrl(this.options.sanitize, this.options.baseUrl, href);
@@ -2051,7 +2155,13 @@
 
       out += '>' + text + '</a>';
       return out;
-    };
+    }
+    /**
+     * @param {string} href
+     * @param {string} title
+     * @param {string} text
+     */
+    ;
 
     _proto.image = function image(href, title, text) {
       href = cleanUrl(this.options.sanitize, this.options.baseUrl, href);
@@ -2060,10 +2170,10 @@
         return text;
       }
 
-      var out = '<img src="' + href + '" alt="' + text + '"';
+      var out = "<img src=\"" + href + "\" alt=\"" + text + "\"";
 
       if (title) {
-        out += ' title="' + title + '"';
+        out += " title=\"" + title + "\"";
       }
 
       out += this.options.xhtml ? '/>' : '>';
@@ -2133,6 +2243,10 @@
     function Slugger() {
       this.seen = {};
     }
+    /**
+     * @param {string} value
+     */
+
 
     var _proto = Slugger.prototype;
 
@@ -2143,6 +2257,8 @@
     }
     /**
      * Finds the next safe (unique) slug to use
+     * @param {string} originalSlug
+     * @param {boolean} isDryRun
      */
     ;
 
@@ -2168,8 +2284,9 @@
     }
     /**
      * Convert string to unique id
-     * @param {object} options
-     * @param {boolean} options.dryrun Generates the next unique slug without updating the internal accumulator.
+     * @param {object} [options]
+     * @param {boolean} [options.dryrun] Generates the next unique slug without
+     * updating the internal accumulator.
      */
     ;
 
@@ -2614,15 +2731,7 @@
       return;
     }
 
-    try {
-      var _tokens = Lexer.lex(src, opt);
-
-      if (opt.walkTokens) {
-        marked.walkTokens(_tokens, opt.walkTokens);
-      }
-
-      return Parser.parse(_tokens, opt);
-    } catch (e) {
+    function onError(e) {
       e.message += '\nPlease report this to https://github.com/markedjs/marked.';
 
       if (opt.silent) {
@@ -2630,6 +2739,24 @@
       }
 
       throw e;
+    }
+
+    try {
+      var _tokens = Lexer.lex(src, opt);
+
+      if (opt.walkTokens) {
+        if (opt.async) {
+          return Promise.all(marked.walkTokens(_tokens, opt.walkTokens)).then(function () {
+            return Parser.parse(_tokens, opt);
+          })["catch"](onError);
+        }
+
+        marked.walkTokens(_tokens, opt.walkTokens);
+      }
+
+      return Parser.parse(_tokens, opt);
+    } catch (e) {
+      onError(e);
     }
   }
   /**
@@ -2795,11 +2922,14 @@
         var _walkTokens = marked.defaults.walkTokens;
 
         opts.walkTokens = function (token) {
-          pack.walkTokens.call(this, token);
+          var values = [];
+          values.push(pack.walkTokens.call(this, token));
 
           if (_walkTokens) {
-            _walkTokens.call(this, token);
+            values = values.concat(_walkTokens.call(this, token));
           }
+
+          return values;
         };
       }
 
@@ -2816,16 +2946,18 @@
 
 
   marked.walkTokens = function (tokens, callback) {
+    var values = [];
+
     var _loop3 = function _loop3() {
       var token = _step.value;
-      callback.call(marked, token);
+      values = values.concat(callback.call(marked, token));
 
       switch (token.type) {
         case 'table':
           {
             for (var _iterator2 = _createForOfIteratorHelperLoose(token.header), _step2; !(_step2 = _iterator2()).done;) {
               var cell = _step2.value;
-              marked.walkTokens(cell.tokens, callback);
+              values = values.concat(marked.walkTokens(cell.tokens, callback));
             }
 
             for (var _iterator3 = _createForOfIteratorHelperLoose(token.rows), _step3; !(_step3 = _iterator3()).done;) {
@@ -2833,7 +2965,7 @@
 
               for (var _iterator4 = _createForOfIteratorHelperLoose(row), _step4; !(_step4 = _iterator4()).done;) {
                 var _cell = _step4.value;
-                marked.walkTokens(_cell.tokens, callback);
+                values = values.concat(marked.walkTokens(_cell.tokens, callback));
               }
             }
 
@@ -2842,7 +2974,7 @@
 
         case 'list':
           {
-            marked.walkTokens(token.items, callback);
+            values = values.concat(marked.walkTokens(token.items, callback));
             break;
           }
 
@@ -2851,10 +2983,10 @@
             if (marked.defaults.extensions && marked.defaults.extensions.childTokens && marked.defaults.extensions.childTokens[token.type]) {
               // Walk any extensions
               marked.defaults.extensions.childTokens[token.type].forEach(function (childTokens) {
-                marked.walkTokens(token[childTokens], callback);
+                values = values.concat(marked.walkTokens(token[childTokens], callback));
               });
             } else if (token.tokens) {
-              marked.walkTokens(token.tokens, callback);
+              values = values.concat(marked.walkTokens(token.tokens, callback));
             }
           }
       }
@@ -2863,9 +2995,12 @@
     for (var _iterator = _createForOfIteratorHelperLoose(tokens), _step; !(_step = _iterator()).done;) {
       _loop3();
     }
+
+    return values;
   };
   /**
    * Parse Inline
+   * @param {string} src
    */
 
 
@@ -2941,9 +3076,25 @@
   exports.walkTokens = walkTokens;
 
   Object.defineProperty(exports, '__esModule', { value: true });
+
 }));
 
 // ESM-uncomment-begin
 // })();
-// export var marked = (__marked_exports || exports);
+// export var Lexer = (__marked_exports.Lexer || exports.Lexer);
+// export var Parser = (__marked_exports.Parser || exports.Parser);
+// export var Renderer = (__marked_exports.Renderer || exports.Renderer);
+// export var Slugger = (__marked_exports.Slugger || exports.Slugger);
+// export var TextRenderer = (__marked_exports.TextRenderer || exports.TextRenderer);
+// export var Tokenizer = (__marked_exports.Tokenizer || exports.Tokenizer);
+// export var getDefaults = (__marked_exports.getDefaults || exports.getDefaults);
+// export var lexer = (__marked_exports.lexer || exports.lexer);
+// export var marked = (__marked_exports.marked || exports.marked);
+// export var options = (__marked_exports.options || exports.options);
+// export var parse = (__marked_exports.parse || exports.parse);
+// export var parseInline = (__marked_exports.parseInline || exports.parseInline);
+// export var parser = (__marked_exports.parser || exports.parser);
+// export var setOptions = (__marked_exports.setOptions || exports.setOptions);
+// export var use = (__marked_exports.use || exports.use);
+// export var walkTokens = (__marked_exports.walkTokens || exports.walkTokens);
 // ESM-uncomment-end

@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from 'vs/base/common/charCode';
 import { Event } from 'vs/base/common/event';
 import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { Scanner, LexingError, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from 'vs/nls';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { illegalArgument } from 'vs/base/common/errors';
 
 const CONSTANT_VALUES = new Map<string, boolean>();
 CONSTANT_VALUES.set('false', false);
@@ -20,6 +25,13 @@ CONSTANT_VALUES.set('isEdge', isEdge);
 CONSTANT_VALUES.set('isFirefox', isFirefox);
 CONSTANT_VALUES.set('isChrome', isChrome);
 CONSTANT_VALUES.set('isSafari', isSafari);
+
+/** allow register constant context keys that are known only after startup; requires running `substituteConstants` on the context key - https://github.com/microsoft/vscode/issues/174218#issuecomment-1437972127 */
+export function setConstant(key: string, value: boolean) {
+	if (CONSTANT_VALUES.get(key) !== undefined) { throw illegalArgument('contextkey.setConstant(k, v) invoked with already set constant `k`'); }
+
+	CONSTANT_VALUES.set(key, value);
+}
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -53,6 +65,7 @@ export interface IContextKeyExprMapper {
 	mapSmallerEquals(key: string, value: any): ContextKeyExpression;
 	mapRegex(key: string, regexp: RegExp | null): ContextKeyRegexExpr;
 	mapIn(key: string, valueKey: string): ContextKeyInExpr;
+	mapNotIn(key: string, valueKey: string): ContextKeyNotInExpr;
 }
 
 export interface IContextKeyExpression {
@@ -74,6 +87,494 @@ export type ContextKeyExpression = (
 	| ContextKeyNotInExpr | ContextKeyGreaterExpr | ContextKeyGreaterEqualsExpr
 	| ContextKeySmallerExpr | ContextKeySmallerEqualsExpr
 );
+
+
+/*
+
+Syntax grammar:
+
+```ebnf
+
+expression ::= or
+
+or ::= and { '||' and }*
+
+and ::= term { '&&' term }*
+
+term ::=
+	| '!' (KEY | true | false | parenthesized)
+	| primary
+
+primary ::=
+	| 'true'
+	| 'false'
+	| parenthesized
+	| KEY '=~' REGEX
+	| KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'not' 'in' | 'in') value ]
+
+parenthesized ::=
+	| '(' expression ')'
+
+value ::=
+	| 'true'
+	| 'false'
+	| 'in'      	// we support `in` as a value because there's an extension that uses it, ie "when": "languageId == in"
+	| VALUE 		// matched by the same regex as KEY; consider putting the value in single quotes if it's a string (e.g., with spaces)
+	| SINGLE_QUOTED_STR
+	| EMPTY_STR  	// this allows "when": "foo == " which's used by existing extensions
+
+```
+*/
+
+export type ParserConfig = {
+	/**
+	 * with this option enabled, the parser can recover from regex parsing errors, e.g., unescaped slashes: `/src//` is accepted as `/src\//` would be
+	 */
+	regexParsingWithErrorRecovery: boolean;
+};
+
+const defaultConfig: ParserConfig = {
+	regexParsingWithErrorRecovery: true
+};
+
+export type ParsingError = {
+	message: string;
+	offset: number;
+	lexeme: string;
+	additionalInfo?: string;
+};
+
+const errorEmptyString = localize('contextkey.parser.error.emptyString', "Empty context key expression");
+const hintEmptyString = localize('contextkey.parser.error.emptyString.hint', "Did you forget to write an expression? You can also put 'false' or 'true' to always evaluate to false or true, respectively.");
+const errorNoInAfterNot = localize('contextkey.parser.error.noInAfterNot', "'in' after 'not'.");
+const errorClosingParenthesis = localize('contextkey.parser.error.closingParenthesis', "closing parenthesis ')'");
+const errorUnexpectedToken = localize('contextkey.parser.error.unexpectedToken', "Unexpected token");
+const hintUnexpectedToken = localize('contextkey.parser.error.unexpectedToken.hint', "Did you forget to put && or || before the token?");
+const errorUnexpectedEOF = localize('contextkey.parser.error.unexpectedEOF', "Unexpected end of expression");
+const hintUnexpectedEOF = localize('contextkey.parser.error.unexpectedEOF.hint', "Did you forget to put a context key?");
+
+/**
+ * A parser for context key expressions.
+ *
+ * Example:
+ * ```ts
+ * const parser = new Parser();
+ * const expr = parser.parse('foo == "bar" && baz == true');
+ *
+ * if (expr === undefined) {
+ * 	// there were lexing or parsing errors
+ * 	// process lexing errors with `parser.lexingErrors`
+ *  // process parsing errors with `parser.parsingErrors`
+ * } else {
+ * 	// expr is a valid expression
+ * }
+ * ```
+ */
+export class Parser {
+	// Note: this doesn't produce an exact syntax tree but a normalized one
+	// ContextKeyExpression's that we use as AST nodes do not expose constructors that do not normalize
+
+	private static _parseError = new Error();
+
+	// lifetime note: `_scanner` lives as long as the parser does, i.e., is not reset between calls to `parse`
+	private readonly _scanner = new Scanner();
+
+	// lifetime note: `_tokens`, `_current`, and `_parsingErrors` must be reset between calls to `parse`
+	private _tokens: Token[] = [];
+	private _current = 0; 					// invariant: 0 <= this._current < this._tokens.length ; any incrementation of this value must first call `_isAtEnd`
+	private _parsingErrors: ParsingError[] = [];
+
+	get lexingErrors(): Readonly<LexingError[]> {
+		return this._scanner.errors;
+	}
+
+	get parsingErrors(): Readonly<ParsingError[]> {
+		return this._parsingErrors;
+	}
+
+	constructor(private readonly _config: ParserConfig = defaultConfig) {
+	}
+
+	/**
+	 * Parse a context key expression.
+	 *
+	 * @param input the expression to parse
+	 * @returns the parsed expression or `undefined` if there's an error - call `lexingErrors` and `parsingErrors` to see the errors
+	 */
+	parse(input: string): ContextKeyExpression | undefined {
+
+		if (input === '') {
+			this._parsingErrors.push({ message: errorEmptyString, offset: 0, lexeme: '', additionalInfo: hintEmptyString });
+			return undefined;
+		}
+
+		this._tokens = this._scanner.reset(input).scan();
+		// @ulugbekna: we do not stop parsing if there are lexing errors to be able to reconstruct regexes with unescaped slashes; TODO@ulugbekna: make this respect config option for recovery
+
+		this._current = 0;
+		this._parsingErrors = [];
+
+		try {
+			const expr = this._expr();
+			if (!this._isAtEnd()) {
+				const peek = this._peek();
+				const additionalInfo = peek.type === TokenType.Str ? hintUnexpectedToken : undefined;
+				this._parsingErrors.push({ message: errorUnexpectedToken, offset: peek.offset, lexeme: Scanner.getLexeme(peek), additionalInfo });
+				throw Parser._parseError;
+			}
+			return expr;
+		} catch (e) {
+			if (!(e === Parser._parseError)) {
+				throw e;
+			}
+			return undefined;
+		}
+	}
+
+	private _expr(): ContextKeyExpression | undefined {
+		return this._or();
+	}
+
+	private _or(): ContextKeyExpression | undefined {
+		const expr = [this._and()];
+
+		while (this._matchOne(TokenType.Or)) {
+			const right = this._and();
+			expr.push(right);
+		}
+
+		return expr.length === 1 ? expr[0] : ContextKeyExpr.or(...expr);
+	}
+
+	private _and(): ContextKeyExpression | undefined {
+		const expr = [this._term()];
+
+		while (this._matchOne(TokenType.And)) {
+			const right = this._term();
+			expr.push(right);
+		}
+
+		return expr.length === 1 ? expr[0] : ContextKeyExpr.and(...expr);
+	}
+
+	private _term(): ContextKeyExpression | undefined {
+		if (this._matchOne(TokenType.Neg)) {
+			const peek = this._peek();
+			switch (peek.type) {
+				case TokenType.True:
+					this._advance();
+					return ContextKeyFalseExpr.INSTANCE;
+				case TokenType.False:
+					this._advance();
+					return ContextKeyTrueExpr.INSTANCE;
+				case TokenType.LParen: {
+					this._advance();
+					const expr = this._expr();
+					this._consume(TokenType.RParen, errorClosingParenthesis);
+					return expr?.negate();
+				}
+				case TokenType.Str:
+					this._advance();
+					return ContextKeyNotExpr.create(peek.lexeme);
+				default:
+					throw this._errExpectedButGot(`KEY | true | false | '(' expression ')'`, peek);
+			}
+		}
+		return this._primary();
+	}
+
+	private _primary(): ContextKeyExpression | undefined {
+
+		const peek = this._peek();
+		switch (peek.type) {
+			case TokenType.True:
+				this._advance();
+				return ContextKeyExpr.true();
+
+			case TokenType.False:
+				this._advance();
+				return ContextKeyExpr.false();
+
+			case TokenType.LParen: {
+				this._advance();
+				const expr = this._expr();
+				this._consume(TokenType.RParen, errorClosingParenthesis);
+				return expr;
+			}
+
+			case TokenType.Str: {
+				// KEY
+				const key = peek.lexeme;
+				this._advance();
+
+				// =~ regex
+				if (this._matchOne(TokenType.RegexOp)) {
+
+					// @ulugbekna: we need to reconstruct the regex from the tokens because some extensions use unescaped slashes in regexes
+					const expr = this._peek();
+
+					if (!this._config.regexParsingWithErrorRecovery) {
+						this._advance();
+						if (expr.type !== TokenType.RegexStr) {
+							throw this._errExpectedButGot(`REGEX`, expr);
+						}
+						const regexLexeme = expr.lexeme;
+						const closingSlashIndex = regexLexeme.lastIndexOf('/');
+						const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : this._removeFlagsGY(regexLexeme.substring(closingSlashIndex + 1));
+						let regexp: RegExp | null;
+						try {
+							regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
+						} catch (e) {
+							throw this._errExpectedButGot(`REGEX`, expr);
+						}
+						return ContextKeyRegexExpr.create(key, regexp);
+					}
+
+					switch (expr.type) {
+						case TokenType.RegexStr:
+						case TokenType.Error: { // also handle an ErrorToken in case of smth such as /(/file)/
+							const lexemeReconstruction = [expr.lexeme]; // /REGEX/ or /REGEX/FLAGS
+							this._advance();
+
+							let followingToken = this._peek();
+							let parenBalance = 0;
+							for (let i = 0; i < expr.lexeme.length; i++) {
+								if (expr.lexeme.charCodeAt(i) === CharCode.OpenParen) {
+									parenBalance++;
+								} else if (expr.lexeme.charCodeAt(i) === CharCode.CloseParen) {
+									parenBalance--;
+								}
+							}
+
+							while (!this._isAtEnd() && followingToken.type !== TokenType.And && followingToken.type !== TokenType.Or) {
+								switch (followingToken.type) {
+									case TokenType.LParen:
+										parenBalance++;
+										break;
+									case TokenType.RParen:
+										parenBalance--;
+										break;
+									case TokenType.RegexStr:
+									case TokenType.QuotedStr:
+										for (let i = 0; i < followingToken.lexeme.length; i++) {
+											if (followingToken.lexeme.charCodeAt(i) === CharCode.OpenParen) {
+												parenBalance++;
+											} else if (expr.lexeme.charCodeAt(i) === CharCode.CloseParen) {
+												parenBalance--;
+											}
+										}
+								}
+								if (parenBalance < 0) {
+									break;
+								}
+								lexemeReconstruction.push(Scanner.getLexeme(followingToken));
+								this._advance();
+								followingToken = this._peek();
+							}
+
+							const regexLexeme = lexemeReconstruction.join('');
+							const closingSlashIndex = regexLexeme.lastIndexOf('/');
+							const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : this._removeFlagsGY(regexLexeme.substring(closingSlashIndex + 1));
+							let regexp: RegExp | null;
+							try {
+								regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
+							} catch (e) {
+								throw this._errExpectedButGot(`REGEX`, expr);
+							}
+							return ContextKeyExpr.regex(key, regexp);
+						}
+
+						case TokenType.QuotedStr: {
+							const serializedValue = expr.lexeme;
+							this._advance();
+							// replicate old regex parsing behavior
+
+							let regex: RegExp | null = null;
+
+							if (!isFalsyOrWhitespace(serializedValue)) {
+								const start = serializedValue.indexOf('/');
+								const end = serializedValue.lastIndexOf('/');
+								if (start !== end && start >= 0) {
+
+									const value = serializedValue.slice(start + 1, end);
+									const caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
+									try {
+										regex = new RegExp(value, caseIgnoreFlag);
+									} catch (_e) {
+										throw this._errExpectedButGot(`REGEX`, expr);
+									}
+								}
+							}
+
+							if (regex === null) {
+								throw this._errExpectedButGot('REGEX', expr);
+							}
+
+							return ContextKeyRegexExpr.create(key, regex);
+						}
+
+						default:
+							throw this._errExpectedButGot('REGEX', this._peek());
+					}
+				}
+
+				// [ 'not' 'in' value ]
+				if (this._matchOne(TokenType.Not)) {
+					this._consume(TokenType.In, errorNoInAfterNot);
+					const right = this._value();
+					return ContextKeyExpr.notIn(key, right);
+				}
+
+				// [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in') value ]
+				const maybeOp = this._peek().type;
+				switch (maybeOp) {
+					case TokenType.Eq: {
+						this._advance();
+
+						const right = this._value();
+						if (this._previous().type === TokenType.QuotedStr) { // to preserve old parser behavior: "foo == 'true'" is preserved as "foo == 'true'", but "foo == true" is optimized as "foo"
+							return ContextKeyExpr.equals(key, right);
+						}
+						switch (right) {
+							case 'true':
+								return ContextKeyExpr.has(key);
+							case 'false':
+								return ContextKeyExpr.not(key);
+							default:
+								return ContextKeyExpr.equals(key, right);
+						}
+					}
+
+					case TokenType.NotEq: {
+						this._advance();
+
+						const right = this._value();
+						if (this._previous().type === TokenType.QuotedStr) { // same as above with "foo != 'true'"
+							return ContextKeyExpr.notEquals(key, right);
+						}
+						switch (right) {
+							case 'true':
+								return ContextKeyExpr.not(key);
+							case 'false':
+								return ContextKeyExpr.has(key);
+							default:
+								return ContextKeyExpr.notEquals(key, right);
+						}
+					}
+					// TODO: ContextKeyExpr.smaller(key, right) accepts only `number` as `right` AND during eval of this node, we just eval to `false` if `right` is not a number
+					// consequently, package.json linter should _warn_ the user if they're passing undesired things to ops
+					case TokenType.Lt:
+						this._advance();
+						return ContextKeySmallerExpr.create(key, this._value());
+
+					case TokenType.LtEq:
+						this._advance();
+						return ContextKeySmallerEqualsExpr.create(key, this._value());
+
+					case TokenType.Gt:
+						this._advance();
+						return ContextKeyGreaterExpr.create(key, this._value());
+
+					case TokenType.GtEq:
+						this._advance();
+						return ContextKeyGreaterEqualsExpr.create(key, this._value());
+
+					case TokenType.In:
+						this._advance();
+						return ContextKeyExpr.in(key, this._value());
+
+					default:
+						return ContextKeyExpr.has(key);
+				}
+			}
+
+			case TokenType.EOF:
+				this._parsingErrors.push({ message: errorUnexpectedEOF, offset: peek.offset, lexeme: '', additionalInfo: hintUnexpectedEOF });
+				throw Parser._parseError;
+
+			default:
+				throw this._errExpectedButGot(`true | false | KEY \n\t| KEY '=~' REGEX \n\t| KEY ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value`, this._peek());
+
+		}
+	}
+
+	private _value(): string {
+		const token = this._peek();
+		switch (token.type) {
+			case TokenType.Str:
+			case TokenType.QuotedStr:
+				this._advance();
+				return token.lexeme;
+			case TokenType.True:
+				this._advance();
+				return 'true';
+			case TokenType.False:
+				this._advance();
+				return 'false';
+			case TokenType.In: // we support `in` as a value, e.g., "when": "languageId == in" - exists in existing extensions
+				this._advance();
+				return 'in';
+			default:
+				// this allows "when": "foo == " which's used by existing extensions
+				// we do not call `_advance` on purpose - we don't want to eat unintended tokens
+				return '';
+		}
+	}
+
+	private _flagsGYRe = /g|y/g;
+	private _removeFlagsGY(flags: string): string {
+		return flags.replaceAll(this._flagsGYRe, '');
+	}
+
+	// careful: this can throw if current token is the initial one (ie index = 0)
+	private _previous() {
+		return this._tokens[this._current - 1];
+	}
+
+	private _matchOne(token: TokenType) {
+		if (this._check(token)) {
+			this._advance();
+			return true;
+		}
+
+		return false;
+	}
+
+	private _advance() {
+		if (!this._isAtEnd()) {
+			this._current++;
+		}
+		return this._previous();
+	}
+
+	private _consume(type: TokenType, message: string) {
+		if (this._check(type)) {
+			return this._advance();
+		}
+
+		throw this._errExpectedButGot(message, this._peek());
+	}
+
+	private _errExpectedButGot(expected: string, got: Token, additionalInfo?: string) {
+		const message = localize('contextkey.parser.error.expectedButGot', "Expected: {0}\nReceived: '{1}'.", expected, Scanner.getLexeme(got));
+		const offset = got.offset;
+		const lexeme = Scanner.getLexeme(got);
+		this._parsingErrors.push({ message, offset, lexeme, additionalInfo });
+		return Parser._parseError;
+	}
+
+	private _check(type: TokenType) {
+		return this._peek().type === type;
+	}
+
+	private _peek() {
+		return this._tokens[this._current];
+	}
+
+	private _isAtEnd() {
+		return this._peek().type === TokenType.EOF;
+	}
+}
 
 export abstract class ContextKeyExpr {
 
@@ -98,11 +599,14 @@ export abstract class ContextKeyExpr {
 	public static in(key: string, value: string): ContextKeyExpression {
 		return ContextKeyInExpr.create(key, value);
 	}
+	public static notIn(key: string, value: string): ContextKeyExpression {
+		return ContextKeyNotInExpr.create(key, value);
+	}
 	public static not(key: string): ContextKeyExpression {
 		return ContextKeyNotExpr.create(key);
 	}
 	public static and(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
-		return ContextKeyAndExpr.create(expr, null);
+		return ContextKeyAndExpr.create(expr, null, true);
 	}
 	public static or(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
 		return ContextKeyOrExpr.create(expr, null, true);
@@ -120,128 +624,44 @@ export abstract class ContextKeyExpr {
 		return ContextKeySmallerEqualsExpr.create(key, value);
 	}
 
-	public static deserialize(serialized: string | null | undefined, strict: boolean = false): ContextKeyExpression | undefined {
-		if (!serialized) {
+	private static _parser = new Parser({ regexParsingWithErrorRecovery: false });
+	public static deserialize(serialized: string | null | undefined): ContextKeyExpression | undefined {
+		if (serialized === undefined || serialized === null) { // an empty string needs to be handled by the parser to get a corresponding parsing error reported
 			return undefined;
 		}
 
-		return this._deserializeOrExpression(serialized, strict);
+		const expr = this._parser.parse(serialized);
+		return expr;
 	}
 
-	private static _deserializeOrExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
-		let pieces = serialized.split('||');
-		return ContextKeyOrExpr.create(pieces.map(p => this._deserializeAndExpression(p, strict)), null, true);
-	}
+}
 
-	private static _deserializeAndExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
-		let pieces = serialized.split('&&');
-		return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p, strict)), null);
-	}
 
-	private static _deserializeOne(serializedOne: string, strict: boolean): ContextKeyExpression {
-		serializedOne = serializedOne.trim();
+export function validateWhenClauses(whenClauses: string[]): any {
 
-		if (serializedOne.indexOf('!=') >= 0) {
-			let pieces = serializedOne.split('!=');
-			return ContextKeyNotEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
+	const parser = new Parser({ regexParsingWithErrorRecovery: false }); // we run with no recovery to guide users to use correct regexes
+
+	return whenClauses.map(whenClause => {
+		parser.parse(whenClause);
+
+		if (parser.lexingErrors.length > 0) {
+			return parser.lexingErrors.map((se: LexingError) => ({
+				errorMessage: se.additionalInfo ?
+					localize('contextkey.scanner.errorForLinterWithHint', "Unexpected token. Hint: {0}", se.additionalInfo) :
+					localize('contextkey.scanner.errorForLinter', "Unexpected token."),
+				offset: se.offset,
+				length: se.lexeme.length,
+			}));
+		} else if (parser.parsingErrors.length > 0) {
+			return parser.parsingErrors.map((pe: ParsingError) => ({
+				errorMessage: pe.additionalInfo ? `${pe.message}. ${pe.additionalInfo}` : pe.message,
+				offset: pe.offset,
+				length: pe.lexeme.length,
+			}));
+		} else {
+			return [];
 		}
-
-		if (serializedOne.indexOf('==') >= 0) {
-			let pieces = serializedOne.split('==');
-			return ContextKeyEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
-		}
-
-		if (serializedOne.indexOf('=~') >= 0) {
-			let pieces = serializedOne.split('=~');
-			return ContextKeyRegexExpr.create(pieces[0].trim(), this._deserializeRegexValue(pieces[1], strict));
-		}
-
-		if (serializedOne.indexOf(' in ') >= 0) {
-			let pieces = serializedOne.split(' in ');
-			return ContextKeyInExpr.create(pieces[0].trim(), pieces[1].trim());
-		}
-
-		if (/^[^<=>]+>=[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('>=');
-			return ContextKeyGreaterEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
-		}
-
-		if (/^[^<=>]+>[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('>');
-			return ContextKeyGreaterExpr.create(pieces[0].trim(), pieces[1].trim());
-		}
-
-		if (/^[^<=>]+<=[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('<=');
-			return ContextKeySmallerEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
-		}
-
-		if (/^[^<=>]+<[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('<');
-			return ContextKeySmallerExpr.create(pieces[0].trim(), pieces[1].trim());
-		}
-
-		if (/^\!\s*/.test(serializedOne)) {
-			return ContextKeyNotExpr.create(serializedOne.substr(1).trim());
-		}
-
-		return ContextKeyDefinedExpr.create(serializedOne);
-	}
-
-	private static _deserializeValue(serializedValue: string, strict: boolean): any {
-		serializedValue = serializedValue.trim();
-
-		if (serializedValue === 'true') {
-			return true;
-		}
-
-		if (serializedValue === 'false') {
-			return false;
-		}
-
-		let m = /^'([^']*)'$/.exec(serializedValue);
-		if (m) {
-			return m[1].trim();
-		}
-
-		return serializedValue;
-	}
-
-	private static _deserializeRegexValue(serializedValue: string, strict: boolean): RegExp | null {
-
-		if (isFalsyOrWhitespace(serializedValue)) {
-			if (strict) {
-				throw new Error('missing regexp-value for =~-expression');
-			} else {
-				console.warn('missing regexp-value for =~-expression');
-			}
-			return null;
-		}
-
-		let start = serializedValue.indexOf('/');
-		let end = serializedValue.lastIndexOf('/');
-		if (start === end || start < 0 /* || to < 0 */) {
-			if (strict) {
-				throw new Error(`bad regexp-value '${serializedValue}', missing /-enclosure`);
-			} else {
-				console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
-			}
-			return null;
-		}
-
-		let value = serializedValue.slice(start + 1, end);
-		let caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
-		try {
-			return new RegExp(value, caseIgnoreFlag);
-		} catch (e) {
-			if (strict) {
-				throw new Error(`bad regexp-value '${serializedValue}', parse error: ${e}`);
-			} else {
-				console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
-			}
-			return null;
-		}
-	}
+	});
 }
 
 export function expressionsAreEqualWithConstantSubstitution(a: ContextKeyExpression | null | undefined, b: ContextKeyExpression | null | undefined): boolean {
@@ -516,7 +936,7 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 		const item = context.getValue(this.key);
 
 		if (Array.isArray(source)) {
-			return (source.indexOf(item) >= 0);
+			return source.includes(item as any);
 		}
 
 		if (typeof item === 'string' && typeof source === 'object' && source !== null) {
@@ -539,7 +959,7 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 
 	public negate(): ContextKeyExpression {
 		if (!this.negated) {
-			this.negated = ContextKeyNotInExpr.create(this);
+			this.negated = ContextKeyNotInExpr.create(this.key, this.valueKey);
 		}
 		return this.negated;
 	}
@@ -547,26 +967,31 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 
 export class ContextKeyNotInExpr implements IContextKeyExpression {
 
-	public static create(actual: ContextKeyInExpr): ContextKeyNotInExpr {
-		return new ContextKeyNotInExpr(actual);
+	public static create(key: string, valueKey: string): ContextKeyNotInExpr {
+		return new ContextKeyNotInExpr(key, valueKey);
 	}
 
 	public readonly type = ContextKeyExprType.NotIn;
 
-	private constructor(private readonly _actual: ContextKeyInExpr) {
-		//
+	private readonly _negated: ContextKeyInExpr;
+
+	private constructor(
+		private readonly key: string,
+		private readonly valueKey: string,
+	) {
+		this._negated = ContextKeyInExpr.create(key, valueKey);
 	}
 
 	public cmp(other: ContextKeyExpression): number {
 		if (other.type !== this.type) {
 			return this.type - other.type;
 		}
-		return this._actual.cmp(other._actual);
+		return this._negated.cmp(other._negated);
 	}
 
 	public equals(other: ContextKeyExpression): boolean {
 		if (other.type === this.type) {
-			return this._actual.equals(other._actual);
+			return this._negated.equals(other._negated);
 		}
 		return false;
 	}
@@ -576,23 +1001,23 @@ export class ContextKeyNotInExpr implements IContextKeyExpression {
 	}
 
 	public evaluate(context: IContext): boolean {
-		return !this._actual.evaluate(context);
+		return !this._negated.evaluate(context);
 	}
 
 	public serialize(): string {
-		throw new Error('Method not implemented.');
+		return `${this.key} not in '${this.valueKey}'`;
 	}
 
 	public keys(): string[] {
-		return this._actual.keys();
+		return this._negated.keys();
 	}
 
 	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return new ContextKeyNotInExpr(this._actual.map(mapFnc));
+		return mapFnc.mapNotIn(this.key, this.valueKey);
 	}
 
 	public negate(): ContextKeyExpression {
-		return this._actual;
+		return this._negated;
 	}
 }
 
@@ -1037,13 +1462,13 @@ export class ContextKeyRegexExpr implements IContextKeyExpression {
 	}
 
 	public evaluate(context: IContext): boolean {
-		let value = context.getValue<any>(this.key);
+		const value = context.getValue<any>(this.key);
 		return this.regexp ? this.regexp.test(value) : false;
 	}
 
 	public serialize(): string {
 		const value = this.regexp
-			? `/${this.regexp.source}/${this.regexp.ignoreCase ? 'i' : ''}`
+			? `/${this.regexp.source}/${this.regexp.flags}`
 			: '/invalid/';
 		return `${this.key} =~ ${value}`;
 	}
@@ -1099,7 +1524,7 @@ export class ContextKeyNotRegexExpr implements IContextKeyExpression {
 	}
 
 	public serialize(): string {
-		throw new Error('Method not implemented.');
+		return `!(${this._actual.serialize()})`;
 	}
 
 	public keys(): string[] {
@@ -1147,10 +1572,10 @@ function eliminateConstantsInArray(arr: ContextKeyExpression[]): (ContextKeyExpr
 	return newArr;
 }
 
-class ContextKeyAndExpr implements IContextKeyExpression {
+export class ContextKeyAndExpr implements IContextKeyExpression {
 
-	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null): ContextKeyExpression | undefined {
-		return ContextKeyAndExpr._normalizeArr(_expr, negated);
+	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
+		return ContextKeyAndExpr._normalizeArr(_expr, negated, extraRedundantCheck);
 	}
 
 	public readonly type = ContextKeyExprType.And;
@@ -1201,7 +1626,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 			// no change
 			return this;
 		}
-		return ContextKeyAndExpr.create(exprArr, this.negated);
+		return ContextKeyAndExpr.create(exprArr, this.negated, false);
 	}
 
 	public evaluate(context: IContext): boolean {
@@ -1213,7 +1638,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 		return true;
 	}
 
-	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null): ContextKeyExpression | undefined {
+	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
 		const expr: ContextKeyExpression[] = [];
 		let hasTrue = false;
 
@@ -1284,7 +1709,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 
 			// distribute `lastElement` over `secondToLastElement`
 			const resultElement = ContextKeyOrExpr.create(
-				lastElement.expr.map(el => ContextKeyAndExpr.create([el, secondToLastElement], null)),
+				lastElement.expr.map(el => ContextKeyAndExpr.create([el, secondToLastElement], null, extraRedundantCheck)),
 				null,
 				isFinished
 			);
@@ -1299,6 +1724,22 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 			return expr[0];
 		}
 
+		// resolve false AND expressions
+		if (extraRedundantCheck) {
+			for (let i = 0; i < expr.length; i++) {
+				for (let j = i + 1; j < expr.length; j++) {
+					if (expr[i].negate().equals(expr[j])) {
+						// A && !A case
+						return ContextKeyFalseExpr.INSTANCE;
+					}
+				}
+			}
+
+			if (expr.length === 1) {
+				return expr[0];
+			}
+		}
+
 		return new ContextKeyAndExpr(expr, negated);
 	}
 
@@ -1308,7 +1749,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 
 	public keys(): string[] {
 		const result: string[] = [];
-		for (let expr of this.expr) {
+		for (const expr of this.expr) {
 			result.push(...expr.keys());
 		}
 		return result;
@@ -1321,7 +1762,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 	public negate(): ContextKeyExpression {
 		if (!this.negated) {
 			const result: ContextKeyExpression[] = [];
-			for (let expr of this.expr) {
+			for (const expr of this.expr) {
 				result.push(expr.negate());
 			}
 			this.negated = ContextKeyOrExpr.create(result, this, true)!;
@@ -1330,7 +1771,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 	}
 }
 
-class ContextKeyOrExpr implements IContextKeyExpression {
+export class ContextKeyOrExpr implements IContextKeyExpression {
 
 	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
 		return ContextKeyOrExpr._normalizeArr(_expr, negated, extraRedundantCheck);
@@ -1453,13 +1894,13 @@ class ContextKeyOrExpr implements IContextKeyExpression {
 			return expr[0];
 		}
 
-		// eliminate redundant terms
+		// resolve true OR expressions
 		if (extraRedundantCheck) {
 			for (let i = 0; i < expr.length; i++) {
 				for (let j = i + 1; j < expr.length; j++) {
-					if (implies(expr[i], expr[j])) {
-						expr.splice(j, 1);
-						j--;
+					if (expr[i].negate().equals(expr[j])) {
+						// A || !A case
+						return ContextKeyTrueExpr.INSTANCE;
 					}
 				}
 			}
@@ -1478,7 +1919,7 @@ class ContextKeyOrExpr implements IContextKeyExpression {
 
 	public keys(): string[] {
 		const result: string[] = [];
-		for (let expr of this.expr) {
+		for (const expr of this.expr) {
 			result.push(...expr.keys());
 		}
 		return result;
@@ -1490,8 +1931,8 @@ class ContextKeyOrExpr implements IContextKeyExpression {
 
 	public negate(): ContextKeyExpression {
 		if (!this.negated) {
-			let result: ContextKeyExpression[] = [];
-			for (let expr of this.expr) {
+			const result: ContextKeyExpression[] = [];
+			for (const expr of this.expr) {
 				result.push(expr.negate());
 			}
 
@@ -1504,15 +1945,14 @@ class ContextKeyOrExpr implements IContextKeyExpression {
 				const all: ContextKeyExpression[] = [];
 				for (const left of getTerminals(LEFT)) {
 					for (const right of getTerminals(RIGHT)) {
-						all.push(ContextKeyAndExpr.create([left, right], null)!);
+						all.push(ContextKeyAndExpr.create([left, right], null, false)!);
 					}
 				}
 
-				const isFinished = (result.length === 0);
-				result.unshift(ContextKeyOrExpr.create(all, null, isFinished)!);
+				result.unshift(ContextKeyOrExpr.create(all, null, false)!);
 			}
 
-			this.negated = result[0];
+			this.negated = ContextKeyOrExpr.create(result, this, true)!;
 		}
 		return this.negated;
 	}
@@ -1524,7 +1964,7 @@ export interface ContextKeyInfo {
 	readonly description?: string;
 }
 
-export class RawContextKey<T> extends ContextKeyDefinedExpr {
+export class RawContextKey<T extends ContextKeyValue> extends ContextKeyDefinedExpr {
 
 	private static _info: ContextKeyInfo[] = [];
 
@@ -1567,11 +2007,15 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 	}
 }
 
+export type ContextKeyValue = null | undefined | boolean | number | string
+	| Array<null | undefined | boolean | number | string>
+	| Record<string, null | undefined | boolean | number | string>;
+
 export interface IContext {
-	getValue<T>(key: string): T | undefined;
+	getValue<T extends ContextKeyValue = ContextKeyValue>(key: string): T | undefined;
 }
 
-export interface IContextKey<T> {
+export interface IContextKey<T extends ContextKeyValue = ContextKeyValue> {
 	set(value: T): void;
 	reset(): void;
 	get(): T | undefined;
@@ -1593,27 +2037,27 @@ export interface IReadableSet<T> {
 
 export interface IContextKeyChangeEvent {
 	affectsSome(keys: IReadableSet<string>): boolean;
+	allKeysContainedIn(keys: IReadableSet<string>): boolean;
 }
+
+export type IScopedContextKeyService = IContextKeyService & IDisposable;
 
 export interface IContextKeyService {
 	readonly _serviceBrand: undefined;
-	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
 	bufferChangeEvents(callback: Function): void;
 
-	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
+	createKey<T extends ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T>;
 	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean;
 	getContextKeyValue<T>(key: string): T | undefined;
 
-	createScoped(target: IContextKeyServiceTarget): IContextKeyService;
+	createScoped(target: IContextKeyServiceTarget): IScopedContextKeyService;
 	createOverlay(overlay: Iterable<[string, any]>): IContextKeyService;
 	getContext(target: IContextKeyServiceTarget | null): IContext;
 
 	updateParent(parentContextKeyService: IContextKeyService): void;
 }
-
-export const SET_CONTEXT_COMMAND_ID = 'setContext';
 
 function cmp1(key1: string, key2: string): number {
 	if (key1 < key2) {
@@ -1646,31 +2090,66 @@ function cmp2(key1: string, value1: any, key2: string, value2: any): number {
  */
 export function implies(p: ContextKeyExpression, q: ContextKeyExpression): boolean {
 
-	if (q.type === ContextKeyExprType.And && (p.type !== ContextKeyExprType.Or && p.type !== ContextKeyExprType.And)) {
-		// covers the case: A implies A && B
-		for (const qTerm of q.expr) {
-			if (p.equals(qTerm)) {
+	if (p.type === ContextKeyExprType.False || q.type === ContextKeyExprType.True) {
+		// false implies anything
+		// anything implies true
+		return true;
+	}
+
+	if (p.type === ContextKeyExprType.Or) {
+		if (q.type === ContextKeyExprType.Or) {
+			// `a || b || c` can only imply something like `a || b || c || d`
+			return allElementsIncluded(p.expr, q.expr);
+		}
+		return false;
+	}
+
+	if (q.type === ContextKeyExprType.Or) {
+		for (const element of q.expr) {
+			if (implies(p, element)) {
 				return true;
 			}
 		}
+		return false;
 	}
 
-	const notP = p.negate();
-	const expr = getTerminals(notP).concat(getTerminals(q));
-	expr.sort(cmp);
-
-	for (let i = 0; i < expr.length; i++) {
-		const a = expr[i];
-		const notA = a.negate();
-		for (let j = i + 1; j < expr.length; j++) {
-			const b = expr[j];
-			if (notA.equals(b)) {
+	if (p.type === ContextKeyExprType.And) {
+		if (q.type === ContextKeyExprType.And) {
+			// `a && b && c` implies `a && c`
+			return allElementsIncluded(q.expr, p.expr);
+		}
+		for (const element of p.expr) {
+			if (implies(element, q)) {
 				return true;
 			}
 		}
+		return false;
 	}
 
-	return false;
+	return p.equals(q);
+}
+
+/**
+ * Returns true if all elements in `p` are also present in `q`.
+ * The two arrays are assumed to be sorted
+ */
+function allElementsIncluded(p: ContextKeyExpression[], q: ContextKeyExpression[]): boolean {
+	let pIndex = 0;
+	let qIndex = 0;
+	while (pIndex < p.length && qIndex < q.length) {
+		const cmp = p[pIndex].cmp(q[qIndex]);
+
+		if (cmp < 0) {
+			// an element from `p` is missing from `q`
+			return false;
+		} else if (cmp === 0) {
+			pIndex++;
+			qIndex++;
+		} else {
+			qIndex++;
+		}
+	}
+	return (pIndex === p.length);
 }
 
 function getTerminals(node: ContextKeyExpression) {

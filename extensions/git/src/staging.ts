@@ -9,7 +9,7 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 	const result: string[] = [];
 	let currentLine = 0;
 
-	for (let diff of diffs) {
+	for (const diff of diffs) {
 		const isInsertion = diff.originalEndLineNumber === 0;
 		const isDeletion = diff.modifiedEndLineNumber === 0;
 
@@ -109,12 +109,28 @@ export function intersectDiffWithRange(textDocument: TextDocument, diff: LineCha
 	if (diff.modifiedEndLineNumber === 0) {
 		return diff;
 	} else {
-		return {
-			originalStartLineNumber: diff.originalStartLineNumber,
-			originalEndLineNumber: diff.originalEndLineNumber,
-			modifiedStartLineNumber: intersection.start.line + 1,
-			modifiedEndLineNumber: intersection.end.line + 1
-		};
+		const modifiedStartLineNumber = intersection.start.line + 1;
+		const modifiedEndLineNumber = intersection.end.line + 1;
+
+		// heuristic: same number of lines on both sides, let's assume line by line
+		if (diff.originalEndLineNumber - diff.originalStartLineNumber === diff.modifiedEndLineNumber - diff.modifiedStartLineNumber) {
+			const delta = modifiedStartLineNumber - diff.modifiedStartLineNumber;
+			const length = modifiedEndLineNumber - modifiedStartLineNumber;
+
+			return {
+				originalStartLineNumber: diff.originalStartLineNumber + delta,
+				originalEndLineNumber: diff.originalStartLineNumber + delta + length,
+				modifiedStartLineNumber,
+				modifiedEndLineNumber
+			};
+		} else {
+			return {
+				originalStartLineNumber: diff.originalStartLineNumber,
+				originalEndLineNumber: diff.originalEndLineNumber,
+				modifiedStartLineNumber,
+				modifiedEndLineNumber
+			};
+		}
 	}
 }
 

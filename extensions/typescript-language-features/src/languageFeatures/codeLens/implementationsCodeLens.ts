@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../../protocol';
-import * as PConst from '../../protocol.const';
+import { DocumentSelector } from '../../configuration/documentSelector';
+import { LanguageDescription } from '../../configuration/languageDescription';
 import { CachedResponse } from '../../tsServer/cachedResponse';
+import type * as Proto from '../../tsServer/protocol/protocol';
+import * as PConst from '../../tsServer/protocol/protocol.const';
+import * as typeConverters from '../../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
-import { DocumentSelector } from '../../utils/documentSelector';
-import { LanguageDescription } from '../../utils/languageDescription';
-import * as typeConverters from '../../utils/typeConverters';
-import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
+import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../util/dependentRegistration';
+import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
 
-const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 
@@ -61,31 +59,26 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 
 	private getTitle(locations: vscode.Location[]): string {
 		return locations.length === 1
-			? localize('oneImplementationLabel', '1 implementation')
-			: localize('manyImplementationLabel', '{0} implementations', locations.length);
+			? vscode.l10n.t("1 implementation")
+			: vscode.l10n.t("{0} implementations", locations.length);
 	}
 
 	protected extractSymbol(
+		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
 		_parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
-		if (!item.nameSpan) {
-			return undefined;
-		}
-
-		const itemSpan = typeConverters.Range.fromTextSpan(item.nameSpan);
-
 		switch (item.kind) {
 			case PConst.Kind.interface:
-				return itemSpan;
+				return getSymbolRange(document, item);
 
 			case PConst.Kind.class:
 			case PConst.Kind.method:
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
-				if (/\babstract\b/g.test(item.kindModifiers)) {
-					return itemSpan;
+				if (item.kindModifiers.match(/\babstract\b/g)) {
+					return getSymbolRange(document, item);
 				}
 				break;
 		}

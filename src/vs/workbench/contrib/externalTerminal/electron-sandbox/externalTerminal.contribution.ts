@@ -13,11 +13,12 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-sandbox/externalTerminalMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -89,7 +90,7 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 
 	private async _updateConfiguration(): Promise<void> {
 		const terminals = await this._externalTerminalService.getDefaultTerminalForPlatforms();
-		let configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			id: 'externalTerminal',
 			order: 100,
@@ -100,13 +101,15 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 					type: 'string',
 					enum: [
 						'integrated',
-						'external'
+						'external',
+						'both'
 					],
 					enumDescriptions: [
 						nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
-						nls.localize('terminal.explorerKind.external', "Use the configured external terminal.")
+						nls.localize('terminal.explorerKind.external', "Use the configured external terminal."),
+						nls.localize('terminal.explorerKind.both', "Use the other two together.")
 					],
-					description: nls.localize('explorer.openInTerminalKind', "When opening a file from the explorer in a terminal, determines what kind of terminal will be launched"),
+					description: nls.localize('explorer.openInTerminalKind', "When opening a file from the Explorer in a terminal, determines what kind of terminal will be launched"),
 					default: 'integrated'
 				},
 				'terminal.external.windowsExec': {
@@ -131,3 +134,7 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 		});
 	}
 }
+
+// Register workbench contributions
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(ExternalTerminalContribution, LifecyclePhase.Restored);

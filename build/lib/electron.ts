@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vfs from 'vinyl-fs';
 import * as filter from 'gulp-filter';
 import * as _ from 'underscore';
 import * as util from './util';
+import { getVersion } from './getVersion';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
 type DarwinDocumentType = {
@@ -19,6 +18,7 @@ type DarwinDocumentType = {
 	ostypes: string[];
 	extensions: string[];
 	iconFile: string;
+	utis?: string[];
 };
 
 function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
@@ -27,7 +27,7 @@ function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
 
 const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
@@ -50,7 +50,7 @@ const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSyn
  * If you call `darwinBundleDocumentType(..., 'bat', 'Windows command script')`, the file type is `"Windows command script"`,
  * and the `'bat'` darwin icon is used.
  */
-function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuffix?: string | DarwinDocumentSuffix): DarwinDocumentType {
+function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuffix?: string | DarwinDocumentSuffix, utis?: string[]): DarwinDocumentType {
 	// If given a suffix, generate a name from it. If not given anything, default to 'document'
 	if (isDocumentSuffix(nameOrSuffix) || !nameOrSuffix) {
 		nameOrSuffix = icon.charAt(0).toUpperCase() + icon.slice(1) + ' ' + (nameOrSuffix ?? 'document');
@@ -60,8 +60,9 @@ function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuff
 		name: nameOrSuffix,
 		role: 'Editor',
 		ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
-		extensions: extensions,
-		iconFile: 'resources/darwin/' + icon + '.icns'
+		extensions,
+		iconFile: 'resources/darwin/' + icon + '.icns',
+		utis
 	};
 }
 
@@ -80,20 +81,20 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 	return Object.keys(types).map((name: string): DarwinDocumentType => {
 		const extensions = types[name];
 		return {
-			name: name,
+			name,
 			role: 'Editor',
 			ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
 			extensions: Array.isArray(extensions) ? extensions : [extensions],
-			iconFile: 'resources/darwin/' + icon + '.icns',
+			iconFile: 'resources/darwin/' + icon + '.icns'
 		} as DarwinDocumentType;
 	});
 }
 
 export const config = {
-	version: util.getElectronVersion(),
+	version: product.electronRepository ? '22.5.2' : util.getElectronVersion(),
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2022 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2023 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -167,12 +168,15 @@ export const config = {
 			'F# script': ['fsx', 'fsscript'],
 			'SVG document': ['svg', 'svgz'],
 			'TOML document': 'toml',
+			'Swift source code': 'swift',
 		}, 'default'),
 		// Default icon with default name
 		darwinBundleDocumentType([
 			'containerfile', 'ctp', 'dot', 'edn', 'handlebars', 'hbs', 'ml', 'mli',
 			'pl', 'pl6', 'pm', 'pm6', 'pod', 'pp', 'properties', 'psgi', 'rt', 't'
-		], 'default', product.nameLong + ' document')
+		], 'default', product.nameLong + ' document'),
+		// Folder support ()
+		darwinBundleDocumentType([], 'default', 'Folder', ['public.folder'])
 	],
 	darwinBundleURLTypes: [{
 		role: 'Viewer',
@@ -183,19 +187,19 @@ export const config = {
 	darwinCredits: darwinCreditsTemplate ? Buffer.from(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : undefined,
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
-	token: process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || undefined,
+	token: process.env['GITHUB_TOKEN'],
 	repo: product.electronRepository || undefined
 };
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
-		const electron = require('gulp-atom-electron');
+		const electron = require('@vscode/gulp-electron');
 		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 		const electronOpts = _.extend({}, config, {
 			platform: process.platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
-			ffmpegChromium: true,
+			ffmpegChromium: false,
 			keepDefaultApp: true
 		});
 
@@ -208,7 +212,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 }
 
 async function main(arch = process.arch): Promise<void> {
-	const version = util.getElectronVersion();
+	const version = product.electronRepository ? '22.5.2' : util.getElectronVersion();
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');
 	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;

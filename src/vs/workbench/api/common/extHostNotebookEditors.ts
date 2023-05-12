@@ -3,55 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { IdGenerator } from 'vs/base/common/idGenerator';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookEditorsShape, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo, MainContext, MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookEditorsShape, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
-
-class NotebookEditorDecorationType {
-
-	private static readonly _Keys = new IdGenerator('NotebookEditorDecorationType');
-
-	readonly value: vscode.NotebookEditorDecorationType;
-
-	constructor(proxy: MainThreadNotebookEditorsShape, options: vscode.NotebookDecorationRenderOptions) {
-		const key = NotebookEditorDecorationType._Keys.nextId();
-		proxy.$registerNotebookEditorDecorationType(key, typeConverters.NotebookDecorationRenderOptions.from(options));
-
-		this.value = {
-			key,
-			dispose() {
-				proxy.$removeNotebookEditorDecorationType(key);
-			}
-		};
-	}
-}
 
 
 export class ExtHostNotebookEditors implements ExtHostNotebookEditorsShape {
 
-	private readonly _onDidChangeNotebookEditorSelection = new Emitter<vscode.NotebookEditorSelectionChangeEvent>();
-	private readonly _onDidChangeNotebookEditorVisibleRanges = new Emitter<vscode.NotebookEditorVisibleRangesChangeEvent>();
+	private readonly _onDidChangeNotebookEditorSelection = new Emitter<vscode.NotebookEditorSelectionChangeEvent>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidChangeNotebookEditorVisibleRanges = new Emitter<vscode.NotebookEditorVisibleRangesChangeEvent>({ onListenerError: onUnexpectedExternalError });
 
 	readonly onDidChangeNotebookEditorSelection = this._onDidChangeNotebookEditorSelection.event;
 	readonly onDidChangeNotebookEditorVisibleRanges = this._onDidChangeNotebookEditorVisibleRanges.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
-		@IExtHostRpcService private readonly _extHostRpc: IExtHostRpcService,
 		private readonly _notebooksAndEditors: ExtHostNotebookController,
-	) {
-
-	}
-
-
-	createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
-		return new NotebookEditorDecorationType(this._extHostRpc.getProxy(MainContext.MainThreadNotebookEditors), options).value;
-	}
+	) { }
 
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void {
 		this._logService.debug('ExtHostNotebook#$acceptEditorPropertiesChanged', id, data);

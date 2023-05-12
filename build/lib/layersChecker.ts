@@ -30,32 +30,35 @@ const CORE_TYPES = [
 	'setInterval',
 	'clearInterval',
 	'console',
-	'log',
-	'info',
-	'warn',
-	'error',
-	'group',
-	'groupEnd',
-	'table',
-	'assert',
+	'Console',
 	'Error',
+	'ErrorConstructor',
 	'String',
-	'throws',
-	'stack',
-	'captureStackTrace',
-	'stackTraceLimit',
 	'TextDecoder',
 	'TextEncoder',
-	'encode',
-	'decode',
 	'self',
-	'trimStart',
-	'trimEnd',
-	'trimLeft',
-	'trimRight',
 	'queueMicrotask',
+	'Array',
+	'Uint8Array',
+	'Uint16Array',
+	'Uint32Array',
+	'Int8Array',
+	'Int16Array',
+	'Int32Array',
+	'Float32Array',
+	'Float64Array',
+	'Uint8ClampedArray',
+	'BigUint64Array',
+	'BigInt64Array',
+	'btoa',
+	'atob',
+	'AbortController',
+	'AbortSignal',
 	'MessageChannel',
-	'MessagePort'
+	'MessagePort',
+	'URL',
+	'URLSearchParams',
+	'ReadonlyArray',
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -65,10 +68,12 @@ const NATIVE_TYPES = [
 	'INativeEnvironmentService',
 	'AbstractNativeEnvironmentService',
 	'INativeWindowConfiguration',
-	'ICommonNativeHostService'
+	'ICommonNativeHostService',
+	'INativeHostService',
+	'IMainProcessService'
 ];
 
-const RULES = [
+const RULES: IRule[] = [
 
 	// Tests: skip
 	{
@@ -84,7 +89,6 @@ const RULES = [
 
 			// Safe access to postMessage() and friends
 			'MessageEvent',
-			'data'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
@@ -158,6 +162,9 @@ const RULES = [
 		target: '**/vs/**/browser/**',
 		allowedTypes: CORE_TYPES,
 		disallowedTypes: NATIVE_TYPES,
+		allowedDefinitions: [
+			'@types/node/stream/consumers.d.ts' // node.js started to duplicate types from lib.dom.d.ts so we have to account for that
+		],
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
@@ -176,19 +183,7 @@ const RULES = [
 	// node.js
 	{
 		target: '**/vs/**/node/**',
-		allowedTypes: [
-			...CORE_TYPES,
-
-			// --> types from node.d.ts that duplicate from lib.dom.d.ts
-			'URL',
-			'protocol',
-			'hostname',
-			'port',
-			'pathname',
-			'search',
-			'username',
-			'password'
-		],
+		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts'	// no DOM
 		]
@@ -203,12 +198,6 @@ const RULES = [
 		]
 	},
 
-	// Electron (renderer): skip
-	{
-		target: '**/vs/**/electron-browser/**',
-		skip: true // -> supports all types
-	},
-
 	// Electron (main)
 	{
 		target: '**/vs/**/electron-main/**',
@@ -218,6 +207,9 @@ const RULES = [
 			// --> types from electron.d.ts that duplicate from lib.dom.d.ts
 			'Event',
 			'Request'
+		],
+		disallowedTypes: [
+			'ipcMain' // not allowed, use validatedIpcMain instead
 		],
 		disallowedDefinitions: [
 			'lib.dom.d.ts'	// no DOM
@@ -246,7 +238,21 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 			return ts.forEachChild(node, checkNode); // recurse down
 		}
 
-		const text = node.getText(sourceFile);
+		const checker = program.getTypeChecker();
+		const symbol = checker.getSymbolAtLocation(node);
+
+		if (!symbol) {
+			return;
+		}
+
+		let _parentSymbol: any = symbol;
+
+		while (_parentSymbol.parent) {
+			_parentSymbol = _parentSymbol.parent;
+		}
+
+		const parentSymbol = _parentSymbol as ts.Symbol;
+		const text = parentSymbol.getName();
 
 		if (rule.allowedTypes?.some(allowed => allowed === text)) {
 			return; // override
@@ -254,40 +260,37 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 
 		if (rule.disallowedTypes?.some(disallowed => disallowed === text)) {
 			const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-			console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+			console.log(`[build/lib/layersChecker.ts]: Reference to type '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
 
 			hasErrors = true;
 			return;
 		}
 
-		const checker = program.getTypeChecker();
-		const symbol = checker.getSymbolAtLocation(node);
-		if (symbol) {
-			const declarations = symbol.declarations;
-			if (Array.isArray(declarations)) {
-				DeclarationLoop: for (const declaration of declarations) {
-					if (declaration) {
-						const parent = declaration.parent;
-						if (parent) {
-							const parentSourceFile = parent.getSourceFile();
-							if (parentSourceFile) {
-								const definitionFileName = parentSourceFile.fileName;
-								if (rule.allowedDefinitions) {
-									for (const allowedDefinition of rule.allowedDefinitions) {
-										if (definitionFileName.indexOf(allowedDefinition) >= 0) {
-											continue DeclarationLoop;
-										}
+		const declarations = symbol.declarations;
+		if (Array.isArray(declarations)) {
+			DeclarationLoop: for (const declaration of declarations) {
+				if (declaration) {
+					const parent = declaration.parent;
+					if (parent) {
+						const parentSourceFile = parent.getSourceFile();
+						if (parentSourceFile) {
+							const definitionFileName = parentSourceFile.fileName;
+							if (rule.allowedDefinitions) {
+								for (const allowedDefinition of rule.allowedDefinitions) {
+									if (definitionFileName.indexOf(allowedDefinition) >= 0) {
+										continue DeclarationLoop;
 									}
 								}
-								if (rule.disallowedDefinitions) {
-									for (const disallowedDefinition of rule.disallowedDefinitions) {
-										if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
-											const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-											console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+							}
+							if (rule.disallowedDefinitions) {
+								for (const disallowedDefinition of rule.disallowedDefinitions) {
+									if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
+										const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
 
-											hasErrors = true;
-											return;
-										}
+										console.log(`[build/lib/layersChecker.ts]: Reference to symbol '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}) Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
+
+										hasErrors = true;
+										return;
 									}
 								}
 							}

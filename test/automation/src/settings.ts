@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { Editor } from './editor';
 import { Editors } from './editors';
 import { Code } from './code';
@@ -12,8 +10,14 @@ import { QuickAccess } from './quickaccess';
 
 export class SettingsEditor {
 
-	constructor(private code: Code, private userDataPath: string, private editors: Editors, private editor: Editor, private quickaccess: QuickAccess) { }
+	constructor(private code: Code, private editors: Editors, private editor: Editor, private quickaccess: QuickAccess) { }
 
+	/**
+	 * Write a single setting key value pair.
+	 *
+	 * Warning: You may need to set `editor.wordWrap` to `"on"` if this is called with a really long
+	 * setting.
+	 */
 	async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openUserSettingsFile();
 
@@ -22,12 +26,27 @@ export class SettingsEditor {
 		await this.editors.saveOpenedFile();
 	}
 
-	async clearUserSettings(): Promise<void> {
-		const settingsPath = path.join(this.userDataPath, 'User', 'settings.json');
-		await new Promise<void>((c, e) => fs.writeFile(settingsPath, '{\n}', 'utf8', err => err ? e(err) : c()));
-
+	/**
+	 * Write several settings faster than multiple calls to {@link addUserSetting}.
+	 *
+	 * Warning: You will likely also need to set `editor.wordWrap` to `"on"` if `addUserSetting` is
+	 * called after this in the test.
+	 */
+	async addUserSettings(settings: [key: string, value: string][]): Promise<void> {
 		await this.openUserSettingsFile();
-		await this.editor.waitForEditorContents('settings.json', c => c === '{}');
+
+		await this.code.dispatchKeybinding('right');
+		await this.editor.waitForTypeInEditor('settings.json', settings.map(v => `"${v[0]}": ${v[1]},`).join(''));
+		await this.editors.saveOpenedFile();
+	}
+
+	async clearUserSettings(): Promise<void> {
+		await this.openUserSettingsFile();
+		await this.quickaccess.runCommand('editor.action.selectAll');
+		await this.code.dispatchKeybinding('Delete');
+		await this.editor.waitForTypeInEditor('settings.json', `{`); // will auto close }
+		await this.editors.saveOpenedFile();
+		await this.quickaccess.runCommand('workbench.action.closeActiveEditor');
 	}
 
 	async openUserSettingsFile(): Promise<void> {

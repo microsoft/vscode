@@ -28,7 +28,7 @@ async function assertTokens(lines: string[], expected: ExpectedToken[], ranges?:
 	const legend = semanticTokensProvider.legend;
 	const actual = await semanticTokensProvider.getSemanticTokens(document, ranges);
 
-	let actualRanges = [];
+	const actualRanges = [];
 	let lastLine = 0;
 	let lastCharacter = 0;
 	for (let i = 0; i < actual.length; i += 5) {

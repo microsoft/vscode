@@ -9,7 +9,7 @@ import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResour
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICloseEditorOptions, IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
@@ -41,6 +41,19 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 	 * If true, will ask for a location of the editor to save to.
 	 */
 	readonly saveAs?: boolean;
+}
+
+export interface ISaveEditorsResult {
+
+	/**
+	 * Whether the save operation was successful.
+	 */
+	readonly success: boolean;
+
+	/**
+	 * Resulting editors after the save operation.
+	 */
+	readonly editors: Array<EditorInput | IUntypedEditorInput>;
 }
 
 export interface IUntypedEditorReplacement {
@@ -88,8 +101,15 @@ export interface IOpenEditorsOptions {
 	readonly validateTrust?: boolean;
 }
 
-export interface IEditorsChangeEvent extends IGroupModelChangeEvent {
+export interface IEditorsChangeEvent {
+	/**
+	 * The group which had the editor change
+	 */
 	groupId: GroupIdentifier;
+	/*
+	 * The event fired from the model
+	 */
+	event: IGroupModelChangeEvent;
 }
 
 export interface IEditorService {
@@ -198,7 +218,7 @@ export interface IEditorService {
 	 * @param editor the editor to open
 	 * @param options the options to use for the editor
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
 	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
@@ -219,7 +239,7 @@ export interface IEditorService {
 	 * ```
 	 *
 	 * If you already have an `EditorInput` in hand and must use it for opening, use `group.openEditor`
-	 * instead, via `IEditorGroupService`.
+	 * instead, via `IEditorGroupsService`.
 	 */
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
@@ -228,7 +248,7 @@ export interface IEditorService {
 	 *
 	 * @param editors the editors to open with associated options
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
 	 * @returns the editors that opened. The array can be empty or have less elements for editors
@@ -263,6 +283,16 @@ export interface IEditorService {
 	isVisible(editor: EditorInput): boolean;
 
 	/**
+	 * Close an editor in a specific editor group.
+	 */
+	closeEditor(editor: IEditorIdentifier, options?: ICloseEditorOptions): Promise<void>;
+
+	/**
+	 * Close multiple editors in specific editor groups.
+	 */
+	closeEditors(editors: readonly IEditorIdentifier[], options?: ICloseEditorOptions): Promise<void>;
+
+	/**
 	 * This method will return an entry for each editor that reports
 	 * a `resource` that matches the provided one in the group or
 	 * across all groups.
@@ -276,17 +306,13 @@ export interface IEditorService {
 
 	/**
 	 * Save the provided list of editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
+	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Save all editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
+	saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Reverts the provided list of editors.

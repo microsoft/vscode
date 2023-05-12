@@ -19,6 +19,8 @@ import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from 'vs/workbenc
 import { NullLogService } from 'vs/platform/log/common/log';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { nullExtensionDescription as extensionsDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 suite('ExtHostTreeView', function () {
 
@@ -64,11 +66,11 @@ suite('ExtHostTreeView', function () {
 		labels = {};
 		nodes = {};
 
-		let rpcProtocol = new TestRPCProtocol();
+		const rpcProtocol = new TestRPCProtocol();
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
-			let instantiationService = new TestInstantiationService();
+			const instantiationService = new TestInstantiationService();
 			inst = instantiationService;
 		}
 
@@ -76,7 +78,12 @@ suite('ExtHostTreeView', function () {
 		target = new RecordingShape();
 		testObject = new ExtHostTreeViews(target, new ExtHostCommands(
 			rpcProtocol,
-			new NullLogService()
+			new NullLogService(),
+			new class extends mock<IExtHostTelemetry>() {
+				override onExtensionError(): boolean {
+					return true;
+				}
+			}
 		), new NullLogService());
 		onDidChangeTreeNode = new Emitter<{ key: string } | undefined>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
@@ -250,15 +257,17 @@ suite('ExtHostTreeView', function () {
 	});
 
 	async function runWithEventMerging(action: (resolve: () => void) => void) {
-		await new Promise<void>((resolve) => {
-			let subscription: IDisposable | undefined = undefined;
-			subscription = target.onRefresh.event(() => {
-				subscription!.dispose();
-				resolve();
+		await runWithFakedTimers({}, async () => {
+			await new Promise<void>((resolve) => {
+				let subscription: IDisposable | undefined = undefined;
+				subscription = target.onRefresh.event(() => {
+					subscription!.dispose();
+					resolve();
+				});
+				onDidChangeTreeNode.fire(getNode('b'));
 			});
-			onDidChangeTreeNode.fire(getNode('b'));
+			await new Promise<void>(action);
 		});
-		await new Promise<void>(action);
 	}
 
 	test('refresh parent and child node trigger refresh only on parent - scenario 1', async () => {
@@ -735,7 +744,7 @@ suite('ExtHostTreeView', function () {
 		if (!key) {
 			return Object.keys(tree);
 		}
-		let treeElement = getTreeElement(key);
+		const treeElement = getTreeElement(key);
 		if (treeElement) {
 			return Object.keys(treeElement);
 		}

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getAllMethodNames } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/model';
-import * as types from 'vs/base/common/types';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IModelService } from 'vs/editor/common/services/model';
 
 /**
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
+export function createWebWorker<T extends object>(modelService: IModelService, languageConfigurationService: ILanguageConfigurationService, opts: IWebWorkerOptions): MonacoWebWorker<T> {
 	return new MonacoWebWorkerImpl<T>(modelService, languageConfigurationService, opts);
 }
 
@@ -61,7 +61,7 @@ export interface IWebWorkerOptions {
 	keepIdleModels?: boolean;
 }
 
-class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWorker<T> {
+class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implements MonacoWebWorker<T> {
 
 	private readonly _foreignModuleId: string;
 	private readonly _foreignModuleHost: { [method: string]: Function } | null;
@@ -92,7 +92,7 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 	private _getForeignProxy(): Promise<T> {
 		if (!this._foreignProxy) {
 			this._foreignProxy = this._getProxy().then((proxy) => {
-				const foreignHostMethods = this._foreignModuleHost ? types.getAllMethodNames(this._foreignModuleHost) : [];
+				const foreignHostMethods = this._foreignModuleHost ? getAllMethodNames(this._foreignModuleHost) : [];
 				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData, foreignHostMethods).then((foreignMethods) => {
 					this._foreignModuleCreateData = null;
 

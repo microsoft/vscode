@@ -16,15 +16,15 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedExtensionPoint';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -34,6 +34,8 @@ import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/wor
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { disposableTimeout } from 'vs/base/common/async';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -79,7 +81,7 @@ export interface IWalkthroughStep {
 	order: number;
 	completionEvents: string[];
 	media:
-	| { type: 'image'; path: { hc: URI; light: URI; dark: URI }; altText: string }
+	| { type: 'image'; path: { hcDark: URI; hcLight: URI; light: URI; dark: URI }; altText: string }
 	| { type: 'svg'; path: URI; altText: string }
 	| { type: 'markdown'; path: URI; base: URI; root: URI };
 }
@@ -95,6 +97,7 @@ export interface IWalkthroughsService {
 	readonly onDidRemoveWalkthrough: Event<string>;
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>;
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>;
+	readonly onDidAddBuiltInWalkthrough: Event<void>;
 
 	readonly installedExtensionsRegistered: Promise<void>;
 
@@ -114,6 +117,12 @@ export interface IWalkthroughsService {
 const DAYS = 24 * 60 * 60 * 1000;
 const NEW_WALKTHROUGH_TIME = 7 * DAYS;
 
+type WalkthroughTreatment = {
+	walkthroughId: string;
+	walkthroughStepIds?: string[];
+	stepOrder: number[];
+};
+
 export class WalkthroughsService extends Disposable implements IWalkthroughsService {
 	declare readonly _serviceBrand: undefined;
 
@@ -126,6 +135,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
 
+	private readonly _onDidAddBuiltInWalkthrough = new Emitter<void>();
+	readonly onDidAddBuiltInWalkthrough: Event<void> = this._onDidAddBuiltInWalkthrough.event;
+
 	private memento: Memento;
 	private stepProgress: Record<string, StepProgress | undefined>;
 
@@ -136,7 +148,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private steps = new Map<string, IWalkthroughStep>();
 
 	private tasExperimentService?: IWorkbenchAssignmentService;
-	private sessionInstalledExtensions = new Set<string>();
+	private sessionInstalledExtensions: Set<string> = new Set<string>();
 
 	private categoryVisibilityContextKeys = new Set<string>();
 	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
@@ -160,6 +172,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService tasExperimentService: IWorkbenchAssignmentService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -167,10 +180,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this.metadata = new Map(
 			JSON.parse(
-				this.storageService.get(walkthroughMetadataConfigurationKey, StorageScope.GLOBAL, '[]')));
+				this.storageService.get(walkthroughMetadataConfigurationKey, StorageScope.PROFILE, '[]')));
 
 		this.memento = new Memento('gettingStartedService', this.storageService);
-		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		this.stepProgress = this.memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 
 		walkthroughsExtensionPoint.setHandler(async (_, { added, removed }) => {
 			await Promise.all(
@@ -185,7 +198,30 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this.installedExtensionsRegistered = new Promise(r => this.triggerInstalledExtensionsRegistered = r);
 
+		this._register(disposableTimeout(() => this.registerBuiltInWalkthroughs().finally(/*do nothing*/), 0));
+	}
+
+	private async registerBuiltInWalkthroughs() {
+
+		const treatmentString = await Promise.race([
+			this.tasExperimentService?.getTreatment<string>('welcome.walkthrough.content'),
+			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
+		]);
+
+		const treatment: WalkthroughTreatment = treatmentString ? JSON.parse(treatmentString) : { walkthroughId: '' };
+
 		walkthroughs.forEach(async (category, index) => {
+			let shouldReorder = false;
+			if (category.id === treatment?.walkthroughId) {
+				category = this.updateWalkthroughContent(category, treatment);
+
+				shouldReorder = (treatment?.stepOrder !== undefined && category.content.steps.length === treatment.stepOrder.length);
+				if (shouldReorder) {
+					category.content.steps = category.content.steps.filter((_step, index) => treatment.stepOrder[index] >= 0);
+					treatment.stepOrder = treatment.stepOrder.filter(value => value >= 0);
+				}
+			}
+
 			this._registerWalkthrough({
 				...category,
 				icon: { type: 'icon', icon: category.icon },
@@ -199,7 +235,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 							completionEvents: step.completionEvents ?? [],
 							description: parseDescription(step.description),
 							category: category.id,
-							order: index,
+							order: shouldReorder ? (treatment?.stepOrder ? treatment.stepOrder[index] : index) : index,
 							when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
 							media: step.media.type === 'image'
 								? {
@@ -216,13 +252,39 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 									: {
 										type: 'markdown',
 										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) }),
-										base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/', require),
-										root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/', require),
+										base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
+										root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
 									},
 						});
 					})
 			});
 		});
+
+		this._onDidAddBuiltInWalkthrough.fire();
+	}
+
+	private updateWalkthroughContent(walkthrough: BuiltinGettingStartedCategory, experimentTreatment: WalkthroughTreatment): BuiltinGettingStartedCategory {
+
+		if (!experimentTreatment?.walkthroughStepIds) {
+			return walkthrough;
+		}
+
+		const walkthroughMetadata = this.productService.walkthroughMetadata?.find(value => value.id === walkthrough.id);
+		for (const step of experimentTreatment.walkthroughStepIds) {
+			const stepMetadata = walkthroughMetadata?.steps.find(value => value.id === step);
+			if (stepMetadata) {
+
+				const newStep: BuiltinGettingStartedStep = {
+					id: step,
+					title: stepMetadata.title,
+					description: stepMetadata.description,
+					when: stepMetadata.when,
+					media: stepMetadata.media
+				};
+				walkthrough.content.steps.push(newStep);
+			}
+		}
+		return walkthrough;
 	}
 
 	private initCompletionEventListeners() {
@@ -235,7 +297,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
 			const hadLastFoucs = await this.hostService.hadLastFocus();
 			for (const e of result) {
-				if (hadLastFoucs) {
+				// If the window had last focus and the install didn't specify to skip the walkthrough
+				// Then add it to the sessionInstallExtensions to be opened
+				if (hadLastFoucs && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]) {
 					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
 				}
 				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
@@ -273,25 +337,26 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			this.metadata.set(id, { ...prior, manaullyOpened: true, stepIDs: walkthrough.steps.map(s => s.id) });
 		}
 
-		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private async registerExtensionWalkthroughContributions(extension: IExtensionDescription) {
 		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
 			? URI.parse(path, true)
-			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
+			: FileAccess.uriToFileUri(joinPath(extension.extensionLocation, path));
 
-		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string; dark: string; light: string }): { hc: URI; dark: URI; light: URI } => {
+		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string; hcLight?: string; dark: string; light: string }): { hcDark: URI; hcLight: URI; dark: URI; light: URI } => {
 			const convertPath = (path: string) => path.startsWith('https://')
 				? URI.parse(path, true)
-				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
+				: FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, path));
 
 			if (typeof path === 'string') {
 				const converted = convertPath(path);
-				return { hc: converted, dark: converted, light: converted };
+				return { hcDark: converted, hcLight: converted, dark: converted, light: converted };
 			} else {
 				return {
-					hc: convertPath(path.hc),
+					hcDark: convertPath(path.hc),
+					hcLight: convertPath(path.hcLight ?? path.light),
 					light: convertPath(path.light),
 					dark: convertPath(path.dark)
 				};
@@ -317,8 +382,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
 			]);
 
-			if (
-				this.sessionInstalledExtensions.has(extension.identifier.value.toLowerCase())
+			if (this.sessionInstalledExtensions.has(extension.identifier.value.toLowerCase())
 				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value.toLowerCase());
@@ -339,7 +403,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				}
 
 				if (step.media.image) {
-					const altText = (step.media as any).altText;
+					const altText = step.media.altText;
 					if (altText === undefined) {
 						console.error('Walkthrough item:', fullyQualifiedID, 'is missing altText for its media element.');
 					}
@@ -350,7 +414,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 						type: 'markdown',
 						path: convertExtensionPathToFileURI(step.media.markdown),
 						base: convertExtensionPathToFileURI(dirname(step.media.markdown)),
-						root: FileAccess.asFileUri(extension.extensionLocation),
+						root: FileAccess.uriToFileUri(extension.extensionLocation),
 					};
 				}
 				else if (step.media.svg) {
@@ -361,28 +425,14 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 					};
 				}
 
-				// Legacy media config
+				// Throw error for unknown walkthrough format
 				else {
-					const legacyMedia = step.media as unknown as { path: string; altText: string };
-					if (typeof legacyMedia.path === 'string' && legacyMedia.path.endsWith('.md')) {
-						media = {
-							type: 'markdown',
-							path: convertExtensionPathToFileURI(legacyMedia.path),
-							base: convertExtensionPathToFileURI(dirname(legacyMedia.path)),
-							root: FileAccess.asFileUri(extension.extensionLocation),
-						};
-					}
-					else {
-						const altText = legacyMedia.altText;
-						if (altText === undefined) {
-							console.error('Walkthrough item:', fullyQualifiedID, 'is missing altText for its media element.');
-						}
-						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(legacyMedia.path) };
-					}
+					throw new Error('Unknown walkthrough format detected for ' + fullyQualifiedID);
 				}
 
 				return ({
-					description, media,
+					description,
+					media,
 					completionEvents: step.completionEvents?.filter(x => typeof x === 'string') ?? [],
 					id: fullyQualifiedID,
 					title: step.title,
@@ -400,6 +450,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				isFeatured = await this.instantiationService.invokeFunction(a => checkGlobFileExists(a, folders, walkthrough.featuredFor!, token.token));
 			}
 
+			const iconStr = walkthrough.icon ?? extension.icon;
 			const walkthoughDescriptor: IWalkthrough = {
 				description: walkthrough.description,
 				title: walkthrough.title,
@@ -410,8 +461,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				steps,
 				icon: {
 					type: 'image',
-					path: extension.icon
-						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
+					path: iconStr
+						? FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
 						: DefaultIconPath
 				},
 				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
@@ -422,14 +473,15 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			this._onDidAddWalkthrough.fire(this.resolveWalkthrough(walkthoughDescriptor));
 		}));
 
-		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
-
+		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.PROFILE, StorageTarget.USER);
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
+				owner: 'lramos15';
+				comment: 'When a walkthrthrough is opened upon extension installation';
 				id: {
 					classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight';
-					owner: 'JacksonKearl';
+					owner: 'lramos15';
 					comment: 'Used to understand what walkthroughs are consulted most frequently';
 				};
 			};
@@ -437,7 +489,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				id: string;
 			};
 			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
-			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
+			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen, true);
 		}
 	}
 
@@ -447,7 +499,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		}
 
 		extension.contributes?.walkthroughs?.forEach(section => {
-			const categoryID = extension.identifier.value + '#walkthrough#' + section.id;
+			const categoryID = extension.identifier.value + '#' + section.id;
 			section.steps.forEach(step => {
 				const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + step.id;
 				this.steps.delete(fullyQualifiedID);
@@ -663,21 +715,21 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
 
-
-const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
+export const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
 	? URI.parse(path, true)
-	: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/' + path, require);
+	: FileAccess.asFileUri(`vs/workbench/contrib/welcomeGettingStarted/common/media/${path}`);
 
 const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
 	? URI.parse(path, true)
-	: FileAccess.asBrowserUri('vs/workbench/contrib/welcomeGettingStarted/common/media/' + path, require);
-const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string; dark: string; light: string }): { hc: URI; dark: URI; light: URI } => {
+	: FileAccess.asBrowserUri(`vs/workbench/contrib/welcomeGettingStarted/common/media/${path}`);
+const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string; hcLight?: string; dark: string; light: string }): { hcDark: URI; hcLight: URI; dark: URI; light: URI } => {
 	if (typeof path === 'string') {
 		const converted = convertInternalMediaPathToBrowserURI(path);
-		return { hc: converted, dark: converted, light: converted };
+		return { hcDark: converted, hcLight: converted, dark: converted, light: converted };
 	} else {
 		return {
-			hc: convertInternalMediaPathToBrowserURI(path.hc),
+			hcDark: convertInternalMediaPathToBrowserURI(path.hc),
+			hcLight: convertInternalMediaPathToBrowserURI(path.hcLight ?? path.light),
 			light: convertInternalMediaPathToBrowserURI(path.light),
 			dark: convertInternalMediaPathToBrowserURI(path.dark)
 		};
@@ -688,8 +740,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'resetGettingStartedProgress',
-			category: 'Developer',
-			title: 'Reset Welcome Page Walkthrough Progress',
+			category: { original: 'Developer', value: localize('developer', "Developer") },
+			title: { original: 'Reset Welcome Page Walkthrough Progress', value: localize('resetWelcomePageWalkthroughProgress', "Reset Welcome Page Walkthrough Progress") },
 			f1: true
 		});
 	}
@@ -701,17 +753,17 @@ registerAction2(class extends Action2 {
 		storageService.store(
 			hiddenEntriesConfigurationKey,
 			JSON.stringify([]),
-			StorageScope.GLOBAL,
+			StorageScope.PROFILE,
 			StorageTarget.USER);
 
 		storageService.store(
 			walkthroughMetadataConfigurationKey,
 			JSON.stringify([]),
-			StorageScope.GLOBAL,
+			StorageScope.PROFILE,
 			StorageTarget.USER);
 
 		const memento = new Memento('gettingStartedService', accessor.get(IStorageService));
-		const record = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		const record = memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 		for (const key in record) {
 			if (Object.prototype.hasOwnProperty.call(record, key)) {
 				try {
@@ -725,4 +777,4 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerSingleton(IWalkthroughsService, WalkthroughsService);
+registerSingleton(IWalkthroughsService, WalkthroughsService, InstantiationType.Delayed);

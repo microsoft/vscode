@@ -10,9 +10,9 @@ import { parseReplaceString, ReplacePattern, ReplacePiece } from 'vs/editor/cont
 suite('Replace Pattern test', () => {
 
 	test('parse replace string', () => {
-		let testParse = (input: string, expectedPieces: ReplacePiece[]) => {
-			let actual = parseReplaceString(input);
-			let expected = new ReplacePattern(expectedPieces);
+		const testParse = (input: string, expectedPieces: ReplacePiece[]) => {
+			const actual = parseReplaceString(input);
+			const expected = new ReplacePattern(expectedPieces);
 			assert.deepStrictEqual(actual, expected, 'Parsing ' + input);
 		};
 
@@ -70,15 +70,15 @@ suite('Replace Pattern test', () => {
 	});
 
 	test('parse replace string with case modifiers', () => {
-		let testParse = (input: string, expectedPieces: ReplacePiece[]) => {
-			let actual = parseReplaceString(input);
-			let expected = new ReplacePattern(expectedPieces);
+		const testParse = (input: string, expectedPieces: ReplacePiece[]) => {
+			const actual = parseReplaceString(input);
+			const expected = new ReplacePattern(expectedPieces);
 			assert.deepStrictEqual(actual, expected, 'Parsing ' + input);
 		};
 		function assertReplace(target: string, search: RegExp, replaceString: string, expected: string): void {
-			let replacePattern = parseReplaceString(replaceString);
-			let m = search.exec(target);
-			let actual = replacePattern.buildReplaceString(m);
+			const replacePattern = parseReplaceString(replaceString);
+			const m = search.exec(target);
+			const actual = replacePattern.buildReplaceString(m);
 
 			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
 		}
@@ -102,10 +102,10 @@ suite('Replace Pattern test', () => {
 	});
 
 	test('replace has JavaScript semantics', () => {
-		let testJSReplaceSemantics = (target: string, search: RegExp, replaceString: string, expected: string) => {
-			let replacePattern = parseReplaceString(replaceString);
-			let m = search.exec(target);
-			let actual = replacePattern.buildReplaceString(m);
+		const testJSReplaceSemantics = (target: string, search: RegExp, replaceString: string, expected: string) => {
+			const replacePattern = parseReplaceString(replaceString);
+			const m = search.exec(target);
+			const actual = replacePattern.buildReplaceString(m);
 
 			assert.deepStrictEqual(actual, expected, `${target}.replace(${search}, ${replaceString})`);
 		};
@@ -132,9 +132,9 @@ suite('Replace Pattern test', () => {
 
 	test('get replace string if given text is a complete match', () => {
 		function assertReplace(target: string, search: RegExp, replaceString: string, expected: string): void {
-			let replacePattern = parseReplaceString(replaceString);
-			let m = search.exec(target);
-			let actual = replacePattern.buildReplaceString(m);
+			const replacePattern = parseReplaceString(replaceString);
+			const m = search.exec(target);
+			const actual = replacePattern.buildReplaceString(m);
 
 			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
 		}
@@ -143,7 +143,7 @@ suite('Replace Pattern test', () => {
 		assertReplace('bla', /(bla)/, 'hello', 'hello');
 		assertReplace('bla', /(bla)/, 'hello$0', 'hellobla');
 
-		let searchRegex = /let\s+(\w+)\s*=\s*require\s*\(\s*['"]([\w\.\-/]+)\s*['"]\s*\)\s*/;
+		const searchRegex = /let\s+(\w+)\s*=\s*require\s*\(\s*['"]([\w\.\-/]+)\s*['"]\s*\)\s*/;
 		assertReplace('let fs = require(\'fs\')', searchRegex, 'import * as $1 from \'$2\';', 'import * as fs from \'fs\';');
 		assertReplace('let something = require(\'fs\')', searchRegex, 'import * as $1 from \'$2\';', 'import * as something from \'fs\';');
 		assertReplace('let something = require(\'fs\')', searchRegex, 'import * as $1 from \'$1\';', 'import * as something from \'something\';');
@@ -158,9 +158,9 @@ suite('Replace Pattern test', () => {
 
 	test('get replace string if match is sub-string of the text', () => {
 		function assertReplace(target: string, search: RegExp, replaceString: string, expected: string): void {
-			let replacePattern = parseReplaceString(replaceString);
-			let m = search.exec(target);
-			let actual = replacePattern.buildReplaceString(m);
+			const replacePattern = parseReplaceString(replaceString);
+			const m = search.exec(target);
+			const actual = replacePattern.buildReplaceString(m);
 
 			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
 		}
@@ -181,9 +181,9 @@ suite('Replace Pattern test', () => {
 	});
 
 	test('issue #19740 Find and replace capture group/backreference inserts `undefined` instead of empty string', () => {
-		let replacePattern = parseReplaceString('a{$1}');
-		let matches = /a(z)?/.exec('abcd');
-		let actual = replacePattern.buildReplaceString(matches);
+		const replacePattern = parseReplaceString('a{$1}');
+		const matches = /a(z)?/.exec('abcd');
+		const actual = replacePattern.buildReplaceString(matches);
 		assert.strictEqual(actual, 'a{}');
 	});
 
@@ -220,8 +220,8 @@ suite('Replace Pattern test', () => {
 
 	test('preserve case', () => {
 		function assertReplace(target: string[], replaceString: string, expected: string): void {
-			let replacePattern = parseReplaceString(replaceString);
-			let actual = replacePattern.buildReplaceString(target, true);
+			const replacePattern = parseReplaceString(replaceString);
+			const actual = replacePattern.buildReplaceString(target, true);
 			assert.strictEqual(actual, expected);
 		}
 

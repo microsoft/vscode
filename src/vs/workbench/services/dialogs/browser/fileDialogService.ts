@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
 import { memoize } from 'vs/base/common/decorators';
@@ -16,7 +16,7 @@ import { basename } from 'vs/base/common/resources';
 import { triggerDownload, triggerUpload } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { extractFileListData } from 'vs/workbench/browser/dnd';
+import { extractFileListData } from 'vs/platform/dnd/browser/dnd';
 import { Iterable } from 'vs/base/common/iterator';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
@@ -222,30 +222,20 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		// Otherwise inform the user about options
 
-		const buttons = context === 'open' ?
-			[localize('openRemote', "Open Remote..."), localize('openFiles', "Open Files..."), localize('learnMore', "Learn More")] :
-			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More")];
-
-		const res = await this.dialogService.show(
-			Severity.Warning,
-			localize('unsupportedBrowserMessage', "Local File System Access is Unsupported"),
-			buttons,
+		const buttons: IPromptButton<void>[] = [
 			{
-				detail: localize('unsupportedBrowserDetail', "Your current browser doesn't support local file system access.\nYou can either open single files or open a remote repository."),
-				cancelId: -1 // no "Cancel" button offered
+				label: localize({ key: 'openRemote', comment: ['&& denotes a mnemonic'] }, "&&Open Remote..."),
+				run: async () => { await this.commandService.executeCommand('workbench.action.remote.showMenu'); }
+			},
+			{
+				label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+				run: async () => { await this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess'); }
 			}
-		);
-
-		switch (res.choice) {
-
-			// Open Remote...
-			case 0:
-				this.commandService.executeCommand('workbench.action.remote.showMenu');
-				break;
-
-			// Open Files... (context === 'open')
-			case 1:
-				if (context === 'open') {
+		];
+		if (context === 'open') {
+			buttons.push({
+				label: localize({ key: 'openFiles', comment: ['&& denotes a mnemonic'] }, "Open &&Files..."),
+				run: async () => {
 					const files = await triggerUpload();
 					if (files) {
 						const filesData = (await this.instantiationService.invokeFunction(accessor => extractFileListData(accessor, files))).filter(fileData => !fileData.isDirectory);
@@ -259,23 +249,23 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 							}));
 						}
 					}
-					break;
-				} else {
-					// Fallthrough for "Learn More"
 				}
-
-			// Learn More
-			case 2:
-				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
-				break;
+			});
 		}
+
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('unsupportedBrowserMessage', "Opening Local Folders is Unsupported"),
+			detail: localize('unsupportedBrowserDetail', "Your browser doesn't support opening local folders.\nYou can either open single files or open a remote repository."),
+			buttons
+		});
 
 		return undefined;
 	}
 
 	private shouldUseSimplified(scheme: string): boolean {
-		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(scheme);
+		return ![Schemas.file, Schemas.vscodeUserData, Schemas.tmp].includes(scheme);
 	}
 }
 
-registerSingleton(IFileDialogService, FileDialogService, true);
+registerSingleton(IFileDialogService, FileDialogService, InstantiationType.Delayed);

@@ -26,7 +26,7 @@ suite('Hidden Range Model', () => {
 	}
 
 	test('hasRanges', () => {
-		let lines = [
+		const lines = [
 		/* 1*/	'/**',
 		/* 2*/	' * Comment',
 		/* 3*/	' */',
@@ -38,13 +38,13 @@ suite('Hidden Range Model', () => {
 		/* 9*/	'  }',
 		/* 10*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
-		let hiddenRangeModel = new HiddenRangeModel(foldingModel);
+		const textModel = createTextModel(lines.join('\n'));
+		const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		const hiddenRangeModel = new HiddenRangeModel(foldingModel);
 
 		assert.strictEqual(hiddenRangeModel.hasRanges(), false);
 
-		let ranges = computeRanges(textModel, false, undefined);
+		const ranges = computeRanges(textModel, false, undefined);
 		foldingModel.update(ranges);
 
 		foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!, foldingModel.getRegionAtLine(6)!]);

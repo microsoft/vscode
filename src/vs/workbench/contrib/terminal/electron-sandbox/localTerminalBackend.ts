@@ -19,7 +19,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, ITerminalProfileResolverService, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
@@ -30,15 +30,16 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
+import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
 	) {
 		const backend = instantiationService.createInstance(LocalTerminalBackend, undefined);
 		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-		terminalService.handleNewRegisteredBackend(backend);
+		terminalInstanceService.didRegisterBackend(backend.remoteAuthority);
 	}
 }
 
@@ -131,8 +132,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		await this._localPtyService.updateTitle(id, title, titleSource);
 	}
 
-	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
-		await this._localPtyService.updateIcon(id, icon, color);
+	async updateIcon(id: number, userInitiated: boolean, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
+		await this._localPtyService.updateIcon(id, userInitiated, icon, color);
 	}
 
 	updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
@@ -163,7 +164,17 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
-			this._logService.trace(`Couldn't attach to process ${e.message}`);
+			this._logService.warn(`Couldn't attach to process ${e.message}`);
+		}
+		return undefined;
+	}
+
+	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		try {
+			const newId = await this._localPtyService.getRevivedPtyNewId(id) ?? id;
+			return await this.attachToProcess(newId);
+		} catch (e) {
+			this._logService.warn(`Couldn't attach to process ${e.message}`);
 		}
 		return undefined;
 	}
@@ -192,8 +203,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._shellEnvironmentService.getShellEnv();
 	}
 
-	async getWslPath(original: string): Promise<string> {
-		return this._localPtyService.getWslPath(original);
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
+		return this._localPtyService.getWslPath(original, direction);
 	}
 
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
@@ -250,9 +261,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const baseEnv = await (shellLaunchConfig.useShellEnvironment ? this.getShellEnvironment() : this.getEnvironment());
-		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
+		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
 		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
-			this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, variableResolver);
+			const workspaceFolder = getWorkspaceForTerminal(shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
+			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 		return env;
 	}

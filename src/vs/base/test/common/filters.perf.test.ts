@@ -32,7 +32,7 @@ perfSuite('Performance - fuzzyMatch', function () {
 					const patternLow = pattern.toLowerCase();
 					for (const item of data) {
 						count += 1;
-						match(pattern, patternLow, 0, item, item.toLowerCase(), 0, false);
+						match(pattern, patternLow, 0, item, item.toLowerCase(), 0);
 					}
 				}
 			}

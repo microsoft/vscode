@@ -57,13 +57,16 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('fs.write/stat/delete', async function () {
+	test('fs.write/stat/read/delete', async function () {
 
 		const uri = root.with({ path: posix.join(root.path, 'new.file') });
 		await vscode.workspace.fs.writeFile(uri, Buffer.from('HELLO'));
 
 		const stat = await vscode.workspace.fs.stat(uri);
 		assert.strictEqual(stat.type, vscode.FileType.File);
+
+		const contents = await vscode.workspace.fs.readFile(uri);
+		assert.strictEqual(Buffer.from(contents).toString(), 'HELLO');
 
 		await vscode.workspace.fs.delete(uri);
 
@@ -122,7 +125,7 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('throws FileSystemError', async function () {
+	test('throws FileSystemError (1)', async function () {
 
 		try {
 			await vscode.workspace.fs.stat(vscode.Uri.file(`/c468bf16-acfd-4591-825e-2bcebba508a3/71b1f274-91cb-4c19-af00-8495eaab4b73/4b60cb48-a6f2-40ea-9085-0936f4a8f59a.tx6`));
@@ -133,7 +136,7 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('throws FileSystemError', async function () {
+	test('throws FileSystemError (2)', async function () {
 
 		try {
 			await vscode.workspace.fs.stat(vscode.Uri.parse('foo:/bar'));
@@ -144,7 +147,7 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
+	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177 (1)', async function () {
 		const entries = await vscode.workspace.fs.readDirectory(root);
 		assert.ok(entries.length > 0);
 
@@ -158,7 +161,7 @@ suite('vscode API - workspace-fs', () => {
 		}
 	});
 
-	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
+	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177 (2)', async function () {
 		const entries = await vscode.workspace.fs.readDirectory(root);
 		assert.ok(entries.length > 0);
 

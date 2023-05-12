@@ -95,6 +95,7 @@ export interface IMarkerData {
 	startColumn: number;
 	endLineNumber: number;
 	endColumn: number;
+	modelVersionId?: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
 }
@@ -115,6 +116,7 @@ export interface IMarker {
 	startColumn: number;
 	endLineNumber: number;
 	endColumn: number;
+	modelVersionId?: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
 }
@@ -133,7 +135,7 @@ export namespace IMarkerData {
 	}
 
 	export function makeKeyOptionalMessage(markerData: IMarkerData, useMessage: boolean): string {
-		let result: string[] = [emptyString];
+		const result: string[] = [emptyString];
 		if (markerData.source) {
 			result.push(markerData.source.replace('¦', '\\¦'));
 		} else {

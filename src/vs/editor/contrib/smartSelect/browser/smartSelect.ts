@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -38,7 +38,7 @@ class SelectionRanges {
 	) { }
 
 	mov(fwd: boolean): SelectionRanges {
-		let index = this.index + (fwd ? 1 : -1);
+		const index = this.index + (fwd ? 1 : -1);
 		if (index < 0 || index >= this.ranges.length) {
 			return this;
 		}
@@ -51,7 +51,7 @@ class SelectionRanges {
 	}
 }
 
-class SmartSelectController implements IEditorContribution {
+export class SmartSelectController implements IEditorContribution {
 
 	static readonly ID = 'editor.contrib.smartSelectController';
 
@@ -79,9 +79,6 @@ class SmartSelectController implements IEditorContribution {
 
 		const selections = this._editor.getSelections();
 		const model = this._editor.getModel();
-		if (!this._languageFeaturesService.selectionRangeProvider.has(model)) {
-			return;
-		}
 
 		if (!this._state) {
 
@@ -143,7 +140,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = SmartSelectController.get(editor);
+		const controller = SmartSelectController.get(editor);
 		if (controller) {
 			await controller.run(this._forward);
 		}
@@ -205,7 +202,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	}
 }
 
-registerEditorContribution(SmartSelectController.ID, SmartSelectController);
+registerEditorContribution(SmartSelectController.ID, SmartSelectController, EditorContributionInstantiation.Lazy);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
@@ -223,8 +220,8 @@ export async function provideSelectionRanges(registry: LanguageFeatureRegistry<l
 		providers.unshift(new BracketSelectionRangeProvider());
 	}
 
-	let work: Promise<any>[] = [];
-	let allRawRanges: Range[][] = [];
+	const work: Promise<any>[] = [];
+	const allRawRanges: Range[][] = [];
 
 	for (const provider of providers) {
 
@@ -269,7 +266,7 @@ export async function provideSelectionRanges(registry: LanguageFeatureRegistry<l
 
 		// remove ranges that don't contain the former range or that are equal to the
 		// former range
-		let oneRanges: Range[] = [];
+		const oneRanges: Range[] = [];
 		let last: Range | undefined;
 		for (const range of oneRawRanges) {
 			if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
@@ -284,7 +281,7 @@ export async function provideSelectionRanges(registry: LanguageFeatureRegistry<l
 
 		// add ranges that expand trivia at line starts and ends whenever a range
 		// wraps onto the a new line
-		let oneRangesWithTrivia: Range[] = [oneRanges[0]];
+		const oneRangesWithTrivia: Range[] = [oneRanges[0]];
 		for (let i = 1; i < oneRanges.length; i++) {
 			const prev = oneRanges[i - 1];
 			const cur = oneRanges[i];

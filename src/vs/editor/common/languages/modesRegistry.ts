@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageExtensionPoint } from 'vs/editor/common/languages/language';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -60,27 +59,6 @@ ModesRegistry.registerLanguage({
 	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
 	mimetypes: [Mimes.text]
 });
-
-LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_ID, {
-	brackets: [
-		['(', ')'],
-		['[', ']'],
-		['{', '}'],
-	],
-	surroundingPairs: [
-		{ open: '{', close: '}' },
-		{ open: '[', close: ']' },
-		{ open: '(', close: ')' },
-		{ open: '<', close: '>' },
-		{ open: '\"', close: '\"' },
-		{ open: '\'', close: '\'' },
-		{ open: '`', close: '`' },
-	],
-	colorizedBracketPairs: [],
-	folding: {
-		offSide: true
-	}
-}, 0);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerDefaultConfigurations([{

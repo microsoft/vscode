@@ -27,6 +27,10 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					type: 'string',
 					description: localize('walkthroughs.title', "Title of walkthrough.")
 				},
+				icon: {
+					type: 'string',
+					description: localize('walkthroughs.icon', "Relative path to the icon of the walkthrough. The path is relative to the extension location. If not specified, the icon defaults to the extension icon if available."),
+				},
 				description: {
 					type: 'string',
 					description: localize('walkthroughs.description', "Description of walkthrough.")
@@ -90,7 +94,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 													},
 													{
 														type: 'object',
-														required: ['dark', 'light', 'hc'],
+														required: ['dark', 'light', 'hc', 'hcLight'],
 														properties: {
 															dark: {
 																description: localize('walkthroughs.steps.media.image.path.dark.string', "Path to the image for dark themes, relative to extension directory."),
@@ -102,6 +106,10 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 															},
 															hc: {
 																description: localize('walkthroughs.steps.media.image.path.hc.string', "Path to the image for hc themes, relative to extension directory."),
+																type: 'string',
+															},
+															hcLight: {
+																description: localize('walkthroughs.steps.media.image.path.hcLight.string', "Path to the image for hc light themes, relative to extension directory."),
 																type: 'string',
 															}
 														}
@@ -207,6 +215,13 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 						}
 					}
 				}
+			}
+		}
+	},
+	activationEventsGenerator: (walkthroughContributions, result) => {
+		for (const walkthroughContribution of walkthroughContributions) {
+			if (walkthroughContribution.id) {
+				result.push(`onWalkthrough:${walkthroughContribution.id}`);
 			}
 		}
 	}

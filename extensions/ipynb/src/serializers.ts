@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nbformat from '@jupyterlab/nbformat';
+import type * as nbformat from '@jupyterlab/nbformat';
 import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellMetadata, CellOutputMetadata } from './common';
+import { CellOutputMetadata } from './common';
 import { textMimeTypes } from './deserializers';
 
 const textDecoder = new TextDecoder();
@@ -17,7 +17,8 @@ enum CellOutputMimeTypes {
 }
 
 export function createJupyterCellFromNotebookCell(
-	vscCell: NotebookCellData
+	vscCell: NotebookCellData,
+	preferredLanguage: string | undefined
 ): nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell {
 	let cell: nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell;
 	if (vscCell.kind === NotebookCellKind.Markup) {
@@ -25,7 +26,7 @@ export function createJupyterCellFromNotebookCell(
 	} else if (vscCell.languageId === 'raw') {
 		cell = createRawCellFromNotebookCell(vscCell);
 	} else {
-		cell = createCodeCellFromNotebookCell(vscCell);
+		cell = createCodeCellFromNotebookCell(vscCell, preferredLanguage);
 	}
 	return cell;
 }
@@ -54,16 +55,35 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 }
 
 export function getCellMetadata(cell: NotebookCell | NotebookCellData) {
-	return cell.metadata?.custom as CellMetadata | undefined;
+	return {
+		// it contains the cell id, and the cell metadata, along with other nb cell metadata
+		...(cell.metadata?.custom ?? {}),
+		// promote the cell attachments to the top level
+		attachments: cell.metadata?.custom?.attachments ?? cell.metadata?.attachments
+	};
 }
-function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeCell {
+
+function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguage: string | undefined): nbformat.ICodeCell {
 	const cellMetadata = getCellMetadata(cell);
+	let metadata = cellMetadata?.metadata || {}; // This cannot be empty.
+	if (cell.languageId !== preferredLanguage) {
+		metadata = {
+			...metadata,
+			vscode: {
+				languageId: cell.languageId
+			}
+		};
+	} else {
+		// cell current language is the same as the preferred cell language in the document, flush the vscode custom language id metadata
+		metadata.vscode = undefined;
+	}
+
 	const codeCell: any = {
 		cell_type: 'code',
 		execution_count: cell.executionSummary?.executionOrder ?? null,
 		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
-		metadata: cellMetadata?.metadata || {} // This cannot be empty.
+		metadata: metadata
 	};
 	if (cellMetadata?.id) {
 		codeCell.id = cellMetadata.id;
@@ -260,7 +280,7 @@ function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
 		.filter((opit) => opit.mime === CellOutputMimeTypes.stderr || opit.mime === CellOutputMimeTypes.stdout)
 		.map((opit) => textDecoder.decode(opit.data))
 		.forEach(value => {
-			// Ensure each line is a seprate entry in an array (ending with \n).
+			// Ensure each line is a separate entry in an array (ending with \n).
 			const lines = value.split('\n');
 			// If the last item in `outputs` is not empty and the first item in `lines` is not empty, then concate them.
 			// As they are part of the same line.
@@ -312,16 +332,17 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 		} else if (mime.toLowerCase().includes('json')) {
 			const stringValue = textDecoder.decode(value);
 			return stringValue.length > 0 ? JSON.parse(stringValue) : stringValue;
+		} else if (mime === 'image/svg+xml') {
+			return splitMultilineString(textDecoder.decode(value));
 		} else {
-			const stringValue = textDecoder.decode(value);
-			return stringValue;
+			return textDecoder.decode(value);
 		}
 	} catch (ex) {
 		return '';
 	}
 }
 
-function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
+export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
 	const cellMetadata = getCellMetadata(cell);
 	const markdownCell: any = {
 		cell_type: 'markdown',

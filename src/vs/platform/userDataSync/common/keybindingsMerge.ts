@@ -28,7 +28,7 @@ interface IMergeResult {
 	conflicts: Set<string>;
 }
 
-export function parseKeybindings(content: string): IUserFriendlyKeybinding[] {
+function parseKeybindings(content: string): IUserFriendlyKeybinding[] {
 	return parse(content) || [];
 }
 
@@ -39,7 +39,7 @@ export async function merge(localContent: string, remoteContent: string, baseCon
 
 	const userbindings: string[] = [...local, ...remote, ...(base || [])].map(keybinding => keybinding.key);
 	const normalizedKeys = await userDataSyncUtilService.resolveUserBindings(userbindings);
-	let keybindingsMergeResult = computeMergeResultByKeybinding(local, remote, base, normalizedKeys);
+	const keybindingsMergeResult = computeMergeResultByKeybinding(local, remote, base, normalizedKeys);
 
 	if (!keybindingsMergeResult.hasLocalForwarded && !keybindingsMergeResult.hasRemoteForwarded) {
 		// No changes found between local and remote.

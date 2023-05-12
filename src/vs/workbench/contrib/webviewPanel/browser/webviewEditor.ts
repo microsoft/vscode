@@ -9,7 +9,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from 'vs/nls';
+import { IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,10 +22,18 @@ import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+
+/**
+ * Tracks the id of the actively focused webview.
+ */
+export const CONTEXT_ACTIVE_WEBVIEW_PANEL_ID = new RawContextKey<string>('activeWebviewPanelId', '', {
+	type: 'string',
+	description: nls.localize('context.activeWebviewId', "The viewType of the currently active webview panel."),
+});
 
 export class WebviewEditor extends EditorPane {
 
@@ -41,12 +50,13 @@ export class WebviewEditor extends EditorPane {
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public override get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
@@ -54,6 +64,17 @@ export class WebviewEditor extends EditorPane {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
+
+		this._register(Event.any(
+			editorGroupsService.onDidScroll,
+			editorGroupsService.onDidAddGroup,
+			editorGroupsService.onDidRemoveGroup,
+			editorGroupsService.onDidMoveGroup,
+		)(() => {
+			if (this.webview && this._visible) {
+				this.synchronizeWebviewContainerDimensions(this.webview);
+			}
+		}));
 	}
 
 	private get webview(): IOverlayWebview | undefined {
@@ -82,7 +103,7 @@ export class WebviewEditor extends EditorPane {
 		super.dispose();
 	}
 
-	public layout(dimension: DOM.Dimension): void {
+	public override layout(dimension: DOM.Dimension): void {
 		this._dimension = dimension;
 		if (this.webview && this._visible) {
 			this.synchronizeWebviewContainerDimensions(this.webview, dimension);
@@ -134,7 +155,7 @@ export class WebviewEditor extends EditorPane {
 		}
 
 		await super.setInput(input, options, context, token);
-		await input.resolve();
+		await input.resolve(options);
 
 		if (token.isCancellationRequested || this._isDisposed) {
 			return;
@@ -176,9 +197,11 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
-		if (this._element) {
-			webview.layoutWebviewOverElement(this._element.parentElement!, dimension);
+		if (!this._element?.isConnected) {
+			return;
 		}
+		const rootContainer = this._workbenchLayoutService.getContainer(Parts.EDITOR_PART);
+		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
 	}
 
 	private trackFocus(webview: IOverlayWebview): IDisposable {

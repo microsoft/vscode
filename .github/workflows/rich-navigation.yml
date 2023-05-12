@@ -1,7 +1,6 @@
 name: "Rich Navigation Indexing"
 on:
   workflow_dispatch:
-  pull_request:
   push:
     branches:
       - main
@@ -12,9 +11,9 @@ jobs:
   richnav:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         id: caching-stage
         name: Cache VS Code dependencies
         with:
@@ -22,24 +21,13 @@ jobs:
           key: ${{ runner.os }}-dependencies-${{ hashfiles('yarn.lock') }}
           restore-keys: ${{ runner.os }}-dependencies-
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Install dependencies
         if: steps.caching-stage.outputs.cache-hit != 'true'
-        run: |
-          # update node-gyp to latest for support in detecting VS 2022 toolchain
-          npm install -g node-gyp@latest
-          # Resolve to node-gyp.js
-          # Remove this once node-version > 17.4.x or > 16.14.0,
-          # which ships with npm > 8.4.0 that has support for VS 2022 toolchain.
-          $env:npm_config_node_gyp=$(Join-Path $(Get-Command node-gyp.cmd).Path "..\node_modules\node-gyp\bin\node-gyp.js" -Resolve)
-          # Electron <= 13 does not ship with correct config.gypi headers,
-          # remove this once we update to newer versions.
-          # Refs https://github.com/nodejs/node-gyp/pull/2497
-          $env:npm_config_force_process_config="true"
-          yarn --frozen-lockfile
+        run: yarn --frozen-lockfile
         env:
           CHILD_CONCURRENCY: 1
 

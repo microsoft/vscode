@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 
-export function provideInstalledExtensionProposals(existing: string[], additionalText: string, range: vscode.Range, includeBuiltinExtensions: boolean): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
+export async function provideInstalledExtensionProposals(existing: string[], additionalText: string, range: vscode.Range, includeBuiltinExtensions: boolean): Promise<vscode.CompletionItem[] | vscode.CompletionList> {
 	if (Array.isArray(existing)) {
 		const extensions = includeBuiltinExtensions ? vscode.extensions.all : vscode.extensions.all.filter(e => !(e.id.startsWith('vscode.') || e.id === 'Microsoft.vscode-markdown'));
 		const knownExtensionProposals = extensions.filter(e => existing.indexOf(e.id) === -1);
@@ -23,17 +21,17 @@ export function provideInstalledExtensionProposals(existing: string[], additiona
 				return item;
 			});
 		} else {
-			const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
+			const example = new vscode.CompletionItem(vscode.l10n.t("Example"));
 			example.insertText = '"vscode.csharp"';
 			example.kind = vscode.CompletionItemKind.Value;
 			example.range = range;
 			return [example];
 		}
 	}
-	return undefined;
+	return [];
 }
 
-export function provideWorkspaceTrustExtensionProposals(existing: string[], range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
+export async function provideWorkspaceTrustExtensionProposals(existing: string[], range: vscode.Range): Promise<vscode.CompletionItem[] | vscode.CompletionList> {
 	if (Array.isArray(existing)) {
 		const extensions = vscode.extensions.all.filter(e => e.packageJSON.main);
 		const extensionProposals = extensions.filter(e => existing.indexOf(e.id) === -1);
@@ -48,7 +46,7 @@ export function provideWorkspaceTrustExtensionProposals(existing: string[], rang
 				return item;
 			});
 		} else {
-			const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
+			const example = new vscode.CompletionItem(vscode.l10n.t("Example"));
 			example.insertText = '"vscode.csharp: {\n\t"supported": false,\n\t"version": "0.0.0"\n}`;"';
 			example.kind = vscode.CompletionItemKind.Value;
 			example.range = range;
@@ -56,5 +54,5 @@ export function provideWorkspaceTrustExtensionProposals(existing: string[], rang
 		}
 	}
 
-	return undefined;
+	return [];
 }

@@ -74,7 +74,7 @@ export interface RelativePattern {
  * (like `** /*.{ts,js}` without space before / or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
  *
  * Glob patterns can have the following syntax:
- * * `*` to match one or more characters in a path segment
+ * * `*` to match zero or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
  * * `!` only valid in the beginning of a pattern to negate the entire pattern
@@ -224,7 +224,7 @@ export interface TextSearchOptions extends SearchOptions {
 }
 
 /**
- * Represents the severiry of a TextSearchComplete message.
+ * Represents the severity of a TextSearchComplete message.
  */
 export enum TextSearchCompleteMessageType {
 	Information = 1,

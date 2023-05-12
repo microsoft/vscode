@@ -13,9 +13,11 @@ export interface IAccessibilityService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeScreenReaderOptimized: Event<void>;
+	readonly onDidChangeReducedMotion: Event<void>;
 
 	alwaysUnderlineAccessKeys(): Promise<boolean>;
 	isScreenReaderOptimized(): boolean;
+	isMotionReduced(): boolean;
 	getAccessibilitySupport(): AccessibilitySupport;
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
 	alert(message: string): void;

@@ -53,7 +53,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	@memoize
 	get cachePath(): Promise<string> {
-		const result = path.join(tmpdir(), `vscode-update-${this.productService.target}-${process.arch}`);
+		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
 		return pfs.Promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
@@ -71,8 +71,13 @@ export class Win32UpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
-	override initialize(): void {
-		super.initialize();
+	protected override async initialize(): Promise<void> {
+		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
+			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
+			return;
+		}
+
+		await super.initialize();
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
@@ -219,7 +224,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		});
 
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
-		const mutex = await import('windows-mutex');
+		const mutex = await import('@vscode/windows-mutex');
 
 		// poll for mutex-ready
 		pollUntil(() => mutex.isActive(readyMutexName))
@@ -245,5 +250,27 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	protected override getUpdateType(): UpdateType {
 		return getUpdateType();
+	}
+
+	override async _applySpecificUpdate(packagePath: string): Promise<void> {
+		if (this.state.type !== StateType.Idle) {
+			return;
+		}
+
+		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+		const update: IUpdate = { version: 'unknown', productVersion: 'unknown', supportsFastUpdate: !!fastUpdatesEnabled };
+
+		this.setState(State.Downloading(update));
+		this.availableUpdate = { packagePath };
+
+		if (fastUpdatesEnabled) {
+			if (this.productService.target === 'user') {
+				this.doApplyUpdate();
+			} else {
+				this.setState(State.Downloaded(update));
+			}
+		} else {
+			this.setState(State.Ready(update));
+		}
 	}
 }

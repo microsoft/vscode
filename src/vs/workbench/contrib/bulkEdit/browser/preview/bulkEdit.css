@@ -82,7 +82,9 @@
 }
 
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents.category .uri-icon,
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents.textedit .uri-icon {
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents.textedit .uri-icon,
+.monaco-workbench.hc-light .bulk-edit-panel .monaco-tl-contents.category .uri-icon,
+.monaco-workbench.hc-light .bulk-edit-panel .monaco-tl-contents.textedit .uri-icon  {
 	background-repeat: no-repeat;
 	background-image: var(--background-light);
 	background-position: left center;

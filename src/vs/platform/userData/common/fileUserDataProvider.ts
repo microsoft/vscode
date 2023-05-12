@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability } from 'vs/platform/files/common/files';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, hasFileFolderCopyCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { ILogService } from 'vs/platform/log/common/log';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 /**
@@ -20,7 +20,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
-	IFileSystemProviderWithFileAtomicReadCapability {
+	IFileSystemProviderWithFileAtomicReadCapability,
+	IFileSystemProviderWithFileFolderCopyCapability {
 
 	get capabilities() { return this.fileSystemProvider.capabilities & ~FileSystemProviderCapabilities.FileOpenReadWriteClose; }
 	readonly onDidChangeCapabilities: Event<void> = this.fileSystemProvider.onDidChangeCapabilities;
@@ -32,7 +33,7 @@ export class FileUserDataProvider extends Disposable implements
 
 	constructor(
 		private readonly fileSystemScheme: string,
-		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & (IFileSystemProviderWithFileReadStreamCapability | IFileSystemProviderWithFileAtomicReadCapability),
+		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & (IFileSystemProviderWithFileReadStreamCapability | IFileSystemProviderWithFileAtomicReadCapability | IFileSystemProviderWithFileFolderCopyCapability),
 		private readonly userDataScheme: string,
 		private readonly logService: ILogService,
 	) {
@@ -57,7 +58,7 @@ export class FileUserDataProvider extends Disposable implements
 		return this.fileSystemProvider.mkdir(this.toFileSystemResource(resource));
 	}
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.fileSystemProvider.rename(this.toFileSystemResource(from), this.toFileSystemResource(to), opts);
 	}
 
@@ -65,7 +66,7 @@ export class FileUserDataProvider extends Disposable implements
 		return this.fileSystemProvider.readFile(this.toFileSystemResource(resource), { atomic: true });
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
 		(async () => {
 			try {
@@ -83,12 +84,19 @@ export class FileUserDataProvider extends Disposable implements
 		return this.fileSystemProvider.readdir(this.toFileSystemResource(resource));
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		return this.fileSystemProvider.writeFile(this.toFileSystemResource(resource), content, opts);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		return this.fileSystemProvider.delete(this.toFileSystemResource(resource), opts);
+	}
+
+	copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
+		if (hasFileFolderCopyCapability(this.fileSystemProvider)) {
+			return this.fileSystemProvider.copy(this.toFileSystemResource(from), this.toFileSystemResource(to), opts);
+		}
+		throw new Error('copy not supported');
 	}
 
 	private handleFileChanges(changes: readonly IFileChange[]): void {

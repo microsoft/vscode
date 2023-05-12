@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 
 
 suite('TestExplorerFilterState', () => {
 	let t: TestExplorerFilterState;
 	setup(() => {
-		t = new TestExplorerFilterState();
+		t = new TestExplorerFilterState(new InMemoryStorageService());
 	});
 
 	const assertFilteringFor = (expected: { [T in TestFilterTerm]?: boolean }) => {

@@ -6,7 +6,8 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { ColorId, TokenizationRegistry } from 'vs/editor/common/languages';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
 
 export class MinimapTokensColorTracker extends Disposable {
 	private static _INSTANCE: MinimapTokensColorTracker | null = null;

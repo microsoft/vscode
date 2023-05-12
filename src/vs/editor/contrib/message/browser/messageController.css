@@ -37,7 +37,8 @@
 	border: 1px solid var(--vscode-inputValidation-infoBorder);
 }
 
-.monaco-editor.hc-black .monaco-editor-overlaymessage .message {
+.monaco-editor.hc-black .monaco-editor-overlaymessage .message,
+.monaco-editor.hc-light .monaco-editor-overlaymessage .message {
 	border-width: 2px;
 }
 

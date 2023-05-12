@@ -6,11 +6,11 @@
 				"git": {
 					"name": "vscode-logfile-highlighter",
 					"repositoryUrl": "https://github.com/emilast/vscode-logfile-highlighter",
-					"commitHash": "19807c6a80d29b03ad69e02ffe39e5869a9ce107"
+					"commitHash": "8acba9307254d1887ac770057767698c82d926c6"
 				}
 			},
 			"license": "MIT",
-			"version": "2.11.0"
+			"version": "2.15.0"
 		}
 	],
 	"version": 1

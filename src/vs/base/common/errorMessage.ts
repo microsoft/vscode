@@ -26,6 +26,11 @@ function stackToString(stack: string[] | string | undefined): string | undefined
 
 function detectSystemErrorMessage(exception: any): string {
 
+	// Custom node.js error from us
+	if (exception.code === 'ERR_UNC_HOST_NOT_ALLOWED') {
+		return `${exception.message}. Please update the 'security.allowedUNCHosts' setting if you want to allow this host.`;
+	}
+
 	// See https://nodejs.org/api/errors.html#errors_class_system_error
 	if (typeof exception.code === 'string' && typeof exception.errno === 'number' && typeof exception.syscall === 'string') {
 		return nls.localize('nodeExceptionMessage', "A system error occurred ({0})", exception.message);
@@ -84,12 +89,8 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 }
 
 
-export interface IErrorOptions {
-	actions?: readonly IAction[];
-}
-
-export interface IErrorWithActions {
-	actions?: readonly IAction[];
+export interface IErrorWithActions extends Error {
+	actions: IAction[];
 }
 
 export function isErrorWithActions(obj: unknown): obj is IErrorWithActions {
@@ -98,12 +99,15 @@ export function isErrorWithActions(obj: unknown): obj is IErrorWithActions {
 	return candidate instanceof Error && Array.isArray(candidate.actions);
 }
 
-export function createErrorWithActions(message: string, options: IErrorOptions = Object.create(null)): Error & IErrorWithActions {
-	const result = new Error(message);
-
-	if (options.actions) {
-		(result as IErrorWithActions).actions = options.actions;
+export function createErrorWithActions(messageOrError: string | Error, actions: IAction[]): IErrorWithActions {
+	let error: IErrorWithActions;
+	if (typeof messageOrError === 'string') {
+		error = new Error(messageOrError) as IErrorWithActions;
+	} else {
+		error = messageOrError as IErrorWithActions;
 	}
 
-	return result;
+	error.actions = actions;
+
+	return error;
 }

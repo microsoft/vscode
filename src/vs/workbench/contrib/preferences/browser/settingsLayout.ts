@@ -123,6 +123,11 @@ export const tocData: ITOCEntry<string> = {
 			label: localize('features', "Features"),
 			children: [
 				{
+					id: 'features/accessibility',
+					label: localize('accessibility', "Accessibility"),
+					settings: ['accessibility.*']
+				},
+				{
 					id: 'features/explorer',
 					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
@@ -131,8 +136,7 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/search',
 					label: localize('search', "Search"),
 					settings: ['search.*']
-				}
-				,
+				},
 				{
 					id: 'features/debug',
 					label: localize('debug', "Debug"),
@@ -145,7 +149,7 @@ export const tocData: ITOCEntry<string> = {
 				},
 				{
 					id: 'features/scm',
-					label: localize('scm', "SCM"),
+					label: localize('scm', "Source Control"),
 					settings: ['scm.*']
 				},
 				{
@@ -197,6 +201,16 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/audioCues',
 					label: localize('audioCues', 'Audio Cues'),
 					settings: ['audioCues.*']
+				},
+				{
+					id: 'features/mergeEditor',
+					label: localize('mergeEditor', 'Merge Editor'),
+					settings: ['mergeEditor.*']
+				},
+				{
+					id: 'features/interactiveSession',
+					label: localize('interactiveSession', 'Interactive Session'),
+					settings: ['interactiveSession.*', 'interactiveEditor.*']
 				}
 			]
 		},
@@ -228,12 +242,23 @@ export const tocData: ITOCEntry<string> = {
 					id: 'application/settingsSync',
 					label: localize('settingsSync', "Settings Sync"),
 					settings: ['settingsSync.*']
+				},
+				{
+					id: 'application/experimental',
+					label: localize('experimental', "Experimental"),
+					settings: ['application.experimental.*']
+				},
+				{
+					id: 'application/other',
+					label: localize('other', "Other"),
+					settings: ['application.*']
 				}
 			]
 		},
 		{
 			id: 'security',
 			label: localize('security', "Security"),
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',

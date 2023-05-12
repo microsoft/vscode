@@ -32,7 +32,7 @@ export const enum State {
 
 export type Edge = [State, number, State];
 
-export class Uint8Matrix {
+class Uint8Matrix {
 
 	private readonly _data: Uint8Array;
 	public readonly rows: number;
@@ -160,7 +160,7 @@ function getClassifier(): CharacterClassifier<CharacterClass> {
 			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
 		}
 
-		const CANNOT_END_WITH_CHARACTERS = '.,;';
+		const CANNOT_END_WITH_CHARACTERS = '.,;:';
 		for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
 			_classifier.set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
 		}
@@ -258,15 +258,19 @@ export class LinkComputer {
 						case CharCode.CloseCurlyBrace:
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
-						/* The following three rules make it that ' or " or ` are allowed inside links if the link began with a different one */
+
+						// The following three rules make it that ' or " or ` are allowed inside links
+						// only if the link is wrapped by some other quote character
 						case CharCode.SingleQuote:
-							chClass = (linkBeginChCode === CharCode.DoubleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
-							break;
 						case CharCode.DoubleQuote:
-							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
-							break;
 						case CharCode.BackTick:
-							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote) ? CharacterClass.None : CharacterClass.ForceTermination;
+							if (linkBeginChCode === chCode) {
+								chClass = CharacterClass.ForceTermination;
+							} else if (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote || linkBeginChCode === CharCode.BackTick) {
+								chClass = CharacterClass.None;
+							} else {
+								chClass = CharacterClass.ForceTermination;
+							}
 							break;
 						case CharCode.Asterisk:
 							// `*` terminates a link if the link began with `*`

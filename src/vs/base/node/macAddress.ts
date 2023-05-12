@@ -18,7 +18,7 @@ function validateMacAddress(candidate: string): boolean {
 
 export function getMac(): string {
 	const ifaces = networkInterfaces();
-	for (let name in ifaces) {
+	for (const name in ifaces) {
 		const networkInterface = ifaces[name];
 		if (networkInterface) {
 			for (const { mac } of networkInterface) {

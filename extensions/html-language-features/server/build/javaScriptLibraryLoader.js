@@ -31,7 +31,7 @@ module.exports = function () {
 		queue.push(name);
 	};
 
-	enqueue('es6');
+	enqueue('es2020.full');
 
 	var result = [];
 	while (queue.length > 0) {
@@ -61,7 +61,7 @@ module.exports = function () {
 		output: `"${escapeText(lines.join('\n'))}"`
 	});
 
-	strResult = `\nconst libs : { [name:string]: string; } = {\n`
+	let strResult = `\nconst libs : { [name:string]: string; } = {\n`
 	for (let i = result.length - 1; i >= 0; i--) {
 		strResult += `"${result[i].name}": ${result[i].output},\n`;
 	}

@@ -10,6 +10,7 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/bas
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { MicrotaskDelay } from './symbols';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -93,18 +94,21 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 }
 
 /**
- * Returns as soon as one of the promises is resolved and cancels remaining promises
+ * Returns as soon as one of the promises resolves or rejects and cancels remaining promises
  */
 export async function raceCancellablePromises<T>(cancellablePromises: CancelablePromise<T>[]): Promise<T> {
 	let resolvedPromiseIndex = -1;
 	const promises = cancellablePromises.map((promise, index) => promise.then(result => { resolvedPromiseIndex = index; return result; }));
-	const result = await Promise.race(promises);
-	cancellablePromises.forEach((cancellablePromise, index) => {
-		if (index !== resolvedPromiseIndex) {
-			cancellablePromise.cancel();
-		}
-	});
-	return result;
+	try {
+		const result = await Promise.race(promises);
+		return result;
+	} finally {
+		cancellablePromises.forEach((cancellablePromise, index) => {
+			if (index !== resolvedPromiseIndex) {
+				cancellablePromise.cancel();
+			}
+		});
+	}
 }
 
 export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
@@ -274,9 +278,6 @@ const microtaskDeferred = (fn: () => void): IScheduledLater => {
 	};
 };
 
-/** Can be passed into the Delayed to defer using a microtask */
-export const MicrotaskDelay = Symbol('MicrotaskDelay');
-
 /**
  * A helper to delay (debounce) execution of a task that is being requested often.
  *
@@ -354,9 +355,7 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			if (this.doReject) {
-				this.doReject(new CancellationError());
-			}
+			this.doReject?.(new CancellationError());
 			this.completionPromise = null;
 		}
 	}
@@ -595,19 +594,27 @@ export class Limiter<T> implements ILimiter<T>{
 
 	private _size = 0;
 	private runningPromises: number;
-	private maxDegreeOfParalellism: number;
-	private outstandingPromises: ILimitedTaskFactory<T>[];
-	private readonly _onFinished: Emitter<void>;
+	private readonly maxDegreeOfParalellism: number;
+	private readonly outstandingPromises: ILimitedTaskFactory<T>[];
+	private readonly _onDrained: Emitter<void>;
 
 	constructor(maxDegreeOfParalellism: number) {
 		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
 		this.outstandingPromises = [];
 		this.runningPromises = 0;
-		this._onFinished = new Emitter<void>();
+		this._onDrained = new Emitter<void>();
 	}
 
-	get onFinished(): Event<void> {
-		return this._onFinished.event;
+	/**
+	 * An event that fires when every promise in the queue
+	 * has started to execute. In other words: no work is
+	 * pending to be scheduled.
+	 *
+	 * This is NOT an event that signals when all promises
+	 * have finished though.
+	 */
+	get onDrained(): Event<void> {
+		return this._onDrained.event;
 	}
 
 	get size(): number {
@@ -641,12 +648,12 @@ export class Limiter<T> implements ILimiter<T>{
 		if (this.outstandingPromises.length > 0) {
 			this.consume();
 		} else {
-			this._onFinished.fire();
+			this._onDrained.fire();
 		}
 	}
 
 	dispose(): void {
-		this._onFinished.dispose();
+		this._onDrained.dispose();
 	}
 }
 
@@ -697,10 +704,10 @@ export class ResourceQueue implements IDisposable {
 		let queue = this.queues.get(key);
 		if (!queue) {
 			queue = new Queue<void>();
-			Event.once(queue.onFinished)(() => {
+			Event.once(queue.onDrained)(() => {
 				queue?.dispose();
 				this.queues.delete(key);
-				this.onDidQueueFinish();
+				this.onDidQueueDrain();
 			});
 
 			this.queues.set(key, queue);
@@ -709,7 +716,7 @@ export class ResourceQueue implements IDisposable {
 		return queue;
 	}
 
-	private onDidQueueFinish(): void {
+	private onDidQueueDrain(): void {
 		if (!this.isDrained()) {
 			return; // not done yet
 		}
@@ -813,7 +820,7 @@ export class IntervalTimer implements IDisposable {
 	}
 }
 
-export class RunOnceScheduler {
+export class RunOnceScheduler implements IDisposable {
 
 	protected runner: ((...args: unknown[]) => void) | null;
 
@@ -869,6 +876,13 @@ export class RunOnceScheduler {
 		return this.timeoutToken !== -1;
 	}
 
+	flush(): void {
+		if (this.isScheduled()) {
+			this.cancel();
+			this.doRun();
+		}
+	}
+
 	private onTimeout() {
 		this.timeoutToken = -1;
 		if (this.runner) {
@@ -877,9 +891,7 @@ export class RunOnceScheduler {
 	}
 
 	protected doRun(): void {
-		if (this.runner) {
-			this.runner();
-		}
+		this.runner?.();
 	}
 }
 
@@ -952,13 +964,12 @@ export class ProcessTimeRunOnceScheduler {
 		// time elapsed
 		clearInterval(this.intervalToken);
 		this.intervalToken = -1;
-		if (this.runner) {
-			this.runner();
-		}
+		this.runner?.();
 	}
 }
 
 export class RunOnceWorker<T> extends RunOnceScheduler {
+
 	private units: T[] = [];
 
 	constructor(runner: (units: T[]) => void, timeout: number) {
@@ -977,9 +988,7 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 		const units = this.units;
 		this.units = [];
 
-		if (this.runner) {
-			this.runner(units);
-		}
+		this.runner?.(units);
 	}
 
 	override dispose(): void {
@@ -1068,7 +1077,9 @@ export class ThrottledWorker<T> extends Disposable {
 		}
 
 		// Add to pending units first
-		this.pendingWork.push(...units);
+		for (const unit of units) {
+			this.pendingWork.push(unit);
+		}
 
 		// If not throttled, start working directly
 		// Otherwise, when the throttle delay has
@@ -1111,7 +1122,22 @@ export interface IdleDeadline {
 }
 
 /**
- * Execute the callback the next time the browser is idle
+ * Execute the callback the next time the browser is idle, returning an
+ * {@link IDisposable} that will cancel the callback when disposed. This wraps
+ * [requestIdleCallback] so it will fallback to [setTimeout] if the environment
+ * doesn't support it.
+ *
+ * @param callback The callback to run when idle, this includes an
+ * [IdleDeadline] that provides the time alloted for the idle callback by the
+ * browser. Not respecting this deadline will result in a degraded user
+ * experience.
+ * @param timeout A timeout at which point to queue no longer wait for an idle
+ * callback but queue it on the regular event loop (like setTimeout). Typically
+ * this should not be used.
+ *
+ * [IdleDeadline]: https://developer.mozilla.org/en-US/docs/Web/API/IdleDeadline
+ * [requestIdleCallback]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
+ * [setTimeout]: https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout
  */
 export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
@@ -1227,15 +1253,15 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 //#region Task Sequentializer
 
 interface IPendingTask {
-	taskId: number;
-	cancel: () => void;
-	promise: Promise<void>;
+	readonly taskId: number;
+	readonly cancel: () => void;
+	readonly promise: Promise<void>;
 }
 
-interface ISequentialTask {
-	promise: Promise<void>;
-	promiseResolve: () => void;
-	promiseReject: (error: Error) => void;
+interface INextTask {
+	readonly promise: Promise<void>;
+	readonly promiseResolve: () => void;
+	readonly promiseReject: (error: Error) => void;
 	run: () => Promise<void>;
 }
 
@@ -1243,9 +1269,14 @@ export interface ITaskSequentializerWithPendingTask {
 	readonly pending: Promise<void>;
 }
 
+export interface ITaskSequentializerWithNextTask {
+	readonly next: INextTask;
+}
+
 export class TaskSequentializer {
+
 	private _pending?: IPendingTask;
-	private _next?: ISequentialTask;
+	private _next?: INextTask;
 
 	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
 		if (!this._pending) {
@@ -1260,7 +1291,7 @@ export class TaskSequentializer {
 	}
 
 	get pending(): Promise<void> | undefined {
-		return this._pending ? this._pending.promise : undefined;
+		return this._pending?.promise;
 	}
 
 	cancelPending(): void {
@@ -1323,6 +1354,14 @@ export class TaskSequentializer {
 		}
 
 		return this._next.promise;
+	}
+
+	hasNext(): this is ITaskSequentializerWithNextTask {
+		return !!this._next;
+	}
+
+	async join(): Promise<void> {
+		return this._next?.promise ?? this._pending?.promise;
 	}
 }
 
@@ -1389,7 +1428,7 @@ export class DeferredPromise<T> {
 		return this.rejected || this.resolved;
 	}
 
-	public p: Promise<T>;
+	public readonly p: Promise<T>;
 
 	constructor() {
 		this.p = new Promise<T>((c, e) => {
@@ -1515,7 +1554,7 @@ export interface AsyncIterableEmitter<T> {
 /**
  * An executor for the `AsyncIterableObject` that has access to an emitter.
  */
-export interface AyncIterableExecutor<T> {
+export interface AsyncIterableExecutor<T> {
 	/**
 	 * @param emitter An object that allows to emit async values valid only for the duration of the executor.
 	 */
@@ -1562,7 +1601,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	private _error: Error | null;
 	private readonly _onStateChanged: Emitter<void>;
 
-	constructor(executor: AyncIterableExecutor<T>) {
+	constructor(executor: AsyncIterableExecutor<T>) {
 		this._state = AsyncIterableSourceState.Initial;
 		this._results = [];
 		this._error = null;
@@ -1716,7 +1755,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
 	constructor(
 		private readonly _source: CancellationTokenSource,
-		executor: AyncIterableExecutor<T>
+		executor: AsyncIterableExecutor<T>
 	) {
 		super(executor);
 	}

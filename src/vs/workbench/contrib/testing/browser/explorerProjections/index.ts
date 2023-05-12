@@ -10,7 +10,8 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestTreeCollapseState } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
+import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -24,6 +25,11 @@ export interface ITestTreeProjection extends IDisposable {
 	 * Event that fires when the projection changes.
 	 */
 	onUpdate: Event<void>;
+
+	/**
+	 * State to use for applying default collapse state of items.
+	 */
+	lastState: ISerializedTestTreeCollapseState;
 
 	/**
 	 * Fired when an element in the tree is expanded.
@@ -163,11 +169,11 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 
 		const context: ITestItemContext = {
 			$mid: MarshalledId.TestItemContext,
-			tests: [this.test],
+			tests: [InternalTestItem.serialize(this.test)],
 		};
 
 		for (let p = this.parent; p && p.depth > 0; p = p.parent) {
-			context.tests.unshift(p.test);
+			context.tests.unshift(InternalTestItem.serialize(p.test));
 		}
 
 		return context;

@@ -6,7 +6,7 @@
 import { distinct } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionIgnoredRecommendationsService, IgnoredRecommendationChangeNotification } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
@@ -70,7 +70,7 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 	}
 
 	private onDidStorageChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ignoredRecommendationsStorageKey && e.scope === StorageScope.GLOBAL
+		if (e.key === ignoredRecommendationsStorageKey && e.scope === StorageScope.PROFILE
 			&& this.ignoredRecommendationsValue !== this.getStoredIgnoredRecommendationsValue() /* This checks if current window changed the value or not */) {
 			this._ignoredRecommendationsValue = undefined;
 			this._globalIgnoredRecommendations = this.getCachedIgnoredRecommendations();
@@ -99,13 +99,13 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 	}
 
 	private getStoredIgnoredRecommendationsValue(): string {
-		return this.storageService.get(ignoredRecommendationsStorageKey, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(ignoredRecommendationsStorageKey, StorageScope.PROFILE, '[]');
 	}
 
 	private setStoredIgnoredRecommendationsValue(value: string): void {
-		this.storageService.store(ignoredRecommendationsStorageKey, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(ignoredRecommendationsStorageKey, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 }
 
-registerSingleton(IExtensionIgnoredRecommendationsService, ExtensionIgnoredRecommendationsService);
+registerSingleton(IExtensionIgnoredRecommendationsService, ExtensionIgnoredRecommendationsService, InstantiationType.Delayed);

@@ -13,20 +13,20 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import * as dom from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { attachInputBoxStyler, attachKeybindingLabelStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Promises, timeout } from 'vs/base/common/async';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { defaultInputBoxStyles, defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;
@@ -35,14 +35,13 @@ export interface KeybindingsSearchOptions extends SearchOptions {
 
 export class KeybindingsSearchWidget extends SearchWidget {
 
-	private _firstPart: ResolvedKeybinding | null;
-	private _chordPart: ResolvedKeybinding | null;
+	private _chords: ResolvedKeybinding[] | null;
 	private _inputValue: string;
 
 	private readonly recordDisposables = this._register(new DisposableStore());
 
-	private _onKeybinding = this._register(new Emitter<[ResolvedKeybinding | null, ResolvedKeybinding | null]>());
-	readonly onKeybinding: Event<[ResolvedKeybinding | null, ResolvedKeybinding | null]> = this._onKeybinding.event;
+	private _onKeybinding = this._register(new Emitter<ResolvedKeybinding[] | null>());
+	readonly onKeybinding: Event<ResolvedKeybinding[] | null> = this._onKeybinding.event;
 
 	private _onEnter = this._register(new Emitter<void>());
 	readonly onEnter: Event<void> = this._onEnter.event;
@@ -56,15 +55,12 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	constructor(parent: HTMLElement, options: KeybindingsSearchOptions,
 		@IContextViewService contextViewService: IContextViewService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, options, contextViewService, instantiationService, themeService, contextKeyService, keybindingService);
-		this._register(attachInputBoxStyler(this.inputBox, themeService));
+		super(parent, options, contextViewService, instantiationService, contextKeyService, keybindingService);
 		this._register(toDisposable(() => this.stopRecordingKeys()));
-		this._firstPart = null;
-		this._chordPart = null;
+		this._chords = null;
 		this._inputValue = '';
 
 		this._reset();
@@ -95,8 +91,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	}
 
 	private _reset() {
-		this._firstPart = null;
-		this._chordPart = null;
+		this._chords = null;
 	}
 
 	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
@@ -108,6 +103,10 @@ export class KeybindingsSearchWidget extends SearchWidget {
 			return;
 		}
 		if (keyboardEvent.equals(KeyCode.Escape)) {
+			if (this._chords !== null) {
+				this.clear();
+			}
+
 			this._onEscape.fire();
 			return;
 		}
@@ -116,32 +115,29 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 	private printKeybinding(keyboardEvent: IKeyboardEvent): void {
 		const keybinding = this.keybindingService.resolveKeyboardEvent(keyboardEvent);
-		const info = `code: ${keyboardEvent.browserEvent.code}, keyCode: ${keyboardEvent.browserEvent.keyCode}, key: ${keyboardEvent.browserEvent.key} => UI: ${keybinding.getAriaLabel()}, user settings: ${keybinding.getUserSettingsLabel()}, dispatch: ${keybinding.getDispatchParts()[0]}`;
+		const info = `code: ${keyboardEvent.browserEvent.code}, keyCode: ${keyboardEvent.browserEvent.keyCode}, key: ${keyboardEvent.browserEvent.key} => UI: ${keybinding.getAriaLabel()}, user settings: ${keybinding.getUserSettingsLabel()}, dispatch: ${keybinding.getDispatchChords()[0]}`;
 		const options = this.options as KeybindingsSearchOptions;
 
-		const hasFirstPart = (this._firstPart && this._firstPart.getDispatchParts()[0] !== null);
-		const hasChordPart = (this._chordPart && this._chordPart.getDispatchParts()[0] !== null);
-		if (hasFirstPart && hasChordPart) {
-			// Reset
-			this._firstPart = keybinding;
-			this._chordPart = null;
-		} else if (!hasFirstPart) {
-			this._firstPart = keybinding;
-		} else {
-			this._chordPart = keybinding;
+		if (!this._chords) {
+			this._chords = [];
 		}
 
-		let value = '';
-		if (this._firstPart) {
-			value = (this._firstPart.getUserSettingsLabel() || '');
+		// TODO: note that we allow a keybinding "shift shift", but this widget doesn't allow input "shift shift" because the first "shift" will be incomplete - this is _not_ a regression
+		const hasIncompleteChord = this._chords.length > 0 && this._chords[this._chords.length - 1].getDispatchChords()[0] === null;
+		if (hasIncompleteChord) {
+			this._chords[this._chords.length - 1] = keybinding;
+		} else {
+			if (this._chords.length === 2) { // TODO: limit chords # to 2 for now
+				this._chords = [];
+			}
+			this._chords.push(keybinding);
 		}
-		if (this._chordPart) {
-			value = value + ' ' + this._chordPart.getUserSettingsLabel();
-		}
+
+		const value = this._chords.map((keybinding) => keybinding.getUserSettingsLabel() || '').join(' ');
 		this.setInputValue(options.quoteRecordedKeys ? `"${value}"` : value);
 
 		this.inputBox.inputElement.title = info;
-		this._onKeybinding.fire([this._firstPart, this._chordPart]);
+		this._onKeybinding.fire(this._chords);
 	}
 }
 
@@ -155,8 +151,7 @@ export class DefineKeybindingWidget extends Widget {
 	private _outputNode: HTMLElement;
 	private _showExistingKeybindingsNode: HTMLElement;
 
-	private _firstPart: ResolvedKeybinding | null = null;
-	private _chordPart: ResolvedKeybinding | null = null;
+	private _chords: ResolvedKeybinding[] | null = null;
 	private _isVisible: boolean = false;
 
 	private _onHide = this._register(new Emitter<void>());
@@ -167,13 +162,9 @@ export class DefineKeybindingWidget extends Widget {
 	private _onShowExistingKeybindings = this._register(new Emitter<string | null>());
 	readonly onShowExistingKeybidings: Event<string | null> = this._onShowExistingKeybindings.event;
 
-	private disposables = this._register(new DisposableStore());
-	private keybindingLabelStylers = this.disposables.add(new DisposableStore());
-
 	constructor(
 		parent: HTMLElement | null,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 
@@ -186,31 +177,16 @@ export class DefineKeybindingWidget extends Widget {
 		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
 		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
 
-		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, editorWidgetForeground, widgetShadow }, colors => {
-			if (colors.editorWidgetBackground) {
-				this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground.toString();
-			} else {
-				this._domNode.domNode.style.backgroundColor = '';
-			}
-			if (colors.editorWidgetForeground) {
-				this._domNode.domNode.style.color = colors.editorWidgetForeground.toString();
-			} else {
-				this._domNode.domNode.style.color = '';
-			}
+		this._domNode.domNode.style.backgroundColor = asCssVariable(editorWidgetBackground);
+		this._domNode.domNode.style.color = asCssVariable(editorWidgetForeground);
+		this._domNode.domNode.style.boxShadow = `0 2px 8px ${asCssVariable(widgetShadow)}`;
 
-			if (colors.widgetShadow) {
-				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
-			} else {
-				this._domNode.domNode.style.boxShadow = '';
-			}
-		}));
-
-		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message, history: [] }));
+		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message, history: [], inputBoxStyles: defaultInputBoxStyles }));
 		this._keybindingInputWidget.startRecordingKeys();
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
-		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
-		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
+		this._register(this._keybindingInputWidget.onEscape(() => this.onEscape()));
+		this._register(this._keybindingInputWidget.onBlur(() => this.onBlur()));
 
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
 		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
@@ -231,8 +207,7 @@ export class DefineKeybindingWidget extends Widget {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
 
-				this._firstPart = null;
-				this._chordPart = null;
+				this._chords = null;
 				this._keybindingInputWidget.setInputValue('');
 				dom.clearNode(this._outputNode);
 				dom.clearNode(this._showExistingKeybindingsNode);
@@ -263,6 +238,7 @@ export class DefineKeybindingWidget extends Widget {
 			const existingElement = dom.$('span.existingText');
 			const text = numberOfExisting === 1 ? nls.localize('defineKeybinding.oneExists', "1 existing command has this keybinding", numberOfExisting) : nls.localize('defineKeybinding.existing', "{0} existing commands have this keybinding", numberOfExisting);
 			dom.append(existingElement, document.createTextNode(text));
+			aria.alert(text);
 			this._showExistingKeybindingsNode.appendChild(existingElement);
 			existingElement.onmousedown = (e) => { e.preventDefault(); };
 			existingElement.onmouseup = (e) => { e.preventDefault(); };
@@ -270,24 +246,24 @@ export class DefineKeybindingWidget extends Widget {
 		}
 	}
 
-	private onKeybinding(keybinding: [ResolvedKeybinding | null, ResolvedKeybinding | null]): void {
-		const [firstPart, chordPart] = keybinding;
-		this._firstPart = firstPart;
-		this._chordPart = chordPart;
+	private onKeybinding(keybinding: ResolvedKeybinding[] | null): void {
+		this._chords = keybinding;
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
 
-		this.keybindingLabelStylers.clear();
 
-		const firstLabel = new KeybindingLabel(this._outputNode, OS);
-		firstLabel.set(withNullAsUndefined(this._firstPart));
-		this.keybindingLabelStylers.add(attachKeybindingLabelStyler(firstLabel, this.themeService));
 
-		if (this._chordPart) {
-			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
-			const chordLabel = new KeybindingLabel(this._outputNode, OS);
-			chordLabel.set(this._chordPart);
-			this.keybindingLabelStylers.add(attachKeybindingLabelStyler(chordLabel, this.themeService));
+		const firstLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
+		firstLabel.set(withNullAsUndefined(this._chords?.[0]));
+
+
+		if (this._chords) {
+			for (let i = 1; i < this._chords.length; i++) {
+				this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
+				const chordLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
+				chordLabel.set(this._chords[i]);
+			}
+
 		}
 
 		const label = this.getUserSettingsLabel();
@@ -298,18 +274,24 @@ export class DefineKeybindingWidget extends Widget {
 
 	private getUserSettingsLabel(): string | null {
 		let label: string | null = null;
-		if (this._firstPart) {
-			label = this._firstPart.getUserSettingsLabel();
-			if (this._chordPart) {
-				label = label + ' ' + this._chordPart.getUserSettingsLabel();
-			}
+		if (this._chords) {
+			label = this._chords.map(keybinding => keybinding.getUserSettingsLabel()).join(' ');
 		}
 		return label;
 	}
 
-	private onCancel(): void {
-		this._firstPart = null;
-		this._chordPart = null;
+	private onBlur(): void {
+		this._chords = null;
+		this.hide();
+	}
+
+	private onEscape(): void {
+		if (this._chords !== null) {
+			this._chords = null;
+			dom.clearNode(this._outputNode);
+			dom.clearNode(this._showExistingKeybindingsNode);
+			return;
+		}
 		this.hide();
 	}
 

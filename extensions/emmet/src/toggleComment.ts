@@ -27,7 +27,7 @@ export function toggleComment(): Thenable<boolean> | undefined {
 	}
 
 	return editor.edit(editBuilder => {
-		let allEdits: vscode.TextEdit[][] = [];
+		const allEdits: vscode.TextEdit[][] = [];
 		Array.from(editor.selections).reverse().forEach(selection => {
 			const edits = isStyleSheet(editor.document.languageId) ? toggleCommentStylesheet(editor.document, selection, <Stylesheet>rootNode) : toggleCommentHTML(editor.document, selection, rootNode!);
 			if (edits.length > 0) {
@@ -37,7 +37,7 @@ export function toggleComment(): Thenable<boolean> | undefined {
 
 		// Apply edits in order so we can skip nested ones.
 		allEdits.sort((arr1, arr2) => {
-			let result = arr1[0].range.start.line - arr2[0].range.start.line;
+			const result = arr1[0].range.start.line - arr2[0].range.start.line;
 			return result === 0 ? arr1[0].range.start.character - arr2[0].range.start.character : result;
 		});
 		let lastEditPosition = new vscode.Position(0, 0);
@@ -76,7 +76,7 @@ function toggleCommentHTML(document: vscode.TextDocument, selection: vscode.Sele
 		return toggleCommentStylesheet(document, selection, cssRootNode);
 	}
 
-	let allNodes: Node[] = getNodesInBetween(startNode, endNode);
+	const allNodes: Node[] = getNodesInBetween(startNode, endNode);
 	let edits: vscode.TextEdit[] = [];
 
 	allNodes.forEach(node => {
@@ -132,8 +132,8 @@ function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscod
 	}
 
 	// Uncomment the comments that intersect with the selection.
-	let rangesToUnComment: vscode.Range[] = [];
-	let edits: vscode.TextEdit[] = [];
+	const rangesToUnComment: vscode.Range[] = [];
+	const edits: vscode.TextEdit[] = [];
 	rootNode.comments.forEach(comment => {
 		const commentRange = offsetRangeToVsRange(document, comment.start, comment.end);
 		if (selection.intersection(commentRange)) {

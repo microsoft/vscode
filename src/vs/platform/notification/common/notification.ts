@@ -15,20 +15,39 @@ export const INotificationService = createDecorator<INotificationService>('notif
 
 export type NotificationMessage = string | Error;
 
+export enum NotificationPriority {
+
+	/**
+	 * Default priority: notification will be visible unless do not disturb mode is enabled.
+	 */
+	DEFAULT,
+
+	/**
+	 * Silent priority: notification will only be visible from the notifications center.
+	 */
+	SILENT,
+
+	/**
+	 * Urgent priority: notification will be visible even when do not disturb mode is enabled.
+	 */
+	URGENT
+}
+
 export interface INotificationProperties {
 
 	/**
-	 * Sticky notifications are not automatically removed after a certain timeout. By
-	 * default, notifications with primary actions and severity error are always sticky.
+	 * Sticky notifications are not automatically removed after a certain timeout.
+	 *
+	 * Currently, only 2 kinds of notifications are sticky:
+	 * - Error notifications with primary actions
+	 * - Notifications that show progress
 	 */
 	readonly sticky?: boolean;
 
 	/**
-	 * Silent notifications are not shown to the user unless the notification center
-	 * is opened. The status bar will still indicate all number of notifications to
-	 * catch some attention.
+	 * Allows to override the priority of the notification based on needs.
 	 */
-	readonly silent?: boolean;
+	readonly priority?: NotificationPriority;
 
 	/**
 	 * Adds an action to never show the notification again. The choice will be persisted
@@ -45,9 +64,16 @@ export enum NeverShowAgainScope {
 	WORKSPACE,
 
 	/**
-	 * Will never show this notification on any workspace again.
+	 * Will never show this notification on any workspace of the same
+	 * profile again.
 	 */
-	GLOBAL
+	PROFILE,
+
+	/**
+	 * Will never show this notification on any workspace across all
+	 * profiles again.
+	 */
+	APPLICATION
 }
 
 export interface INeverShowAgainOptions {
@@ -65,7 +91,8 @@ export interface INeverShowAgainOptions {
 
 	/**
 	 * Whether to persist the choice in the current workspace or for all workspaces. By
-	 * default it will be persisted for all workspaces (= `NeverShowAgainScope.GLOBAL`).
+	 * default it will be persisted for all workspaces across all profiles
+	 * (= `NeverShowAgainScope.APPLICATION`).
 	 */
 	readonly scope?: NeverShowAgainScope;
 }
@@ -312,6 +339,13 @@ export interface INotificationService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * The DND mode can be enabled or disabled
+	 * and will result in all info and warning
+	 * notifications to be silent.
+	 */
+	doNotDisturbMode: boolean;
+
+	/**
 	 * Emitted when a new notification is added.
 	 */
 	readonly onDidAddNotification: Event<INotification>;
@@ -320,6 +354,11 @@ export interface INotificationService {
 	 * Emitted when a notification is removed.
 	 */
 	readonly onDidRemoveNotification: Event<INotification>;
+
+	/**
+	 * Emitted when a do not disturb mode has changed.
+	 */
+	readonly onDidChangeDoNotDisturbMode: Event<void>;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
@@ -373,13 +412,6 @@ export interface INotificationService {
 	 * @returns a disposable to hide the status message
 	 */
 	status(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
-
-	/**
-	 * Allows to configure a filter for notifications.
-	 *
-	 * @param filter the filter to use
-	 */
-	setFilter(filter: NotificationsFilter): void;
 }
 
 export class NoOpNotification implements INotificationHandle {

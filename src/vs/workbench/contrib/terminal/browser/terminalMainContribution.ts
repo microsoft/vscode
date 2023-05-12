@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -15,14 +17,17 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
  * to set up the terminal but don't need to be tracked in the long term (where TerminalService would
  * be more relevant).
  */
-export class TerminalMainContribution implements IWorkbenchContribution {
+export class TerminalMainContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@ILabelService labelService: ILabelService,
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
-		@ITerminalGroupService terminalGroupService: ITerminalGroupService
+		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
+		super();
+
 		// Register terminal editors
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
@@ -32,29 +37,28 @@ export class TerminalMainContribution implements IWorkbenchContribution {
 				priority: RegisteredEditorPriority.exclusive
 			},
 			{
-				canHandleDiff: false,
 				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
 				singlePerResource: true
 			},
-			({ resource, options }) => {
-				let instance = terminalService.getInstanceFromResource(resource);
-				if (instance) {
-					const sourceGroup = terminalGroupService.getGroupForInstance(instance);
-					if (sourceGroup) {
-						sourceGroup.removeInstance(instance);
+			{
+				createEditorInput: ({ resource, options }) => {
+					const instance = terminalService.getInstanceFromResource(resource);
+					if (instance) {
+						const sourceGroup = terminalGroupService.getGroupForInstance(instance);
+						sourceGroup?.removeInstance(instance);
 					}
+					const resolvedResource = terminalEditorService.resolveResource(instance || resource);
+					const editor = terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
+					return {
+						editor,
+						options: {
+							...options,
+							pinned: true,
+							forceReload: true,
+							override: terminalEditorId
+						}
+					};
 				}
-				const resolvedResource = terminalEditorService.resolveResource(instance || resource);
-				const editor = terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
-				return {
-					editor,
-					options: {
-						...options,
-						pinned: true,
-						forceReload: true,
-						override: terminalEditorId
-					}
-				};
 			}
 		);
 

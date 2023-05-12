@@ -300,7 +300,7 @@ suite('HistoryService', function () {
 
 		// [one.txt] [>two.html<] | <empty>
 
-		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
+		const editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
 		pane1?.group?.moveEditor(pane1.input!, sideGroup);
 		await editorChangePromise;
 
@@ -480,6 +480,7 @@ suite('HistoryService', function () {
 			isSymbolicLink: false,
 			name: 'other.txt',
 			readonly: false,
+			locked: false,
 			size: 0,
 			resource: toResource.call(this, '/path/other.txt'),
 			children: undefined

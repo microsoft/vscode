@@ -7,13 +7,14 @@ import * as dom from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
+import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
 import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
+import { NavigationCommandRevealType } from 'vs/editor/browser/coreCommands';
 
 /**
  * Currently only tested on iOS 13/ iPadOS.
@@ -45,9 +46,7 @@ export class PointerEventHandler extends MouseHandler {
 		// PonterEvents
 		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
 
-		this._register(pointerEvents.onPointerMoveThrottled(this.viewHelper.viewDomNode,
-			(e) => this._onMouseMove(e),
-			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
+		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e)));
 		this._register(pointerEvents.onPointerUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
 		this._register(pointerEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerId) => this._onMouseDown(e, pointerId)));
@@ -68,6 +67,7 @@ export class PointerEventHandler extends MouseHandler {
 				position: target.position,
 				mouseColumn: target.position.column,
 				startedOnLineNumbers: false,
+				revealType: NavigationCommandRevealType.Minimal,
 				mouseDownCount: event.tapCount,
 				inSelectionMode: false,
 				altKey: false,
@@ -88,7 +88,7 @@ export class PointerEventHandler extends MouseHandler {
 		}
 	}
 
-	public override _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
+	protected override _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
 		if ((e.browserEvent as any).pointerType === 'touch') {
 			return;
 		}
@@ -122,7 +122,7 @@ class TouchHandler extends MouseHandler {
 			event.initEvent(TextAreaSyntethicEvents.Tap, false, true);
 			this.viewHelper.dispatchTextAreaEvent(event);
 
-			this.viewController.moveTo(target.position);
+			this.viewController.moveTo(target.position, NavigationCommandRevealType.Minimal);
 		}
 	}
 

@@ -14,18 +14,18 @@
 	 *
 	 * @param {typeof import('path')} path
 	 * @param {typeof import('os')} os
-	 * @param {string} productName
 	 * @param {string} cwd
 	 */
-	function factory(path, os, productName, cwd) {
+	function factory(path, os, cwd) {
 
 		/**
 		 * @param {NativeParsedArgs} cliArgs
+		 * @param {string} productName
 		 *
 		 * @returns {string}
 		 */
-		function getUserDataPath(cliArgs) {
-			const userDataPath = doGetUserDataPath(cliArgs);
+		function getUserDataPath(cliArgs, productName) {
+			const userDataPath = doGetUserDataPath(cliArgs, productName);
 			const pathsToResolve = [userDataPath];
 
 			// If the user-data-path is not absolute, make
@@ -43,10 +43,16 @@
 
 		/**
 		 * @param {NativeParsedArgs} cliArgs
+		 * @param {string} productName
 		 *
 		 * @returns {string}
 		 */
-		function doGetUserDataPath(cliArgs) {
+		function doGetUserDataPath(cliArgs, productName) {
+
+			// 0. Running out of sources has a fixed productName
+			if (process.env['VSCODE_DEV']) {
+				productName = 'code-oss-dev';
+			}
 
 			// 1. Support portable mode
 			const portablePath = process.env['VSCODE_PORTABLE'];
@@ -101,25 +107,18 @@
 	}
 
 	if (typeof define === 'function') {
-		define(['require', 'path', 'os', 'vs/base/common/network', 'vs/base/common/resources', 'vs/base/common/process'], function (
-			require,
+		define(['path', 'os', 'vs/base/common/process'], function (
 			/** @type {typeof import('path')} */ path,
 			/** @type {typeof import('os')} */ os,
-			/** @type {typeof import('../../../base/common/network')} */ network,
-			/** @type {typeof import("../../../base/common/resources")} */ resources,
 			/** @type {typeof import("../../../base/common/process")} */ process
 		) {
-			const rootPath = resources.dirname(network.FileAccess.asFileUri('', require));
-			const pkg = require.__$__nodeRequire(resources.joinPath(rootPath, 'package.json').fsPath);
-
-			return factory(path, os, pkg.name, process.cwd());
-		}); // amd
+			return factory(path, os, process.cwd()); // amd
+		});
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
-		const pkg = require('../../../../../package.json');
 		const path = require('path');
 		const os = require('os');
 
-		module.exports = factory(path, os, pkg.name, process.env['VSCODE_CWD'] || process.cwd()); // commonjs
+		module.exports = factory(path, os, process.env['VSCODE_CWD'] || process.cwd()); // commonjs
 	} else {
 		throw new Error('Unknown context');
 	}

@@ -9,6 +9,7 @@
 	right: 6px;
 	padding: 1em;
 	cursor: default;
+	border-radius: 4px;
 }
 
 .monaco-workbench .feedback-form h2 {
@@ -51,6 +52,7 @@
 
 .monaco-workbench .feedback-form .content .channels a {
 	padding: 2px 0;
+	color: var(--vscode-textLink-foreground, var(--vscode-contrastBorder));
 }
 
 .monaco-workbench .feedback-form .content .channels a:hover {
@@ -114,6 +116,10 @@
 	background-color: #eaeaea;
 }
 
+.monaco-workbench .feedback-form .sentiment.checked {
+	border: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
 /* Theming */
 .monaco-workbench.vs .feedback-form .feedback-alias,
 .monaco-workbench.vs .feedback-form .feedback-description {
@@ -140,7 +146,6 @@
 	margin-left: auto;
 	display: flex;
 	align-items: center;
-	transition: width 200ms ease-out;
 }
 
 .monaco-workbench .feedback-form .form-buttons .send .codicon {
@@ -200,12 +205,21 @@
 	outline-offset: -2px;
 }
 
+.monaco-workbench.hc-light .feedback-form {
+	outline: 2px solid #0F4A85;
+	outline-offset: -2px;
+}
+
+
 .monaco-workbench.hc-black .feedback-form .feedback-alias,
-.monaco-workbench.hc-black .feedback-form .feedback-description {
+.monaco-workbench.hc-black .feedback-form .feedback-description,
+.monaco-workbench.hc-light .feedback-form .feedback-alias,
+.monaco-workbench.hc-light .feedback-form .feedback-description {
 	font-family: inherit;
 }
 
-.monaco-workbench.hc-black .feedback-form .content .contactus {
+.monaco-workbench.hc-black .feedback-form .content .contactus,
+.monaco-workbench.hc-light .feedback-form .content .contactus {
 	padding: 10px;
 	float: right;
 }
@@ -216,6 +230,14 @@
 	background-color: #0C141F;
 	color: #D4D4D4;
 	border: 1px solid #6FC3DF;
+}
+
+.monaco-workbench.hc-light .feedback-form .form-buttons .send,
+.monaco-workbench.hc-light .feedback-form .form-buttons .send.in-progress,
+.monaco-workbench.hc-light .feedback-form .form-buttons .send.success {
+	background-color: #FFFFFF;
+	color: #292929;
+	border: 1px solid #0F4A85;
 }
 
 .monaco-workbench.hc-black .feedback-form .form-buttons .send:hover {

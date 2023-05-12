@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
-import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
+import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -16,6 +16,7 @@ import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory }
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 
 suite('StoredFileWorkingCopyManager', () => {
 
@@ -273,7 +274,7 @@ suite('StoredFileWorkingCopyManager', () => {
 		let savedCounter = 0;
 		let saveErrorCounter = 0;
 
-		manager.onDidCreate(workingCopy => {
+		manager.onDidCreate(() => {
 			createdCounter++;
 		});
 
@@ -305,8 +306,10 @@ suite('StoredFileWorkingCopyManager', () => {
 			}
 		});
 
-		manager.onDidSave(({ workingCopy }) => {
-			if (workingCopy.resource.toString() === resource1.toString()) {
+		let lastSaveEvent: IStoredFileWorkingCopySaveEvent<TestStoredFileWorkingCopyModel> | undefined = undefined;
+		manager.onDidSave((e) => {
+			if (e.workingCopy.resource.toString() === resource1.toString()) {
+				lastSaveEvent = e;
 				savedCounter++;
 			}
 		});
@@ -352,6 +355,8 @@ suite('StoredFileWorkingCopyManager', () => {
 		assert.strictEqual(gotNonDirtyCounter, 2);
 		assert.strictEqual(revertedCounter, 1);
 		assert.strictEqual(savedCounter, 1);
+		assert.strictEqual(lastSaveEvent!.workingCopy, workingCopy1);
+		assert.ok(lastSaveEvent!.stat);
 		assert.strictEqual(saveErrorCounter, 1);
 		assert.strictEqual(createdCounter, 2);
 
@@ -594,7 +599,7 @@ suite('StoredFileWorkingCopyManager', () => {
 		const workingCopy = await manager.resolve(resource);
 		workingCopy.model?.updateContents('make dirty');
 
-		let canDisposePromise = manager.canDispose(workingCopy);
+		const canDisposePromise = manager.canDispose(workingCopy);
 		assert.ok(canDisposePromise instanceof Promise);
 
 		let canDispose = false;
@@ -609,11 +614,11 @@ suite('StoredFileWorkingCopyManager', () => {
 
 		assert.strictEqual(canDispose, true);
 
-		let canDispose2 = manager.canDispose(workingCopy);
+		const canDispose2 = manager.canDispose(workingCopy);
 		assert.strictEqual(canDispose2, true);
 	});
 
-	test('pending saves join on shutdown', async () => {
+	(isWeb ? test.skip : test)('pending saves join on shutdown', async () => {
 		const resource1 = URI.file('/path/index_something1.txt');
 		const resource2 = URI.file('/path/index_something2.txt');
 

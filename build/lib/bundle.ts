@@ -15,7 +15,7 @@ interface IPosition {
 interface IBuildModuleInfo {
 	id: string;
 	path: string;
-	defineLocation: IPosition;
+	defineLocation: IPosition | null;
 	dependencies: string[];
 	shim: string;
 	exports: any;
@@ -42,12 +42,17 @@ interface ILoaderPluginReqFunc {
 	toUrl(something: string): string;
 }
 
+export interface IExtraFile {
+	path: string;
+	amdModuleId?: string;
+}
+
 export interface IEntryPoint {
 	name: string;
 	include?: string[];
 	exclude?: string[];
-	prepend?: string[];
-	append?: string[];
+	prepend?: IExtraFile[];
+	append?: IExtraFile[];
 	dest?: string;
 }
 
@@ -92,6 +97,13 @@ interface IPartialBundleResult {
 export interface ILoaderConfig {
 	isBuild?: boolean;
 	paths?: { [path: string]: any };
+	/*
+	 * Normally, during a build, no module factories are invoked. This can be used
+	 * to forcefully execute a module's factory.
+	 */
+	buildForceInvokeFactory: {
+		[moduleId: string]: boolean;
+	};
 }
 
 /**
@@ -132,15 +144,21 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	if (!config.paths['vs/css']) {
 		config.paths['vs/css'] = 'out-build/vs/css.build';
 	}
+	config.buildForceInvokeFactory = config.buildForceInvokeFactory || {};
+	config.buildForceInvokeFactory['vs/nls'] = true;
+	config.buildForceInvokeFactory['vs/css'] = true;
 	loader.config(config);
 
 	loader(['require'], (localRequire: any) => {
-		const resolvePath = (path: string) => {
-			const r = localRequire.toUrl(path);
-			if (!/\.js/.test(r)) {
-				return r + '.js';
+		const resolvePath = (entry: IExtraFile) => {
+			let r = localRequire.toUrl(entry.path);
+			if (!r.endsWith('.js')) {
+				r += '.js';
 			}
-			return r;
+			// avoid packaging the build version of plugins:
+			r = r.replace('vs/nls.build.js', 'vs/nls.js');
+			r = r.replace('vs/css.build.js', 'vs/css.js');
+			return { path: r, amdModuleId: entry.amdModuleId };
 		};
 		for (const moduleId in entryPointsMap) {
 			const entryPoint = entryPointsMap[moduleId];
@@ -403,8 +421,8 @@ function emitEntryPoint(
 	deps: IGraph,
 	entryPoint: string,
 	includedModules: string[],
-	prepend: string[],
-	append: string[],
+	prepend: IExtraFile[],
+	append: IExtraFile[],
 	dest: string | undefined
 ): IEmitEntryPointResult {
 	if (!dest) {
@@ -444,8 +462,16 @@ function emitEntryPoint(
 
 		if (module.shim) {
 			mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
-		} else {
+		} else if (module.defineLocation) {
 			mainResult.sources.push(emitNamedModule(c, module.defineLocation, module.path, contents));
+		} else {
+			const moduleCopy = {
+				id: module.id,
+				path: module.path,
+				defineLocation: module.defineLocation,
+				dependencies: module.dependencies
+			};
+			throw new Error(`Cannot bundle module '${module.id}' for entry point '${entryPoint}' because it has no shim and it lacks a defineLocation: ${JSON.stringify(moduleCopy)}`);
 		}
 	});
 
@@ -470,10 +496,13 @@ function emitEntryPoint(
 		}
 	});
 
-	const toIFile = (path: string): IFile => {
-		const contents = readFileAndRemoveBOM(path);
+	const toIFile = (entry: IExtraFile): IFile => {
+		let contents = readFileAndRemoveBOM(entry.path);
+		if (entry.amdModuleId) {
+			contents = contents.replace(/^define\(/m, `define("${entry.amdModuleId}",`);
+		}
 		return {
-			path: path,
+			path: entry.path,
 			contents: contents
 		};
 	};

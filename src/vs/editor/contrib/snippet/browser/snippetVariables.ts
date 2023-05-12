@@ -10,14 +10,14 @@ import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLin
 import { generateUuid } from 'vs/base/common/uuid';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { Text, Variable, VariableResolver } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import * as nls from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isEmptyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
+export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>({
 	'CURRENT_YEAR': true,
 	'CURRENT_YEAR_SHORT': true,
 	'CURRENT_MONTH': true,
@@ -30,6 +30,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'CURRENT_MONTH_NAME': true,
 	'CURRENT_MONTH_NAME_SHORT': true,
 	'CURRENT_SECONDS_UNIX': true,
+	'CURRENT_TIMEZONE_OFFSET': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
@@ -41,6 +42,8 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'CURSOR_INDEX': true, // 0-offset
+	'CURSOR_NUMBER': true, // 1-offset
 	'RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
@@ -60,7 +63,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 
 	resolve(variable: Variable): string | undefined {
 		for (const delegate of this._delegates) {
-			let value = delegate.resolve(variable);
+			const value = delegate.resolve(variable);
 			if (value !== undefined) {
 				return value;
 			}
@@ -140,6 +143,12 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_LINE_NUMBER') {
 			return String(this._selection.positionLineNumber);
+
+		} else if (name === 'CURSOR_INDEX') {
+			return String(this._selectionIdx);
+
+		} else if (name === 'CURSOR_NUMBER') {
+			return String(this._selectionIdx + 1);
 		}
 		return undefined;
 	}
@@ -226,14 +235,15 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 export class CommentBasedVariableResolver implements VariableResolver {
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _selection: Selection
+		private readonly _selection: Selection,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		//
 	}
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
 		const langId = this._model.getLanguageIdAtPosition(this._selection.selectionStartLineNumber, this._selection.selectionStartColumn);
-		const config = LanguageConfigurationRegistry.getComments(langId);
+		const config = this._languageConfigurationService.getLanguageConfiguration(langId).comments;
 		if (!config) {
 			return undefined;
 		}
@@ -283,6 +293,14 @@ export class TimeBasedVariableResolver implements VariableResolver {
 			return TimeBasedVariableResolver.monthNamesShort[this._date.getMonth()];
 		} else if (name === 'CURRENT_SECONDS_UNIX') {
 			return String(Math.floor(this._date.getTime() / 1000));
+		} else if (name === 'CURRENT_TIMEZONE_OFFSET') {
+			const rawTimeOffset = this._date.getTimezoneOffset();
+			const sign = rawTimeOffset > 0 ? '-' : '+';
+			const hours = Math.trunc(Math.abs(rawTimeOffset / 60));
+			const hoursString = (hours < 10 ? '0' + hours : hours);
+			const minutes = Math.abs(rawTimeOffset) - hours * 60;
+			const minutesString = (minutes < 10 ? '0' + minutes : minutes);
+			return sign + hoursString + ':' + minutesString;
 		}
 
 		return undefined;
@@ -302,7 +320,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		}
 
 		const workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
-		if (!workspaceIdentifier) {
+		if (isEmptyWorkspaceIdentifier(workspaceIdentifier)) {
 			return undefined;
 		}
 
@@ -330,7 +348,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			return normalizeDriveLetter(workspaceIdentifier.uri.fsPath);
 		}
 
-		let filename = path.basename(workspaceIdentifier.configPath.path);
+		const filename = path.basename(workspaceIdentifier.configPath.path);
 		let folderpath = workspaceIdentifier.configPath.fsPath;
 		if (folderpath.endsWith(filename)) {
 			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);

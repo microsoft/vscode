@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { ISaveOptions, IRevertOptions, SaveReason, SaveSource } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
@@ -93,6 +93,19 @@ export interface IWorkingCopyIdentifier {
 	readonly resource: URI;
 }
 
+export interface IWorkingCopySaveEvent {
+
+	/**
+	 * The reason why the working copy was saved.
+	 */
+	readonly reason?: SaveReason;
+
+	/**
+	 * The source of the working copy save request.
+	 */
+	readonly source?: SaveSource;
+}
+
 /**
  * A working copy is an abstract concept to unify handling of
  * data that can be worked on (e.g. edited) in an editor.
@@ -131,6 +144,12 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	 * (unless this working copy is untitled) and backups.
 	 */
 	readonly onDidChangeContent: Event<void>;
+
+	/**
+	 * Used by the workbench e.g. to track local history
+	 * (unless this working copy is untitled).
+	 */
+	readonly onDidSave: Event<IWorkingCopySaveEvent>;
 
 	//#endregion
 

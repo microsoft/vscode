@@ -8,7 +8,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILink } from 'vs/editor/common/languages';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/contrib/output/common/output';
+import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/services/output/common/output';
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/browser/services/webWorker';
 import { ICreateData, OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';

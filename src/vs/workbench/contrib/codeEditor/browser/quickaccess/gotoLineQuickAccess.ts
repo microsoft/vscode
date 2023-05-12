@@ -66,18 +66,13 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
-	ctor: GotoLineQuickAccessProvider,
-	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
-	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
-	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), needsEditor: true }]
-});
-
 class GotoLineAction extends Action2 {
+
+	static readonly ID = 'workbench.action.gotoLine';
 
 	constructor() {
 		super({
-			id: 'workbench.action.gotoLine',
+			id: GotoLineAction.ID,
 			title: { value: localize('gotoLine', "Go to Line/Column..."), original: 'Go to Line/Column...' },
 			f1: true,
 			keybinding: {
@@ -95,3 +90,10 @@ class GotoLineAction extends Action2 {
 }
 
 registerAction2(GotoLineAction);
+
+Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: GotoLineQuickAccessProvider,
+	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
+	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
+	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), commandId: GotoLineAction.ID }]
+});

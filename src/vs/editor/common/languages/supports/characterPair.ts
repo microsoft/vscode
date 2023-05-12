@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration, CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
+import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 
 export class CharacterPairSupport {
 
-	static readonly DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED = ';:.,=}])> \n\t';
+	static readonly DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED_QUOTES = ';:.,=}])> \n\t';
+	static readonly DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED_BRACKETS = '\'"`;:.,=}])> \n\t';
 	static readonly DEFAULT_AUTOCLOSE_BEFORE_WHITESPACE = ' \n\t';
 
 	private readonly _autoClosingPairs: StandardAutoClosingPairConditional[];
 	private readonly _surroundingPairs: IAutoClosingPair[];
-	private readonly _autoCloseBefore: string;
-	private readonly _colorizedBracketPairs: CharacterPair[];
+	private readonly _autoCloseBeforeForQuotes: string;
+	private readonly _autoCloseBeforeForBrackets: string;
 
 	constructor(config: LanguageConfiguration) {
 		if (config.autoClosingPairs) {
@@ -24,27 +25,14 @@ export class CharacterPairSupport {
 			this._autoClosingPairs = [];
 		}
 
-		if (config.colorizedBracketPairs) {
-			this._colorizedBracketPairs = filterValidBrackets(config.colorizedBracketPairs.map(b => [b[0], b[1]]));
-		} else if (config.brackets) {
-			this._colorizedBracketPairs = filterValidBrackets(config.brackets
-				.map((b) => [b[0], b[1]] as [string, string])
-				// Many languages set < ... > as bracket pair, even though they also use it as comparison operator.
-				// This leads to problems when colorizing this bracket, so we exclude it by default.
-				// Languages can still override this by configuring `colorizedBracketPairs`
-				// https://github.com/microsoft/vscode/issues/132476
-				.filter((p) => !(p[0] === '<' && p[1] === '>')));
-		} else {
-			this._colorizedBracketPairs = [];
-		}
-
 		if (config.__electricCharacterSupport && config.__electricCharacterSupport.docComment) {
 			const docComment = config.__electricCharacterSupport.docComment;
 			// IDocComment is legacy, only partially supported
 			this._autoClosingPairs.push(new StandardAutoClosingPairConditional({ open: docComment.open, close: docComment.close || '' }));
 		}
 
-		this._autoCloseBefore = typeof config.autoCloseBefore === 'string' ? config.autoCloseBefore : CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
+		this._autoCloseBeforeForQuotes = typeof config.autoCloseBefore === 'string' ? config.autoCloseBefore : CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED_QUOTES;
+		this._autoCloseBeforeForBrackets = typeof config.autoCloseBefore === 'string' ? config.autoCloseBefore : CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED_BRACKETS;
 
 		this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
 	}
@@ -53,19 +41,11 @@ export class CharacterPairSupport {
 		return this._autoClosingPairs;
 	}
 
-	public getAutoCloseBeforeSet(): string {
-		return this._autoCloseBefore;
+	public getAutoCloseBeforeSet(forQuotes: boolean): string {
+		return (forQuotes ? this._autoCloseBeforeForQuotes : this._autoCloseBeforeForBrackets);
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {
 		return this._surroundingPairs;
 	}
-
-	public getColorizedBrackets(): readonly CharacterPair[] {
-		return this._colorizedBracketPairs;
-	}
-}
-
-function filterValidBrackets(bracketPairs: [string, string][]): [string, string][] {
-	return bracketPairs.filter(([open, close]) => open !== '' && close !== '');
 }

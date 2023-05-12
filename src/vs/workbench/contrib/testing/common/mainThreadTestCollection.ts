@@ -5,12 +5,15 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
+import { ResourceMap } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
 
 export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
+	private testsByUrl = new ResourceMap<Set<IncrementalTestCollectionItem>>();
+
 	private busyProvidersChangeEmitter = new Emitter<number>();
-	private retireTestEmitter = new Emitter<string>();
 	private expandPromises = new WeakMap<IncrementalTestCollectionItem, {
 		pendingLvl: number;
 		doneLvl: number;
@@ -43,7 +46,6 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	}
 
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
-	public readonly onDidRetireTest = this.retireTestEmitter.event;
 
 	constructor(private readonly expandActual: (id: string, levels: number) => Promise<void>) {
 		super();
@@ -83,6 +85,13 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	/**
 	 * @inheritdoc
 	 */
+	public getNodeByUrl(uri: URI): Iterable<IncrementalTestCollectionItem> {
+		return this.testsByUrl.get(uri) || Iterable.empty();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	public getReviverDiff() {
 		const ops: TestsDiff = [{ op: TestDiffOpType.IncrementPendingExtHosts, amount: this.pendingRootCount }];
 
@@ -91,11 +100,11 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 			for (const child of queue.pop()!) {
 				const item = this.items.get(child)!;
 				ops.push({
-					op: TestDiffOpType.Add, item: {
+					op: TestDiffOpType.Add,
+					item: {
 						controllerId: item.controllerId,
 						expand: item.expand,
 						item: item.item,
-						parent: item.parent,
 					}
 				});
 				queue.push(item.children);
@@ -109,7 +118,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 * Applies the diff to the collection.
 	 */
 	public override apply(diff: TestsDiff) {
-		let prevBusy = this.busyControllerCount;
+		const prevBusy = this.busyControllerCount;
 		super.apply(diff);
 
 		if (prevBusy !== this.busyControllerCount) {
@@ -140,11 +149,38 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 		return { ...internal, children: new Set() };
 	}
 
-	/**
-	 * @override
-	 */
-	protected override retireTest(testId: string) {
-		this.retireTestEmitter.fire(testId);
+	private readonly changeCollector: IncrementalChangeCollector<IncrementalTestCollectionItem> = {
+		add: node => {
+			if (!node.item.uri) {
+				return;
+			}
+
+			const s = this.testsByUrl.get(node.item.uri);
+			if (!s) {
+				this.testsByUrl.set(node.item.uri, new Set([node]));
+			} else {
+				s.add(node);
+			}
+		},
+		remove: node => {
+			if (!node.item.uri) {
+				return;
+			}
+
+			const s = this.testsByUrl.get(node.item.uri);
+			if (!s) {
+				return;
+			}
+
+			s.delete(node);
+			if (s.size === 0) {
+				this.testsByUrl.delete(node.item.uri);
+			}
+		},
+	};
+
+	protected override createChangeCollector(): IncrementalChangeCollector<IncrementalTestCollectionItem> {
+		return this.changeCollector;
 	}
 
 	private *getIterator() {

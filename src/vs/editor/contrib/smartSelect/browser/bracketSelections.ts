@@ -41,22 +41,23 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				resolve();
 				break;
 			}
-			let bracket = model.bracketPairs.findNextBracket(pos);
+			const bracket = model.bracketPairs.findNextBracket(pos);
 			if (!bracket) {
 				resolve();
 				break;
 			}
-			let d = Date.now() - t1;
+			const d = Date.now() - t1;
 			if (d > BracketSelectionRangeProvider._maxDuration) {
 				setTimeout(() => BracketSelectionRangeProvider._bracketsRightYield(resolve, round + 1, model, pos, ranges));
 				break;
 			}
-			const key = bracket.close[0];
-			if (bracket.isOpen) {
+			if (bracket.bracketInfo.isOpeningBracket) {
+				const key = bracket.bracketInfo.bracketText;
 				// wait for closing
-				let val = counts.has(key) ? counts.get(key)! : 0;
+				const val = counts.has(key) ? counts.get(key)! : 0;
 				counts.set(key, val + 1);
 			} else {
+				const key = bracket.bracketInfo.getOpeningBrackets()[0].bracketText;
 				// process closing
 				let val = counts.has(key) ? counts.get(key)! : 0;
 				val -= 1;
@@ -86,30 +87,31 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				resolve();
 				break;
 			}
-			let bracket = model.bracketPairs.findPrevBracket(pos);
+			const bracket = model.bracketPairs.findPrevBracket(pos);
 			if (!bracket) {
 				resolve();
 				break;
 			}
-			let d = Date.now() - t1;
+			const d = Date.now() - t1;
 			if (d > BracketSelectionRangeProvider._maxDuration) {
 				setTimeout(() => BracketSelectionRangeProvider._bracketsLeftYield(resolve, round + 1, model, pos, ranges, bucket));
 				break;
 			}
-			const key = bracket.close[0];
-			if (!bracket.isOpen) {
+			if (!bracket.bracketInfo.isOpeningBracket) {
+				const key = bracket.bracketInfo.getOpeningBrackets()[0].bracketText;
 				// wait for opening
-				let val = counts.has(key) ? counts.get(key)! : 0;
+				const val = counts.has(key) ? counts.get(key)! : 0;
 				counts.set(key, val + 1);
 			} else {
+				const key = bracket.bracketInfo.bracketText;
 				// opening
 				let val = counts.has(key) ? counts.get(key)! : 0;
 				val -= 1;
 				counts.set(key, Math.max(0, val));
 				if (val < 0) {
-					let list = ranges.get(key);
+					const list = ranges.get(key);
 					if (list) {
-						let closing = list.shift();
+						const closing = list.shift();
 						if (list.size === 0) {
 							ranges.delete(key);
 						}

@@ -57,9 +57,7 @@ export class MainThreadProgress implements MainThreadProgressShape {
 
 	$progressReport(handle: number, message: IProgressStep): void {
 		const entry = this._progress.get(handle);
-		if (entry) {
-			entry.progress.report(message);
-		}
+		entry?.progress.report(message);
 	}
 
 	$progressEnd(handle: number): void {

@@ -8,7 +8,7 @@ import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from '
 import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModel, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { memoize } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -36,16 +36,9 @@ export interface IObjectTreeSetChildrenOptions<T> {
 	readonly diffIdentityProvider?: IIdentityProvider<T>;
 }
 
-export interface IObjectTreeViewState {
-	readonly focus: string[];
-	readonly selection: string[];
-	readonly expanded: string[];
-	readonly scrollTop: number;
-}
-
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	protected override model!: IObjectTreeModel<T, TFilterData>;
+	protected declare model: IObjectTreeModel<T, TFilterData>;
 
 	override get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
 
@@ -59,7 +52,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
 	}
 
-	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
+	setChildren(element: T | null, children: Iterable<IObjectTreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
 		this.model.setChildren(element, children, options);
 	}
 
@@ -140,13 +133,9 @@ class CompressibleRenderer<T extends NonNullable<any>, TFilterData, TTemplateDat
 
 	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: CompressibleTemplateData<T, TFilterData, TTemplateData>, height: number | undefined): void {
 		if (templateData.compressedTreeNode) {
-			if (this.renderer.disposeCompressedElements) {
-				this.renderer.disposeCompressedElements(templateData.compressedTreeNode, index, templateData.data, height);
-			}
+			this.renderer.disposeCompressedElements?.(templateData.compressedTreeNode, index, templateData.data, height);
 		} else {
-			if (this.renderer.disposeElement) {
-				this.renderer.disposeElement(node, index, templateData.data, height);
-			}
+			this.renderer.disposeElement?.(node, index, templateData.data, height);
 		}
 	}
 
@@ -201,7 +190,7 @@ export interface ICompressibleObjectTreeOptionsUpdate extends IAbstractTreeOptio
 
 export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
 
-	protected override model!: CompressibleObjectTreeModel<T, TFilterData>;
+	protected declare model: CompressibleObjectTreeModel<T, TFilterData>;
 
 	constructor(
 		user: string,

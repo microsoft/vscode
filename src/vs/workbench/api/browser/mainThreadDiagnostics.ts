@@ -53,8 +53,8 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	}
 
 	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
-		for (let entry of entries) {
-			let [uri, markers] = entry;
+		for (const entry of entries) {
+			const [uri, markers] = entry;
 			if (markers) {
 				for (const marker of markers) {
 					if (marker.relatedInformation) {
