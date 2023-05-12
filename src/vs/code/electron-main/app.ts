@@ -935,17 +935,11 @@ export class CodeApplication extends Disposable {
 		const ptyHostService = new PtyHostService(
 			ptyHostStarter,
 			this.configurationService,
-			this.lifecycleMainService,
 			this.logService,
 			this.loggerService
 		);
 		ptyHostService.initialize();
 		services.set(ILocalPtyService, ptyHostService);
-		// services.set(ILocalPtyService, new SyncDescriptor(PtyHostService, [
-		// 	ptyHostStarter,
-		// 	this.configurationService,
-		// 	this.logService
-		// ]));
 
 		// External terminal
 		if (isWindows) {
