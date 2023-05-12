@@ -148,6 +148,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 			this.history.add(editorValue);
 		}
 		this._inputEditor.focus();
+		this._inputEditor.setValue('');
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IInteractiveSessionWidget) {
