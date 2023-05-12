@@ -208,11 +208,11 @@ export class ReferencesModel implements IDisposable {
 		if (this.isEmpty) {
 			return localize('aria.result.0', "No results found");
 		} else if (this.references.length === 1) {
-			return localize('aria.result.1', "Found 1 in {0}", this.references[0].uri.fsPath);
+			return localize('aria.result.1', "Found 1 symbol in {0}", this.references[0].uri.fsPath);
 		} else if (this.groups.length === 1) {
-			return localize('aria.result.n1', "Found {0} in {1}", this.references.length, this.groups[0].uri.fsPath);
+			return localize('aria.result.n1', "Found {0} symbols in {1}", this.references.length, this.groups[0].uri.fsPath);
 		} else {
-			return localize('aria.result.nm', "Found {0} in {1} files", this.references.length, this.groups.length);
+			return localize('aria.result.nm', "Found {0} symbols in {1} files", this.references.length, this.groups.length);
 		}
 	}
 
