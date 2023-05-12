@@ -178,7 +178,6 @@ export function registerInteractiveSessionActions() {
 		}
 	});
 
-
 	registerAction2(class FocusInteractiveSessionInputAction extends Action2 {
 		constructor() {
 			super({
