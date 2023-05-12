@@ -930,9 +930,10 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 	private readonly dataTransfers = new DataTransferFileCache();
 
 	public readonly copyMimeTypes?: readonly string[];
-	public readonly pasteMimeTypes: readonly string[];
+	public readonly pasteMimeTypes?: readonly string[];
 
 	readonly prepareDocumentPaste?: languages.DocumentPasteEditProvider['prepareDocumentPaste'];
+	readonly provideDocumentPasteEdits?: languages.DocumentPasteEditProvider['provideDocumentPasteEdits'];
 
 	constructor(
 		private readonly handle: number,
@@ -962,27 +963,29 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 				return dataTransferOut;
 			};
 		}
-	}
 
-	async provideDocumentPasteEdits(model: ITextModel, selections: Selection[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken) {
-		const request = this.dataTransfers.add(dataTransfer);
-		try {
-			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
-			if (token.isCancellationRequested) {
-				return;
-			}
+		if (metadata.supportsPaste) {
+			this.provideDocumentPasteEdits = async (model: ITextModel, selections: Selection[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken) => {
+				const request = this.dataTransfers.add(dataTransfer);
+				try {
+					const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+					if (token.isCancellationRequested) {
+						return;
+					}
 
-			const result = await this._proxy.$providePasteEdits(this.handle, request.id, model.uri, selections, dataTransferDto, token);
-			if (!result) {
-				return;
-			}
+					const result = await this._proxy.$providePasteEdits(this.handle, request.id, model.uri, selections, dataTransferDto, token);
+					if (!result) {
+						return;
+					}
 
-			return {
-				...result,
-				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
+					return {
+						...result,
+						additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
+					};
+				} finally {
+					request.dispose();
+				}
 			};
-		} finally {
-			request.dispose();
 		}
 	}
 

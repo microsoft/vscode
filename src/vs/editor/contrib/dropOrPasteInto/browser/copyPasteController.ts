@@ -133,7 +133,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				return;
 			}
 
-			ranges = ranges.map(range => new Range(range.startLineNumber, 0, range.startLineNumber, model.getLineLength(range.startLineNumber)));
+			ranges = [new Range(ranges[0].startLineNumber, 1, ranges[0].startLineNumber, 1 + model.getLineLength(ranges[0].startLineNumber))];
 		}
 
 		const toCopy = this._editor._getViewModel()?.getPlainTextToCopy(selections, enableEmptySelectionClipboard, platform.isWindows);
@@ -219,7 +219,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 		const allProviders = this._languageFeaturesService.documentPasteEditProvider
 			.ordered(model)
-			.filter(provider => provider.pasteMimeTypes.some(type => matchesMimeType(type, allPotentialMimeTypes)));
+			.filter(provider => provider.pasteMimeTypes?.some(type => matchesMimeType(type, allPotentialMimeTypes)));
 		if (!allProviders.length) {
 			return;
 		}
@@ -253,7 +253,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				// Filter out any providers the don't match the full data transfer we will send them.
-				const supportedProviders = allProviders.filter(provider => isSupportedProvider(provider, dataTransfer));
+				const supportedProviders = allProviders.filter(provider => isSupportedPasteProvider(provider, dataTransfer));
 				if (!supportedProviders.length
 					|| (supportedProviders.length === 1 && supportedProviders[0].id === 'text') // Only our default text provider is active
 				) {
@@ -300,7 +300,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				// Filter out any providers the don't match the full data transfer we will send them.
-				const supportedProviders = allProviders.filter(provider => isSupportedProvider(provider, dataTransfer));
+				const supportedProviders = allProviders.filter(provider => isSupportedPasteProvider(provider, dataTransfer));
 
 				const providerEdits = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, tokenSource.token);
 				if (tokenSource.token.isCancellationRequested) {
@@ -392,7 +392,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: readonly Selection[], token: CancellationToken): Promise<DocumentPasteEdit[]> {
 		const result = await raceCancellation(
 			Promise.all(
-				providers.map(provider => provider.provideDocumentPasteEdits(model, selections, dataTransfer, token))
+				providers.map(provider => provider.provideDocumentPasteEdits?.(model, selections, dataTransfer, token))
 			).then(coalesce),
 			token);
 		result?.sort((a, b) => b.priority - a.priority);
@@ -420,6 +420,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 }
 
-function isSupportedProvider(provider: DocumentPasteEditProvider, dataTransfer: VSDataTransfer): boolean {
-	return provider.pasteMimeTypes.some(type => dataTransfer.matches(type));
+function isSupportedPasteProvider(provider: DocumentPasteEditProvider, dataTransfer: VSDataTransfer): boolean {
+	return Boolean(provider.pasteMimeTypes?.some(type => dataTransfer.matches(type)));
 }
