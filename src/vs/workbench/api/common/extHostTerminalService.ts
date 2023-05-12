@@ -830,7 +830,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
 		return {
-			...collection.getScopedEnvironmentVariableCollection(undefined), getScopedEnvironmentVariableCollection(scope) {
+			...collection.getScopedEnvironmentVariableCollection(undefined),
+			getScopedEnvironmentVariableCollection(scope) {
 				return collection!.getScopedEnvironmentVariableCollection(scope);
 			},
 		};
