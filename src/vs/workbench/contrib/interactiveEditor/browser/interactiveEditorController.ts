@@ -144,22 +144,20 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._logService.trace('[IE] session done or paused');
 	}
 
+	// ---- state machine
+
 	private async _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {
 		this._logService.trace('[IE] setState to ', state);
 		let nextState: State | undefined;
 		switch (state) {
 			case State.CREATE_SESSION:
 				nextState = await this._createSession(options);
-				delete options?.initialRange;
-				delete options?.existingSession;
 				break;
 			case State.INIT_UI:
 				nextState = await this._initUI();
 				break;
 			case State.WAIT_FOR_INPUT:
 				nextState = await this._waitForInput(options);
-				delete options?.message;
-				delete options?.autoSend;
 				break;
 			case State.MAKE_REQUEST:
 				nextState = await this._makeRequest();
@@ -203,6 +201,9 @@ export class InteractiveEditorController implements IEditorContribution {
 			createSessionCts.dispose();
 			msgListener.dispose();
 		}
+
+		delete options?.initialRange;
+		delete options?.existingSession;
 
 		if (!session) {
 			return State.DONE;
@@ -303,11 +304,13 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (options?.message) {
 			this._zone.widget.value = options?.message;
 			this._zone.widget.selectAll();
+			delete options?.message;
 		}
 
 		let message = Message.NONE;
 		if (options?.autoSend) {
 			message = Message.ACCEPT_INPUT;
+			delete options?.autoSend;
 
 		} else {
 			const barrier = new Barrier();
