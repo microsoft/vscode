@@ -16,12 +16,10 @@ declare module 'vscode' {
 		OpenBrowserOnce = 6
 	}
 
+	/**
+	 * The attributes that a forwarded port can have.
+	 */
 	export class PortAttributes {
-		/**
-		 * The port number associated with this this set of attributes.
-		 */
-		port: number;
-
 		/**
 		 * The action to be taken when this port is detected for auto forwarding.
 		 */
@@ -32,9 +30,12 @@ declare module 'vscode' {
 		 * @param port the port number
 		 * @param autoForwardAction the action to take when this port is detected
 		 */
-		constructor(port: number, autoForwardAction: PortAutoForwardAction);
+		constructor(port: number /* TODO@alexr00 delete port*/, autoForwardAction: PortAutoForwardAction);
 	}
 
+	/**
+	 * A provider of port attributes. Port attributes are used to determine what action should be taken when a port is discovered.
+	 */
 	export interface PortAttributesProvider {
 		/**
 		 * Provides attributes for the given port. For ports that your extension doesn't know about, simply
@@ -55,8 +56,9 @@ declare module 'vscode' {
 		 * know the range of ports or the pid of your process. All properties of a the portSelector must be true for your
 		 * provider to get called.
 		 * The `portRange` is start inclusive and end exclusive.
+		 * The `commandPattern` is a regular expression that will be matched against the command line of the process.
 		 * @param provider The PortAttributesProvider
 		 */
-		export function registerPortAttributesProvider(portSelector: { pid?: number; portRange?: [number, number]; commandMatcher?: RegExp }, provider: PortAttributesProvider): Disposable;
+		export function registerPortAttributesProvider(portSelector: { pid?: number; portRange?: [number, number]; commandPattern?: RegExp }, provider: PortAttributesProvider): Disposable;
 	}
 }
