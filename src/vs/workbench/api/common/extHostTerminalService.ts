@@ -50,7 +50,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
-	getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection };
+	getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection | { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection };
 }
 
 export interface ITerminalInternalOptions {
@@ -823,7 +823,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return index;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection } {
+	public getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection | { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection } {
 		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 		if (!collection) {
 			collection = new EnvironmentVariableCollection();
