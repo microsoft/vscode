@@ -873,10 +873,25 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 class EnvironmentVariableCollection {
 	readonly map: Map<string, IEnvironmentVariableMutator> = new Map();
-	readonly descriptionMap: Map<string, IEnvironmentDescriptionMutator> = new Map();
 	readonly scopedCollections: Map<string, vscode.EnvironmentVariableCollection & { onDidChangeCollection: Event<void> }> = new Map();
+	readonly keyToScope = new Map<string, vscode.EnvironmentVariableScope | undefined>();
 	private _persistent: boolean = true;
 
+	public get descriptionMap(): Map<string, IEnvironmentDescriptionMutator> {
+		const descriptionMap: Map<string, IEnvironmentDescriptionMutator> = new Map();
+		this.scopedCollections.forEach((collection, scopeKey) => {
+			const description = collection.description;
+			let descriptionStr: string | undefined;
+			if (typeof description === 'string') {
+				descriptionStr = description;
+			} else {
+				// Only take the description before the first `\n\n`, so that the description doesn't mess up the UI
+				descriptionStr = description?.value.split('\n\n')[0];
+			}
+			descriptionMap.set(scopeKey, { description: descriptionStr, scope: this.keyToScope.get(scopeKey) });
+		});
+		return descriptionMap;
+	}
 	public get persistent(): boolean { return this._persistent; }
 	public set persistent(value: boolean) {
 		this._persistent = value;
@@ -902,6 +917,7 @@ class EnvironmentVariableCollection {
 		if (!scopedCollection) {
 			scopedCollection = new ScopedEnvironmentVariableCollection(this.getScopedMap(scope), this.getDescription(scope));
 			this.scopedCollections.set(scopedCollectionKey, scopedCollection);
+			this.keyToScope.set(scopedCollectionKey, scope);
 			scopedCollection.onDidChangeCollection(() => this._onDidChangeCollection.fire());
 		}
 		return scopedCollection;
@@ -941,7 +957,7 @@ class EnvironmentVariableCollection {
 		const scopedMap = new Map<string, IEnvironmentVariableMutator>();
 		const scopeKey = this.getScopeKey(scope);
 		for (const [key, value] of this.map.entries()) {
-			if (key.endsWith(scopeKey)) {
+			if (key === scopeKey) {
 				scopedMap.set(key, value);
 			}
 		}
@@ -1015,6 +1031,10 @@ class EnvironmentVariableCollection {
 			this.descriptionMap.set(key, value);
 			this._onDidChangeCollection.fire();
 		}
+	}
+
+	private getDescriptionMap(scope?: vscode.EnvironmentVariableScope): Map<string, IEnvironmentDescriptionMutator> {
+
 	}
 
 	private getDescription(scope?: vscode.EnvironmentVariableScope): string | vscode.MarkdownString | undefined {
