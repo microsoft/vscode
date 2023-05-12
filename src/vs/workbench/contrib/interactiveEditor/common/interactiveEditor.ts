@@ -160,7 +160,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('editMode', "Configure if changes crafted in the interactive editor are applied directly or previewed first"),
 			default: EditMode.LivePreview,
 			type: 'string',
-			enum: [EditMode.Live, EditMode.LivePreview, EditMode.Preview]
+			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live]
 		}
 	}
 });

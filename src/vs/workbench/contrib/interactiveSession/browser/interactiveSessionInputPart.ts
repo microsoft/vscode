@@ -96,9 +96,9 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		const verbose = this.configurationService.getValue<boolean>('accessibility.verbosity.interactiveSessionInput');
 		if (verbose) {
 			const kbLabel = this.keybindingService.lookupKeybinding('interactiveSession.action.accessibilityHelp')?.getLabel();
-			return kbLabel ? localize('interactiveSessionInput.accessibilityHelp', "Interactive Session Input,  Type code here and press Enter to run. Use {0} for Interactive Session Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Interactive Session Input,  Type code here and press Enter to run. Use the Interactive Session Accessibility Help command for more information.");
+			return kbLabel ? localize('interactiveSessionInput.accessibilityHelp', "Chat Input,  Type code here and press Enter to run. Use {0} for Interactive Session Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Interactive Session Accessibility Help command for more information.");
 		}
-		return localize('interactiveSessionInput', "Interactive Session Input");
+		return localize('interactiveSessionInput', "Chat Input");
 	}
 
 	setState(providerId: string, inputValue: string): void {

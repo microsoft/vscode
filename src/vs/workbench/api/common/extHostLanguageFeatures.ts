@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -510,7 +510,7 @@ class DocumentPasteEditProvider {
 
 	async prepareDocumentPaste(resource: URI, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.DataTransferDTO | undefined> {
 		if (!this._provider.prepareDocumentPaste) {
-			return undefined;
+			return;
 		}
 
 		const doc = this._documents.getDocument(resource);
@@ -520,11 +520,20 @@ class DocumentPasteEditProvider {
 			throw new NotImplementedError();
 		});
 		await this._provider.prepareDocumentPaste(doc, vscodeRanges, dataTransfer, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 
-		return typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
+		// Only send back values that have been added to the data transfer
+		const entries = Array.from(dataTransfer).filter(([, value]) => !(value instanceof InternalDataTransferItem));
+		return typeConvert.DataTransfer.from(entries);
 	}
 
 	async providePasteEdits(requestId: number, resource: URI, ranges: IRange[], dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<undefined | extHostProtocol.IPasteEditDto> {
+		if (!this._provider.provideDocumentPasteEdits) {
+			return;
+		}
+
 		const doc = this._documents.getDocument(resource);
 		const vscodeRanges = ranges.map(range => typeConvert.Range.to(range));
 
@@ -2415,6 +2424,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._adapter.set(handle, new AdapterData(new DocumentPasteEditProvider(this._proxy, this._documents, provider, handle, extension), extension));
 		this._proxy.$registerPasteEditProvider(handle, this._transformDocumentSelector(selector, extension), {
 			supportsCopy: !!provider.prepareDocumentPaste,
+			supportsPaste: !!provider.provideDocumentPasteEdits,
 			copyMimeTypes: metadata.copyMimeTypes,
 			pasteMimeTypes: metadata.pasteMimeTypes,
 		});
