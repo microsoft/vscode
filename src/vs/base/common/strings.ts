@@ -403,6 +403,15 @@ export function startsWithIgnoreCase(str: string, candidate: string): boolean {
 	return compareSubstringIgnoreCase(str, candidate, 0, candidateLength) === 0;
 }
 
+export function endsWithIgnoreCase(str: string, candidate: string): boolean {
+	const candidateLength = candidate.length;
+	if (candidateLength > str.length) {
+		return false;
+	}
+
+	return compareSubstringIgnoreCase(str, candidate, str.length - candidateLength) === 0;
+}
+
 /**
  * @returns the length of the common prefix of the two strings.
  */

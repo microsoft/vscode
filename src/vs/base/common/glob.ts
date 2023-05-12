@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
+import { equals as arrayEquals } from 'vs/base/common/arrays';
 import { isThenable } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { LRUCache } from 'vs/base/common/map';
 import { basename, extname, posix, sep } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
-import { escapeRegExpCharacters, ltrim } from 'vs/base/common/strings';
+import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim } from 'vs/base/common/strings';
 
 export interface IRelativePattern {
 
@@ -264,10 +264,25 @@ const T3_2 = /^{\*\*\/\*?[\w\.-]+(\/(\*\*)?)?(,\*\*\/\*?[\w\.-]+(\/(\*\*)?)?)*}$
 const T4 = /^\*\*((\/[\w\.-]+)+)\/?$/; 												// **/something/else
 const T5 = /^([\w\.-]+(\/[\w\.-]+)*)\/?$/; 											// something/else
 
+function endsWith(str: string, candidate: string, ignoreCase: boolean | undefined): boolean {
+	if (ignoreCase) {
+		return endsWithIgnoreCase(str, candidate);
+	}
+
+	return str.endsWith(candidate);
+}
+
+function equals(a: string, b: string, ignoreCase: boolean | undefined): boolean {
+	if (ignoreCase) {
+		return equalsIgnoreCase(a, b);
+	}
+
+	return a === b;
+}
+
 export type ParsedPattern = (path: string, basename?: string) => boolean;
 
-// The `ParsedExpression` returns a `Promise`
-// iff `hasSibling` returns a `Promise`.
+// The `ParsedExpression` returns a `Promise` if `hasSibling` returns a `Promise`.
 export type ParsedExpression = (path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>) => string | null | Promise<string | null> /* the matching pattern */;
 
 interface IGlobOptions {
@@ -278,6 +293,11 @@ interface IGlobOptions {
 	 * outside of a tree traversal.
 	 */
 	trimForExclusions?: boolean;
+
+	/**
+	 * Match the glob pattern case insensitive.
+	 */
+	caseInsensitive?: boolean;
 }
 
 interface ParsedStringPattern {
@@ -322,7 +342,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	pattern = pattern.trim();
 
 	// Check cache
-	const patternKey = `${pattern}_${!!options.trimForExclusions}`;
+	const patternKey = `${pattern}_${!!options.trimForExclusions}_${!!options.caseInsensitive}`;
 	let parsedPattern = CACHE.get(patternKey);
 	if (parsedPattern) {
 		return wrapRelativePattern(parsedPattern, arg1);
@@ -331,20 +351,20 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	// Check for Trivials
 	let match: RegExpExecArray | null;
 	if (T1.test(pattern)) {
-		parsedPattern = trivia1(pattern.substr(4), pattern); 			// common pattern: **/*.txt just need endsWith check
+		parsedPattern = trivia1(pattern.substr(4), pattern, options); 			// common pattern: **/*.txt just need endsWith check
 	} else if (match = T2.exec(trimForExclusions(pattern, options))) { 	// common pattern: **/some.txt just need basename check
-		parsedPattern = trivia2(match[1], pattern);
+		parsedPattern = trivia2(match[1], pattern, options);
 	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { // repetition of common patterns (see above) {**/*.txt,**/*.png}
 		parsedPattern = trivia3(pattern, options);
 	} else if (match = T4.exec(trimForExclusions(pattern, options))) { 	// common pattern: **/something/else just need endsWith check
-		parsedPattern = trivia4and5(match[1].substr(1), pattern, true);
+		parsedPattern = trivia4and5(match[1].substr(1), pattern, true, options);
 	} else if (match = T5.exec(trimForExclusions(pattern, options))) { 	// common pattern: something/else just need equals check
-		parsedPattern = trivia4and5(match[1], pattern, false);
+		parsedPattern = trivia4and5(match[1], pattern, false, options);
 	}
 
 	// Otherwise convert to pattern
 	else {
-		parsedPattern = toRegExp(pattern);
+		parsedPattern = toRegExp(pattern, options);
 	}
 
 	// Cache
@@ -389,14 +409,14 @@ function trimForExclusions(pattern: string, options: IGlobOptions): string {
 }
 
 // common pattern: **/*.txt just need endsWith check
-function trivia1(base: string, pattern: string): ParsedStringPattern {
+function trivia1(base: string, pattern: string, options: IGlobOptions): ParsedStringPattern {
 	return function (path: string, basename?: string) {
-		return typeof path === 'string' && path.endsWith(base) ? pattern : null;
+		return typeof path === 'string' && endsWith(path, base, options.caseInsensitive) ? pattern : null;
 	};
 }
 
 // common pattern: **/some.txt just need basename check
-function trivia2(base: string, pattern: string): ParsedStringPattern {
+function trivia2(base: string, pattern: string, options: IGlobOptions): ParsedStringPattern {
 	const slashBase = `/${base}`;
 	const backslashBase = `\\${base}`;
 
@@ -406,10 +426,10 @@ function trivia2(base: string, pattern: string): ParsedStringPattern {
 		}
 
 		if (basename) {
-			return basename === base ? pattern : null;
+			return equals(basename, base, options.caseInsensitive) ? pattern : null;
 		}
 
-		return path === base || path.endsWith(slashBase) || path.endsWith(backslashBase) ? pattern : null;
+		return equals(path, base, options.caseInsensitive) || endsWith(path, slashBase, options.caseInsensitive) || endsWith(path, backslashBase, options.caseInsensitive) ? pattern : null;
 	};
 
 	const basenames = [base];
@@ -460,7 +480,7 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 }
 
 // common patterns: **/something/else just need endsWith check, something/else just needs and equals check
-function trivia4and5(targetPath: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
+function trivia4and5(targetPath: string, pattern: string, matchPathEnds: boolean, options: IGlobOptions): ParsedStringPattern {
 	const usingPosixSep = sep === posix.sep;
 	const nativePath = usingPosixSep ? targetPath : targetPath.replace(ALL_FORWARD_SLASHES, sep);
 	const nativePathEnd = sep + nativePath;
@@ -469,11 +489,11 @@ function trivia4and5(targetPath: string, pattern: string, matchPathEnds: boolean
 	let parsedPattern: ParsedStringPattern;
 	if (matchPathEnds) {
 		parsedPattern = function (path: string, basename?: string) {
-			return typeof path === 'string' && ((path === nativePath || path.endsWith(nativePathEnd)) || !usingPosixSep && (path === targetPath || path.endsWith(targetPathEnd))) ? pattern : null;
+			return typeof path === 'string' && ((equals(path, nativePath, options.caseInsensitive) || endsWith(path, nativePathEnd, options.caseInsensitive)) || !usingPosixSep && (equals(path, targetPath, options.caseInsensitive) || endsWith(path, targetPathEnd, options.caseInsensitive))) ? pattern : null;
 		};
 	} else {
 		parsedPattern = function (path: string, basename?: string) {
-			return typeof path === 'string' && (path === nativePath || (!usingPosixSep && path === targetPath)) ? pattern : null;
+			return typeof path === 'string' && (equals(path, nativePath, options.caseInsensitive) || (!usingPosixSep && equals(path, targetPath, options.caseInsensitive))) ? pattern : null;
 		};
 	}
 
@@ -482,9 +502,9 @@ function trivia4and5(targetPath: string, pattern: string, matchPathEnds: boolean
 	return parsedPattern;
 }
 
-function toRegExp(pattern: string): ParsedStringPattern {
+function toRegExp(pattern: string, options: IGlobOptions): ParsedStringPattern {
 	try {
-		const regExp = new RegExp(`^${parseRegExp(pattern)}$`);
+		const regExp = new RegExp(`^${parseRegExp(pattern)}$`, options.caseInsensitive ? 'i' : undefined);
 		return function (path: string) {
 			regExp.lastIndex = 0; // reset RegExp to its initial state to reuse it!
 
@@ -805,7 +825,7 @@ function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | Pa
 }
 
 export function patternsEquals(patternsA: Array<string | IRelativePattern> | undefined, patternsB: Array<string | IRelativePattern> | undefined): boolean {
-	return equals(patternsA, patternsB, (a, b) => {
+	return arrayEquals(patternsA, patternsB, (a, b) => {
 		if (typeof a === 'string' && typeof b === 'string') {
 			return a === b;
 		}

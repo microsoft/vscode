@@ -18,7 +18,7 @@ suite('Strings', () => {
 		assert(strings.equalsIgnoreCase('ÖL', 'Öl'));
 	});
 
-	test('beginsWithIgnoreCase', () => {
+	test('startsWithIgnoreCase', () => {
 		assert(strings.startsWithIgnoreCase('', ''));
 		assert(!strings.startsWithIgnoreCase('', '1'));
 		assert(strings.startsWithIgnoreCase('1', ''));
@@ -42,6 +42,32 @@ suite('Strings', () => {
 		assert(!strings.startsWithIgnoreCase('alles klar', 'öALLES K '));
 		assert(!strings.startsWithIgnoreCase('alles klar', ' '));
 		assert(!strings.startsWithIgnoreCase('alles klar', 'ö'));
+	});
+
+	test('endsWithIgnoreCase', () => {
+		assert(strings.endsWithIgnoreCase('', ''));
+		assert(!strings.endsWithIgnoreCase('', '1'));
+		assert(strings.endsWithIgnoreCase('1', ''));
+
+		assert(strings.endsWithIgnoreCase('a', 'a'));
+		assert(strings.endsWithIgnoreCase('abc', 'Abc'));
+		assert(strings.endsWithIgnoreCase('abc', 'ABC'));
+		assert(strings.endsWithIgnoreCase('Höhenmeter', 'HÖhenmeter'));
+		assert(strings.endsWithIgnoreCase('ÖL', 'Öl'));
+
+		assert(strings.endsWithIgnoreCase('alles klara', 'a'));
+		assert(strings.endsWithIgnoreCase('alles klarA', 'A'));
+		assert(strings.endsWithIgnoreCase('alles klar', 's klar'));
+		assert(strings.endsWithIgnoreCase('alles klar', 'S klar'));
+		assert(strings.endsWithIgnoreCase('alles klar', 'S KLAR'));
+		assert(strings.endsWithIgnoreCase('alles klar', 'alles klar'));
+		assert(strings.endsWithIgnoreCase('alles klar', 'ALLES KLAR'));
+
+		assert(!strings.endsWithIgnoreCase('alles klar', ' S KLAR'));
+		assert(!strings.endsWithIgnoreCase('alles klar', 'S KLAR '));
+		assert(!strings.endsWithIgnoreCase('alles klar', 'ÖS KLAR'));
+		assert(!strings.endsWithIgnoreCase('alles klar', ' '));
+		assert(!strings.endsWithIgnoreCase('alles klar', 'ö'));
 	});
 
 	test('compareIgnoreCase', () => {
