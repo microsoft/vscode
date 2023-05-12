@@ -1838,6 +1838,7 @@ export interface IPasteEditDto {
 	id: string;
 	label: string;
 	detail: string;
+	priority: number;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
 }
@@ -1849,6 +1850,7 @@ export interface IDocumentDropEditProviderMetadata {
 export interface IDocumentOnDropEditDto {
 	id: string;
 	label: string;
+	priority: number;
 	insertText: string | { snippet: string };
 	additionalEdit?: IWorkspaceEditDto;
 }

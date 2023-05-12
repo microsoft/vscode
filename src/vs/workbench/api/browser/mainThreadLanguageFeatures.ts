@@ -974,10 +974,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 			}
 
 			return {
-				id: result.id,
-				label: result.label,
-				detail: result.detail,
-				insertText: result.insertText,
+				...result,
 				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
 			};
 		} finally {
@@ -1014,9 +1011,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 				return undefined;
 			}
 			return {
-				id: edit.id,
-				label: edit.label,
-				insertText: edit.insertText,
+				...edit,
 				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
 			};
 		} finally {

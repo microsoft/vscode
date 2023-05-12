@@ -316,8 +316,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		// Pass the sequence along to the capability
-		const [command, ...args] = data.split(';');
-		switch (command) {
+		const argsIndex = data.indexOf(';');
+		const sequenceCommand = argsIndex === -1 ? data : data.substring(0, argsIndex);
+		// Cast to strict checked index access
+		const args: (string | undefined)[] = argsIndex === -1 ? [] : data.substring(argsIndex + 1).split(';');
+		switch (sequenceCommand) {
 			case VSCodeOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
 				return true;
@@ -328,18 +331,21 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
 			case VSCodeOscPt.CommandFinished: {
-				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				const arg0 = args[0];
+				const exitCode = arg0 !== undefined ? parseInt(arg0) : undefined;
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
 			}
 			case VSCodeOscPt.CommandLine: {
+				const arg0 = args[0];
+				const arg1 = args[1];
 				let commandLine: string;
-				if (args.length >= 1 || args.length <= 2) {
-					commandLine = deserializeMessage(args[0]);
+				if (arg0 !== undefined) {
+					commandLine = deserializeMessage(arg0);
 				} else {
 					commandLine = '';
 				}
-				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, args[1] === this._nonce);
+				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, arg1 === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.ContinuationStart: {
@@ -359,7 +365,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const deserialized = args.length ? deserializeMessage(args[0]) : '';
+				const arg0 = args[0];
+				const deserialized = arg0 !== undefined ? deserializeMessage(arg0) : '';
 				const { key, value } = parseKeyValueAssignment(deserialized);
 				if (value === undefined) {
 					return true;
@@ -539,10 +546,14 @@ export function parseKeyValueAssignment(message: string): { key: string; value: 
 }
 
 
-export function parseMarkSequence(sequence: string[]): { id?: string; hidden?: boolean } {
+export function parseMarkSequence(sequence: (string | undefined)[]): { id?: string; hidden?: boolean } {
 	let id = undefined;
 	let hidden = false;
 	for (const property of sequence) {
+		// Sanity check, this shouldn't happen in practice
+		if (property === undefined) {
+			continue;
+		}
 		if (property === 'Hidden') {
 			hidden = true;
 		}
