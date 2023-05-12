@@ -25,15 +25,15 @@ import { IInteractiveSessionDetail, IInteractiveSessionService } from 'vs/workbe
 import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export const INTERACTIVE_SESSION_CATEGORY = { value: localize('interactiveSession.category', "Interactive Session"), original: 'Interactive Session' };
+export const INTERACTIVE_SESSION_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 
 export function registerInteractiveSessionActions() {
 	registerEditorAction(class InteractiveSessionAcceptInput extends EditorAction {
 		constructor() {
 			super({
 				id: 'interactiveSession.action.acceptInput',
-				label: localize({ key: 'actions.ineractiveSession.acceptInput', comment: ['Apply input from the interactive session input box'] }, "Interactive Session Accept Input"),
-				alias: 'Interactive Session Accept Input',
+				label: localize({ key: 'actions.chat.acceptInput', comment: ['Apply input from the chat input box'] }, "Accept Chat Input"),
+				alias: 'Accept Chat Input',
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
 				kbOpts: {
 					kbExpr: EditorContextKeys.textInputFocus,
