@@ -159,8 +159,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			return;
 		}
 
-		// Schedule backup if dirty
-		if (workingCopy.isDirty()) {
+		// Schedule backup if dirty and any scratchpads
+		if (workingCopy.isDirty() || (workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad)) {
 			// this listener will make sure that the backup is
 			// pushed out for as long as the user is still changing
 			// the content of the working copy.

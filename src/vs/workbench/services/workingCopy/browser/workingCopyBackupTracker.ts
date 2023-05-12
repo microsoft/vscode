@@ -36,7 +36,7 @@ export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker im
 		// copies that have not been backed up yet and then prevent the
 		// shutdown if that is the case.
 
-		const dirtyWorkingCopies = this.workingCopyService.unsavedWorkingCopies;
+		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
 		if (!dirtyWorkingCopies.length) {
 			return false; // no dirty: no veto
 		}

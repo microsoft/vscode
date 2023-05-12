@@ -137,14 +137,15 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	//#region Dirty
 
-	private dirty = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markDirty !== false);
+	private dirty = !this.scratchPad &&
+		(this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markDirty !== false));
 
 	isDirty(): boolean {
 		return this.dirty;
 	}
 
 	private setDirty(dirty: boolean): void {
-		if (this.dirty === dirty) {
+		if (this.dirty === dirty || this.scratchPad) {
 			return;
 		}
 
@@ -191,7 +192,9 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		await this.doCreateModel(untitledContents);
 
 		// Untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markDirty !== false));
+		if (!this.scratchPad) {
+			this.setDirty(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markDirty !== false));
+		}
 
 		// If we have initial contents, make sure to emit this
 		// as the appropriate events to the outside.

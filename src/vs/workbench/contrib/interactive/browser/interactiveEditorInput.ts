@@ -113,8 +113,9 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		this._register(this.primary.onDidChangeCapabilities(() => this._onDidChangeCapabilities.fire()));
 	}
 
-	override isDirty() {
-		return false;
+	// interactive windows have content on creation and cannot be saved
+	override hasUnsavedContent() {
+		return true;
 	}
 
 	private async _resolveEditorModel() {

@@ -345,7 +345,7 @@ export class EditorsObserver extends Disposable {
 		let mostRecentEditorsCountingForLimit: IEditorIdentifier[];
 		if (this.editorGroupsService.partOptions.limit?.excludeDirty) {
 			mostRecentEditorsCountingForLimit = mostRecentEditors.filter(({ editor }) => {
-				if (editor.isDirty() && !editor.isSaving()) {
+				if (editor.hasUnsavedContent() && !editor.isSaving()) {
 					return false;
 				}
 
@@ -361,7 +361,7 @@ export class EditorsObserver extends Disposable {
 
 		// Extract least recently used editors that can be closed
 		const leastRecentlyClosableEditors = mostRecentEditorsCountingForLimit.reverse().filter(({ editor, groupId }) => {
-			if (editor.isDirty() && !editor.isSaving()) {
+			if (editor.hasUnsavedContent() && !editor.isSaving()) {
 				return false; // not dirty editors (unless in the process of saving)
 			}
 
