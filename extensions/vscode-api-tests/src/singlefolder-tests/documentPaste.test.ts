@@ -50,7 +50,7 @@ const textPlain = 'text/plain';
 					// text/plain includes the trailing new line in this case
 					// On windows, this will always be `\r\n` even if the document uses `\n`
 					const eol = str.match(/\r?\n$/);
-					const reversed = reverseString(str.slice(0, -eol!.length));
+					const reversed = reverseString(str.slice(0, -eol![0].length));
 					dataTransfer.set(textPlain, new vscode.DataTransferItem(reversed + '\n'));
 				}
 			}
