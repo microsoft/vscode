@@ -36,7 +36,9 @@ export abstract class EditModeStrategy {
 
 	abstract cancel(): Promise<void>;
 
-	abstract renderChanges(response: EditResponse, edits: ISingleEditOperation[], changes: LineRangeMapping[]): Promise<void>;
+	abstract makeChanges(response: EditResponse, edits: ISingleEditOperation[]): Promise<void>;
+
+	abstract renderChanges(response: EditResponse, changes: LineRangeMapping[]): Promise<void>;
 
 	abstract hide(): Promise<void>;
 
@@ -107,8 +109,13 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async renderChanges(response: EditResponse, edits: ISingleEditOperation[], changes: LineRangeMapping[]): Promise<void> {
+	override async makeChanges(_response: EditResponse, _edits: ISingleEditOperation[]): Promise<void> {
+		// nothing to do
+	}
+
+	override async renderChanges(response: EditResponse, changes: LineRangeMapping[]): Promise<void> {
 		if (response.localEdits.length > 0) {
+			const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
 			this._widget.showEditsPreview(this._session.textModel0, edits, changes);
 		} else {
 			this._widget.hideEditsPreview();
@@ -274,8 +281,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async renderChanges(response: EditResponse, edits: ISingleEditOperation[], textModel0Changes: LineRangeMapping[]) {
-
+	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -288,6 +294,10 @@ export class LiveStrategy extends EditModeStrategy {
 		this._editor.pushUndoStop();
 		this._editor.executeEdits('interactive-editor-live', edits, cursorStateComputerAndInlineDiffCollection);
 		this._editor.pushUndoStop();
+	}
+
+	override async renderChanges(response: EditResponse, textModel0Changes: LineRangeMapping[]) {
+
 		this._inlineDiffDecorations.update();
 		this._updateSummaryMessage(textModel0Changes);
 
@@ -326,7 +336,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		session: Session,
 		editor: ICodeEditor,
 		widget: InteractiveEditorWidget,
-		private _getWholeRange: () => Range,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
 		@IBulkEditService bulkEditService: IBulkEditService,
@@ -352,17 +361,19 @@ export class LivePreviewStrategy extends LiveStrategy {
 		super.hide();
 	}
 
-	override async renderChanges(response: EditResponse, edits: ISingleEditOperation[], changes: LineRangeMapping[]) {
-
+	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
 		this._editor.pushUndoStop();
 		this._editor.executeEdits('interactive-editor-livePreview', edits);
 		this._editor.pushUndoStop();
+	}
 
-		this._diffZone.showDiff(() => this._getWholeRange(), changes);
+	override async renderChanges(response: EditResponse, changes: LineRangeMapping[]) {
+
+		this._diffZone.showDiff(() => this._session.wholeRange, changes);
 		this._updateSummaryMessage(changes);
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.showCreation(this._getWholeRange(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.showCreation(this._session.wholeRange, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.hide();
 		}
