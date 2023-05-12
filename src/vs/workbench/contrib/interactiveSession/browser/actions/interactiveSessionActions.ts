@@ -147,15 +147,12 @@ export function registerInteractiveSessionActions() {
 			const widgetService = accessor.get(IInteractiveSessionWidgetService);
 			const keybindingService = accessor.get(IKeybindingService);
 			const inputEditor = widgetService.lastFocusedWidget?.inputEditor;
-
-			if (!inputEditor) {
-				return;
-			}
-
 			const editorUri = editor.getModel()?.uri;
-			if (!editorUri) {
+
+			if (!inputEditor || !editorUri) {
 				return;
 			}
+
 			const widget = widgetService.getWidgetByInputUri(editorUri);
 			if (!widget) {
 				return;
@@ -165,7 +162,6 @@ export function registerInteractiveSessionActions() {
 			const helpText = getAccessibilityHelpText(keybindingService);
 			widget.acceptInput(helpText, true);
 			inputEditor.updateOptions({ readOnly: true });
-
 			const domNode = withNullAsUndefined(inputEditor.getDomNode());
 			if (!domNode) {
 				return;

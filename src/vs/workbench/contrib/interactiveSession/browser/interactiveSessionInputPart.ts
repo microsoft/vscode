@@ -22,6 +22,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IInteractiveSessionExecuteActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
@@ -77,12 +78,22 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 
 		this.inputEditorHasText = CONTEXT_INTERACTIVE_INPUT_HAS_TEXT.bindTo(contextKeyService);
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.verbosity.interactiveSessionInput')) {
+				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+			}
+		}));
+	}
+
+	private _getAriaLabel(): string {
+		return this.configurationService.getValue<boolean>('accessibility.verbosity.interactiveSessionInput') ? localize('interactiveSessionInput.accessibilityHelp', "Interactive Session Input,  Type code here and press Enter to run. Use {0} for Interactive Session Accessibility Help.", this.keybindingService.lookupKeybinding('interactiveSession.action.accessibilityHelp')?.getLabel()) : localize('interactiveSessionInput', "Interactive Session Input");
 	}
 
 	setState(providerId: string, inputValue: string): void {
@@ -158,7 +169,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 
 		const options = getSimpleEditorOptions();
 		options.readOnly = false;
-		options.ariaLabel = this.configurationService.getValue<boolean>('accessibility.verbosity.interactive-session-input') ? localize('interactiveSessionInput.accessibilityHelp', "Interactive Session Input,  Type code here and press Enter to run. Use alt+f1 for copilot accessiblity help.") : localize('interactiveSessionInput', "Interactive Session Input,  Type code here and press Enter to run.");
+		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
 		options.fontSize = 13;
 		options.lineHeight = 20;
