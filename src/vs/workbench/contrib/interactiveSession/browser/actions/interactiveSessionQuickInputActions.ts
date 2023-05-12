@@ -34,7 +34,7 @@ class AskQuickQuestionAction extends Action2 {
 
 	private _currentSession: InteractiveQuickPickSession | undefined;
 	private _currentQuery: string | undefined;
-	private _currentTimer: NodeJS.Timeout | undefined;
+	private _currentTimer: any | undefined;
 	private _input: IQuickPick<IQuickPickItem> | undefined;
 
 	constructor() {
