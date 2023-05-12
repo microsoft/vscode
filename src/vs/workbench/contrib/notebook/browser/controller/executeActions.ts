@@ -9,6 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isEqual } from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
@@ -29,10 +30,11 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IInteractiveEditorRequest, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, IInteractiveEditorRequest, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -438,7 +440,10 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			precondition: ContextKeyExpr.or(executeThisCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
-				when: NOTEBOOK_CELL_LIST_FOCUSED,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_CELL_LIST_FOCUSED,
+					CTX_INTERACTIVE_EDITOR_FOCUSED.negate()
+				),
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			},
@@ -840,7 +845,7 @@ registerAction2(class FixCellErrorction extends NotebookCellAction<ICellRange> {
 				}
 
 				const request: IInteractiveEditorRequest = {
-					prompt: `Tweak the code to fix error: ${err.message}, and keep original code`,
+					prompt: `/fix ${err.message}`,
 					selection: selection,
 					wholeRange: textModel.getFullModelRange()
 				};
@@ -848,8 +853,10 @@ registerAction2(class FixCellErrorction extends NotebookCellAction<ICellRange> {
 				const reply = await provider.provideResponse(session, request, _ctsSession.token);
 
 				if (reply && reply.type === 'editorEdit') {
-					console.log(reply);
-					textModel.applyEdits(reply.edits);
+					textModel.pushStackElement();
+					const edits = reply.edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+					textModel.pushEditOperations(null, edits, () => null);
+					textModel.pushStackElement();
 				}
 
 				context.notebookEditor.hideProgress();

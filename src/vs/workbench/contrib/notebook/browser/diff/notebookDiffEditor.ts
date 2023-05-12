@@ -151,7 +151,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(this.configurationService, notebookExecutionStateService);
+		this._notebookOptions = new NotebookOptions(this.configurationService, notebookExecutionStateService, false);
 		this._register(this._notebookOptions);
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
 		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
@@ -181,6 +181,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	async focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): Promise<void> {
 		// throw new Error('Method not implemented.');
+	}
+
+	didFocusOutputInputChange(inputFocused: boolean): void {
+		// noop
 	}
 
 	getScrollTop() {

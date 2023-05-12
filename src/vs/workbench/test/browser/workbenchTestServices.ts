@@ -263,7 +263,6 @@ export function workbenchInstantiationService(
 		}
 	});
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService, workspaceContextService)));
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
@@ -289,6 +288,7 @@ export function workbenchInstantiationService(
 	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : new TestFileService();
 	instantiationService.stub(IFileService, fileService);
 	const uriIdentityService = new UriIdentityService(fileService);
+	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService, workspaceContextService, environmentService, uriIdentityService, fileService)));
 	instantiationService.stub(IUriIdentityService, uriIdentityService);
 	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, uriIdentityService, new NullLogService()));
 	instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
@@ -435,7 +435,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			encoding: 'utf8',
 			value: await createTextBufferFactoryFromStream(content.value),
 			size: 10,
-			readonly: false
+			readonly: false,
+			locked: false
 		};
 	}
 

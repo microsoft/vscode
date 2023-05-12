@@ -42,6 +42,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		strictEqual(storageService.getBoolean('test.getBoolean', scope, false), false);
 		deepStrictEqual(storageService.getObject('test.getObject', scope, { 'foo': 'bar' }), { 'foo': 'bar' });
 		deepStrictEqual(storageService.getObject('test.getObject', scope, {}), {});
+		deepStrictEqual(storageService.getObject('test.getObject', scope, []), []);
 
 		storageService.store('test.get', 'foobar', scope, StorageTarget.MACHINE);
 		strictEqual(storageService.get('test.get', scope, (undefined)!), 'foobar');
@@ -70,6 +71,9 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 		storageService.store('test.getObject', {}, scope, StorageTarget.MACHINE);
 		deepStrictEqual(storageService.getObject('test.getObject', scope, (undefined)!), {});
+
+		storageService.store('test.getObject', [42], scope, StorageTarget.MACHINE);
+		deepStrictEqual(storageService.getObject('test.getObject', scope, (undefined)!), [42]);
 
 		storageService.store('test.getObject', { 'foo': {} }, scope, StorageTarget.MACHINE);
 		deepStrictEqual(storageService.getObject('test.getObject', scope, (undefined)!), { 'foo': {} });
