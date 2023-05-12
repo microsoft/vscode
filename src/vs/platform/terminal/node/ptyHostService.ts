@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem, isWindows } from 'vs/base/common/platform';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
+import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
@@ -77,7 +78,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		private readonly _ptyHostStarter: IPtyHostStarter,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
-		// @ILoggerService private readonly _loggerService: ILoggerService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
 	) {
 		super();
 
@@ -152,9 +153,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}
 		}));
 
-		// TODO: Setup logging
-		// this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
-
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
@@ -164,6 +162,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
 		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
 		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
+
+		// HACK: When RemoteLoggerChannelClient is not delayed, the Pty Host log file won't show up
+		// in the Output view of the first window?
+		Event.once(Event.any(proxy.onProcessReady, proxy.onProcessReplay))(() => {
+			this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
+		});
 
 		return [connection, proxy];
 	}

@@ -10,7 +10,7 @@ import { Server as UtilityProcessServer } from 'vs/base/parts/ipc/node/ipc.mp';
 import { localize } from 'vs/nls';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ConsoleLogger, LogLevel } from 'vs/platform/log/common/log';
+import { ConsoleLogger, getLogLevel } from 'vs/platform/log/common/log';
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
@@ -35,7 +35,7 @@ const productService: IProductService = { _serviceBrand: undefined, ...product }
 const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 
 // Logging
-const loggerService = new LoggerService(LogLevel.Info, environmentService.logsHome);
+const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 server.registerChannel(TerminalIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
 const logger = loggerService.createLogger('ptyhost', { name: localize('ptyHost', "Pty Host") });
 const logService = new LogService(logger, [new ConsoleLogger()]);
