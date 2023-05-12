@@ -96,6 +96,25 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		}
 	}
+
+	let foundEditor: ICodeEditor | undefined = undefined;
+	for (const [, codeEditor] of context.notebookEditor.codeEditors) {
+		if (isEqual(codeEditor.getModel()?.uri, (context.cell ?? context.selectedCells?.[0])?.uri)) {
+			foundEditor = codeEditor;
+			break;
+		}
+	}
+
+	if (!foundEditor) {
+		return;
+	}
+
+	const controller = InteractiveEditorController.get(foundEditor);
+	if (!controller) {
+		return;
+	}
+
+	controller.createSnapshot();
 }
 
 registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
@@ -211,26 +230,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		}
 
-		let foundEditor: ICodeEditor | undefined = undefined;
-		for (const [, codeEditor] of context.notebookEditor.codeEditors) {
-			if (isEqual(codeEditor.getModel()?.uri, (context.cell ?? context.selectedCells?.[0])?.uri)) {
-				foundEditor = codeEditor;
-				break;
-			}
-		}
-
 		await runCell(editorGroupsService, context);
-
-		if (!foundEditor) {
-			return;
-		}
-
-		const controller = InteractiveEditorController.get(foundEditor);
-		if (!controller) {
-			return;
-		}
-
-		controller.createSnapshot();
 	}
 });
 
