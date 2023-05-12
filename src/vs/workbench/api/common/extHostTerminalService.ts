@@ -999,12 +999,11 @@ class EnvironmentVariableCollection {
 
 	public getDescription(scope: vscode.EnvironmentVariableScope | undefined): string | vscode.MarkdownString | undefined {
 		const key = this.getScopeKey(scope);
-		const value = this.descriptionMap.get(key);
-		return value?.description;
+		return this.descriptionMap.get(key)?.description;
 	}
 
 	private clearDescription(scope: vscode.EnvironmentVariableScope | undefined): void {
-		const key = this.getKey('', scope);
+		const key = this.getScopeKey(scope);
 		this.descriptionMap.delete(key);
 	}
 }
