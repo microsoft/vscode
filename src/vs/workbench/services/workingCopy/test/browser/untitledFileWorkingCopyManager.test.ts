@@ -118,6 +118,31 @@ suite('UntitledFileWorkingCopyManager', () => {
 		assert.strictEqual(disposeCounter, 2);
 	});
 
+	test('dirty - scratchpads are never dirty', async () => {
+		let dirtyCounter = 0;
+		manager.untitled.onDidChangeDirty(e => {
+			dirtyCounter++;
+		});
+
+		const workingCopy1 = await manager.resolve({
+			untitledResource: URI.from({ scheme: Schemas.untitled, path: `/myscratchpad` }),
+			scratchPad: true
+		});
+
+		assert.strictEqual(workingCopy1.resource.scheme, Schemas.untitled);
+		assert.strictEqual(manager.untitled.workingCopies.length, 1);
+
+		workingCopy1.model?.updateContents('contents');
+		assert.strictEqual(workingCopy1.isDirty(), false);
+
+		workingCopy1.model?.fireContentChangeEvent({ isInitial: false });
+		assert.strictEqual(workingCopy1.isDirty(), false);
+
+		assert.strictEqual(dirtyCounter, 0);
+
+		workingCopy1.dispose();
+	});
+
 	test('resolve - with initial value', async () => {
 		let dirtyCounter = 0;
 		manager.untitled.onDidChangeDirty(e => {
