@@ -15,9 +15,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, IValidEditOperation } from 'vs/editor/common/model';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,6 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorLivePreviewWidget';
 import { EditResponse, Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { InteractiveEditorWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
+import { getValueFromSnapshot } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 
 export abstract class EditModeStrategy {
@@ -209,7 +208,6 @@ export class LiveStrategy extends EditModeStrategy {
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
-		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
@@ -265,8 +263,11 @@ export class LiveStrategy extends EditModeStrategy {
 			return;
 		}
 
-		const initialTextModel = lastSnapshot ? this._modelService.createModel(createTextBufferFactoryFromSnapshot(lastSnapshot), null) : model0;
-		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: initialTextModel.getValue() }]);
+		const newText = lastSnapshot
+			? getValueFromSnapshot(lastSnapshot)
+			: model0.getValue();
+
+		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: newText }]);
 		if (edits) {
 			const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));
 			modelN.pushEditOperations(null, operations, () => null);
@@ -331,9 +332,8 @@ export class LivePreviewStrategy extends LiveStrategy {
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IInstantiationService instaService: IInstantiationService,
-		@IModelService modelService: IModelService
 	) {
-		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, modelService);
+		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService);
 
 		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session.textModel0);
 		this._previewZone = instaService.createInstance(InteractiveEditorFileCreatePreviewWidget, editor);
