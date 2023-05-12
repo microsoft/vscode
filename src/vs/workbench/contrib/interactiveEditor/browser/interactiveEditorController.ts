@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { DeferredPromise, raceCancellationError } from 'vs/base/common/async';
+import { Barrier, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
@@ -15,7 +16,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -34,20 +35,31 @@ import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSess
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-
 const enum SessionState {
 	CREATE_SESSION,
 	INIT_UI,
 	WAIT_FOR_INPUT,
 	MAKE_REQUEST,
+	APPLY_RESPONSE,
 	SHOW_RESPONSE,
+	PAUSE,
 	DONE,
+}
+
+const enum Message {
+	NONE = 0,
+	END_SESSION = 2 ** 0,
+	PAUSE_SESSION = 2 ** 1,
+	CANCEL_REQUEST = 2 ** 2,
+	CANCEL_INPUT = 2 ** 3,
+	ACCEPT_INPUT = 2 ** 4
 }
 
 export interface InteractiveEditorRunOptions {
 	initialRange?: IRange;
 	message?: string;
 	autoSend?: boolean;
+	existingSession?: Session;
 }
 
 export class InteractiveEditorController implements IEditorContribution {
@@ -78,10 +90,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _activeSession?: Session;
 	private _sessionStore?: DisposableStore;
 	private _ignoreModelContentChanged = false;
-	private _wholeRangeDecoration?: IEditorDecorationsCollection;
-	private _waitForInputPromise?: DeferredPromise<void>;
-	private _createSessionCts?: CancellationTokenSource;
-	private _makeRequestCts?: CancellationTokenSource;
+	private _messages = this._store.add(new Emitter<Message>());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -93,7 +102,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IModelService private readonly _modelService: IModelService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-
 	) {
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxLastEditKind = CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND.bindTo(contextKeyService);
@@ -101,14 +109,20 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND.bindTo(contextKeyService);
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 
-		// this._store.add(this._editor.onDidChangeModel(e => {
+		this._store.add(this._editor.onDidChangeModel(async e => {
+			if (this._activeSession || !e.newModelUrl) {
+				return;
+			}
 
-		// 	if (!this._activeSession && e.newModelUrl && this._interactiveEditorSessionService.retrieveSession(this._editor, e.newModelUrl)) {
-		// 		// AUTO RUN!
-		// 		// this.run(undefined);
-		// 		this._logService.info('[IE] restoring session after model change');
-		// 	}
-		// }));
+			const existingSession = this._interactiveEditorSessionService.getSession(this._editor, e.newModelUrl);
+			if (!existingSession) {
+				return;
+			}
+
+			this._logService.trace('[IE] session RESUMING');
+			await this._nextState(SessionState.CREATE_SESSION, { existingSession });
+			this._logService.trace('[IE] session done or paused');
+		}));
 	}
 
 	dispose(): void {
@@ -125,7 +139,9 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
-		this._nextState(SessionState.CREATE_SESSION, { ...options });
+		this._logService.trace('[IE] session starting');
+		await this._nextState(SessionState.CREATE_SESSION, { ...options });
+		this._logService.trace('[IE] session done or paused');
 	}
 
 	private async _nextState(state: SessionState, options: InteractiveEditorRunOptions | undefined): Promise<void> {
@@ -133,8 +149,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		let nextState: SessionState | undefined;
 		switch (state) {
 			case SessionState.CREATE_SESSION:
-				nextState = await this._createSession(options?.initialRange);
+				nextState = await this._createSession(options);
 				delete options?.initialRange;
+				delete options?.existingSession;
 				break;
 			case SessionState.INIT_UI:
 				nextState = await this._initUI();
@@ -147,8 +164,14 @@ export class InteractiveEditorController implements IEditorContribution {
 			case SessionState.MAKE_REQUEST:
 				nextState = await this._makeRequest();
 				break;
+			case SessionState.APPLY_RESPONSE:
+				nextState = await this._applyResponse();
+				break;
 			case SessionState.SHOW_RESPONSE:
 				nextState = await this._showResponse();
+				break;
+			case SessionState.PAUSE:
+				this._pause();
 				break;
 			case SessionState.DONE:
 				this._done();
@@ -159,19 +182,29 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	private async _createSession(wholeRange: IRange | undefined): Promise<SessionState.DONE | SessionState.INIT_UI> {
+	private async _createSession(options: InteractiveEditorRunOptions | undefined): Promise<SessionState.DONE | SessionState.INIT_UI> {
 		assertType(this._editor.hasModel());
 
-		this._createSessionCts?.dispose(true);
-		this._createSessionCts = new CancellationTokenSource();
-		const session = await this._interactiveEditorSessionService.createSession(
-			this._editor,
-			{ editMode: this._configurationService.getValue('interactiveEditor.editMode'), wholeRange },
-			this._createSessionCts.token
-		);
+		let session: Session | undefined = options?.existingSession;
+
 		if (!session) {
-			this._createSessionCts?.dispose();
-			this._createSessionCts = undefined;
+			const createSessionCts = new CancellationTokenSource();
+			const msgListener = Event.once(this._messages.event)(m => {
+				this._logService.trace('[IE](state=_createSession) message received', m);
+				createSessionCts.cancel();
+			});
+
+			session = await this._interactiveEditorSessionService.createSession(
+				this._editor,
+				{ editMode: this._configurationService.getValue('interactiveEditor.editMode'), wholeRange: options?.initialRange },
+				createSessionCts.token
+			);
+
+			createSessionCts.dispose();
+			msgListener.dispose();
+		}
+
+		if (!session) {
 			return SessionState.DONE;
 		}
 
@@ -180,21 +213,18 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.widget);
 				break;
 			case EditMode.LivePreview:
-				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.widget, () => session.wholeRange);
+				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.widget, () => session!.wholeRange);
 				break;
 			case EditMode.Preview:
 				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.widget);
 				break;
 		}
 
-		this._createSessionCts?.dispose();
-		this._createSessionCts = undefined;
-
 		this._activeSession = session;
 		return SessionState.INIT_UI;
 	}
 
-	private async _initUI(): Promise<SessionState.WAIT_FOR_INPUT> {
+	private async _initUI(): Promise<SessionState.WAIT_FOR_INPUT | SessionState.SHOW_RESPONSE> {
 		assertType(this._activeSession);
 
 		// hide/cancel inline completions when invoking IE
@@ -202,16 +232,25 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		this._cancelNotebookSiblingEditors();
 
-		this._wholeRangeDecoration = this._editor.createDecorationsCollection();
-		this._wholeRangeDecoration.set([{ range: this._activeSession.wholeRange, options: InteractiveEditorController._decoBlock }]);
+		this._sessionStore?.dispose();
+		this._sessionStore = new DisposableStore();
+
+		const wholeRangeDecoration = this._editor.createDecorationsCollection([{
+			range: this._activeSession.wholeRange,
+			options: InteractiveEditorController._decoBlock
+		}]);
+		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
 
 		this._zone.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._zone.widget.placeholder = this._activeSession.session.placeholder ?? '';
 		this._zone.widget.updateStatus(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 
-		this._sessionStore?.dispose();
-		this._sessionStore = new DisposableStore();
-		this._sessionStore.add(this._editor.onDidChangeModel(() => this.cancelSession()));
+		this._sessionStore.add(this._editor.onDidChangeModel(() => {
+			this._messages.fire(this._activeSession?.lastExchange
+				? Message.PAUSE_SESSION // pause when switching models/tabs and when having a previous exchange
+				: Message.END_SESSION
+			);
+		}));
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
 			if (!this._ignoreModelContentChanged) {
@@ -219,7 +258,9 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 		}));
 
-		return SessionState.WAIT_FOR_INPUT;
+		return this._activeSession.lastExchange
+			? SessionState.SHOW_RESPONSE
+			: SessionState.WAIT_FOR_INPUT;
 	}
 
 	private _cancelNotebookSiblingEditors(): void {
@@ -253,7 +294,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	private async _waitForInput(options: InteractiveEditorRunOptions | undefined): Promise<SessionState.DONE | SessionState.WAIT_FOR_INPUT | SessionState.MAKE_REQUEST> {
+	private async _waitForInput(options: InteractiveEditorRunOptions | undefined): Promise<SessionState.DONE | SessionState.PAUSE | SessionState.WAIT_FOR_INPUT | SessionState.MAKE_REQUEST> {
 		assertType(this._activeSession);
 
 		this._zone.show(this._activeSession.wholeRange.getEndPosition());
@@ -263,19 +304,29 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.widget.selectAll();
 		}
 
-		this._waitForInputPromise = new DeferredPromise();
-
+		let message = Message.NONE;
 		if (options?.autoSend) {
-			this._waitForInputPromise.complete();
+			message = Message.ACCEPT_INPUT;
+
+		} else {
+			const barrier = new Barrier();
+			const msgListener = Event.once(this._messages.event)(m => {
+				this._logService.trace('[IE](state=_waitForInput) message received', m);
+				message = m;
+				barrier.open();
+			});
+			await barrier.wait();
+			msgListener.dispose();
 		}
 
-		try {
-			await this._waitForInputPromise.p;
-		} catch {
+		this._zone.widget.selectAll();
+
+		if (message & Message.CANCEL_INPUT || message & Message.END_SESSION) {
 			return SessionState.DONE;
-		} finally {
-			this._zone.widget.selectAll();
-			this._waitForInputPromise = undefined;
+		}
+
+		if (message & Message.PAUSE_SESSION) {
+			return SessionState.PAUSE;
 		}
 
 		if (!this._zone.widget.value) {
@@ -305,16 +356,22 @@ export class InteractiveEditorController implements IEditorContribution {
 		return SessionState.MAKE_REQUEST;
 	}
 
-	private async _makeRequest(): Promise<SessionState> {
+	private async _makeRequest(): Promise<SessionState.APPLY_RESPONSE | SessionState.PAUSE | SessionState.DONE> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
 		assertType(this._activeSession.lastInput);
 
-		this._makeRequestCts?.dispose(true);
-		this._makeRequestCts = new CancellationTokenSource();
+		const requestCts = new CancellationTokenSource();
+
+		let message = Message.NONE;
+		const msgListener = Event.once(this._messages.event)(m => {
+			this._logService.trace('[IE](state=_makeRequest) message received', m);
+			message = m;
+			requestCts.cancel();
+		});
 
 		const typeListener = this._zone.widget.onDidChangeInput(() => {
-			this.cancelCurrentRequest();
+			requestCts.cancel();
 		});
 
 		const sw = StopWatch.create();
@@ -323,7 +380,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			selection: this._editor.getSelection(),
 			wholeRange: this._activeSession.wholeRange
 		};
-		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, this._makeRequestCts.token);
+		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, requestCts.token);
 		this._logService.trace('[IE] request started', this._activeSession.provider.debugName, this._activeSession.session, request);
 
 		let response: EditResponse | MarkdownResponse | ErrorResponse | EmptyResponse;
@@ -331,7 +388,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		try {
 			this._zone.widget.updateProgress(true);
 			this._ctxHasActiveRequest.set(true);
-			reply = await raceCancellationError(Promise.resolve(task), this._makeRequestCts.token);
+			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
 			if (reply?.type === 'message') {
 				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply);
@@ -352,15 +409,57 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		}
 
+		requestCts.dispose();
+		msgListener.dispose();
 		typeListener.dispose();
-		this._makeRequestCts.dispose();
-		this._makeRequestCts = undefined;
 
 		this._activeSession.addExchange(new SessionExchange(request.prompt, response));
+
+		if (message & Message.END_SESSION) {
+			return SessionState.DONE;
+		} else if (message & Message.PAUSE_SESSION) {
+			return SessionState.PAUSE;
+		} else {
+			return SessionState.APPLY_RESPONSE;
+		}
+	}
+
+	private async _applyResponse(): Promise<SessionState.SHOW_RESPONSE | SessionState.DONE> {
+		assertType(this._activeSession);
+		assertType(this._strategy);
+
+		const { response } = this._activeSession.lastExchange!;
+		if (response instanceof EditResponse) {
+			// edit response -> complex...
+			this._zone.widget.updateMarkdownMessage(undefined);
+			this._zone.widget.updateToolbar(true);
+
+			const canContinue = this._strategy.checkChanges(response);
+			if (!canContinue) {
+				return SessionState.DONE;
+			}
+			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(this._activeSession.textModelN.uri, response.localEdits));
+			const editOperations = (moreMinimalEdits ?? response.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, response.localEdits, moreMinimalEdits);
+
+			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(this._activeSession.textModelN.createSnapshot()), null, undefined, true);
+			textModelNplus1.applyEdits(editOperations);
+			const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000 }, 'advanced');
+			this._activeSession.lastTextModelChanges = diff?.changes ?? [];
+			textModelNplus1.dispose();
+
+			try {
+				this._ignoreModelContentChanged = true;
+				await this._strategy.makeChanges(response, editOperations);
+			} finally {
+				this._ignoreModelContentChanged = false;
+			}
+		}
+
 		return SessionState.SHOW_RESPONSE;
 	}
 
-	private async _showResponse(): Promise<SessionState> {
+	private async _showResponse(): Promise<SessionState.WAIT_FOR_INPUT | SessionState.DONE> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -393,19 +492,10 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!canContinue) {
 				return SessionState.DONE;
 			}
-			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(this._activeSession.textModelN.uri, response.localEdits));
-			const editOperations = (moreMinimalEdits ?? response.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, response.localEdits, moreMinimalEdits);
-
-			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(this._activeSession.textModelN.createSnapshot()), null, undefined, true);
-			textModelNplus1.applyEdits(editOperations);
-			const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000 }, 'advanced');
-			const textModel0Changes = diff?.changes ?? [];
-			textModelNplus1.dispose();
 
 			try {
 				this._ignoreModelContentChanged = true;
-				await this._strategy.renderChanges(response, editOperations, textModel0Changes);
+				await this._strategy.renderChanges(response, this._activeSession.lastTextModelChanges);
 			} finally {
 				this._ignoreModelContentChanged = false;
 			}
@@ -414,9 +504,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		return SessionState.WAIT_FOR_INPUT;
 	}
 
-	private async _done() {
+	private async _pause() {
 		assertType(this._activeSession);
-		this._interactiveEditorSessionService.releaseSession(this._activeSession);
 
 		this._ctxLastEditKind.reset();
 		this._ctxLastResponseType.reset();
@@ -424,9 +513,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		this._zone.hide();
 		this._editor.focus();
-
-		this._wholeRangeDecoration?.clear();
-		this._wholeRangeDecoration = undefined;
 
 		this._sessionStore?.dispose();
 		this._sessionStore = undefined;
@@ -436,14 +522,21 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._activeSession = undefined;
 	}
 
+	private async _done() {
+		assertType(this._activeSession);
+		this._interactiveEditorSessionService.releaseSession(this._activeSession);
+		this._pause();
+	}
+
+	// ---- controller API
 
 	accept(): void {
-		this._waitForInputPromise?.complete();
+		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
 	cancelCurrentRequest(): void {
-		this._waitForInputPromise?.cancel();
-		this._makeRequestCts?.cancel();
+		this._messages.fire(Message.CANCEL_INPUT);
+		this._messages.fire(Message.CANCEL_REQUEST);
 	}
 
 	arrowOut(up: boolean): void {
@@ -504,26 +597,27 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	async applyChanges(): Promise<EditResponse | void> {
-		if (this._activeSession?.lastExchange?.response instanceof EditResponse && this._strategy) {
+		if (this._strategy) {
 			const strategy = this._strategy;
 			this._strategy = undefined;
 			await strategy?.apply();
 			strategy?.dispose();
-			this._createSessionCts?.cancel();
-			this._waitForInputPromise?.cancel();
-			this._makeRequestCts?.cancel();
-			return this._activeSession.lastExchange.response;
+			this._messages.fire(Message.END_SESSION);
+
+			if (this._activeSession?.lastExchange?.response instanceof EditResponse) {
+				return this._activeSession.lastExchange.response;
+			}
 		}
 	}
 
 	async cancelSession() {
-		const strategy = this._strategy;
-		this._strategy = undefined;
-		await strategy?.cancel();
-		strategy?.dispose();
-		this._createSessionCts?.cancel();
-		this._waitForInputPromise?.cancel();
-		this._makeRequestCts?.cancel();
+		if (this._strategy) {
+			const strategy = this._strategy;
+			this._strategy = undefined;
+			await strategy?.cancel();
+			strategy?.dispose();
+			this._messages.fire(Message.END_SESSION);
+		}
 	}
 }
 
