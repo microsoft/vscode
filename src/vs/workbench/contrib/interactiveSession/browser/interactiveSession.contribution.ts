@@ -19,10 +19,11 @@ import { registerInteractiveSessionCodeBlockActions } from 'vs/workbench/contrib
 import { registerInteractiveSessionCopyActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCopyActions';
 import { registerInteractiveSessionExecuteActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
 import { registerInteractiveSessionTitleActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionTitleActions';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionContributionServiceImpl';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionEditorInput, InteractiveSessionEditorInputSerializer } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
-import { IInteractiveSessionWidgetService, InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { InteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionServiceImpl';
@@ -71,8 +72,8 @@ configurationRegistry.registerConfiguration({
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		InteractiveSessionEditor,
-		InteractiveSessionEditor.ID,
-		nls.localize('interactiveSession', "Interactive Session")
+		InteractiveSessionEditorInput.EditorID,
+		nls.localize('chat', "Chat")
 	),
 	[
 		new SyncDescriptor(InteractiveSessionEditorInput)
@@ -89,8 +90,8 @@ class InteractiveSessionResolverContribution extends Disposable {
 		this._register(editorResolverService.registerEditor(
 			`${Schemas.vscodeInteractiveSesssion}:**/**`,
 			{
-				id: InteractiveSessionEditor.ID,
-				label: nls.localize('interactiveSession', "Interactive Session"),
+				id: InteractiveSessionEditorInput.EditorID,
+				label: nls.localize('chat', "Chat"),
 				priority: RegisteredEditorPriority.builtin
 			},
 			{
@@ -108,7 +109,7 @@ class InteractiveSessionResolverContribution extends Disposable {
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveSessionResolverContribution, LifecyclePhase.Starting);
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(InteractiveSessionEditorInput.ID, InteractiveSessionEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(InteractiveSessionEditorInput.TypeID, InteractiveSessionEditorInputSerializer);
 
 registerInteractiveSessionActions();
 registerInteractiveSessionCopyActions();

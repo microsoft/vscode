@@ -287,7 +287,7 @@ configurationRegistry.registerConfiguration({
 				'.*': { 'type': 'boolean' }
 			},
 			'default': {},
-			'markdownDescription': nls.localize('filesReadonlyInclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to mark as read-only. You can exclude matching paths via the `#files.readonlyExclude#` setting. Files from readonly file system providers will always be read-only independent of this setting."),
+			'markdownDescription': nls.localize('filesReadonlyInclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to mark as read-only. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. You can exclude matching paths via the `#files.readonlyExclude#` setting. Files from readonly file system providers will always be read-only independent of this setting."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		[FILES_READONLY_EXCLUDE_CONFIG]: {
@@ -296,7 +296,7 @@ configurationRegistry.registerConfiguration({
 				'.*': { 'type': 'boolean' }
 			},
 			'default': {},
-			'markdownDescription': nls.localize('filesReadonlyExclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to exclude from being marked as read-only if they match as a result of the `#files.readonlyInclude#` setting. Files from readonly file system providers will always be read-only independent of this setting."),
+			'markdownDescription': nls.localize('filesReadonlyExclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) to exclude from being marked as read-only if they match as a result of the `#files.readonlyInclude#` setting. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Files from readonly file system providers will always be read-only independent of this setting."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		[FILES_READONLY_FROM_PERMISSIONS_CONFIG]: {
@@ -405,7 +405,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.autoRevealExclude': {
 			'type': 'object',
-			'markdownDescription': nls.localize('autoRevealExclude', "Configure glob patterns for excluding files and folders from being revealed and selected in the Explorer when they are opened. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			'markdownDescription': nls.localize('autoRevealExclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders from being revealed and selected in the Explorer when they are opened. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths."),
 			'default': { '**/node_modules': true, '**/bower_components': true },
 			'additionalProperties': {
 				'anyOf': [

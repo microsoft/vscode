@@ -7,7 +7,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { IReadonlyVSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -799,11 +799,11 @@ export interface DocumentPasteEditProvider {
 	readonly id?: string;
 
 	readonly copyMimeTypes?: readonly string[];
-	readonly pasteMimeTypes: readonly string[];
+	readonly pasteMimeTypes?: readonly string[];
 
-	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<undefined | VSDataTransfer>;
+	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer>;
 
-	provideDocumentPasteEdits(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
+	provideDocumentPasteEdits?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
 /**
@@ -1960,5 +1960,5 @@ export interface DocumentOnDropEdit {
 export interface DocumentOnDropEditProvider {
 	readonly dropMimeTypes?: readonly string[];
 
-	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
+	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
 }
