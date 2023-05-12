@@ -15,24 +15,25 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
+import { clearChatEditor, clearChatSession } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionClear';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IInteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionDetail, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export const INTERACTIVE_SESSION_CATEGORY = { value: localize('interactiveSession.category', "Interactive Session"), original: 'Interactive Session' };
+export const INTERACTIVE_SESSION_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 
 export function registerInteractiveSessionActions() {
 	registerEditorAction(class InteractiveSessionAcceptInput extends EditorAction {
 		constructor() {
 			super({
 				id: 'interactiveSession.action.acceptInput',
-				label: localize({ key: 'actions.ineractiveSession.acceptInput', comment: ['Apply input from the interactive session input box'] }, "Interactive Session Accept Input"),
-				alias: 'Interactive Session Accept Input',
+				label: localize({ key: 'actions.chat.acceptInput', comment: ['Apply input from the chat input box'] }, "Accept Chat Input"),
+				alias: 'Accept Chat Input',
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
 				kbOpts: {
 					kbExpr: EditorContextKeys.textInputFocus,
@@ -65,15 +66,19 @@ export function registerInteractiveSessionActions() {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
 					order: 0,
-					when: ActiveEditorContext.isEqualTo(InteractiveSessionEditor.ID),
+					when: ActiveEditorContext.isEqualTo(InteractiveSessionEditorInput.EditorID),
 				}]
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const editorService = accessor.get(IEditorService);
-			if (editorService.activeEditorPane instanceof InteractiveSessionEditor) {
-				await editorService.activeEditorPane.clear();
+			const widgetService = accessor.get(IInteractiveSessionWidgetService);
+
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget) {
+				return;
 			}
+
+			await clearChatEditor(accessor, widget);
 		}
 	});
 
@@ -156,11 +161,13 @@ export function registerInteractiveSessionActions() {
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const widgetService = accessor.get(IInteractiveSessionWidgetService);
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-			const sessionId = widgetService.lastFocusedWidget?.viewModel?.sessionId;
-			if (sessionId) {
-				interactiveSessionService.clearSession(sessionId);
+
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget) {
+				return;
 			}
+
+			await clearChatSession(accessor, widget);
 		}
 	});
 }

@@ -852,7 +852,14 @@ export class SearchView extends ViewPane {
 			}
 
 			// we don't need to check experimental flag here because NotebookMatches only exist when the flag is enabled
-			const editable = (!(focus instanceof MatchInNotebook)) || !focus.isWebviewMatch();
+			let editable = false;
+			if (focus instanceof MatchInNotebook) {
+				editable = !focus.isWebviewMatch();
+			} else if (focus instanceof FileMatch) {
+				editable = !focus.hasOnlyReadOnlyMatches();
+			} else if (focus instanceof FolderMatch) {
+				editable = !focus.hasOnlyReadOnlyMatches();
+			}
 			this.isEditableItem.set(editable);
 		}));
 

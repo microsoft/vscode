@@ -254,7 +254,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getSessions(providerId: string, scopes: readonly string[]) {
-				checkProposedApiEnabled(extension, 'getSessions');
+				checkProposedApiEnabled(extension, 'authGetSessions');
 				return extHostAuthentication.getSessions(extension, providerId, scopes);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
@@ -1271,6 +1271,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: interactiveSlashCommands
+		const interactiveSlashCommands: typeof vscode.interactiveSlashCommands = {
+			registerSlashCommandProvider(chatProviderId: string, provider: vscode.InteractiveSlashCommandProvider) {
+				checkProposedApiEnabled(extension, 'interactiveSlashCommands');
+				return extHostInteractiveSession.registerSlashCommandProvider(extension, chatProviderId, provider);
+			}
+		};
+
 		// namespace: ai
 		const ai: typeof vscode.ai = {
 			registerSemanticSimilarityProvider(provider: vscode.SemanticSimilarityProvider) {
@@ -1290,6 +1298,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			env,
 			extensions,
 			interactive,
+			interactiveSlashCommands,
 			l10n,
 			languages,
 			notebooks,

@@ -145,7 +145,8 @@ export class SettingsEditor2 extends EditorPane {
 			type === SettingValueType.Object ||
 			type === SettingValueType.Complex ||
 			type === SettingValueType.Boolean ||
-			type === SettingValueType.Exclude;
+			type === SettingValueType.Exclude ||
+			type === SettingValueType.Include;
 	}
 
 	// (!) Lots of props that are set once on the first render

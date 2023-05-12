@@ -146,7 +146,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// If we are running extension tests, forward logs and exit code
 		const automatedWindow = window as unknown as IAutomatedWindow;
 		if (typeof automatedWindow.codeAutomationExit === 'function') {
-			automatedWindow.codeAutomationExit(await getLogs(this._fileService, this._environmentService), code);
+			automatedWindow.codeAutomationExit(code, await getLogs(this._fileService, this._environmentService));
 		}
 	}
 }
