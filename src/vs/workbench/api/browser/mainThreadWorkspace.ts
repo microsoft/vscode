@@ -28,6 +28,7 @@ import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceD
 import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
+import { ICanonicalUriIdentityService } from 'vs/platform/workspace/common/canonicalUriIdentity';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -42,6 +43,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEditSessionIdentityService private readonly _editSessionIdentityService: IEditSessionIdentityService,
+		@ICanonicalUriIdentityService private readonly _canonicalUriIdentityService: ICanonicalUriIdentityService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -268,5 +270,30 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const disposable = this.registeredEditSessionProviders.get(handle);
 		disposable?.dispose();
 		this.registeredEditSessionProviders.delete(handle);
+	}
+
+	// --- canonical uri identities ---
+	private registeredCanonicalUriIdentityProviders = new Map<number, IDisposable>();
+
+	$registerCanonicalUriIdentityProvider(handle: number, scheme: string) {
+		const disposable = this._canonicalUriIdentityService.registerCanonicalUriIdentityProvider({
+			scheme: scheme,
+			provideCanonicalUriIdentity: async (uri: UriComponents, token: CancellationToken) => {
+				const result = await this._proxy.$provideCanonicalUriIdentity(uri, token);
+				if (result) {
+					return URI.revive(result);
+				}
+				return result;
+			}
+		});
+
+		this.registeredCanonicalUriIdentityProviders.set(handle, disposable);
+		this._toDispose.add(disposable);
+	}
+
+	$unregisterCanonicalUriIdentityProvider(handle: number) {
+		const disposable = this.registeredCanonicalUriIdentityProviders.get(handle);
+		disposable?.dispose();
+		this.registeredCanonicalUriIdentityProviders.delete(handle);
 	}
 }
