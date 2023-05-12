@@ -64,7 +64,7 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return nls.localize('interactiveSessionEditorName', "Interactive Session") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		return nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
 	}
 
 	override async resolve(): Promise<InteractiveSessionEditorModel | null> {

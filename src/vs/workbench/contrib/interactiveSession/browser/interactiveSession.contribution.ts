@@ -72,7 +72,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		InteractiveSessionEditor,
 		InteractiveSessionEditor.ID,
-		nls.localize('interactiveSession', "Interactive Session")
+		nls.localize('chat', "Chat")
 	),
 	[
 		new SyncDescriptor(InteractiveSessionEditorInput)
@@ -90,7 +90,7 @@ class InteractiveSessionResolverContribution extends Disposable {
 			`${Schemas.vscodeInteractiveSesssion}:**/**`,
 			{
 				id: InteractiveSessionEditor.ID,
-				label: nls.localize('interactiveSession', "Interactive Session"),
+				label: nls.localize('chat', "Chat"),
 				priority: RegisteredEditorPriority.builtin
 			},
 			{
