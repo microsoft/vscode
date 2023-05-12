@@ -244,6 +244,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._zone.widget.placeholder = this._activeSession.session.placeholder ?? '';
 		this._zone.widget.updateStatus(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
+		this._zone.show(this._activeSession.wholeRange.getEndPosition());
 
 		this._sessionStore.add(this._editor.onDidChangeModel(() => {
 			this._messages.fire(this._activeSession?.lastExchange
@@ -403,7 +404,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		} finally {
 			this._ctxHasActiveRequest.set(false);
-			this._ctxLastResponseType.set(reply?.type);
 			this._zone.widget.updateProgress(false);
 			this._logService.trace('[IE] request took', sw.elapsed(), this._activeSession.provider.debugName);
 
@@ -432,7 +432,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (response instanceof EditResponse) {
 			// edit response -> complex...
 			this._zone.widget.updateMarkdownMessage(undefined);
-			this._zone.widget.updateToolbar(true);
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
@@ -464,6 +463,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		assertType(this._strategy);
 
 		const { response } = this._activeSession.lastExchange!;
+
+		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
+			? response.raw.type
+			: undefined);
 
 		if (response instanceof EmptyResponse) {
 			// show status message
