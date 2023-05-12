@@ -93,7 +93,12 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 	}
 
 	private _getAriaLabel(): string {
-		return this.configurationService.getValue<boolean>('accessibility.verbosity.interactiveSessionInput') ? localize('interactiveSessionInput.accessibilityHelp', "Interactive Session Input,  Type code here and press Enter to run. Use {0} for Interactive Session Accessibility Help.", this.keybindingService.lookupKeybinding('interactiveSession.action.accessibilityHelp')?.getLabel()) : localize('interactiveSessionInput', "Interactive Session Input");
+		const verbose = this.configurationService.getValue<boolean>('accessibility.verbosity.interactiveSessionInput');
+		if (verbose) {
+			const kbLabel = this.keybindingService.lookupKeybinding('interactiveSession.action.accessibilityHelp')?.getLabel();
+			return kbLabel ? localize('interactiveSessionInput.accessibilityHelp', "Interactive Session Input,  Type code here and press Enter to run. Use {0} for Interactive Session Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Interactive Session Input,  Type code here and press Enter to run. Use the Interactive Session Accessibility Help command for more information.");
+		}
+		return localize('interactiveSessionInput', "Interactive Session Input");
 	}
 
 	setState(providerId: string, inputValue: string): void {
@@ -136,13 +141,13 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		this._inputEditor.focus();
 	}
 
-	async acceptInput(query?: string | IInteractiveSessionReplyFollowup, noRun?: boolean): Promise<void> {
+	async acceptInput(query?: string | IInteractiveSessionReplyFollowup, skipExecution?: boolean): Promise<void> {
 		const editorValue = this._inputEditor.getValue();
-		if (!query && editorValue && !noRun) {
-			// Followups and programmatic messages don't go to history
+		if (!query && editorValue && !skipExecution) {
+			// Followups, programmatic messages, and accessibility help text don't go to history
 			this.history.add(editorValue);
 		}
-		if (noRun && query && typeof query === 'string') {
+		if (skipExecution && typeof query === 'string') {
 			this.inputEditor.setValue(query);
 		} else {
 			this._inputEditor.updateOptions({ readOnly: false });

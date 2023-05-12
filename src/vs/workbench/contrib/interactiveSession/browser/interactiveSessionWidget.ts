@@ -377,7 +377,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	async acceptInput(query?: string | IInteractiveSessionReplyFollowup, noRun?: boolean): Promise<void> {
+	async acceptInput(query?: string | IInteractiveSessionReplyFollowup, skipExecution?: boolean): Promise<void> {
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
 
@@ -389,15 +389,17 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				return;
 			}
 
+			// Apply accessibility help text
+			if (skipExecution) {
+				this.inputPart.acceptInput(query, skipExecution);
+				return;
+			}
+
 			const input = query ?? editorValue;
-			if (!noRun) {
-				const result = await this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
-				if (result) {
-					revealLastElement(this.tree);
-					this.inputPart.acceptInput(query);
-				}
-			} else {
-				this.inputPart.acceptInput(query, noRun);
+			const result = await this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
+			if (result) {
+				revealLastElement(this.tree);
+				this.inputPart.acceptInput(query);
 			}
 		}
 	}

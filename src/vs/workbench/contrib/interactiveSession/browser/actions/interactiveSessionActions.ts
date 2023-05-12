@@ -154,26 +154,26 @@ export function registerInteractiveSessionActions() {
 			}
 
 			const widget = widgetService.getWidgetByInputUri(editorUri);
-			if (!widget) {
+			const domNode = withNullAsUndefined(inputEditor.getDomNode());
+
+			if (!domNode || !widget) {
 				return;
 			}
+
 			const cachedInput = inputEditor.getValue();
 			const cachedPosition = inputEditor.getPosition();
+
 			const helpText = getAccessibilityHelpText(keybindingService);
 			widget.acceptInput(helpText, true);
 			inputEditor.updateOptions({ readOnly: true });
-			const domNode = withNullAsUndefined(inputEditor.getDomNode());
-			if (!domNode) {
-				return;
-			}
-			addStandardDisposableListener(domNode, 'keydown', e => {
-				if (e.keyCode === KeyCode.Escape && editorUri) {
-					inputEditor.setPosition(cachedPosition!);
+
+			const disposable = addStandardDisposableListener(domNode, 'keydown', e => {
+				if (e.keyCode === KeyCode.Escape && inputEditor.getValue() === helpText) {
 					inputEditor.updateOptions({ readOnly: false });
-					if (inputEditor.getValue() === helpText) {
-						widget.acceptInput(cachedInput, true);
-						widget.focusInput();
-					}
+					widget.acceptInput(cachedInput, true);
+					inputEditor.setPosition(cachedPosition!);
+					widget.focusInput();
+					disposable.dispose();
 				}
 			});
 		}
