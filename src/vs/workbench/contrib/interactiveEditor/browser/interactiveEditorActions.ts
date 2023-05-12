@@ -157,7 +157,7 @@ export class ArrowOutUpAction extends AbstractInteractiveEditorAction {
 		super({
 			id: 'interactiveEditor.arrowOutUp',
 			title: localize('arrowUp', 'Cursor Up'),
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, EditorContextKeys.isEmbeddedDiffEditor.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
 				primary: KeyCode.UpArrow
@@ -175,7 +175,7 @@ export class ArrowOutDownAction extends AbstractInteractiveEditorAction {
 		super({
 			id: 'interactiveEditor.arrowOutDown',
 			title: localize('arrowDown', 'Cursor Down'),
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, EditorContextKeys.isEmbeddedDiffEditor.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
 				primary: KeyCode.DownArrow
@@ -198,11 +198,11 @@ export class FocusInteractiveEditor extends EditorAction2 {
 			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_FOCUSED.negate()),
 			keybinding: [{
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
-				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.isEqualTo('above'), CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)),
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.isEqualTo('above'), EditorContextKeys.isEmbeddedDiffEditor.negate()),
 				primary: KeyCode.DownArrow,
 			}, {
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
-				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.isEqualTo('below'), CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.LivePreview)),
+				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.isEqualTo('below'), EditorContextKeys.isEmbeddedDiffEditor.negate()),
 				primary: KeyCode.UpArrow,
 			}]
 		});

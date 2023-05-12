@@ -27,7 +27,7 @@ suite('ResourceGlobMatcher', () => {
 		});
 	});
 
-	test('Basics', () => {
+	test('Basics', async () => {
 		const matcher = new ResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService);
 
 		// Matching
@@ -39,18 +39,29 @@ suite('ResourceGlobMatcher', () => {
 		let eventCounter = 0;
 		matcher.onExpressionChange(() => eventCounter++);
 
-		configurationService.setUserConfiguration(SETTING, { '**/*.foo': true });
+		await configurationService.setUserConfiguration(SETTING, { '**/*.foo': true });
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
 		assert.equal(eventCounter, 1);
 
 		assert.equal(matcher.matches(URI.file('/foo/bar.md')), false);
 		assert.equal(matcher.matches(URI.file('/foo/bar.foo')), true);
 
-		configurationService.setUserConfiguration(SETTING, undefined);
+		await configurationService.setUserConfiguration(SETTING, undefined);
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
 		assert.equal(eventCounter, 2);
 
 		assert.equal(matcher.matches(URI.file('/foo/bar.md')), false);
 		assert.equal(matcher.matches(URI.file('/foo/bar.foo')), false);
+
+		await configurationService.setUserConfiguration(SETTING, {
+			'**/*.md': true,
+			'**/*.txt': false,
+			'C:/bar/**': true,
+			'/bar/**': true
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
+
+		assert.equal(matcher.matches(URI.file('/bar/foo.1')), true);
+		assert.equal(matcher.matches(URI.file('C:/bar/foo.1')), true);
 	});
 });

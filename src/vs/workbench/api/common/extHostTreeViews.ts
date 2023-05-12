@@ -191,11 +191,11 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		}
 
 		const treeDataTransfer = await this.addAdditionalTransferItems(new types.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
-		if (!treeDataTransfer) {
+		if (!treeDataTransfer || token.isCancellationRequested) {
 			return;
 		}
 
-		return DataTransfer.toDataTransferDTO(treeDataTransfer);
+		return DataTransfer.from(treeDataTransfer);
 	}
 
 	async $hasResolve(treeViewId: string): Promise<boolean> {

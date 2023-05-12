@@ -9,18 +9,15 @@ import { isEqualOrParent, joinPath, relativePath } from 'vs/base/common/resource
 import { URI } from 'vs/base/common/uri';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceStateFolder } from 'vs/platform/userDataSync/common/userDataSync';
 import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
-export interface IWorkspaceStateFolder {
-	resourceUri: string;
-	workspaceFolderIdentity: string;
-}
 
 export const IWorkspaceIdentityService = createDecorator<IWorkspaceIdentityService>('IWorkspaceIdentityService');
 export interface IWorkspaceIdentityService {
 	_serviceBrand: undefined;
 	matches(folders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<(obj: any) => any>;
+	getWorkspaceStateFolders(cancellationToken: CancellationToken): Promise<IWorkspaceStateFolder[]>;
 }
 
 export class WorkspaceIdentityService implements IWorkspaceIdentityService {
@@ -30,6 +27,18 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditSessionIdentityService private readonly editSessionIdentityService: IEditSessionIdentityService
 	) { }
+
+	async getWorkspaceStateFolders(cancellationToken: CancellationToken): Promise<IWorkspaceStateFolder[]> {
+		const workspaceStateFolders: IWorkspaceStateFolder[] = [];
+
+		for (const workspaceFolder of this.workspaceContextService.getWorkspace().folders) {
+			const workspaceFolderIdentity = await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, cancellationToken);
+			if (!workspaceFolderIdentity) { continue; }
+			workspaceStateFolders.push({ resourceUri: workspaceFolder.uri.toString(), workspaceFolderIdentity });
+		}
+
+		return workspaceStateFolders;
+	}
 
 	async matches(incomingWorkspaceFolders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<(value: any) => any> {
 		const incomingToCurrentWorkspaceFolderUris: { [key: string]: string } = {};
@@ -123,6 +132,8 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 					}
 				}
 			}
+
+			return obj;
 		};
 
 		return uriReplacer;
