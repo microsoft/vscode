@@ -7,7 +7,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IRemoteExtensionsScannerService, RemoteExtensionsScannerChannelName } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import * as platform from 'vs/base/common/platform';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
@@ -45,7 +45,6 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 					const scannedExtensions = await channel.call<IRelaxedExtensionDescription[]>('scanExtensions', [platform.language, profileLocation, this.environmentService.extensionDevelopmentLocationURI, languagePack]);
 					scannedExtensions.forEach((extension) => {
 						extension.extensionLocation = URI.revive(extension.extensionLocation);
-						extension.identifier = new ExtensionIdentifier(extension.identifier.value);
 					});
 					return scannedExtensions;
 				},
