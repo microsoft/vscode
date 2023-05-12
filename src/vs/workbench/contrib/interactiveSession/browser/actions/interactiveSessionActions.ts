@@ -128,7 +128,7 @@ export function registerInteractiveSessionActions() {
 		}
 	});
 
-	registerEditorAction(class FocusInteractiveSessionAction extends EditorAction {
+	registerEditorAction(class AccessibilityHelpInteractiveSessionAction extends EditorAction {
 		constructor() {
 			super({
 				id: 'interactiveSession.action.accessibilityHelp',
