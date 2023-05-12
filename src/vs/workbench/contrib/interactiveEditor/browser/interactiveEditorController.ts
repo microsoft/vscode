@@ -503,6 +503,12 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
+	createSnapshot(): void {
+		if (this._activeSession && !this._activeSession.textModel0.equalsTextBuffer(this._activeSession.textModelN.getTextBuffer())) {
+			this._activeSession.createSnapshot();
+		}
+	}
+
 	async applyChanges(): Promise<EditResponse | void> {
 		if (this._activeSession?.lastExchange?.response instanceof EditResponse && this._strategy) {
 			const strategy = this._strategy;

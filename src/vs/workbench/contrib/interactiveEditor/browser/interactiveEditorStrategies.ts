@@ -23,6 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorLivePreviewWidget';
 import { EditResponse, Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { InteractiveEditorWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
+import { getValueFromSnapshot } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 
 export abstract class EditModeStrategy {
@@ -206,7 +207,7 @@ export class LiveStrategy extends EditModeStrategy {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
-		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 	) {
 		super();
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
@@ -257,11 +258,16 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	async cancel() {
-		const { textModelN: modelN, textModel0: model0 } = this._session;
-		if (modelN.isDisposed() || model0.isDisposed()) {
+		const { textModelN: modelN, textModel0: model0, lastSnapshot } = this._session;
+		if (modelN.isDisposed() || (model0.isDisposed() && !lastSnapshot)) {
 			return;
 		}
-		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: model0.getValue() }]);
+
+		const newText = lastSnapshot
+			? getValueFromSnapshot(lastSnapshot)
+			: model0.getValue();
+
+		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: newText }]);
 		if (edits) {
 			const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));
 			modelN.pushEditOperations(null, operations, () => null);
