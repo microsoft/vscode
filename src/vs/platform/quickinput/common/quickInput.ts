@@ -212,6 +212,8 @@ export interface IQuickInput extends IDisposable {
 
 	description: string | undefined;
 
+	widget: HTMLElement | undefined;
+
 	step: number | undefined;
 
 	totalSteps: number | undefined;
