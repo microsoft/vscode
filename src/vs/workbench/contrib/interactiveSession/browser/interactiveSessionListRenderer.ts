@@ -489,7 +489,7 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 	}
 
 	getWidgetAriaLabel(): string {
-		return localize('interactiveSession', "Interactive Session");
+		return localize('chat', "Chat");
 	}
 
 	getAriaLabel(element: InteractiveTreeItem): string {

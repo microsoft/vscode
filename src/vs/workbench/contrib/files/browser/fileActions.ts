@@ -53,10 +53,11 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Action2 } from 'vs/platform/actions/common/actions';
-import { ActiveEditorContext, EmptyWorkspaceSupportContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorCanToggleReadonlyContext, ActiveEditorContext, EmptyWorkspaceSupportContext } from 'vs/workbench/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File...");
@@ -865,6 +866,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
 	const configService = accessor.get(IConfigurationService);
+	const filesConfigService = accessor.get(IFilesConfigurationService);
 	const editorService = accessor.get(IEditorService);
 	const viewsService = accessor.get(IViewsService);
 	const notificationService = accessor.get(INotificationService);
@@ -901,7 +903,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		throw new Error('Parent folder is readonly.');
 	}
 
-	const newStat = new NewExplorerItem(fileService, configService, folder, isFolder);
+	const newStat = new NewExplorerItem(fileService, configService, filesConfigService, folder, isFolder);
 	folder.addChild(newStat);
 
 	const onSuccess = async (value: string): Promise<void> => {
@@ -1183,3 +1185,88 @@ export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) =
 		options: { preserveFocus: true }
 	})));
 };
+
+class BaseSetActiveEditorReadonlyInSession extends Action2 {
+
+	constructor(
+		id: string,
+		title: ILocalizedString,
+		private readonly newReadonlyState: true | false | 'toggle' | 'reset'
+	) {
+		super({
+			id,
+			title,
+			f1: true,
+			category: Categories.File,
+			precondition: ActiveEditorCanToggleReadonlyContext
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const filesConfigurationService = accessor.get(IFilesConfigurationService);
+
+		const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (!fileResource) {
+			return;
+		}
+
+		await filesConfigurationService.updateReadonly(fileResource, this.newReadonlyState);
+	}
+}
+
+export class SetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
+
+	static readonly ID = 'workbench.action.files.setActiveEditorReadonlyInSession';
+	static readonly LABEL = nls.localize('setActiveEditorReadonlyInSession', "Set Active Editor Readonly in Session");
+
+	constructor() {
+		super(
+			SetActiveEditorReadonlyInSession.ID,
+			{ value: SetActiveEditorReadonlyInSession.LABEL, original: 'Set Active Editor Readonly in Session' },
+			true
+		);
+	}
+}
+
+export class SetActiveEditorWriteableInSession extends BaseSetActiveEditorReadonlyInSession {
+
+	static readonly ID = 'workbench.action.files.setActiveEditorWriteableInSession';
+	static readonly LABEL = nls.localize('setActiveEditorWriteableInSession', "Set Active Editor Writeable in Session");
+
+	constructor() {
+		super(
+			SetActiveEditorWriteableInSession.ID,
+			{ value: SetActiveEditorWriteableInSession.LABEL, original: 'Set Active Editor Writeable in Session' },
+			false
+		);
+	}
+}
+
+export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
+
+	static readonly ID = 'workbench.action.files.toggleActiveEditorReadonlyInSession';
+	static readonly LABEL = nls.localize('toggleActiveEditorReadonlyInSession', "Toggle Active Editor Readonly in Session");
+
+	constructor() {
+		super(
+			ToggleActiveEditorReadonlyInSession.ID,
+			{ value: ToggleActiveEditorReadonlyInSession.LABEL, original: 'Toggle Active Editor Readonly in Session' },
+			'toggle'
+		);
+	}
+}
+
+export class ResetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
+
+	static readonly ID = 'workbench.action.files.resetActiveEditorReadonlyInSession';
+	static readonly LABEL = nls.localize('resetActiveEditorReadonlyInSession', "Reset Active Editor Readonly in Session");
+
+	constructor() {
+		super(
+			ResetActiveEditorReadonlyInSession.ID,
+			{ value: ResetActiveEditorReadonlyInSession.LABEL, original: 'Reset Active Editor Readonly in Session' },
+			'reset'
+		);
+	}
+}

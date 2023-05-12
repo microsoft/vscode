@@ -7,8 +7,8 @@ import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from 'vs/platform/contextkey/common/contextkeys';
-import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext } from 'vs/workbench/common/contextkeys';
-import { TEXT_DIFF_EDITOR_ID, EditorInputCapabilities, SIDE_BY_SIDE_EDITOR_ID, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext } from 'vs/workbench/common/contextkeys';
+import { TEXT_DIFF_EDITOR_ID, EditorInputCapabilities, SIDE_BY_SIDE_EDITOR_ID, DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,6 +25,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { Schemas } from 'vs/base/common/network';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -32,10 +33,12 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private dirtyWorkingCopiesContext: IContextKey<boolean>;
 
 	private activeEditorContext: IContextKey<string | null>;
-	private activeEditorIsReadonly: IContextKey<boolean>;
 	private activeEditorCanRevert: IContextKey<boolean>;
 	private activeEditorCanSplitInGroup: IContextKey<boolean>;
 	private activeEditorAvailableEditorIds: IContextKey<string>;
+
+	private activeEditorIsReadonly: IContextKey<boolean>;
+	private activeEditorCanToggleReadonly: IContextKey<boolean>;
 
 	private activeEditorGroupEmpty: IContextKey<boolean>;
 	private activeEditorGroupIndex: IContextKey<number>;
@@ -84,7 +87,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -119,6 +123,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Editors
 		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
 		this.activeEditorIsReadonly = ActiveEditorReadonlyContext.bindTo(this.contextKeyService);
+		this.activeEditorCanToggleReadonly = ActiveEditorCanToggleReadonlyContext.bindTo(this.contextKeyService);
 		this.activeEditorCanRevert = ActiveEditorCanRevertContext.bindTo(this.contextKeyService);
 		this.activeEditorCanSplitInGroup = ActiveEditorCanSplitInGroupContext.bindTo(this.contextKeyService);
 		this.activeEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.contextKeyService);
@@ -289,22 +294,26 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		if (activeEditorPane) {
 			this.activeEditorContext.set(activeEditorPane.getId());
-			this.activeEditorIsReadonly.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.Readonly));
 			this.activeEditorCanRevert.set(!activeEditorPane.input.hasCapability(EditorInputCapabilities.Untitled));
 			this.activeEditorCanSplitInGroup.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 
 			const activeEditorResource = activeEditorPane.input.resource;
 			const editors = activeEditorResource ? this.editorResolverService.getEditors(activeEditorResource).map(editor => editor.id) : [];
-			// Non text editor untitled files cannot be easily serialized between extensions
-			// so instead we disable this context key to prevent common commands that act on the active editor
 			if (activeEditorResource?.scheme === Schemas.untitled && activeEditorPane.input.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
+				// Non text editor untitled files cannot be easily serialized between extensions
+				// so instead we disable this context key to prevent common commands that act on the active editor
 				this.activeEditorAvailableEditorIds.set('');
 			} else {
 				this.activeEditorAvailableEditorIds.set(editors.join(','));
 			}
+
+			this.activeEditorIsReadonly.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.Readonly));
+			const primaryEditorResource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
+			this.activeEditorCanToggleReadonly.set(!!primaryEditorResource && this.fileService.hasProvider(primaryEditorResource) && !this.fileService.hasCapability(primaryEditorResource, FileSystemProviderCapabilities.Readonly));
 		} else {
 			this.activeEditorContext.reset();
 			this.activeEditorIsReadonly.reset();
+			this.activeEditorCanToggleReadonly.reset();
 			this.activeEditorCanRevert.reset();
 			this.activeEditorCanSplitInGroup.reset();
 			this.activeEditorAvailableEditorIds.reset();

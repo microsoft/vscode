@@ -152,7 +152,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 
 		const options = getSimpleEditorOptions();
 		options.readOnly = false;
-		options.ariaLabel = localize('interactiveSessionInput', "Interactive Session Input");
+		options.ariaLabel = localize('chatInput', "Chat Input");
 		options.fontFamily = DEFAULT_FONT_FAMILY;
 		options.fontSize = 13;
 		options.lineHeight = 20;

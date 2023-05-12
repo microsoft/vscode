@@ -43,11 +43,11 @@ export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector)
 			}
 
 			const edit = new vscode.DocumentDropEdit(snippet.snippet);
+			edit.id = 'insertLink';
 			edit.label = snippet.label;
 			return edit;
 		}
 	}, {
-		id: 'insertLink',
 		dropMimeTypes: [
 			'text/uri-list'
 		]
