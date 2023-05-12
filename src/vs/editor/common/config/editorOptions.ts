@@ -152,6 +152,10 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
+	 * The message to display when the editor is readonly.
+	 */
+	readOnlyMessage?: string;
+	/**
 	 * Should the textarea used for input use the DOM `readonly` attribute.
 	 * Defaults to false.
 	 */
@@ -5016,6 +5020,7 @@ export const enum EditorOption {
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
+	readOnlyMessage,
 	renameOnType,
 	renderControlCharacters,
 	renderFinalNewline,
@@ -5521,6 +5526,9 @@ export const EditorOptions = {
 	)),
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
+	)),
+	readOnlyMessage: register(new EditorStringOption(
+		EditorOption.readOnlyMessage, 'readOnlyMessage', '',
 	)),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
