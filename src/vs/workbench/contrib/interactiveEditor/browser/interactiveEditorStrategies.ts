@@ -15,7 +15,9 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, IValidEditOperation } from 'vs/editor/common/model';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -206,7 +208,8 @@ export class LiveStrategy extends EditModeStrategy {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
-		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
+		@IModelService private readonly _modelService: IModelService
 	) {
 		super();
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
@@ -257,11 +260,13 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	async cancel() {
-		const { textModelN: modelN, textModel0: model0 } = this._session;
-		if (modelN.isDisposed() || model0.isDisposed()) {
+		const { textModelN: modelN, textModel0: model0, lastSnapshot } = this._session;
+		if (modelN.isDisposed() || (model0.isDisposed() && !lastSnapshot)) {
 			return;
 		}
-		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: model0.getValue() }]);
+
+		const initialTextModel = lastSnapshot ? this._modelService.createModel(createTextBufferFactoryFromSnapshot(lastSnapshot), null) : model0;
+		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: initialTextModel.getValue() }]);
 		if (edits) {
 			const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));
 			modelN.pushEditOperations(null, operations, () => null);
@@ -326,8 +331,9 @@ export class LivePreviewStrategy extends LiveStrategy {
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IInstantiationService instaService: IInstantiationService,
+		@IModelService modelService: IModelService
 	) {
-		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService);
+		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, modelService);
 
 		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session.textModel0);
 		this._previewZone = instaService.createInstance(InteractiveEditorFileCreatePreviewWidget, editor);

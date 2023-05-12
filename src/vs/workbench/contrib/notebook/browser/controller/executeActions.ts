@@ -230,7 +230,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			return;
 		}
 
-		controller.acceptLast();
+		controller.createSnapshot();
 	}
 });
 

@@ -503,9 +503,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	acceptLast(): void {
+	createSnapshot(): void {
 		if (this._activeSession?.lastExchange?.response instanceof EditResponse && this._strategy) {
-			this._activeSession.lastExchange.accepted = true;
+			this._activeSession.createSnapshot();
 		}
 	}
 
