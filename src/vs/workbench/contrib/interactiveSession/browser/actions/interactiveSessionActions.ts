@@ -170,7 +170,9 @@ export function registerInteractiveSessionActions() {
 				if (e.keyCode === KeyCode.Escape && inputEditor.getValue() === helpText) {
 					inputEditor.updateOptions({ readOnly: false });
 					inputEditor.setValue(cachedInput);
-					inputEditor.setPosition(cachedPosition!);
+					if (cachedPosition) {
+						inputEditor.setPosition(cachedPosition);
+					}
 					widget.focusInput();
 					disposable.dispose();
 				}
