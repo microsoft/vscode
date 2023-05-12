@@ -885,9 +885,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}
 		try {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
-			await Promise.all(itemOrItems.map(element => {
-				return tree.expand(element, false);
-			}));
+			for (const element of itemOrItems) {
+				await tree.expand(element, false);
+			}
 		} catch (e) {
 			// The extension could have changed the tree during the reveal.
 			// Because of that, we ignore errors.
