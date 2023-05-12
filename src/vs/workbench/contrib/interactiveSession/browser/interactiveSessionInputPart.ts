@@ -86,14 +86,14 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('accessibility.verbosity.interactiveSessionInput')) {
+			if (e.affectsConfiguration('accessibility.verbosity.chatInput')) {
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
 		}));
 	}
 
 	private _getAriaLabel(): string {
-		const verbose = this.configurationService.getValue<boolean>('accessibility.verbosity.interactiveSessionInput');
+		const verbose = this.configurationService.getValue<boolean>('accessibility.verbosity.chatInput');
 		if (verbose) {
 			const kbLabel = this.keybindingService.lookupKeybinding('interactiveSession.action.accessibilityHelp')?.getLabel();
 			return kbLabel ? localize('interactiveSessionInput.accessibilityHelp', "Chat Input,  Type code here and press Enter to run. Use {0} for Interactive Session Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Interactive Session Accessibility Help command for more information.");
