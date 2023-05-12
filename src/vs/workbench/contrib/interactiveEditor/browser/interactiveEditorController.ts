@@ -29,6 +29,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -163,6 +164,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 
 	) {
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
@@ -182,7 +184,14 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	private _getMode(): EditMode {
-		return this._configurationService.getValue('interactiveEditor.editMode');
+		let editMode: EditMode = this._configurationService.getValue('interactiveEditor.editMode');
+		const isDefault = editMode === EditMode.LivePreview;
+		if (this._accessibilityService.isScreenReaderOptimized() && isDefault) {
+			// By default, use preview mode for screen reader users
+			editMode = EditMode.Preview;
+			this._configurationService.updateValue('interactiveEditor.editMode', EditMode.Preview);
+		}
+		return editMode;
 	}
 
 	private get _activeSession(): Session | undefined {
