@@ -430,16 +430,19 @@ export class TestingExplorerView extends ViewPane {
 	private renderActivityCount() {
 		const countBadgeType = this.configurationService.getValue<TestingCountBadge>('testing.countBadge');
 		let type: 'failed' | 'passed' | 'skipped' | 'totalWillBeRun' | 'off';
+		let badgeTooltip: string;
 		if (countBadgeType === TestingCountBadge.All) {
 			type = 'totalWillBeRun';
+			badgeTooltip = '';
 		} else {
 			type = countBadgeType;
+			badgeTooltip = ' ' + type;
 		}
 
 		if (type === TestingCountBadge.Off || this.countSummary[type] === 0) {
 			this.badgeDisposable.value = undefined;
 		} else {
-			const badge = new NumberBadge(this.countSummary[type], num => localize('testingCountBadge', '{0} {1} tests', num, type));
+			const badge = new NumberBadge(this.countSummary[type], num => localize('testingCountBadge', '{0}{1} tests', num, badgeTooltip));
 			this.badgeDisposable.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
 		}
 	}
