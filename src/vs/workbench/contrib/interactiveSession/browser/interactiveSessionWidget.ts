@@ -12,6 +12,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/interactiveSession';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -206,8 +207,13 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.renderer.setVisible(visible);
 
 		if (visible) {
-			// Progressive rendering paused while hidden, so start it up again
-			this.onDidChangeItems();
+			setTimeout(() => {
+				// Progressive rendering paused while hidden, so start it up again.
+				// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
+				if (this.visible) {
+					this.onDidChangeItems();
+				}
+			}, 0);
 		}
 	}
 
@@ -340,6 +346,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			throw new Error('Call render() before setModel()');
 		}
 
+		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
 			this.slashCommandsPromise = undefined;
@@ -417,6 +424,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	getViewState(): IViewState {
+		if (this.inputEditor.getOption(EditorOption.readOnly)) {
+			return { inputValue: undefined };
+		}
 		this.inputPart.saveState();
 		return { inputValue: this.inputPart.inputEditor.getValue() };
 	}
