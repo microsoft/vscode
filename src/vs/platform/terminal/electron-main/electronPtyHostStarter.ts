@@ -13,8 +13,8 @@ import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/p
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
 import { IpcMainEvent } from 'electron';
-import { assertIsDefined } from 'vs/base/common/types';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
 
@@ -55,11 +55,19 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		// Listen for new windows to establish connection directly to pty host
 		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
 
+		// TODO: Do we need to listen for window close to close the port?
+
+		const store = new DisposableStore();
+		store.add(client);
+		store.add(this.utilityProcess);
+		store.add(toDisposable(() => {
+			validatedIpcMain.removeHandler('vscode:createPtyHostMessageChannel');
+			this.utilityProcess = undefined;
+		}));
+
 		return {
 			client,
-			port,
-			connect: () => assertIsDefined(this.utilityProcess).connect(),
-			dispose: client.dispose,
+			store,
 			onDidProcessExit: this.utilityProcess.onExit
 		};
 	}

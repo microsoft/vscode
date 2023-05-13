@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IChannelClient } from 'vs/base/parts/ipc/common/ipc';
 
-export interface IPtyHostConnection extends IDisposable {
+export interface IPtyHostConnection {
 	readonly client: IChannelClient;
-	// TODO: Type
-	readonly port?: any;
-	connect?(): any;
+	readonly store: DisposableStore;
 	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
 }
 

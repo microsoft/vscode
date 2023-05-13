@@ -34,6 +34,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { mark } from 'vs/base/common/performance';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -74,25 +75,23 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	) {
 		super(_localPtyService, logService, notificationService, historyService, _configurationResolverService, workspaceContextService);
 
-
-
-
+		// TODO: Use the direct connection
 		(async () => {
-			// mark('code/willConnectSharedProcess');
-			// this.logService.trace('Renderer->SharedProcess#connect: before acquirePort');
+			mark('code/willConnectPtyHost');
+			logService.trace('Renderer->PtyHost#connect: before acquirePort');
 			const port = await acquirePort('vscode:createPtyHostMessageChannel', 'vscode:createPtyHostMessageChannelResult');
-			// mark('code/didConnectSharedProcess');
-			// this.logService.trace('Renderer->SharedProcess#connect: connection established');
+			mark('code/didConnectPtyHost');
+			logService.trace('Renderer->PtyHost#connect: connection established');
 
 			const client = new MessagePortClient(port, `window:${environmentService.window.id}`);
 			const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHostWindow));
 
+			// Testing
 			logService.info('latency: ', proxy.getLatency(0));
 			proxy.onProcessData(e => {
 				logService.info('message port process data: ' + e.event);
 			});
 		})();
-
 
 		// Attach process listeners
 		this._localPtyService.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
