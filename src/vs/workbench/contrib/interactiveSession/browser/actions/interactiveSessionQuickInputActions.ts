@@ -148,10 +148,12 @@ class AskQuickQuestionAction extends Action2 {
 		// If we were given a query (via executeCommand), then accept it
 		if (query) {
 			this._input.value = query;
+			this._input.valueSelection = [0, this._input.value.length];
 			this._currentQuery = query;
 			this._currentSession.accept(query);
 		} else if (this._currentQuery) {
 			this._input.value = this._currentQuery;
+			this._input.valueSelection = [0, this._input.value.length];
 		}
 	}
 }
