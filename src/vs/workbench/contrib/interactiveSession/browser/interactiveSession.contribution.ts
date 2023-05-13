@@ -130,6 +130,5 @@ registerSingleton(IInteractiveSessionContributionService, InteractiveSessionCont
 registerSingleton(IInteractiveSessionWidgetService, InteractiveSessionWidgetService, InstantiationType.Delayed);
 registerSingleton(IInteractiveSessionWidgetHistoryService, InteractiveSessionWidgetHistoryService, InstantiationType.Delayed);
 
-import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionCodeBlockCopy';
 import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionInputEditorContrib';
 import { Schemas } from 'vs/base/common/network';
