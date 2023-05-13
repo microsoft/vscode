@@ -13,7 +13,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
-export function getAccessibilityHelpText(keybindingService: IKeybindingService, type: 'chat' | 'editor'): string {
+export function getAccessibilityHelpText(keybindingService: IKeybindingService, type: 'chat' | 'editor', currentInput?: string): string {
 	const content = [];
 	if (type === 'chat') {
 		content.push(localize('chat.accessibilityHelp', "Chat Accessibility Help"));
@@ -21,6 +21,8 @@ export function getAccessibilityHelpText(keybindingService: IKeybindingService, 
 		content.push(descriptionForCommand('interactiveSession.action.focus', localize('interactiveSession.action.focus', 'The Focus Interactive Session ({0}) command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow.',), localize('interactiveSession.action.focusNoKb', 'The Focus Interactive Session command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow and is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.interactiveSession.focusInput', localize('workbench.action.interactiveSession.focusInput', 'The Focus Interactive Session Input ({0}) command focuses the input box for chat requests.'), localize('workbench.action.interactiveSession.focusInputNoKb', 'Focus Interactive Session Input command focuses the input box for chat requests and is currently not triggerable by a keybinding.'), keybindingService));
 	} else {
+		//TODO: different instructions based on whether this was /fix or /explain initiated bc for the latter, we need to
+		// provide the command to focus the chat view
 		content.push(localize('interactiveSessionEditor.accessibilityHelp', "Interactive Session Editor Accessibility Help"));
 		content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the interactive editor input via the Escape key."));
 		content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will rerun the current request."));
