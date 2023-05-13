@@ -43,6 +43,8 @@ import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -172,6 +174,8 @@ export class InteractiveEditorWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 
 		// input editor logic
