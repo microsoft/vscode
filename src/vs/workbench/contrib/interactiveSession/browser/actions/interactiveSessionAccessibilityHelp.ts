@@ -23,6 +23,9 @@ export function getAccessibilityHelpText(keybindingService: IKeybindingService, 
 	} else {
 		content.push(localize('interactiveSessionEditor.accessibilityHelp', "Interactive Session Editor Accessibility Help"));
 		content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the interactive editor input via the Escape key."));
+		content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will rerun the current request."));
+		content.push(localize('interactiveSession.diff', "From the make request button, tabbing again will emter the diff editor which is contains a preview of the change."));
+		content.push(localize('interactiveSession.acceptReject', "Tabbing out of the diff view will enter the accept/reject buttons, which will accept or reject the change."));
 	}
 	return content.join('\n');
 }
