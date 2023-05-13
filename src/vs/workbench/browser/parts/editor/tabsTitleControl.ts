@@ -241,18 +241,35 @@ export class TabsTitleControl extends TitleControl {
 
 	private fixTabWidths() {
 		if (this.accessor.partOptions.tabSizing === 'fixed') {
+			// to prevent disturbing effects (especially with wrapping tabs)
+			// when tabs are being fixed quickly after they were relaxed,
+			// snap the tabs into their normal position before we fix their width
 			this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+				tabContainer.classList.add('stop-transition');
+			});
+			void this.tabsContainer?.offsetWidth; // force layout
+
+			this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+				// adjust width so the last tab doesn't wrap onto the next line due to tiny rounding errors
+				// introduced by fixed sizing just overflowing the tab bar's width
 				const { width } = tabContainer.getBoundingClientRect();
-				tabContainer.style.setProperty('--tab-sizing-current-width', width.toFixed(2) + 'px');
-				tabContainer.style.setProperty('--tab-sizing-transition-duration', '0');
+				const adjustedWidth = this.isTabLastInWrappingRow(tabContainer) ? width - 0.1 : width;
+				tabContainer.style.setProperty('--tab-sizing-current-width', `${adjustedWidth}px`);
 			});
 		}
 	}
 
+	private isTabLastInWrappingRow(tabContainer: HTMLElement): boolean {
+		if (!this.accessor.partOptions.wrapTabs) { return false; }
+		const nextTab = tabContainer.nextElementSibling as HTMLElement;
+		// if we don't have a next tab, or it's at a different height
+		return !nextTab || nextTab.offsetTop !== tabContainer.offsetTop;
+	}
+
 	private relaxTabWidths() {
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			tabContainer.classList.remove('stop-transition');
 			tabContainer.style.removeProperty('--tab-sizing-current-width');
-			tabContainer.style.removeProperty('--tab-sizing-transition-duration');
 		});
 	}
 

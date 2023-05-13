@@ -129,8 +129,12 @@
 	flex: 1 0 0; /* all tabs are evenly sized and grow */
 
 	/* delay, duration, timing function, all apply to both properties */
-	transition: var(--tab-sizing-transition-duration, 0.25s) var(--tab-sizing-transition-duration, 0.25s) linear;
+	transition: 0.25s linear;
 	transition-property: min-width, max-width;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.stop-transition {
+	transition: unset;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit.last-in-row:not(:last-child) {
