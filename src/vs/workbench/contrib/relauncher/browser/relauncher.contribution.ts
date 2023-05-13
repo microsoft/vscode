@@ -26,7 +26,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
+	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean } } };
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 }
@@ -36,7 +36,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private static SETTINGS = [
 		'window.titleBarStyle',
 		'window.experimental.windowControlsOverlay.enabled',
-		'window.experimental.useSandbox',
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -49,7 +48,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
 	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
-	private readonly windowSandboxEnabled = new ChangeObserver('boolean');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -91,9 +89,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Windows: Window Controls Overlay
 			processChanged(isWindows && this.windowControlsOverlayEnabled.handleChange(config.window?.experimental?.windowControlsOverlay?.enabled));
-
-			// Windows: Sandbox
-			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
