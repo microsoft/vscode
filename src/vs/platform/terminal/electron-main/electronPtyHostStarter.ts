@@ -12,8 +12,9 @@ import { IReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
-import { MessageChannelMain, MessagePortMain } from 'electron';
+import { IpcMainEvent } from 'electron';
 import { assertIsDefined } from 'vs/base/common/types';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
 
@@ -27,7 +28,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 	) {
 	}
 
-	async start(lastPtyId: number): Promise<IPtyHostConnection> {
+	start(lastPtyId: number): IPtyHostConnection {
 		this.utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
 
 		const inspectParams = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
@@ -51,6 +52,9 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		const port = this.utilityProcess.connect();
 		const client = new MessagePortClient(port, 'ptyHost');
 
+		// Listen for new windows to establish connection directly to pty host
+		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
+
 		return {
 			client,
 			port,
@@ -70,5 +74,21 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 			VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
 			VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
 		};
+	}
+
+	private _onWindowConnection(e: IpcMainEvent, nonce: string) {
+		const port = this.utilityProcess!.connect();
+
+		// Check back if the requesting window meanwhile closed
+		// Since shared process is delayed on startup there is
+		// a chance that the window close before the shared process
+		// was ready for a connection.
+
+		if (e.sender.isDestroyed()) {
+			port.close();
+			return;
+		}
+
+		e.sender.postMessage('vscode:createPtyHostMessageChannelResult', nonce, [port]);
 	}
 }
