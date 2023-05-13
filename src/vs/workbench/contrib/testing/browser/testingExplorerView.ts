@@ -126,7 +126,7 @@ export class TestingExplorerView extends ViewPane {
 
 		this._register(testProfileService.onDidChange(() => this.updateActions()));
 		const onDidChangeTestingCountBadge = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('testing.countBadge'));
-		onDidChangeTestingCountBadge(this.renderActivityCount, this);
+		this._register(onDidChangeTestingCountBadge(this.renderActivityCount, this));
 	}
 
 	public override shouldShowWelcome() {
