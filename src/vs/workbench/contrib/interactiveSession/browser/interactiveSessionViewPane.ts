@@ -97,7 +97,7 @@ export class InteractiveSessionViewPane extends ViewPane implements IInteractive
 		}));
 		this._widget.render(parent);
 
-		const initialModel = this.viewState.sessionId ? this.interactiveSessionService.retrieveSession(this.viewState.sessionId) : undefined;
+		const initialModel = this.viewState.sessionId ? this.interactiveSessionService.getOrRestoreSession(this.viewState.sessionId) : undefined;
 		this.updateModel(initialModel);
 	}
 
