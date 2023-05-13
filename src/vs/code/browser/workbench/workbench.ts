@@ -394,6 +394,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		return false;
 	}
 
+	private encodePathURIComponent(uri: URI): string {
+		const absolutePath = `${posix.sep}${ltrim(uri.path, posix.sep)}`;
+		return encodeURIComponent(absolutePath).replaceAll('%2F', '/');
+	}
+
 	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): string | undefined {
 
 		// Empty
@@ -411,7 +416,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				// value to form shorter, nicer URLs.
 				// ensure paths are absolute (begin with `/`)
 				// clipboard: ltrim(workspace.folderUri.path, posix.sep)
-				queryParamFolder = `${posix.sep}${ltrim(workspace.folderUri.path, posix.sep)}`;
+				queryParamFolder = this.encodePathURIComponent(workspace.folderUri);
 			} else {
 				queryParamFolder = encodeURIComponent(workspace.folderUri.toString(true));
 			}
@@ -427,7 +432,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				// for that remote, only use the path as query
 				// value to form shorter, nicer URLs.
 				// ensure paths are absolute (begin with `/`)
-				queryParamWorkspace = `${posix.sep}${ltrim(workspace.workspaceUri.path, posix.sep)}`;
+				queryParamWorkspace = this.encodePathURIComponent(workspace.workspaceUri);
 			} else {
 				queryParamWorkspace = encodeURIComponent(workspace.workspaceUri.toString(true));
 			}
