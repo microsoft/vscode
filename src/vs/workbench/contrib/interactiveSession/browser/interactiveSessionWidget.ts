@@ -206,8 +206,13 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.renderer.setVisible(visible);
 
 		if (visible) {
-			// Progressive rendering paused while hidden, so start it up again
-			this.onDidChangeItems();
+			setTimeout(() => {
+				// Progressive rendering paused while hidden, so start it up again.
+				// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
+				if (this.visible) {
+					this.onDidChangeItems();
+				}
+			}, 0);
 		}
 	}
 
@@ -340,6 +345,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			throw new Error('Call render() before setModel()');
 		}
 
+		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
 			this.slashCommandsPromise = undefined;
