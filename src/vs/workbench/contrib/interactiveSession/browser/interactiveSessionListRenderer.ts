@@ -16,11 +16,12 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -49,6 +50,8 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
+import { IInteractiveSessionCodeBlockInfo } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
@@ -86,6 +89,9 @@ export interface IInteractiveSessionRendererDelegate {
 export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
 	static readonly ID = 'item';
+
+	private readonly codeBlocksByResponseId = new Map<string, IInteractiveSessionCodeBlockInfo[]>();
+	private readonly codeBlocksByEditorUri = new ResourceMap<IInteractiveSessionCodeBlockInfo>();
 
 	private readonly renderer: MarkdownRenderer;
 
@@ -150,6 +156,15 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 
 		return 8;
+	}
+
+	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IInteractiveSessionCodeBlockInfo[] {
+		const codeBlocks = this.codeBlocksByResponseId.get(response.id);
+		return codeBlocks ?? [];
+	}
+
+	getCodeBlockInfoForEditor(uri: URI): IInteractiveSessionCodeBlockInfo | undefined {
+		return this.codeBlocksByEditorUri.get(uri);
 	}
 
 	setVisible(visible: boolean): void {
@@ -385,10 +400,13 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const usedSlashCommand = slashCommands.find(s => markdown.value.startsWith(`/${s.command} `));
 		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
 		markdown = new MarkdownString(toRender);
+
+		const codeblocks: IInteractiveSessionCodeBlockInfo[] = [];
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
-				const ref = this.renderCodeBlock({ languageId, text, codeBlockIndex: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService }, disposables);
+				const data = { languageId, text, codeBlockIndex: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService };
+				const ref = this.renderCodeBlock(data, disposables);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
@@ -397,10 +415,27 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 					this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 				}));
 
+				if (isResponseVM(element)) {
+					const info = {
+						codeBlockIndex: data.codeBlockIndex,
+						element,
+						focus() {
+							ref.object.focus();
+						}
+					};
+					codeblocks.push(info);
+					this.codeBlocksByEditorUri.set(ref.object.textModel.uri, info);
+					disposables.add(toDisposable(() => this.codeBlocksByEditorUri.delete(ref.object.textModel.uri)));
+				}
 				disposablesList.push(ref);
 				return ref.object.element;
 			}
 		});
+
+		if (isResponseVM(element)) {
+			this.codeBlocksByResponseId.set(element.id, codeblocks);
+			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
+		}
 
 		if (usedSlashCommand) {
 			const slashCommandElement = $('span.interactive-slash-command', { title: usedSlashCommand.detail }, `/${usedSlashCommand.command} `);
@@ -522,16 +557,9 @@ interface IInteractiveResultCodeBlockPart {
 	readonly textModel: ITextModel;
 	layout(width: number): void;
 	render(data: IInteractiveResultCodeBlockData, width: number): void;
+	focus(): void;
 	dispose(): void;
 }
-
-export interface IInteractiveSessionCodeBlockInfo {
-	codeBlockIndex: number;
-	element: IInteractiveResponseViewModel;
-}
-
-// Enable actions to look this up by editor URI. An alternative would be writing lots of details to element attributes.
-export const codeBlockInfoByModelUri = new ResourceMap<IInteractiveSessionCodeBlockInfo>();
 
 const defaultCodeblockPadding = 10;
 
@@ -620,6 +648,10 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		this.editor.setModel(this.textModel);
 	}
 
+	focus(): void {
+		this.editor.focus();
+	}
+
 	private updatePaddingForLayout() {
 		// scrollWidth = "the width of the content that needs to be scrolled"
 		// contentWidth = "the width of the area where content is displayed"
@@ -669,16 +701,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 		this.layout(width);
 
-		if (isResponseVM(data.element) && data.element.providerResponseId) {
-			codeBlockInfoByModelUri.set(this.textModel.uri, {
-				element: data.element,
-				codeBlockIndex: data.codeBlockIndex,
-			});
-		} else {
-			codeBlockInfoByModelUri.delete(this.textModel.uri);
-		}
-
-		this.toolbar.context = <IInteractiveSessionCodeBlockInfo>{
+		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
 			code: data.text,
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,

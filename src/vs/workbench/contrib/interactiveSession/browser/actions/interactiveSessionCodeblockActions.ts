@@ -20,9 +20,10 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { codeBlockInfoByModelUri } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionCopyAction, IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveResponseViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IInteractiveResponseViewModel, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -97,7 +98,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 			return false;
 		}
 
-		const context = getContextFromEditor(editor);
+		const context = getContextFromEditor(editor, accessor);
 		if (!context) {
 			return false;
 		}
@@ -155,7 +156,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 		override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
 			let context = args[0];
 			if (!isCodeBlockActionContext(context)) {
-				context = getContextFromEditor(editor);
+				context = getContextFromEditor(editor, accessor);
 				if (!isCodeBlockActionContext(context)) {
 					return;
 				}
@@ -264,7 +265,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 		override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
 			let context = args[0];
 			if (!isCodeBlockActionContext(context)) {
-				context = getContextFromEditor(editor);
+				context = getContextFromEditor(editor, accessor);
 				if (!isCodeBlockActionContext(context)) {
 					return;
 				}
@@ -316,7 +317,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 		override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
 			let context = args[0];
 			if (!isCodeBlockActionContext(context)) {
-				context = getContextFromEditor(editor);
+				context = getContextFromEditor(editor, accessor);
 				if (!isCodeBlockActionContext(context)) {
 					return;
 				}
@@ -357,15 +358,94 @@ export function registerInteractiveSessionCodeBlockActions() {
 			});
 		}
 	});
+
+	function navigateCodeBlocks(accessor: ServicesAccessor, reverse?: boolean): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+		const widget = interactiveSessionWidgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		const editor = codeEditorService.getFocusedCodeEditor();
+		const editorUri = editor?.getModel()?.uri;
+		const curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
+
+		const focusResponse = curCodeBlockInfo ?
+			curCodeBlockInfo.element :
+			widget.viewModel?.getItems().reverse().find((item): item is IInteractiveResponseViewModel => isResponseVM(item));
+		if (!focusResponse) {
+			return;
+		}
+
+		const responseCodeblocks = widget.getCodeBlockInfosForResponse(focusResponse);
+		const focusIdx = curCodeBlockInfo ?
+			(curCodeBlockInfo.codeBlockIndex + (reverse ? -1 : 1) + responseCodeblocks.length) % responseCodeblocks.length :
+			reverse ? responseCodeblocks.length - 1 : 0;
+
+		responseCodeblocks[focusIdx]?.focus();
+	}
+
+	registerAction2(class NextCodeBlockAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.interactiveSession.nextCodeBlock',
+				title: {
+					value: localize('interactive.nextCodeBlock.label', "Next Code Block"),
+					original: 'Next Code Block'
+				},
+				keybinding: {
+					primary: KeyCode.F9,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: CONTEXT_IN_INTERACTIVE_SESSION,
+				},
+				f1: true,
+				category: INTERACTIVE_SESSION_CATEGORY,
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			navigateCodeBlocks(accessor);
+		}
+	});
+
+	registerAction2(class PreviousCodeBlockAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.interactiveSession.previousCodeBlock',
+				title: {
+					value: localize('interactive.previousCodeBlock.label', "Previous Code Block"),
+					original: 'Previous Code Block'
+				},
+				keybinding: {
+					primary: KeyMod.Shift | KeyCode.F9,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: CONTEXT_IN_INTERACTIVE_SESSION,
+				},
+				f1: true,
+				category: INTERACTIVE_SESSION_CATEGORY,
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			navigateCodeBlocks(accessor, true);
+		}
+	});
 }
 
-function getContextFromEditor(editor: ICodeEditor): IInteractiveSessionCodeBlockActionContext | undefined {
+function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): IInteractiveSessionCodeBlockActionContext | undefined {
+	const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
 	const model = editor.getModel();
 	if (!model) {
 		return;
 	}
 
-	const codeBlockInfo = codeBlockInfoByModelUri.get(model.uri);
+	const widget = interactiveSessionWidgetService.lastFocusedWidget;
+	if (!widget) {
+		return;
+	}
+
+	const codeBlockInfo = widget.getCodeBlockInfoForEditor(model.uri);
 	if (!codeBlockInfo) {
 		return;
 	}
