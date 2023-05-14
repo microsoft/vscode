@@ -9,6 +9,7 @@ import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize';
+import type { ImageAddon as ImageAddonType } from 'xterm-addon-image';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -47,6 +48,7 @@ const enum RenderConstants {
 }
 
 let CanvasAddon: typeof CanvasAddonType;
+let ImageAddon: typeof ImageAddonType;
 let SearchAddon: typeof SearchAddonType;
 let SerializeAddon: typeof SerializeAddonType;
 let Unicode11Addon: typeof Unicode11AddonType;
@@ -136,6 +138,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
+	private _imageAddon?: ImageAddonType;
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
@@ -250,6 +253,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+
+		this._getImageAddon();
 
 		// Load the suggest addon, this should be loaded regardless of the setting as the sequences
 		// may still come in
@@ -415,6 +420,19 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		return this._searchAddon;
 	}
 
+	private async _getImageAddon(): Promise<ImageAddonType> {
+		if (this._imageAddon) {
+			return this._imageAddon;
+		}
+		console.log('1');
+		const AddonCtor = await this._getImageAddonConstructor();
+		this._imageAddon = new AddonCtor();
+		console.log('2');
+		this.raw.loadAddon(this._imageAddon);
+		console.log('3');
+		return this._imageAddon;
+	}
+
 	clearSearchDecorations(): void {
 		this._searchAddon?.clearDecorations();
 	}
@@ -571,6 +589,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			CanvasAddon = (await import('xterm-addon-canvas')).CanvasAddon;
 		}
 		return CanvasAddon;
+	}
+
+	protected async _getImageAddonConstructor(): Promise<typeof ImageAddonType> {
+		if (!ImageAddon) {
+			ImageAddon = (await import('xterm-addon-image')).ImageAddon;
+		}
+		return ImageAddon;
 	}
 
 	protected async _getSearchAddonConstructor(): Promise<typeof SearchAddonType> {
