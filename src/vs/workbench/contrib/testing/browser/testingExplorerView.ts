@@ -428,7 +428,7 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	private renderActivityCount() {
-		const countBadgeType = this.configurationService.getValue<TestingCountBadge>('testing.countBadge');
+		const countBadgeType = this.configurationService.getValue<TestingCountBadge>(TestingConfigKeys.CountBadge);
 		let type: 'failed' | 'passed' | 'skipped' | 'totalWillBeRun' | 'off';
 		let badgeTooltip: string;
 		if (countBadgeType === TestingCountBadge.All) {
