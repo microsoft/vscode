@@ -227,11 +227,11 @@ export class TabsTitleControl extends TitleControl {
 		if (this.tabsContainer) {
 			const options = this.accessor.partOptions;
 			if (options.tabSizing === 'fixed') {
-				this.tabsContainer.style.setProperty('--tab-sizing-max-width', options.tabSizingMaxWidth + 'px');
+				this.tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', options.tabSizingFixedMaxWidth + 'px');
 				this.tabsContainer.onmouseenter = () => this.fixTabWidths();
 				this.tabsContainer.onmouseleave = () => this.relaxTabWidths();
 			} else {
-				this.tabsContainer.style.removeProperty('--tab-sizing-max-width');
+				this.tabsContainer.style.removeProperty('--tab-sizing-fixed-max-width');
 				this.tabsContainer.onmouseenter = null;
 				this.tabsContainer.onmouseleave = null;
 				this.relaxTabWidths();
@@ -715,7 +715,7 @@ export class TabsTitleControl extends TitleControl {
 			this.updateTabsScrollbarSizing();
 		}
 
-		if (oldOptions.tabSizingMaxWidth !== newOptions.tabSizingMaxWidth ||
+		if (oldOptions.tabSizingFixedMaxWidth !== newOptions.tabSizingFixedMaxWidth ||
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
 			this.updateTabSizing();

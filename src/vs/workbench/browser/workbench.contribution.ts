@@ -150,11 +150,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
-			'workbench.editor.tabSizingMaxWidth': {
+			'workbench.editor.tabSizingFixedMaxWidth': {
 				'type': 'number',
 				'default': 240,
 				'minimum': 50,
-				'markdownDescription': localize('workbench.editor.tabSizingMaxWidth', "Controls the maximum width of tabs when {0} is set to {1}.", '`#workbench.editor.tabSizing#`', '`fixed`')
+				'markdownDescription': localize('workbench.editor.tabSizingFixedMaxWidth', "Controls the maximum width of tabs when {0} is set to {1}.", '`#workbench.editor.tabSizing#`', '`fixed`')
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
@@ -706,7 +706,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'type': 'string'
 				},
 				'default': [],
-				'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
+				'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names (without leading or trailing backslash, for example `192.168.0.1` or `my-server`) to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
 				'included': isWeb ? true /* web maybe connected to a windows machine */ : isWindows,
 				'scope': ConfigurationScope.MACHINE
 			}
