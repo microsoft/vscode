@@ -430,20 +430,30 @@ export class TestingExplorerView extends ViewPane {
 	private renderActivityCount() {
 		const countBadgeType = this.configurationService.getValue<TestingCountBadge>(TestingConfigKeys.CountBadge);
 		let type: 'failed' | 'passed' | 'skipped' | 'totalWillBeRun' | 'off';
-		let badgeTooltip: string;
 		if (countBadgeType === TestingCountBadge.All) {
 			type = 'totalWillBeRun';
-			badgeTooltip = '';
 		} else {
 			type = countBadgeType;
-			badgeTooltip = ' ' + type;
 		}
 
 		if (type === TestingCountBadge.Off || this.countSummary[type] === 0) {
 			this.badgeDisposable.value = undefined;
 		} else {
-			const badge = new NumberBadge(this.countSummary[type], num => localize('testingCountBadge', '{0}{1} tests', num, badgeTooltip));
+			const badge = new NumberBadge(this.countSummary[type], num => this.getLocalizedBadgeString(countBadgeType, num));
 			this.badgeDisposable.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
+		}
+	}
+
+	private getLocalizedBadgeString(countBadgeType: TestingCountBadge, count: number): string {
+		switch (countBadgeType) {
+			case TestingCountBadge.All:
+				return localize('testingCountBadgeTotal', '{0} tests', count);
+			case TestingCountBadge.Passed:
+				return localize('testingCountBadgePassed', '{0} passed tests', count);
+			case TestingCountBadge.Skipped:
+				return localize('testingCountBadgeSkipped', '{0} skipped tests', count);
+			default:
+				return localize('testingCountBadgeFailed', '{0} failed tests', count);
 		}
 	}
 
