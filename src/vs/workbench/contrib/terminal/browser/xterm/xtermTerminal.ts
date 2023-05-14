@@ -246,6 +246,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 		// Load addons
 		this._updateUnicodeVersion();
+		this._refreshImageAddon();
 		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._markNavigationAddon);
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
@@ -253,8 +254,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-
-		this._getImageAddon();
 
 		// Load the suggest addon, this should be loaded regardless of the setting as the sequences
 		// may still come in
@@ -337,6 +336,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 				this._disposeOfCanvasRenderer();
 			}
 		}
+		this._refreshImageAddon();
 	}
 
 	private _shouldLoadWebgl(): boolean {
@@ -418,19 +418,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			this._onDidChangeFindResults.fire(results);
 		});
 		return this._searchAddon;
-	}
-
-	private async _getImageAddon(): Promise<ImageAddonType> {
-		if (this._imageAddon) {
-			return this._imageAddon;
-		}
-		console.log('1');
-		const AddonCtor = await this._getImageAddonConstructor();
-		this._imageAddon = new AddonCtor();
-		console.log('2');
-		this.raw.loadAddon(this._imageAddon);
-		console.log('3');
-		return this._imageAddon;
 	}
 
 	clearSearchDecorations(): void {
@@ -589,6 +576,23 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			CanvasAddon = (await import('xterm-addon-canvas')).CanvasAddon;
 		}
 		return CanvasAddon;
+	}
+
+	private async _refreshImageAddon(): Promise<void> {
+		if (this._configHelper.config.experimentalImageSupport) {
+			if (!this._imageAddon) {
+				const AddonCtor = await this._getImageAddonConstructor();
+				this._imageAddon = new AddonCtor();
+				this.raw.loadAddon(this._imageAddon);
+			}
+		} else {
+			try {
+				this._imageAddon?.dispose();
+			} catch {
+				// ignore
+			}
+			this._imageAddon = undefined;
+		}
 	}
 
 	protected async _getImageAddonConstructor(): Promise<typeof ImageAddonType> {

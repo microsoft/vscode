@@ -304,6 +304,7 @@ export interface ITerminalConfiguration {
 		enabled: boolean;
 		decorationsEnabled: boolean;
 	};
+	experimentalImageSupport: boolean;
 	smoothScrolling: boolean;
 }
 
