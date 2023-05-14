@@ -125,7 +125,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed {
 	min-width: var(--tab-sizing-current-width, 50px);
-	max-width: var(--tab-sizing-current-width, var(--tab-sizing-fixed-max-width, 240px));
+	max-width: var(--tab-sizing-current-width, var(--tab-sizing-fixed-max-width, 160px));
 	flex: 1 0 0; /* all tabs are evenly sized and grow */
 
 	/* delay, duration, timing function, all apply to both properties */

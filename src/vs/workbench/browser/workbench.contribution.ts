@@ -152,7 +152,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.tabSizingFixedMaxWidth': {
 				'type': 'number',
-				'default': 240,
+				'default': 160,
 				'minimum': 50,
 				'markdownDescription': localize('workbench.editor.tabSizingFixedMaxWidth', "Controls the maximum width of tabs when {0} is set to {1}.", '`#workbench.editor.tabSizing#`', '`fixed`')
 			},
