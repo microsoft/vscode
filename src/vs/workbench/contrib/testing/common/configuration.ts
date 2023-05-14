@@ -87,7 +87,7 @@ export const testingConfiguration: IConfigurationNode = {
 				TestingCountBadge.Skipped,
 			],
 			enumDescriptions: [
-				localize('testing.countBadge.all', 'Show the number of total tests'),
+				localize('testing.countBadge.all', 'Show the total number of tests'),
 				localize('testing.countBadge.failed', 'Show the number of failed tests'),
 				localize('testing.countBadge.off', 'Disable the testing count badge'),
 				localize('testing.countBadge.passed', 'Show the number of passed tests'),
