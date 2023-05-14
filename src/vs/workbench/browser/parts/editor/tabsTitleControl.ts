@@ -227,36 +227,34 @@ export class TabsTitleControl extends TitleControl {
 		if (this.tabsContainer) {
 			const options = this.accessor.partOptions;
 			if (options.tabSizing === 'fixed') {
-				this.tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', options.tabSizingFixedMaxWidth + 'px');
-				this.tabsContainer.onmouseenter = () => this.fixTabWidths();
-				this.tabsContainer.onmouseleave = () => this.relaxTabWidths();
+				this.tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', `${options.tabSizingFixedMaxWidth}px`);
+				this.tabsContainer.onmouseenter = () => this.setTabsWidthFixed();
+				this.tabsContainer.onmouseleave = () => this.resetTabsWidthFixed();
 			} else {
 				this.tabsContainer.style.removeProperty('--tab-sizing-fixed-max-width');
 				this.tabsContainer.onmouseenter = null;
 				this.tabsContainer.onmouseleave = null;
-				this.relaxTabWidths();
+				this.resetTabsWidthFixed();
 			}
 		}
 	}
 
-	private fixTabWidths() {
-		if (this.accessor.partOptions.tabSizing === 'fixed') {
-			// to prevent disturbing effects (especially with wrapping tabs)
-			// when tabs are being fixed quickly after they were relaxed,
-			// snap the tabs into their normal position before we fix their width
-			this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-				tabContainer.classList.add('stop-transition');
-			});
-			void this.tabsContainer?.offsetWidth; // force layout
+	private setTabsWidthFixed() {
+		// to prevent disturbing effects (especially with wrapping tabs)
+		// when tabs are being fixed quickly after they were relaxed,
+		// snap the tabs into their normal position before we fix their width
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			tabContainer.classList.add('stop-transition');
+		});
+		void this.tabsContainer?.offsetWidth; // force layout
 
-			this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-				// adjust width so the last tab doesn't wrap onto the next line due to tiny rounding errors
-				// introduced by fixed sizing just overflowing the tab bar's width
-				const { width } = tabContainer.getBoundingClientRect();
-				const adjustedWidth = this.isTabLastInWrappingRow(tabContainer) ? width - 0.1 : width;
-				tabContainer.style.setProperty('--tab-sizing-current-width', `${adjustedWidth}px`);
-			});
-		}
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			// adjust width so the last tab doesn't wrap onto the next line due to tiny rounding errors
+			// introduced by fixed sizing just overflowing the tab bar's width
+			const { width } = tabContainer.getBoundingClientRect();
+			const adjustedWidth = this.isTabLastInWrappingRow(tabContainer) ? width - 0.1 : width;
+			tabContainer.style.setProperty('--tab-sizing-current-width', `${adjustedWidth}px`);
+		});
 	}
 
 	private isTabLastInWrappingRow(tabContainer: HTMLElement): boolean {
@@ -266,7 +264,7 @@ export class TabsTitleControl extends TitleControl {
 		return !nextTab || nextTab.offsetTop !== tabContainer.offsetTop;
 	}
 
-	private relaxTabWidths() {
+	private resetTabsWidthFixed() {
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			tabContainer.classList.remove('stop-transition');
 			tabContainer.style.removeProperty('--tab-sizing-current-width');
@@ -715,6 +713,7 @@ export class TabsTitleControl extends TitleControl {
 			this.updateTabsScrollbarSizing();
 		}
 
+		// Update tabs sizing
 		if (oldOptions.tabSizingFixedMaxWidth !== newOptions.tabSizingFixedMaxWidth ||
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
