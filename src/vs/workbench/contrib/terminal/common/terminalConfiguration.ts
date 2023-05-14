@@ -588,7 +588,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ExperimentalImageSupport]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.experimentalImageSupport', "Enables experimental image support in the terminal. Both sixel and iTerm's inline image protocol are supported."),
+			markdownDescription: localize('terminal.integrated.experimentalImageSupport', "Enables experimental image support in the terminal. Both sixel and iTerm's inline image protocol are supported. Images will not be retained currently between window reloads/reconnects."),
 			type: 'boolean',
 			default: false,
 			tags: ['experimental']
