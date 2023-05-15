@@ -22,7 +22,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { clearChatSession } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionClear';
-import { IInteractiveSessionWidget, IInteractiveSessionWidgetService, IInteractiveSessionWidgetViewContext } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IInteractiveSessionCodeBlockInfo, IInteractiveSessionWidget, IInteractiveSessionWidgetService, IInteractiveSessionWidgetViewContext } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
@@ -31,7 +31,7 @@ import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_SESSION
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IInteractiveResponseViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 const $ = dom.$;
 
@@ -141,7 +141,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		this.createList(this.listContainer);
-		this.setupColors(this.listContainer);
 		this.createInput(this.container);
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
@@ -241,10 +240,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		return this.slashCommandsPromise;
 	}
 
-	private setupColors(container: HTMLElement) {
-		container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
-	}
-
 	private createList(listContainer: HTMLElement): void {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const delegate = scopedInstantiationService.createInstance(InteractiveSessionListDelegate);
@@ -339,6 +334,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private onDidStyleChange(): void {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
+		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
 	}
 
 	setModel(model: IInteractiveSessionModel, viewState: IViewState): void {
@@ -384,6 +380,14 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				this.inputPart.acceptInput(query);
 			}
 		}
+	}
+
+	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IInteractiveSessionCodeBlockInfo[] {
+		return this.renderer.getCodeBlockInfosForResponse(response);
+	}
+
+	getCodeBlockInfoForEditor(uri: URI): IInteractiveSessionCodeBlockInfo | undefined {
+		return this.renderer.getCodeBlockInfoForEditor(uri);
 	}
 
 	focusLastMessage(): void {

@@ -148,8 +148,8 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 	private _updateFromChanges(range: Range, changes: LineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
 
-		if (changes.length === 0) {
-			// no change
+		if (changes.length === 0 || this._textModelv0.getValueLength() === 0) {
+			// no change or changes to an empty file
 			this._logService.debug('[IE] livePreview-mode: no diff');
 			this.hide();
 

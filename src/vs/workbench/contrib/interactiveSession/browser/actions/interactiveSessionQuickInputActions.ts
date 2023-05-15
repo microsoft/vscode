@@ -78,7 +78,6 @@ class AskQuickQuestionAction extends Action2 {
 
 		this._input = quickInputService.createQuickPick();
 		disposableStore.add(this._input);
-		this._input.ignoreFocusOut = true;
 		this._input.placeholder = localize('askabot', "Ask {0} a question...", providerInfo.displayName);
 
 		// Setup toggle that will be used to open the chat view
@@ -93,7 +92,6 @@ class AskQuickQuestionAction extends Action2 {
 		disposableStore.add(openInChat);
 		disposableStore.add(openInChat.onChange(async () => {
 			await this._currentSession?.openInChat(this._input!.value);
-			this._input!.hide();
 			this._currentQuery = undefined;
 			this._currentSession?.dispose();
 			this._currentSession = undefined;
@@ -122,7 +120,7 @@ class AskQuickQuestionAction extends Action2 {
 				this._currentQuery = undefined;
 				this._currentSession?.dispose();
 				this._currentSession = undefined;
-			}, 1000 * 10); // 10 seconds
+			}, 1000 * 30); // 30 seconds
 		}));
 		disposableStore.add(this._input.onDidAccept(async () => {
 			await this._currentSession?.accept(this._input!.value);
@@ -141,6 +139,7 @@ class AskQuickQuestionAction extends Action2 {
 		this._currentSession.createList(containerList, containerList.offsetWidth);
 
 		disposableStore.add(this._currentSession.onDidClickFollowup(async e => {
+			this._input!.focusOnInput();
 			this._input!.value = e.message;
 			await this._currentSession?.accept(e.message);
 		}));

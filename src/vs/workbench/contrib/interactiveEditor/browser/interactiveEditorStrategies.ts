@@ -18,13 +18,14 @@ import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, I
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorLivePreviewWidget';
 import { EditResponse, Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { InteractiveEditorWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
 import { getValueFromSnapshot } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
 
@@ -40,8 +41,6 @@ export abstract class EditModeStrategy {
 
 	abstract renderChanges(response: EditResponse, changes: LineRangeMapping[]): Promise<void>;
 
-	abstract hide(): Promise<void>;
-
 	abstract toggleInlineDiff(): void;
 }
 
@@ -55,6 +54,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		private readonly _widget: InteractiveEditorWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
 
@@ -87,6 +87,8 @@ export class PreviewStrategy extends EditModeStrategy {
 		const editResponse = this._session.lastExchange?.response;
 		if (editResponse.workspaceEdits) {
 			await this._bulkEditService.apply(editResponse.workspaceEdits);
+			this._instaService.invokeFunction(showSingleCreateFile, editResponse);
+
 
 		} else if (!editResponse.workspaceEditsIncludeLocalEdits) {
 
@@ -99,10 +101,6 @@ export class PreviewStrategy extends EditModeStrategy {
 				modelN.pushStackElement();
 			}
 		}
-	}
-
-	override async hide(): Promise<void> {
-		// nothing to do, input widget will be hidden by controller
 	}
 
 	async cancel(): Promise<void> {
@@ -206,6 +204,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _ctxInlineDiff: IContextKey<boolean>;
 	private _lastResponse?: EditResponse;
+	private _editCount: number = 0;
 
 	constructor(
 		protected readonly _session: Session,
@@ -215,6 +214,7 @@ export class LiveStrategy extends EditModeStrategy {
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
@@ -255,13 +255,13 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	async apply() {
+		if (this._editCount > 0) {
+			this._editor.pushUndoStop();
+		}
 		if (this._lastResponse?.workspaceEdits) {
 			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
+			this._instaService.invokeFunction(showSingleCreateFile, this._lastResponse);
 		}
-	}
-
-	override async hide(): Promise<void> {
-		this._inlineDiffDecorations.clear();
 	}
 
 	async cancel() {
@@ -281,7 +281,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -291,9 +291,11 @@ export class LiveStrategy extends EditModeStrategy {
 			return last && [Selection.fromPositions(last)];
 		};
 
-		this._editor.pushUndoStop();
-		this._editor.executeEdits('interactive-editor-live', edits, cursorStateComputerAndInlineDiffCollection);
-		this._editor.pushUndoStop();
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			this._editor.pushUndoStop();
+		}
+		this._editor.executeEdits('interactive-editor-live', edits, ignoreInlineDiff ? undefined : cursorStateComputerAndInlineDiffCollection);
 	}
 
 	override async renderChanges(response: EditResponse, textModel0Changes: LineRangeMapping[]) {
@@ -342,7 +344,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
-		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService);
+		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, instaService);
 
 		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session.textModel0);
 		this._previewZone = instaService.createInstance(InteractiveEditorFileCreatePreviewWidget, editor);
@@ -356,15 +358,8 @@ export class LivePreviewStrategy extends LiveStrategy {
 		super.dispose();
 	}
 
-	override async hide(): Promise<void> {
-		this._diffZone.hide();
-		super.hide();
-	}
-
 	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
-		this._editor.pushUndoStop();
-		this._editor.executeEdits('interactive-editor-livePreview', edits);
-		this._editor.pushUndoStop();
+		super.makeChanges(_response, edits, true);
 	}
 
 	override async renderChanges(response: EditResponse, changes: LineRangeMapping[]) {
@@ -377,5 +372,12 @@ export class LivePreviewStrategy extends LiveStrategy {
 		} else {
 			this._previewZone.hide();
 		}
+	}
+}
+
+function showSingleCreateFile(accessor: ServicesAccessor, edit: EditResponse) {
+	const editorService = accessor.get(IEditorService);
+	if (edit.singleCreateFileEdit) {
+		editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
 	}
 }
