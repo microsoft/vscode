@@ -34,9 +34,9 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
-import { IChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
