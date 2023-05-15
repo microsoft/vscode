@@ -240,21 +240,27 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private setTabsWidthFixed() {
-		// to prevent disturbing effects (especially with wrapping tabs)
-		// when tabs are being fixed quickly after they were relaxed,
-		// snap the tabs into their normal position before we fix their width
+		this.preventTabsWidthTransition();
+
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			const { width } = tabContainer.getBoundingClientRect();
+
+			// Adjust width so the last tab doesn't wrap onto the next line due to tiny rounding errors
+			// introduced by fixed sizing just overflowing the tab bar's width.
+			const adjustedWidth = tabContainer.classList.contains('last-in-row') ? width - 0.1 : width;
+
+			tabContainer.style.setProperty('--tab-sizing-current-width', `${adjustedWidth}px`);
+		});
+	}
+
+	private preventTabsWidthTransition() {
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			tabContainer.classList.add('stop-transition');
 		});
-		void this.tabsContainer?.offsetWidth; // force layout
 
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			// adjust width so the last tab doesn't wrap onto the next line due to tiny rounding errors
-			// introduced by fixed sizing just overflowing the tab bar's width
-			const { width } = tabContainer.getBoundingClientRect();
-			const adjustedWidth = tabContainer.classList.contains('last-in-row') ? width - 0.1 : width;
-			tabContainer.style.setProperty('--tab-sizing-current-width', `${adjustedWidth}px`);
-		});
+		// If the fixed-width tabs were still transitioning to their normal width, we need to make sure
+		// that the transition finishes before we fix widths again, therefore we force a browser layout:
+		void this.tabsContainer?.offsetWidth;
 	}
 
 	private resetTabsWidthFixed() {
