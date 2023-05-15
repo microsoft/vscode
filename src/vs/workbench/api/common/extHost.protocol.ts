@@ -957,6 +957,21 @@ export interface ExtHostWebviewViewsShape {
 	$disposeWebviewView(webviewHandle: WebviewHandle): void;
 }
 
+export interface MainThreadManagedSocketsShape extends IDisposable {
+	$registerSocketFactory(socketFactoryId: number): Promise<void>;
+	$unregisterSocketFactory(socketFactoryId: number): Promise<void>;
+	$onDidManagedSocketHaveData(socketId: number, data: VSBuffer): void;
+	$onDidManagedSocketClose(socketId: number, error: string | undefined): void;
+	$onDidManagedSocketEnd(socketId: number): void;
+}
+
+export interface ExtHostManagedSocketsShape {
+	$openRemoteSocket(socketFactoryId: number): Promise<number>;
+	$remoteSocketWrite(socketId: number, buffer: VSBuffer): void;
+	$remoteSocketEnd(socketId: number): void;
+	$remoteSocketDrain(socketId: number): Promise<void>;
+}
+
 export enum CellOutputKind {
 	Text = 1,
 	Error = 2,
@@ -1590,7 +1605,7 @@ export interface ExtHostSearchShape {
 }
 
 export interface ExtHostExtensionServiceShape {
-	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
+	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<Dto<IResolveAuthorityResult>>;
 	/**
 	 * Returns `null` if no resolver for `remoteAuthority` is found.
 	 */
@@ -2518,6 +2533,7 @@ export const MainContext = {
 	MainThreadInteractiveEditor: createProxyIdentifier<MainThreadInteractiveEditorShape>('MainThreadInteractiveEditor'),
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
+	MainThreadManagedSockets: createProxyIdentifier<MainThreadManagedSocketsShape>('MainThreadManagedSockets'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
@@ -2579,6 +2595,7 @@ export const ExtHostContext = {
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
+	ExtHostManagedSockets: createProxyIdentifier<ExtHostManagedSocketsShape>('ExtHostManagedSockets'),
 	ExtHostAuthentication: createProxyIdentifier<ExtHostAuthenticationShape>('ExtHostAuthentication'),
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),

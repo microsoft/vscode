@@ -43,6 +43,7 @@ import './mainThreadLanguageFeatures';
 import './mainThreadLanguages';
 import './mainThreadLogService';
 import './mainThreadMessageService';
+import './mainThreadManagedSockets';
 import './mainThreadOutputService';
 import './mainThreadProgress';
 import './mainThreadQuickDiff';
