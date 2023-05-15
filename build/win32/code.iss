@@ -62,13 +62,13 @@ Name: "hungarian"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.hu.isl,{#R
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl,{#RepoDir}\build\win32\i18n\messages.tr.isl" {#LocalizedLanguageFile("trk")}
 
 [InstallDelete]
-Type: filesandordirs; Name: "{app}\resources\app\out"; Check: IsNotUpdate
-Type: filesandordirs; Name: "{app}\resources\app\plugins"; Check: IsNotUpdate
-Type: filesandordirs; Name: "{app}\resources\app\extensions"; Check: IsNotUpdate
-Type: filesandordirs; Name: "{app}\resources\app\node_modules"; Check: IsNotUpdate
-Type: filesandordirs; Name: "{app}\resources\app\node_modules.asar.unpacked"; Check: IsNotUpdate
-Type: files; Name: "{app}\resources\app\node_modules.asar"; Check: IsNotUpdate
-Type: files; Name: "{app}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotUpdate
+Type: filesandordirs; Name: "{app}\resources\app\out"; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\resources\app\plugins"; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\resources\app\extensions"; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\resources\app\node_modules"; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\resources\app\node_modules.asar.unpacked"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{app}\resources\app\node_modules.asar"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{app}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotBackgroundUpdate
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_"
@@ -1304,7 +1304,7 @@ begin
   Result := ExpandConstant('{param:update|false}') <> 'false';
 end;
 
-function IsNotUpdate(): Boolean;
+function IsNotBackgroundUpdate(): Boolean;
 begin
   Result := not IsBackgroundUpdate();
 end;
@@ -1362,7 +1362,8 @@ begin
     end;
   end;
 
-  if IsNotUpdate() and CheckForMutexes('{#TunnelMutex}') then begin
+  if IsNotBackgroundUpdate() and CheckForMutexes('{#TunnelMutex}') then
+  begin
      MsgBox('{#NameShort} is still running a tunnel. Please stop the tunnel before installing.', mbInformation, MB_OK);
 		 Result := false
   end;
@@ -1377,38 +1378,32 @@ end;
 // Updates
 
 var
-	StartTunnelService: Boolean;
+	ShouldRestartTunnelService: Boolean;
 
 procedure StopTunnelServiceIfNeeded();
 var
 	StopServiceResultCode: Integer;
-	KillServiceResultCode: Integer;
 	WaitCounter: Integer;
 begin
+  ShouldRestartTunnelService := False;
  	if CheckForMutexes('{#TunnelServiceMutex}') then begin
 		// stop the tunnel service
 		Log('Stopping the tunnel service using ' + ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'));
 		ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel service uninstall', '', SW_HIDE, ewWaitUntilTerminated, StopServiceResultCode);
 
-		// issue 175268
-		ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel kill', '', SW_HIDE, ewWaitUntilTerminated, KillServiceResultCode);
+		Log('Stopping the tunnel service completed with result code ' + IntToStr(StopServiceResultCode));
 
-		Log('Stopping the tunnel service completed with result codes ' + IntToStr(StopServiceResultCode) + ' (uninstall) ' + IntToStr(KillServiceResultCode) + ' (kill) ');
-
-		WaitCounter := 10
+		WaitCounter := 10;
 		while (WaitCounter > 0) and CheckForMutexes('{#TunnelServiceMutex}') do
 		begin
 			Log('Tunnel service is still running, waiting');
 			Sleep(500);
 			WaitCounter := WaitCounter - 1
 		end;
-		if (WaitCounter = 0) then
+		if CheckForMutexes('{#TunnelServiceMutex}') then
 			Log('Unable to stop tunnel service')
 		else
-			StartTunnelService := True;
-	end else begin
-		Log('No tunnel service running...');
-		StartTunnelService := False
+			ShouldRestartTunnelService := True;
 	end
 end;
 
@@ -1416,8 +1411,8 @@ end;
 // called before the wizard checks for running application
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
-  if IsNotUpdate() then
-    StopTunnelServiceIfNeeded;
+  if IsNotBackgroundUpdate() then
+    StopTunnelServiceIfNeeded();
   Result := ''
 end;
 
@@ -1503,35 +1498,42 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
 	StartServiceResultCode: Integer;
+  StopTunnelAttempt: Integer;
 begin
-  if IsBackgroundUpdate() and (CurStep = ssPostInstall) then
+  if CurStep = ssPostInstall then
   begin
-    CreateMutex('{#AppMutex}-ready');
-
-    while (CheckForMutexes('{#AppMutex}')) do
+    if IsBackgroundUpdate() then
     begin
-      Log('Application is still running, waiting');
-      Sleep(1000);
+      CreateMutex('{#AppMutex}-ready');
+
+      while (CheckForMutexes('{#AppMutex}')) do
+      begin
+        Log('Application is still running, waiting');
+        Sleep(1000)
+      end;
+
+      StopTunnelServiceIfNeeded();
+
+		  StopTunnelAttempt := 1;
+      while (StopTunnelAttempt <= 3) and CheckForMutexes('{#TunnelMutex}') do
+      begin
+        MsgBox('{#NameShort} is still running a tunnel. Please stop the tunnel before continuing. (Attempt ' + IntToStr(StopTunnelAttempt) + 'of 3)', mbInformation, MB_OK);
+        Sleep(1000);
+        StopTunnelAttempt := StopTunnelAttempt + 1
+      end;
+
+      Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
     end;
 
-    StopTunnelServiceIfNeeded();
-
-    if CheckForMutexes('{#TunnelMutex}') then begin
-      MsgBox('{#NameShort} is still running a tunnel. Please stop the tunnel before continuing.', mbInformation, MB_OK);
+    if ShouldRestartTunnelService then
+    begin
+      // start the tunnel service
+      Log('Restarting the tunnel service...');
+      ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel service install', '', SW_HIDE, ewWaitUntilTerminated, StartServiceResultCode);
+      Log('Starting the tunnel service completed with result code ' + IntToStr(StartServiceResultCode));
+      ShouldRestartTunnelService := False
     end;
-
-    Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
   end;
-
-	if (CurStep = ssPostInstall) and StartTunnelService then
-	begin
-		// start the tunnel service
-		Log('Restarting the tunnel service...');
-    ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel service install', '', SW_HIDE, ewWaitUntilTerminated, StartServiceResultCode);
-		Log('Starting the tunnel service completed with result code ' + IntToStr(StartServiceResultCode));
-		StartTunnelService := False
-	end;
-
 end;
 
 // https://stackoverflow.com/a/23838239/261019
