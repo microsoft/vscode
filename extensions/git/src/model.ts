@@ -769,17 +769,17 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable {
 		const providerDisposables: Disposable[] = [];
 
-		this.branchProtectionProviders.set(root.fsPath, (this.branchProtectionProviders.get(root.fsPath) ?? new Set()).add(provider));
+		this.branchProtectionProviders.set(root.toString(), (this.branchProtectionProviders.get(root.toString()) ?? new Set()).add(provider));
 		providerDisposables.push(provider.onDidChangeBranchProtection(uri => this._onDidChangeBranchProtectionProviders.fire(uri)));
 
 		this._onDidChangeBranchProtectionProviders.fire(root);
 
 		return toDisposable(() => {
-			const providers = this.branchProtectionProviders.get(root.fsPath);
+			const providers = this.branchProtectionProviders.get(root.toString());
 
 			if (providers && providers.has(provider)) {
 				providers.delete(provider);
-				this.branchProtectionProviders.set(root.fsPath, providers);
+				this.branchProtectionProviders.set(root.toString(), providers);
 				this._onDidChangeBranchProtectionProviders.fire(root);
 			}
 
@@ -788,7 +788,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	getBranchProtectionProviders(root: Uri): BranchProtectionProvider[] {
-		return [...(this.branchProtectionProviders.get(root.fsPath) ?? new Set()).values()];
+		return [...(this.branchProtectionProviders.get(root.toString()) ?? new Set()).values()];
 	}
 
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable {
