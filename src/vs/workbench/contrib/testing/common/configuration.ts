@@ -39,7 +39,6 @@ export const enum DefaultGutterClickAction {
 }
 
 export const enum TestingCountBadge {
-	All = 'all',
 	Failed = 'failed',
 	Off = 'off',
 	Passed = 'passed',
@@ -80,14 +79,12 @@ export const testingConfiguration: IConfigurationNode = {
 		[TestingConfigKeys.CountBadge]: {
 			description: localize('testing.countBadge', 'Controls the count badge on the Testing icon on the Activity Bar.'),
 			enum: [
-				TestingCountBadge.All,
 				TestingCountBadge.Failed,
 				TestingCountBadge.Off,
 				TestingCountBadge.Passed,
 				TestingCountBadge.Skipped,
 			],
 			enumDescriptions: [
-				localize('testing.countBadge.all', 'Show the total number of tests'),
 				localize('testing.countBadge.failed', 'Show the number of failed tests'),
 				localize('testing.countBadge.off', 'Disable the testing count badge'),
 				localize('testing.countBadge.passed', 'Show the number of passed tests'),
