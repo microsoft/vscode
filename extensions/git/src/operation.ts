@@ -51,6 +51,7 @@ export const enum OperationKind {
 	Rebase = 'Rebase',
 	RebaseAbort = 'RebaseAbort',
 	RebaseContinue = 'RebaseContinue',
+	Restore = 'RestoreOperation',
 	RevertFiles = 'RevertFiles',
 	RevertFilesNoProgress = 'RevertFilesNoProgress',
 	SetBranchUpstream = 'SetBranchUpstream',
@@ -69,7 +70,7 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetRefsOperation | GetRemoteRefsOperation |
 	HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation | MergeBaseOperation |
 	MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation | RemoveOperation |
-	ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | SetBranchUpstreamOperation |
+	ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RestoreOperation | RevertFilesOperation | SetBranchUpstreamOperation |
 	ShowOperation | StageOperation | StatusOperation | StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
@@ -115,6 +116,7 @@ export type ResetOperation = BaseOperation & { kind: OperationKind.Reset };
 export type RebaseOperation = BaseOperation & { kind: OperationKind.Rebase };
 export type RebaseAbortOperation = BaseOperation & { kind: OperationKind.RebaseAbort };
 export type RebaseContinueOperation = BaseOperation & { kind: OperationKind.RebaseContinue };
+export type RestoreOperation = BaseOperation & { kind: OperationKind.Restore };
 export type RevertFilesOperation = BaseOperation & { kind: OperationKind.RevertFiles };
 export type SetBranchUpstreamOperation = BaseOperation & { kind: OperationKind.SetBranchUpstream };
 export type ShowOperation = BaseOperation & { kind: OperationKind.Show };
@@ -168,6 +170,7 @@ export const Operation = {
 	Rebase: { kind: OperationKind.Rebase, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseOperation,
 	RebaseAbort: { kind: OperationKind.RebaseAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseAbortOperation,
 	RebaseContinue: { kind: OperationKind.RebaseContinue, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseContinueOperation,
+	Restore: (showProgress: boolean) => ({ kind: OperationKind.Restore, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as RestoreOperation),
 	RevertFiles: (showProgress: boolean) => ({ kind: OperationKind.RevertFiles, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as RevertFilesOperation),
 	SetBranchUpstream: { kind: OperationKind.SetBranchUpstream, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SetBranchUpstreamOperation,
 	Show: { kind: OperationKind.Show, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as ShowOperation,
