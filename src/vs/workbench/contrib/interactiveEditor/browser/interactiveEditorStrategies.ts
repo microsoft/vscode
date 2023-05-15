@@ -40,8 +40,6 @@ export abstract class EditModeStrategy {
 
 	abstract renderChanges(response: EditResponse, changes: LineRangeMapping[]): Promise<void>;
 
-	abstract hide(): Promise<void>;
-
 	abstract toggleInlineDiff(): void;
 }
 
@@ -99,10 +97,6 @@ export class PreviewStrategy extends EditModeStrategy {
 				modelN.pushStackElement();
 			}
 		}
-	}
-
-	override async hide(): Promise<void> {
-		// nothing to do, input widget will be hidden by controller
 	}
 
 	async cancel(): Promise<void> {
@@ -264,10 +258,6 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async hide(): Promise<void> {
-		this._inlineDiffDecorations.clear();
-	}
-
 	async cancel() {
 		const { textModelN: modelN, textModel0: model0, lastSnapshot } = this._session;
 		if (modelN.isDisposed() || (model0.isDisposed() && !lastSnapshot)) {
@@ -360,11 +350,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		this._previewZone.hide();
 		this._previewZone.dispose();
 		super.dispose();
-	}
-
-	override async hide(): Promise<void> {
-		this._diffZone.hide();
-		super.hide();
 	}
 
 	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
