@@ -769,18 +769,17 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable {
 		const providerDisposables: Disposable[] = [];
 
-		const rootPath = root.fsPath;
-		this.branchProtectionProviders.set(rootPath, (this.branchProtectionProviders.get(rootPath) ?? new Set()).add(provider));
+		this.branchProtectionProviders.set(root.fsPath, (this.branchProtectionProviders.get(root.fsPath) ?? new Set()).add(provider));
 		providerDisposables.push(provider.onDidChangeBranchProtection(uri => this._onDidChangeBranchProtectionProviders.fire(uri)));
 
 		this._onDidChangeBranchProtectionProviders.fire(root);
 
 		return toDisposable(() => {
-			const providers = this.branchProtectionProviders.get(rootPath);
+			const providers = this.branchProtectionProviders.get(root.fsPath);
 
 			if (providers && providers.has(provider)) {
 				providers.delete(provider);
-				this.branchProtectionProviders.set(rootPath, providers);
+				this.branchProtectionProviders.set(root.fsPath, providers);
 				this._onDidChangeBranchProtectionProviders.fire(root);
 			}
 
