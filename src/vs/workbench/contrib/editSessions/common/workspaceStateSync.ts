@@ -82,6 +82,9 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 			return;
 		}
 
+		// Ensure we have latest state by sending out onWillSaveState event
+		await this.storageService.flush();
+
 		const keys = this.storageService.keys(StorageScope.WORKSPACE, StorageTarget.USER);
 		if (!keys.length) {
 			return;

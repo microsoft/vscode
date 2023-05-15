@@ -1182,6 +1182,9 @@ class ViewModel {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				this.storageService.store(`scm.viewState`, JSON.stringify(this.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
+
+			this.mode = this.getViewModelMode();
+			this.sortKey = this.getViewModelSortKey();
 		});
 
 		this.storageService.onDidChangeValue(e => {
