@@ -252,6 +252,7 @@
 	"config.publishBeforeContinueOn.always": "Always publish unpublished git state when using Continue Working On from a git repository",
 	"config.publishBeforeContinueOn.never": "Never publish unpublished git state when using Continue Working On from a git repository",
 	"config.publishBeforeContinueOn.prompt": "Prompt to publish unpublished git state when using Continue Working On from a git repository",
+	"config.similarityThreshold": "Controls the threshold of the similarity index (i.e. amount of additions/deletions compared to the file's size) for changes in a pair of added/deleted files to be considered a rename.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",

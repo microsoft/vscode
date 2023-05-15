@@ -20,6 +20,7 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { Memento } from 'vs/workbench/common/memento';
 import { SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IInteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
@@ -33,7 +34,7 @@ interface IViewPaneState extends IViewState {
 }
 
 export const INTERACTIVE_SIDEBAR_PANEL_ID = 'workbench.panel.interactiveSessionSidebar';
-export class InteractiveSessionViewPane extends ViewPane {
+export class InteractiveSessionViewPane extends ViewPane implements IInteractiveSessionViewPane {
 	static ID = 'workbench.panel.interactiveSession.view';
 
 	private _widget!: InteractiveSessionWidget;
@@ -96,7 +97,7 @@ export class InteractiveSessionViewPane extends ViewPane {
 		}));
 		this._widget.render(parent);
 
-		const initialModel = this.viewState.sessionId ? this.interactiveSessionService.retrieveSession(this.viewState.sessionId) : undefined;
+		const initialModel = this.viewState.sessionId ? this.interactiveSessionService.getOrRestoreSession(this.viewState.sessionId) : undefined;
 		this.updateModel(initialModel);
 	}
 

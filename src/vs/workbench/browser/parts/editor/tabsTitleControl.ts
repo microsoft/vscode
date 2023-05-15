@@ -2114,7 +2114,7 @@ registerThemingParticipant((theme, collector) => {
 	// - in high contrast theme
 	// - if we have a contrast border (which draws an outline - https://github.com/microsoft/vscode/issues/109117)
 	// - on Safari (https://github.com/microsoft/vscode/issues/108996)
-	if (isHighContrast(theme.type) && !isSafari && !activeContrastBorderColor) {
+	if (!isHighContrast(theme.type) && !isSafari && !activeContrastBorderColor) {
 		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 		const editorBackgroundColor = theme.getColor(editorBackground);
 		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);

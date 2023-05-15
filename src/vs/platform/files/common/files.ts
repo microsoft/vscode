@@ -969,7 +969,7 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	return path.indexOf(candidate) === 0;
 }
 
-interface IBaseFileStat {
+export interface IBaseFileStat {
 
 	/**
 	 * The unified resource identifier of this file or folder.

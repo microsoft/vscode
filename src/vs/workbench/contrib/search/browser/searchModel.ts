@@ -708,6 +708,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		super.dispose();
 	}
 
+	hasOnlyReadOnlyMatches(): boolean {
+		return this.matches().every(match => (match instanceof MatchInNotebook && match.isWebviewMatch()));
+	}
+
 	// #region strictly notebook methods
 	bindNotebookEditorWidget(widget: NotebookEditorWidget) {
 		if (this._notebookEditorWidget === widget) {
@@ -999,7 +1003,7 @@ export class FolderMatch extends Disposable {
 		this.doRemoveFile(allMatches);
 	}
 
-	replace(match: FileMatch): Promise<any> {
+	async replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
 			this.doRemoveFile([match], true, true, true);
 		});
@@ -1126,6 +1130,10 @@ export class FolderMatch extends Disposable {
 		if (this._unDisposedFileMatches.has(fileMatch.resource)) {
 			this._unDisposedFileMatches.delete(fileMatch.resource);
 		}
+	}
+
+	hasOnlyReadOnlyMatches(): boolean {
+		return Array.from(this._fileMatches.values()).every(fm => fm.hasOnlyReadOnlyMatches());
 	}
 
 	protected uriHasParent(parent: URI, child: URI) {
@@ -1525,6 +1533,7 @@ export class SearchResult extends Disposable {
 	private disposePastResults: () => void = () => { };
 	private _isDirty = false;
 	private _onWillChangeModelListener: IDisposable | undefined;
+	private _onDidChangeModelListener: IDisposable | undefined;
 
 	constructor(
 		private _searchModel: SearchModel,
@@ -1668,14 +1677,15 @@ export class SearchResult extends Disposable {
 			}
 		);
 
-		widget.onDidChangeModel(
-			(model) => {
-				if (model) {
-					this.onNotebookEditorWidgetAdded(widget, model?.uri);
+		this._onDidChangeModelListener?.dispose();
+		// listen to view model change as we are searching on both inputs and outputs
+		this._onDidChangeModelListener = widget.onDidAttachViewModel(
+			() => {
+				if (widget.hasModel()) {
+					this.onNotebookEditorWidgetAdded(widget, widget.textModel.uri);
 				}
 			}
 		);
-
 	}
 
 	private onModelAdded(model: ITextModel): void {
@@ -1886,6 +1896,7 @@ export class SearchResult extends Disposable {
 
 	override dispose(): void {
 		this._onWillChangeModelListener?.dispose();
+		this._onDidChangeModelListener?.dispose();
 		this.disposePastResults();
 		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();

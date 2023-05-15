@@ -1345,7 +1345,7 @@ export class DebugSession implements IDebugSession {
 	appendToRepl(data: INewReplElementData, isImportant?: boolean): void {
 		this.repl.appendToRepl(this, data);
 		if (isImportant) {
-			this.notificationService.notify({ message: data.toString(), severity: data.sev, source: this.name });
+			this.notificationService.notify({ message: data.output.toString(), severity: data.sev, source: this.name });
 		}
 	}
 }

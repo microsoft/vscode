@@ -71,7 +71,7 @@ import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/vie
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUPTUT_INPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -198,6 +198,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly _outputFocus: IContextKey<boolean>;
 	private readonly _editorEditable: IContextKey<boolean>;
 	private readonly _cursorNavMode: IContextKey<boolean>;
+	private readonly _outputInputFocus: IContextKey<boolean>;
 	protected readonly _contributions = new Map<string, INotebookEditorContribution>();
 	private _scrollBeyondLastLine: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
@@ -390,6 +391,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._isVisible = true;
 		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.scopedContextKeyService);
+		this._outputInputFocus = NOTEBOOK_OUPTUT_INPUT_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.scopedContextKeyService);
 		this._cursorNavMode = NOTEBOOK_CURSOR_NAVIGATION_MODE.bindTo(this.scopedContextKeyService);
 
@@ -1349,6 +1351,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that),
 			didResizeOutput: that._didResizeOutput.bind(that),
 			updatePerformanceMetadata: that._updatePerformanceMetadata.bind(that),
+			didFocusOutputInputChange: that._didFocusOutputInputChange.bind(that),
 		}, id, viewType, resource, {
 			...this._notebookOptions.computeWebviewOptions(),
 			fontFamily: this._generateFontFamily()
@@ -1537,7 +1540,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells in wrong position as the list view doesn't have a correct `top` offset yet
 		this._webview!.element.style.visibility = 'hidden';
 		// warm up can take around 200ms to load markdown libraries, etc.
-		await this._warmupViewport(viewModel, viewState);
+		await this._warmupViewportMarkdownCells(viewModel, viewState);
 		this.logService.debug('NotebookEditorWidget', 'warmup - viewport warmed up');
 
 		// todo@rebornix @mjbvz, is this too complicated?
@@ -1561,7 +1564,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._onDidAttachViewModel.fire();
 	}
 
-	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
+	private async _warmupViewportMarkdownCells(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
 		if (viewState && viewState.cellTotalHeights) {
 			const totalHeightCache = viewState.cellTotalHeights;
 			const scrollTop = viewState.scrollPosition?.top ?? 0;
@@ -1973,6 +1976,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		return false;
+	}
+
+	_didFocusOutputInputChange(hasFocus: boolean) {
+		this._outputInputFocus.set(hasFocus);
 	}
 
 	//#endregion
@@ -2397,7 +2404,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			const result: IInsetRenderOutput = { type: RenderOutputType.Extension, renderer, source: output, mimeType: pickedMimeTypeRenderer.mimeType };
-			if (!this._webview?.insetMapping.has(result.source)) {
+			const inset = this._webview?.insetMapping.get(result.source);
+			if (!inset || !inset.initialized) {
 				const p = new Promise<void>(resolve => {
 					this._register(Event.any(this.onDidRenderOutput, this.onDidRemoveOutput)(e => {
 						if (e.model === result.source.model) {

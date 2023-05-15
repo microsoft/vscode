@@ -102,6 +102,7 @@ import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInterac
 import { ExtHostNotebookDocumentSaveParticipant } from 'vs/workbench/api/common/extHostNotebookDocumentSaveParticipant';
 import { ExtHostSemanticSimilarity } from 'vs/workbench/api/common/extHostSemanticSimilarity';
 import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReporter';
+import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -136,6 +137,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWindow = accessor.get(IExtHostWindow);
 	const extHostSecretState = accessor.get(IExtHostSecretState);
 	const extHostEditorTabs = accessor.get(IExtHostEditorTabs);
+	const extHostManagedSockets = accessor.get(IExtHostManagedSockets);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
@@ -149,6 +151,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostSecretState, extHostSecretState);
 	rpcProtocol.set(ExtHostContext.ExtHostTelemetry, extHostTelemetry);
 	rpcProtocol.set(ExtHostContext.ExtHostEditorTabs, extHostEditorTabs);
+	rpcProtocol.set(ExtHostContext.ExtHostManagedSockets, extHostManagedSockets);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -394,7 +397,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerIssueUriRequestHandler(handler: vscode.IssueUriRequestHandler) {
 				checkProposedApiEnabled(extension, 'handleIssueUri');
 				return extHostIssueReporter.registerIssueUriRequestHandler(extension, handler);
-			}
+			},
+			get appQuality(): string | undefined {
+				checkProposedApiEnabled(extension, 'resolvers');
+				return initData.quality;
+			},
+			get appCommit(): string | undefined {
+				checkProposedApiEnabled(extension, 'resolvers');
+				return initData.commit;
+			},
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
 			// allow to patch env-function when running tests
@@ -1086,6 +1097,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'editSessionIdentityProvider');
 				return extHostWorkspace.getOnWillCreateEditSessionIdentityEvent(extension)(listener, thisArgs, disposables);
 			},
+			registerCanonicalUriIdentityProvider: (scheme: string, provider: vscode.CanonicalUriIdentityProvider) => {
+				checkProposedApiEnabled(extension, 'canonicalUriIdentityProvider');
+				return extHostWorkspace.registerCanonicalUriIdentityProvider(scheme, provider);
+			},
+			provideCanonicalUriIdentity: (uri: vscode.Uri, token: vscode.CancellationToken) => {
+				checkProposedApiEnabled(extension, 'canonicalUriIdentityProvider');
+				return extHostWorkspace.provideCanonicalUriIdentity(uri, token);
+			}
 		};
 
 		// namespace: scm
@@ -1444,6 +1463,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlayHintKind: extHostTypes.InlayHintKind,
 			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
 			ResolvedAuthority: extHostTypes.ResolvedAuthority,
+			ManagedResolvedAuthority: extHostTypes.ManagedResolvedAuthority,
 			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
 			ExtensionRuntime: extHostTypes.ExtensionRuntime,
 			TimelineItem: extHostTypes.TimelineItem,
