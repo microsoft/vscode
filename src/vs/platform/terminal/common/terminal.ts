@@ -117,6 +117,7 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
+	ExperimentalImageSupport = 'terminal.integrated.experimentalImageSupport',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
@@ -922,3 +923,12 @@ export interface ITerminalCommandSelector {
 	exitStatus: boolean;
 	commandExitResult: 'success' | 'error';
 }
+
+export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyService');
+
+/**
+ * A service responsible for communicating with the pty host process on Electron.
+ *
+ * **This service should only be used within the terminal component.**
+ */
+export interface ILocalPtyService extends IPtyService { }

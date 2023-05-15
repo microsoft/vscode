@@ -19,6 +19,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -145,6 +147,7 @@ suite('ExtensionService', () => {
 			@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 			@IRemoteExtensionsScannerService remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 			@ILifecycleService lifecycleService: ILifecycleService,
+			@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		) {
 			const extensionsProposedApi = instantiationService.createInstance(ExtensionsProposedApi);
 			const extensionHostFactory = new class implements IExtensionHostFactory {
@@ -172,7 +175,8 @@ suite('ExtensionService', () => {
 				logService,
 				remoteAgentService,
 				remoteExtensionsScannerService,
-				lifecycleService
+				lifecycleService,
+				remoteAuthorityResolverService
 			);
 		}
 
@@ -203,6 +207,9 @@ suite('ExtensionService', () => {
 			throw new Error('Method not implemented.');
 		}
 		protected _onExtensionHostExit(code: number): void {
+			throw new Error('Method not implemented.');
+		}
+		protected _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
 			throw new Error('Method not implemented.');
 		}
 	}
@@ -236,6 +243,7 @@ suite('ExtensionService', () => {
 			[IUserDataProfileService, TestUserDataProfileService],
 			[IUriIdentityService, UriIdentityService],
 			[IRemoteExtensionsScannerService, TestRemoteExtensionsScannerService],
+			[IRemoteAuthorityResolverService, RemoteAuthorityResolverService]
 		]);
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});

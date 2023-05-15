@@ -3,24 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { IProcessEnvironment, OperatingSystem, isWindows } from 'vs/base/common/platform';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
-import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
+import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
+import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, TerminalSettingId, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
-import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 enum Constants {
 	MaxRestarts = 5
@@ -39,7 +36,7 @@ let lastPtyId = 0;
 export class PtyHostService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
-	private _client: Client;
+	private _connection: IPtyHostConnection;
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private _proxy: IPtyService;
 
@@ -78,9 +75,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
-		private readonly _reconnectConstants: IReconnectConstants,
+		private readonly _ptyHostStarter: IPtyHostStarter,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
 	) {
@@ -97,7 +93,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
 
-		[this._client, this._proxy] = this._startPtyHost();
+		[this._connection, this._proxy] = this._startPtyHost();
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
@@ -132,31 +128,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 	}
 
-	private _startPtyHost(): [Client, IPtyService] {
-		const opts: IIPCOptions = {
-			serverName: 'Pty Host',
-			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
-			env: {
-				VSCODE_LAST_PTY_ID: lastPtyId,
-				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
-				VSCODE_PIPE_LOGGING: 'true',
-				VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
-				VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
-				VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
-				VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
-			}
-		};
+	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
+		const connection = this._ptyHostStarter.start(lastPtyId);
+		const client = connection.client;
 
-		const ptyHostDebug = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
-		if (ptyHostDebug) {
-			if (ptyHostDebug.break && ptyHostDebug.port) {
-				opts.debugBrk = ptyHostDebug.port;
-			} else if (!ptyHostDebug.break && ptyHostDebug.port) {
-				opts.debug = ptyHostDebug.port;
-			}
-		}
-
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 		this._onPtyHostStart.fire();
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
@@ -165,7 +140,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._handleHeartbeat();
 
 		// Handle exit
-		this._register(client.onDidProcessExit(e => {
+		this._register(connection.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
 			if (!this._isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
@@ -178,9 +153,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}
 		}));
 
-		// Setup logging
-		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
-
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
@@ -191,7 +163,13 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
 		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
-		return [client, proxy];
+		// HACK: When RemoteLoggerChannelClient is not delayed, the Pty Host log file won't show up
+		// in the Output view of the first window?
+		Event.once(Event.any(proxy.onProcessReady, proxy.onProcessReplay))(() => {
+			this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
+		});
+
+		return [connection, proxy];
 	}
 
 	override dispose() {
@@ -339,12 +317,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 	async restartPtyHost(): Promise<void> {
 		this._isResponsive = true;
 		this._disposePtyHost();
-		[this._client, this._proxy] = this._startPtyHost();
+		[this._connection, this._proxy] = this._startPtyHost();
 	}
 
 	private _disposePtyHost(): void {
 		this._proxy.shutdownAll?.();
-		this._client.dispose();
+		this._connection.dispose();
 	}
 
 	private _handleHeartbeat() {

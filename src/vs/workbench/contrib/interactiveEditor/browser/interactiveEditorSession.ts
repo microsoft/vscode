@@ -120,6 +120,25 @@ export class Session {
 		this._lastTextModelChanges = changes;
 	}
 
+	get hasChangedText(): boolean {
+		return !this.textModel0.equalsTextBuffer(this.textModelN.getTextBuffer());
+	}
+
+	asChangedText(): string | undefined {
+		if (!this._lastTextModelChanges || this._lastTextModelChanges.length === 0) {
+			return undefined;
+		}
+
+		let startLine = Number.MAX_VALUE;
+		let endLine = Number.MIN_VALUE;
+		for (const change of this._lastTextModelChanges) {
+			startLine = Math.min(startLine, change.modifiedRange.startLineNumber);
+			endLine = Math.max(endLine, change.modifiedRange.endLineNumberExclusive);
+		}
+
+		return this.textModelN.getValueInRange(new Range(startLine, 1, endLine, Number.MAX_VALUE));
+	}
+
 	recordExternalEditOccurred() {
 		this._teldata.edits = true;
 	}
@@ -282,7 +301,14 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
-		const raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+		let raw: IInteractiveEditorSession | undefined | null;
+		try {
+			raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+		} catch (error) {
+			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
+			this._logService.error(error);
+			return undefined;
+		}
 		if (!raw) {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return undefined;
