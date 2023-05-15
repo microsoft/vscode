@@ -112,7 +112,7 @@ export const CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION = new RawContextKey<'a
 export const CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('interactiveEditorHasActiveRequest', false, localize('interactiveEditorHasActiveRequest', "Whether interactive editor has an active request"));
 export const CTX_INTERACTIVE_EDITOR_INLNE_DIFF = new RawContextKey<boolean>('interactiveEditorInlineDiff', false, localize('interactiveEditorInlineDiff', "Whether interactive editor show inline diffs for changes"));
 export const CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE = new RawContextKey<InteractiveEditorResponseType | undefined>('interactiveEditorLastResponseType', undefined, localize('interactiveEditorResponseType', "What type was the last response of the current interactive editor session"));
-export const CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE = new RawContextKey<'simple' | ''>('interactiveEditorLastEditKind', '', localize('interactiveEditorLastEditKind', "The last kind of edit that was performed"));
+export const CTX_INTERACTIVE_EDITOR_DID_EDIT = new RawContextKey<boolean>('interactiveEditorDidEdit', false, localize('interactiveEditorDidEdit', "Whether interactive editor did change any code"));
 export const CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('interactiveEditorLastFeedbackKind', '', localize('interactiveEditorLastFeedbackKind', "The last kind of feedback that was provided"));
 export const CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED = new RawContextKey<boolean>('interactiveEditorDocumentChanged', false, localize('interactiveEditorDocumentChanged', "Whether the document has changed concurrently"));
 export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<EditMode>('config.interactiveEditor.editMode', EditMode.Live);
@@ -122,14 +122,15 @@ export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<EditMode>('con
 export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidget');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE = MenuId.for('interactiveEditorWidget.markdownMessage');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_STATUS = MenuId.for('interactiveEditorWidget.status');
-export const MENU_INTERACTIVE_EDITOR_WIDGET_UNDO = MenuId.for('interactiveEditorWidget.undo');
+export const MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD = MenuId.for('interactiveEditorWidget.undo');
 MenuRegistry.appendMenuItem(MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, {
-	submenu: MENU_INTERACTIVE_EDITOR_WIDGET_UNDO,
-	title: localize('undo', "Undo..."),
+	submenu: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
+	title: localize('discard', "Discard..."),
 	icon: Codicon.discard,
 	group: '0_main',
 	order: 2,
-	when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('direct')
+	when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.Preview),
+	rememberDefaultAction: true
 });
 
 // --- colors
