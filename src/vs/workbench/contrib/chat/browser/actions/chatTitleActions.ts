@@ -23,7 +23,7 @@ export function registerChatTitleActions() {
 	registerAction2(class VoteUpAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.voteUp',
+				id: 'workbench.action.chat.voteUp',
 				title: {
 					value: localize('interactive.voteUp.label', "Vote Up"),
 					original: 'Vote Up'
@@ -62,7 +62,7 @@ export function registerChatTitleActions() {
 	registerAction2(class VoteDownAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.voteDown',
+				id: 'workbench.action.chat.voteDown',
 				title: {
 					value: localize('interactive.voteDown.label', "Vote Down"),
 					original: 'Vote Down'
@@ -101,7 +101,7 @@ export function registerChatTitleActions() {
 	registerAction2(class InsertToNotebookAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.insertIntoNotebook',
+				id: 'workbench.action.chat.insertIntoNotebook',
 				title: {
 					value: localize('interactive.insertIntoNotebook.label', "Insert into Notebook"),
 					original: 'Insert into Notebook'

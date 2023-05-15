@@ -31,9 +31,9 @@ class ChatProviderWrapper<T> {
 export class ExtHostChat implements ExtHostChatShape {
 	private static _nextId = 0;
 
-	private readonly _interactiveSessionProvider = new Map<number, ChatProviderWrapper<vscode.InteractiveSessionProvider>>();
+	private readonly _chatProvider = new Map<number, ChatProviderWrapper<vscode.InteractiveSessionProvider>>();
 	private readonly _slashCommandProvider = new Map<number, ChatProviderWrapper<vscode.InteractiveSlashCommandProvider>>();
-	private readonly _interactiveSessions = new Map<number, vscode.InteractiveSession>();
+	private readonly _chatSessions = new Map<number, vscode.InteractiveSession>();
 	// private readonly _providerResponsesByRequestId = new Map<number, { response: vscode.ProviderResult<vscode.InteractiveResponse | vscode.InteractiveResponseForProgress>; sessionId: number }>();
 
 	private readonly _onDidPerformUserAction = new Emitter<vscode.InteractiveSessionUserActionEvent>();
@@ -52,11 +52,11 @@ export class ExtHostChat implements ExtHostChatShape {
 
 	registerChatProvider(extension: Readonly<IRelaxedExtensionDescription>, id: string, provider: vscode.InteractiveSessionProvider): vscode.Disposable {
 		const wrapper = new ChatProviderWrapper(extension, provider);
-		this._interactiveSessionProvider.set(wrapper.handle, wrapper);
+		this._chatProvider.set(wrapper.handle, wrapper);
 		this._proxy.$registerChatProvider(wrapper.handle, id);
 		return toDisposable(() => {
 			this._proxy.$unregisterChatProvider(wrapper.handle);
-			this._interactiveSessionProvider.delete(wrapper.handle);
+			this._chatProvider.delete(wrapper.handle);
 		});
 	}
 
@@ -69,7 +69,7 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	async $prepareChat(handle: number, initialState: any, token: CancellationToken): Promise<IChatDto | undefined> {
-		const entry = this._interactiveSessionProvider.get(handle);
+		const entry = this._chatProvider.get(handle);
 		if (!entry) {
 			return undefined;
 		}
@@ -80,7 +80,7 @@ export class ExtHostChat implements ExtHostChatShape {
 		}
 
 		const id = ExtHostChat._nextId++;
-		this._interactiveSessions.set(id, session);
+		this._chatSessions.set(id, session);
 
 		return {
 			id,
@@ -93,12 +93,12 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	async $resolveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IChatRequestDto, 'id'> | undefined> {
-		const entry = this._interactiveSessionProvider.get(handle);
+		const entry = this._chatProvider.get(handle);
 		if (!entry) {
 			return undefined;
 		}
 
-		const realSession = this._interactiveSessions.get(sessionId);
+		const realSession = this._chatSessions.get(sessionId);
 		if (!realSession) {
 			return undefined;
 		}
@@ -117,7 +117,7 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined> {
-		const entry = this._interactiveSessionProvider.get(handle);
+		const entry = this._chatProvider.get(handle);
 		if (!entry) {
 			return undefined;
 		}
@@ -140,12 +140,12 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	async $provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined> {
-		const entry = this._interactiveSessionProvider.get(handle);
+		const entry = this._chatProvider.get(handle);
 		if (!entry) {
 			return undefined;
 		}
 
-		const realSession = this._interactiveSessions.get(sessionId);
+		const realSession = this._chatSessions.get(sessionId);
 		if (!realSession) {
 			return;
 		}
@@ -159,12 +159,12 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	async $provideReply(handle: number, sessionId: number, request: IChatRequestDto, token: CancellationToken): Promise<IChatResponseDto | undefined> {
-		const entry = this._interactiveSessionProvider.get(handle);
+		const entry = this._chatProvider.get(handle);
 		if (!entry) {
 			return undefined;
 		}
 
-		const realSession = this._interactiveSessions.get(sessionId);
+		const realSession = this._chatSessions.get(sessionId);
 		if (!realSession) {
 			return;
 		}
@@ -202,7 +202,7 @@ export class ExtHostChat implements ExtHostChatShape {
 
 		try {
 			// Check that the session has not been released since the request started
-			if (realSession.saveState && this._interactiveSessions.has(sessionId)) {
+			if (realSession.saveState && this._chatSessions.has(sessionId)) {
 				const newState = realSession.saveState();
 				this._proxy.$acceptChatState(sessionId, newState);
 			}
@@ -215,12 +215,12 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	async $provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<ISlashCommand[] | undefined> {
-		const entry = this._interactiveSessionProvider.get(handle);
+		const entry = this._chatProvider.get(handle);
 		if (!entry) {
 			return undefined;
 		}
 
-		const realSession = this._interactiveSessions.get(sessionId);
+		const realSession = this._chatSessions.get(sessionId);
 		if (!realSession) {
 			return undefined;
 		}
@@ -237,7 +237,7 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	$releaseSession(sessionId: number) {
-		this._interactiveSessions.delete(sessionId);
+		this._chatSessions.delete(sessionId);
 	}
 
 	async $onDidPerformUserAction(event: IChatUserActionEvent): Promise<void> {

@@ -35,7 +35,7 @@ export function registerChatActions() {
 	registerEditorAction(class ChatAcceptInput extends EditorAction {
 		constructor() {
 			super({
-				id: 'interactiveSession.action.acceptInput',
+				id: 'chat.action.acceptInput',
 				label: localize({ key: 'actions.chat.acceptInput', comment: ['Apply input from the chat input box'] }, "Accept Chat Input"),
 				alias: 'Accept Chat Input',
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
@@ -59,7 +59,7 @@ export function registerChatActions() {
 	registerAction2(class ClearEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSessionEditor.clear',
+				id: 'workbench.action.chatEditor.clear',
 				title: {
 					value: localize('interactiveSession.clear.label', "Clear"),
 					original: 'Clear'
@@ -89,7 +89,7 @@ export function registerChatActions() {
 	registerAction2(class ClearEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSessionEditor.clearHistory',
+				id: 'workbench.action.chatEditor.clearHistory',
 				title: {
 					value: localize('interactiveSession.clearHistory.label', "Clear Input History"),
 					original: 'Clear Input History'
@@ -107,7 +107,7 @@ export function registerChatActions() {
 	registerEditorAction(class FocusChatAction extends EditorAction {
 		constructor() {
 			super({
-				id: 'interactiveSession.action.focus',
+				id: 'chat.action.focus',
 				label: localize('actions.interactiveSession.focus', "Focus Interactive Session"),
 				alias: 'Focus Interactive Session',
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
@@ -131,7 +131,7 @@ export function registerChatActions() {
 	registerEditorAction(class AccessibilityHelpChatAction extends EditorAction {
 		constructor() {
 			super({
-				id: 'interactiveSession.action.accessibilityHelp',
+				id: 'chat.action.accessibilityHelp',
 				label: localize('actions.interactiveSession.accessibiltyHelp', "Chat View Accessibility Help"),
 				alias: 'Chat View Accessibility Help',
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
@@ -183,7 +183,7 @@ export function registerChatActions() {
 	registerAction2(class FocusChatInputAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.focusInput',
+				id: 'workbench.action.chat.focusInput',
 				title: {
 					value: localize('interactiveSession.focusInput.label', "Focus Input"),
 					original: 'Focus Input'
@@ -205,7 +205,7 @@ export function registerChatActions() {
 	registerAction2(class GlobalClearChatAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.interactiveSession.clear`,
+				id: `workbench.action.chat.clear`,
 				title: {
 					value: localize('interactiveSession.clear.label', "Clear"),
 					original: 'Clear'
@@ -259,7 +259,7 @@ export function getOpenChatEditorAction(id: string, label: string, when?: string
 
 const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	viewId,
-	id: `workbench.action.interactiveSession.${providerId}.clear`,
+	id: `workbench.action.chat.${providerId}.clear`,
 	title: {
 		value: localize('interactiveSession.clear.label', "Clear"),
 		original: 'Clear'
@@ -289,7 +289,7 @@ export function getClearAction(viewId: string, providerId: string) {
 
 const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	viewId,
-	id: `workbench.action.interactiveSession.${providerId}.history`,
+	id: `workbench.action.chat.${providerId}.history`,
 	title: {
 		value: localize('interactiveSession.history.label', "Show History"),
 		original: 'Show History'
@@ -312,17 +312,17 @@ export function getHistoryAction(viewId: string, providerId: string) {
 		}
 
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-			const interactiveSessionService = accessor.get(IChatService);
+			const chatService = accessor.get(IChatService);
 			const quickInputService = accessor.get(IQuickInputService);
 			const editorService = accessor.get(IEditorService);
-			const items = interactiveSessionService.getHistory();
-			const picks = items.map(i => (<IQuickPickItem & { interactiveSession: IChatDetail }>{
+			const items = chatService.getHistory();
+			const picks = items.map(i => (<IQuickPickItem & { chat: IChatDetail }>{
 				label: i.title,
-				interactiveSession: i
+				chat: i
 			}));
 			const selection = await quickInputService.pick(picks, { placeHolder: localize('interactiveSession.history.pick', "Select a chat session to restore") });
 			if (selection) {
-				const sessionId = selection.interactiveSession.sessionId;
+				const sessionId = selection.chat.sessionId;
 				await editorService.openEditor({
 					resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true }
 				});

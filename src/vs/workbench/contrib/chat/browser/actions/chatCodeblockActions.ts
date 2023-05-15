@@ -46,7 +46,7 @@ export function registerChatCodeBlockActions() {
 	registerAction2(class CopyCodeBlockAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.copyCodeBlock',
+				id: 'workbench.action.chat.copyCodeBlock',
 				title: {
 					value: localize('interactive.copyCodeBlock.label', "Copy"),
 					original: 'Copy'
@@ -70,8 +70,8 @@ export function registerChatCodeBlockActions() {
 			const clipboardService = accessor.get(IClipboardService);
 			clipboardService.writeText(context.code);
 
-			const interactiveSessionService = accessor.get(IChatService);
-			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
 				action: <IChatCopyAction>{
 					kind: 'copy',
@@ -86,7 +86,7 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
-	CopyAction?.addImplementation(50000, 'interactiveSession-codeblock', (accessor) => {
+	CopyAction?.addImplementation(50000, 'chat-codeblock', (accessor) => {
 		// get active code editor
 		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (!editor) {
@@ -138,7 +138,7 @@ export function registerChatCodeBlockActions() {
 	registerAction2(class InsertCodeBlockAction extends EditorAction2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.insertCodeBlock',
+				id: 'workbench.action.chat.insertCodeBlock',
 				title: {
 					value: localize('interactive.insertCodeBlock.label', "Insert at Cursor"),
 					original: 'Insert at Cursor'
@@ -246,7 +246,7 @@ export function registerChatCodeBlockActions() {
 	registerAction2(class InsertIntoNewFileAction extends EditorAction2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.insertIntoNewFile',
+				id: 'workbench.action.chat.insertIntoNewFile',
 				title: {
 					value: localize('interactive.insertIntoNewFile.label', "Insert Into New File"),
 					original: 'Insert Into New File'
@@ -291,7 +291,7 @@ export function registerChatCodeBlockActions() {
 	registerAction2(class RunInTerminalAction extends EditorAction2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.runInTerminal',
+				id: 'workbench.action.chat.runInTerminal',
 				title: {
 					value: localize('interactive.runInTerminal.label', "Run in Terminal"),
 					original: 'Run in Terminal'
@@ -389,7 +389,7 @@ export function registerChatCodeBlockActions() {
 	registerAction2(class NextCodeBlockAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.nextCodeBlock',
+				id: 'workbench.action.chat.nextCodeBlock',
 				title: {
 					value: localize('interactive.nextCodeBlock.label', "Next Code Block"),
 					original: 'Next Code Block'
@@ -412,7 +412,7 @@ export function registerChatCodeBlockActions() {
 	registerAction2(class PreviousCodeBlockAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.previousCodeBlock',
+				id: 'workbench.action.chat.previousCodeBlock',
 				title: {
 					value: localize('interactive.previousCodeBlock.label', "Previous Code Block"),
 					original: 'Previous Code Block'

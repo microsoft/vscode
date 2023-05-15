@@ -24,7 +24,7 @@ export function registerChatExecuteActions() {
 	registerAction2(class SubmitAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.submit',
+				id: 'workbench.action.chat.submit',
 				title: {
 					value: localize('interactive.submit.label', "Submit"),
 					original: 'Submit'
@@ -54,7 +54,7 @@ export function registerChatExecuteActions() {
 	registerAction2(class SubmitAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.cancel',
+				id: 'workbench.action.chat.cancel',
 				title: {
 					value: localize('interactive.cancel.label', "Cancel"),
 					original: 'Cancel'

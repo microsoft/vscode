@@ -208,9 +208,9 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['mergeEditor.*']
 				},
 				{
-					id: 'features/interactiveSession',
+					id: 'features/chat',
 					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['interactiveSession.*', 'interactiveEditor.*']
+					settings: ['chat.*', 'interactiveEditor.*']
 				}
 			]
 		},

@@ -36,37 +36,37 @@ import '../common/chatColors';
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
-	id: 'interactiveSessionSidebar',
-	title: nls.localize('interactiveSessionConfigurationTitle', "Interactive Session"),
+	id: 'chatSidebar',
+	title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
 	type: 'object',
 	properties: {
-		'interactiveSession.editor.fontSize': {
+		'chat.editor.fontSize': {
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in Interactive Sessions."),
 			default: isMacintosh ? 12 : 14,
 		},
-		'interactiveSession.editor.fontFamily': {
+		'chat.editor.fontFamily': {
 			type: 'string',
 			description: nls.localize('interactiveSession.editor.fontFamily', "Controls the font family in Interactive Sessions."),
 			default: 'default'
 		},
-		'interactiveSession.editor.fontWeight': {
+		'chat.editor.fontWeight': {
 			type: 'string',
 			description: nls.localize('interactiveSession.editor.fontWeight', "Controls the font weight in Interactive Sessions."),
 			default: 'default'
 		},
-		'interactiveSession.editor.wordWrap': {
+		'chat.editor.wordWrap': {
 			type: 'string',
 			description: nls.localize('interactiveSession.editor.wordWrap', "Controls whether lines should wrap in Interactive Sessions."),
 			default: 'off',
 			enum: ['on', 'off']
 		},
-		'interactiveSession.editor.lineHeight': {
+		'chat.editor.lineHeight': {
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in Interactive Sessions. Use 0 to compute the line height from the font size."),
 			default: 0
 		},
-		'interactiveSession.experimental.quickQuestion.enable': {
+		'chat.experimental.quickQuestion.enable': {
 			type: 'boolean',
 			description: nls.localize('interactiveSession.experimental.quickQuestion.enable', "Controls whether the quick question feature is enabled."),
 			default: false,

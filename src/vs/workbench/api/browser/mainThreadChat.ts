@@ -25,16 +25,16 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IChatService private readonly _interactiveSessionService: IChatService,
-		@IChatWidgetService private readonly _interactiveSessionWidgetService: IChatWidgetService,
-		@IChatContributionService private readonly interactiveSessionContribService: IChatContributionService,
+		@IChatService private readonly _chatService: IChatService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatContributionService private readonly chatContribService: IChatContributionService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
 
-		this._register(this._interactiveSessionService.onDidPerformUserAction(e => {
+		this._register(this._chatService.onDidPerformUserAction(e => {
 			this._proxy.$onDidPerformUserAction(e);
 		}));
 	}
@@ -45,7 +45,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			return;
 		}
 
-		const unreg = this._interactiveSessionService.registerSlashCommandProvider({
+		const unreg = this._chatService.registerSlashCommandProvider({
 			chatProviderId,
 			provideSlashCommands: async token => {
 				return this._proxy.$provideProviderSlashCommands(handle, token);
@@ -68,12 +68,12 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			return;
 		}
 
-		const registration = this.interactiveSessionContribService.registeredProviders.find(staticProvider => staticProvider.id === id);
+		const registration = this.chatContribService.registeredProviders.find(staticProvider => staticProvider.id === id);
 		if (!registration) {
 			throw new Error(`Provider ${id} must be declared in the package.json.`);
 		}
 
-		const unreg = this._interactiveSessionService.registerProvider({
+		const unreg = this._chatService.registerProvider({
 			id,
 			displayName: registration.label,
 			prepareSession: async (initialState, token) => {
@@ -150,13 +150,13 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	}
 
 	$addRequest(context: any): void {
-		this._interactiveSessionService.addRequest(context);
+		this._chatService.addRequest(context);
 	}
 
 	async $sendRequestToProvider(providerId: string, message: IChatDynamicRequest): Promise<void> {
-		const widget = await this._interactiveSessionWidgetService.revealViewForProvider(providerId);
+		const widget = await this._chatWidgetService.revealViewForProvider(providerId);
 		if (widget && widget.viewModel) {
-			this._interactiveSessionService.sendRequestToProvider(widget.viewModel.sessionId, message);
+			this._chatService.sendRequestToProvider(widget.viewModel.sessionId, message);
 		}
 	}
 

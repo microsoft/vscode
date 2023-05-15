@@ -39,7 +39,7 @@ class AskQuickQuestionAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'interactiveSession.action.askQuickQuestion',
+			id: 'chat.action.askQuickQuestion',
 			title: { value: localize('askQuickQuestion', "Ask Quick Question"), original: 'Ask Quick Question' },
 			f1: true,
 			category: INTERACTIVE_SESSION_CATEGORY,

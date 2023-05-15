@@ -21,7 +21,7 @@ import { IChatViewOptions, INTERACTIVE_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs
 import { IChatContributionService, IChatProviderContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatProviderContribution[]>({
+const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatProviderContribution[]>({
 	extensionPoint: 'interactiveSession',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.interactiveSession', 'Contributes an Interactive Session provider'),
@@ -68,7 +68,7 @@ export class ChatContributionService implements IChatContributionService {
 		@IProductService productService: IProductService,
 		@ILogService logService: ILogService,
 	) {
-		interactiveSessionExtensionPoint.setHandler((extensions, delta) => {
+		chatExtensionPoint.setHandler((extensions, delta) => {
 			if (productService.quality === 'stable') {
 				logService.trace(`ChatContributionService#setHandler: the interactiveSession extension point is not available in stable VS Code.`);
 				return;
