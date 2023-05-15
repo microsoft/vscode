@@ -177,7 +177,7 @@ export interface IInteractiveSessionService {
 	registerSlashCommandProvider(provider: IInteractiveSlashCommandProvider): IDisposable;
 	getProviderInfos(): IInteractiveProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): InteractiveSessionModel | undefined;
-	retrieveSession(sessionId: string): IInteractiveSessionModel | undefined;
+	getOrRestoreSession(sessionId: string): IInteractiveSessionModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.
