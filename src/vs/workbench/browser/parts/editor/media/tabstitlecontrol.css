@@ -133,6 +133,10 @@
 	transition-property: min-width, max-width;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fixed.last-in-row:not(:last-child) {
+	flex-grow: 0; /* prevent last tab in a row from moving to next row when tab widths are fixed for tabSizing:fixed */
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.stop-transition {
 	transition: unset;
 }
