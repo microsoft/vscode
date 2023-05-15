@@ -86,7 +86,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { UserDataProfileInitializer } from 'vs/workbench/services/userDataProfile/browser/userDataProfileInit';
 import { UserDataSyncInitializer } from 'vs/workbench/services/userDataSync/browser/userDataSyncInit';
-import { BrowserLoggerService } from 'vs/workbench/services/log/browser/log';
+import { BufferLogger } from 'vs/platform/log/common/bufferLog';
+import { FileLoggerService } from 'vs/platform/log/common/fileLog';
 
 export class BrowserMain extends Disposable {
 
@@ -244,8 +245,13 @@ export class BrowserMain extends Disposable {
 		const environmentService = new BrowserWorkbenchEnvironmentService(workspace.id, logsPath, this.configuration, productService);
 		serviceCollection.set(IBrowserWorkbenchEnvironmentService, environmentService);
 
+		// Files
+		const fileLogger = new BufferLogger();
+		const fileService = this._register(new FileService(fileLogger));
+		serviceCollection.set(IWorkbenchFileService, fileService);
+
 		// Logger
-		const loggerService = new BrowserLoggerService(getLogLevel(environmentService), logsPath);
+		const loggerService = new FileLoggerService(getLogLevel(environmentService), logsPath, fileService);
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log Service
@@ -257,11 +263,9 @@ export class BrowserMain extends Disposable {
 		const logService = new LogService(logger, otherLoggers);
 		serviceCollection.set(ILogService, logService);
 
-		// Files
-		const fileService = this._register(new FileService(logService));
-		serviceCollection.set(IWorkbenchFileService, fileService);
-		// Cycling dependency between log service and file service
-		loggerService.acquireFileService(fileService);
+		// Set the logger of the fileLogger after the log service is ready.
+		// This is to avoid cyclic dependency
+		fileLogger.logger = logService;
 
 		// Register File System Providers depending on IndexedDB support
 		// Register them early because they are needed for the profiles initialization
