@@ -140,14 +140,14 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	private _getMode(): EditMode {
-		let editMode: EditMode = this._configurationService.getValue('interactiveEditor.editMode');
-		const isDefault = editMode === EditMode.LivePreview;
-		if (this._accessibilityService.isScreenReaderOptimized() && isDefault) {
+		const editMode = this._configurationService.inspect<EditMode>('interactiveEditor.editMode');
+		let editModeValue = editMode.value;
+		if (this._accessibilityService.isScreenReaderOptimized() && editModeValue === editMode.defaultValue) {
 			// By default, use preview mode for screen reader users
-			editMode = EditMode.Preview;
+			editModeValue = EditMode.Preview;
 			this._configurationService.updateValue('interactiveEditor.editMode', EditMode.Preview);
 		}
-		return editMode;
+		return editModeValue!;
 	}
 
 	getWidgetPosition(): Position | undefined {
