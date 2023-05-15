@@ -1498,7 +1498,6 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
 	StartServiceResultCode: Integer;
-  StopTunnelAttempt: Integer;
 begin
   if CurStep = ssPostInstall then
   begin
@@ -1513,14 +1512,6 @@ begin
       end;
 
       StopTunnelServiceIfNeeded();
-
-		  StopTunnelAttempt := 1;
-      while (StopTunnelAttempt <= 3) and CheckForMutexes('{#TunnelMutex}') do
-      begin
-        MsgBox('{#NameShort} is still running a tunnel. Please stop the tunnel before continuing. (Attempt ' + IntToStr(StopTunnelAttempt) + 'of 3)', mbInformation, MB_OK);
-        Sleep(1000);
-        StopTunnelAttempt := StopTunnelAttempt + 1
-      end;
 
       Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
     end;
