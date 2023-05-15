@@ -183,6 +183,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		delete options?.existingSession;
 
 		if (!session) {
+			this._dialogService.info(localize('create.fail', "Failed to start editor chat"), localize('create.fail.detail', "Please consult the error log and try again later."));
 			return State.DONE;
 		}
 
