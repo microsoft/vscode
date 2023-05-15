@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder, GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder, GroupModelChangeKind, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -345,7 +345,7 @@ export class EditorsObserver extends Disposable {
 		let mostRecentEditorsCountingForLimit: IEditorIdentifier[];
 		if (this.editorGroupsService.partOptions.limit?.excludeDirty) {
 			mostRecentEditorsCountingForLimit = mostRecentEditors.filter(({ editor }) => {
-				if (editor.hasUnsavedContent() && !editor.isSaving()) {
+				if ((editor.isDirty() && !editor.isSaving()) || editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
 					return false;
 				}
 
@@ -361,7 +361,7 @@ export class EditorsObserver extends Disposable {
 
 		// Extract least recently used editors that can be closed
 		const leastRecentlyClosableEditors = mostRecentEditorsCountingForLimit.reverse().filter(({ editor, groupId }) => {
-			if (editor.hasUnsavedContent() && !editor.isSaving()) {
+			if ((editor.isDirty() && !editor.isSaving()) || editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
 				return false; // not dirty editors (unless in the process of saving)
 			}
 
