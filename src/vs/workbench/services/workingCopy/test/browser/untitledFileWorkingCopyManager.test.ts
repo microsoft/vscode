@@ -126,7 +126,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 		const workingCopy1 = await manager.resolve({
 			untitledResource: URI.from({ scheme: Schemas.untitled, path: `/myscratchpad` }),
-			scratchPad: true
+			isScratchpad: true
 		});
 
 		assert.strictEqual(workingCopy1.resource.scheme, Schemas.untitled);

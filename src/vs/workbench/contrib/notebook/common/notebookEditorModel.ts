@@ -119,7 +119,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				if (this._hasAssociatedFilePath) {
 					this._workingCopy = await this._workingCopyManager.resolve({ associatedResource: this.resource });
 				} else {
-					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, scratchPad: this.scratchPad });
+					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, isScratchpad: this.scratchPad });
 				}
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, options?.forceReadFromFile ? { reload: { async: false, force: true } } : undefined);
