@@ -3,27 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
+import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
+import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionCopyAction, IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveResponseViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IInteractiveResponseViewModel, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 
 export interface IInteractiveSessionCodeBlockActionContext {
 	code: string;
@@ -80,7 +86,56 @@ export function registerInteractiveSessionCodeBlockActions() {
 		}
 	});
 
-	registerAction2(class InsertCodeBlockAction extends Action2 {
+	CopyAction?.addImplementation(50000, 'interactiveSession-codeblock', (accessor) => {
+		// get active code editor
+		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		if (!editor) {
+			return false;
+		}
+
+		const editorModel = editor.getModel();
+		if (!editorModel) {
+			return false;
+		}
+
+		const context = getContextFromEditor(editor, accessor);
+		if (!context) {
+			return false;
+		}
+
+		const noSelection = editor.getSelections()?.length === 1 && editor.getSelection()?.isEmpty();
+		const copiedText = noSelection ?
+			editorModel.getValue() :
+			editor.getSelections()?.reduce((acc, selection) => acc + editorModel.getValueInRange(selection), '') ?? '';
+		const totalCharacters = editorModel.getValueLength();
+
+		// Report copy to extensions
+		if (context.element.providerResponseId) {
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			interactiveSessionService.notifyUserAction({
+				providerId: context.element.providerId,
+				action: {
+					kind: 'copy',
+					codeBlockIndex: context.codeBlockIndex,
+					responseId: context.element.providerResponseId,
+					copyType: InteractiveSessionCopyKind.Action,
+					copiedText,
+					copiedCharacters: copiedText.length,
+					totalCharacters,
+				}
+			});
+		}
+
+		// Copy full cell if no selection, otherwise fall back on normal editor implementation
+		if (noSelection) {
+			accessor.get(IClipboardService).writeText(context.code);
+			return true;
+		}
+
+		return false;
+	});
+
+	registerAction2(class InsertCodeBlockAction extends EditorAction2 {
 		constructor() {
 			super({
 				id: 'workbench.action.interactiveSession.insertCodeBlock',
@@ -88,7 +143,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 					value: localize('interactive.insertCodeBlock.label', "Insert at Cursor"),
 					original: 'Insert at Cursor'
 				},
-				f1: false,
+				f1: true,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.insert,
 				menu: {
@@ -98,10 +153,13 @@ export function registerInteractiveSessionCodeBlockActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const context = args[0];
+		override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+			let context = args[0];
 			if (!isCodeBlockActionContext(context)) {
-				return;
+				context = getContextFromEditor(editor, accessor);
+				if (!isCodeBlockActionContext(context)) {
+					return;
+				}
 			}
 
 			const editorService = accessor.get(IEditorService);
@@ -160,6 +218,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 		}
 
 		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, context: IInteractiveSessionCodeBlockActionContext) {
+			this.notifyUserAction(accessor, context);
 			const bulkEditService = accessor.get(IBulkEditService);
 
 			const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
@@ -167,8 +226,6 @@ export function registerInteractiveSessionCodeBlockActions() {
 				range: activeSelection,
 				text: context.code,
 			})]);
-
-			this.notifyUserAction(accessor, context);
 		}
 
 		private notifyUserAction(accessor: ServicesAccessor, context: IInteractiveSessionCodeBlockActionContext) {
@@ -186,7 +243,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 
 	});
 
-	registerAction2(class InsertIntoNewFileAction extends Action2 {
+	registerAction2(class InsertIntoNewFileAction extends EditorAction2 {
 		constructor() {
 			super({
 				id: 'workbench.action.interactiveSession.insertIntoNewFile',
@@ -194,7 +251,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 					value: localize('interactive.insertIntoNewFile.label', "Insert Into New File"),
 					original: 'Insert Into New File'
 				},
-				f1: false,
+				f1: true,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.newFile,
 				menu: {
@@ -205,10 +262,13 @@ export function registerInteractiveSessionCodeBlockActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const context = args[0];
+		override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+			let context = args[0];
 			if (!isCodeBlockActionContext(context)) {
-				return;
+				context = getContextFromEditor(editor, accessor);
+				if (!isCodeBlockActionContext(context)) {
+					return;
+				}
 			}
 
 			const editorService = accessor.get(IEditorService);
@@ -228,7 +288,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 		}
 	});
 
-	registerAction2(class RunInTerminalAction extends Action2 {
+	registerAction2(class RunInTerminalAction extends EditorAction2 {
 		constructor() {
 			super({
 				id: 'workbench.action.interactiveSession.runInTerminal',
@@ -236,21 +296,31 @@ export function registerInteractiveSessionCodeBlockActions() {
 					value: localize('interactive.runInTerminal.label', "Run in Terminal"),
 					original: 'Run in Terminal'
 				},
-				f1: false,
+				f1: true,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.terminal,
 				menu: {
 					id: MenuId.InteractiveSessionCodeBlock,
 					group: 'navigation',
 					isHiddenByDefault: true,
+				},
+				keybinding: {
+					primary: KeyMod.WinCtrl | KeyCode.Enter,
+					win: {
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+					},
+					weight: KeybindingWeight.EditorContrib
 				}
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const context = args[0];
+		override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+			let context = args[0];
 			if (!isCodeBlockActionContext(context)) {
-				return;
+				context = getContextFromEditor(editor, accessor);
+				if (!isCodeBlockActionContext(context)) {
+					return;
+				}
 			}
 
 			const interactiveSessionService = accessor.get(IInteractiveSessionService);
@@ -275,7 +345,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 				terminalGroupService.showPanel(true);
 			}
 
-			terminal.sendText(context.code, false);
+			terminal.sendText(context.code, false, true);
 
 			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
 				providerId: context.element.providerId,
@@ -288,4 +358,102 @@ export function registerInteractiveSessionCodeBlockActions() {
 			});
 		}
 	});
+
+	function navigateCodeBlocks(accessor: ServicesAccessor, reverse?: boolean): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+		const widget = interactiveSessionWidgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		const editor = codeEditorService.getFocusedCodeEditor();
+		const editorUri = editor?.getModel()?.uri;
+		const curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
+
+		const focusResponse = curCodeBlockInfo ?
+			curCodeBlockInfo.element :
+			widget.viewModel?.getItems().reverse().find((item): item is IInteractiveResponseViewModel => isResponseVM(item));
+		if (!focusResponse) {
+			return;
+		}
+
+		const responseCodeblocks = widget.getCodeBlockInfosForResponse(focusResponse);
+		const focusIdx = curCodeBlockInfo ?
+			(curCodeBlockInfo.codeBlockIndex + (reverse ? -1 : 1) + responseCodeblocks.length) % responseCodeblocks.length :
+			reverse ? responseCodeblocks.length - 1 : 0;
+
+		responseCodeblocks[focusIdx]?.focus();
+	}
+
+	registerAction2(class NextCodeBlockAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.interactiveSession.nextCodeBlock',
+				title: {
+					value: localize('interactive.nextCodeBlock.label', "Next Code Block"),
+					original: 'Next Code Block'
+				},
+				keybinding: {
+					primary: KeyCode.F9,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: CONTEXT_IN_INTERACTIVE_SESSION,
+				},
+				f1: true,
+				category: INTERACTIVE_SESSION_CATEGORY,
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			navigateCodeBlocks(accessor);
+		}
+	});
+
+	registerAction2(class PreviousCodeBlockAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.interactiveSession.previousCodeBlock',
+				title: {
+					value: localize('interactive.previousCodeBlock.label', "Previous Code Block"),
+					original: 'Previous Code Block'
+				},
+				keybinding: {
+					primary: KeyMod.Shift | KeyCode.F9,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: CONTEXT_IN_INTERACTIVE_SESSION,
+				},
+				f1: true,
+				category: INTERACTIVE_SESSION_CATEGORY,
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			navigateCodeBlocks(accessor, true);
+		}
+	});
+}
+
+function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): IInteractiveSessionCodeBlockActionContext | undefined {
+	const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+	const model = editor.getModel();
+	if (!model) {
+		return;
+	}
+
+	const widget = interactiveSessionWidgetService.lastFocusedWidget;
+	if (!widget) {
+		return;
+	}
+
+	const codeBlockInfo = widget.getCodeBlockInfoForEditor(model.uri);
+	if (!codeBlockInfo) {
+		return;
+	}
+
+	return {
+		element: codeBlockInfo.element,
+		codeBlockIndex: codeBlockInfo.codeBlockIndex,
+		code: editor.getValue(),
+		languageId: editor.getModel()!.getLanguageId(),
+	};
 }

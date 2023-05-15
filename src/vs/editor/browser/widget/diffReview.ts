@@ -874,7 +874,7 @@ class DiffReviewPrev extends EditorAction {
 function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget | null {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const diffEditors = codeEditorService.listDiffEditors();
-	const activeCodeEditor = codeEditorService.getActiveCodeEditor();
+	const activeCodeEditor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
 	if (!activeCodeEditor) {
 		return null;
 	}

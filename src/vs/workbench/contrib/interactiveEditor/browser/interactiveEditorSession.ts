@@ -24,6 +24,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
+import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 export type Recording = {
 	when: Date;
@@ -56,6 +57,7 @@ type TelemetryDataClassification = {
 export class Session {
 
 	private _lastInput: string | undefined;
+	private _lastTextModelChanges: LineRangeMapping[] | undefined;
 	private _lastSnapshot: ITextSnapshot | undefined;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
@@ -108,6 +110,14 @@ export class Session {
 
 	get lastExchange(): SessionExchange | undefined {
 		return this._exchange[this._exchange.length - 1];
+	}
+
+	get lastTextModelChanges() {
+		return this._lastTextModelChanges ?? [];
+	}
+
+	set lastTextModelChanges(changes: LineRangeMapping[]) {
+		this._lastTextModelChanges = changes;
 	}
 
 	recordExternalEditOccurred() {
@@ -272,7 +282,14 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
-		const raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+		let raw: IInteractiveEditorSession | undefined | null;
+		try {
+			raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+		} catch (error) {
+			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
+			this._logService.error(error);
+			return undefined;
+		}
 		if (!raw) {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return undefined;
