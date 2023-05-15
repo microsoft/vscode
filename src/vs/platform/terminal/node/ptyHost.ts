@@ -14,6 +14,8 @@ export interface IPtyHostConnection {
 }
 
 export interface IPtyHostStarter {
+	onBeforeWindowConnection?: Event<void>;
+
 	/**
 	 * Creates a pty host and connects to it.
 	 *

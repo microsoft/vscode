@@ -15,10 +15,14 @@ import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc
 import { IpcMainEvent } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
+
+	private readonly _onBeforeWindowConnection = new Emitter<void>();
+	readonly onBeforeWindowConnection = this._onBeforeWindowConnection.event;
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
@@ -26,6 +30,8 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly _logService: ILogService
 	) {
+		// Listen for new windows to establish connection directly to pty host
+		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
 	}
 
 	start(lastPtyId: number): IPtyHostConnection {
@@ -51,9 +57,6 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 
 		const port = this.utilityProcess.connect();
 		const client = new MessagePortClient(port, 'ptyHost');
-
-		// Listen for new windows to establish connection directly to pty host
-		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
 
 		// TODO: Do we need to listen for window close to close the port?
 
@@ -85,6 +88,8 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 	}
 
 	private _onWindowConnection(e: IpcMainEvent, nonce: string) {
+		this._onBeforeWindowConnection.fire();
+
 		const port = this.utilityProcess!.connect();
 
 		// Check back if the requesting window meanwhile closed
