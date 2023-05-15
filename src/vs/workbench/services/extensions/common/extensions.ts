@@ -326,6 +326,13 @@ export const enum ActivationKind {
 export interface WillStopExtensionHostsEvent {
 
 	/**
+	 * A human readable reason for stopping the extension hosts
+	 * that e.g. can be shown in a confirmation dialog to the
+	 * user.
+	 */
+	readonly reason: string;
+
+	/**
 	 * Allows to veto the stopping of extension hosts. The veto can be a long running
 	 * operation.
 	 *
@@ -445,10 +452,13 @@ export interface IExtensionService {
 	/**
 	 * Stops the extension hosts.
 	 *
+	 * @param reason a human readable reason for stopping the extension hosts. This maybe
+	 * can be presented to the user when showing dialogs.
+	 *
 	 * @returns a promise that resolves to `true` if the extension hosts were stopped, `false`
 	 * if the operation was vetoed by listeners of the `onWillStop` event.
 	 */
-	stopExtensionHosts(): Promise<boolean>;
+	stopExtensionHosts(reason: string): Promise<boolean>;
 
 	/**
 	 * @deprecated Use `stopExtensionHosts()` instead.
