@@ -7,11 +7,11 @@ import * as dom from 'vs/base/browser/dom';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IInteractiveSessionFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 const $ = dom.$;
 
-export class InteractiveSessionFollowups<T extends IInteractiveSessionFollowup> extends Disposable {
+export class ChatFollowups<T extends IChatFollowup> extends Disposable {
 	constructor(
 		container: HTMLElement,
 		followups: T[],

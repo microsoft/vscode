@@ -10,14 +10,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveProgress, IInteractiveResponse, IInteractiveResponseErrorDetails, IInteractiveSession, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatProgress, IChatResponse, IChatResponseErrorDetails, IChat, IChatFollowup, IChatReplyFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveRequestModel {
 	readonly id: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly session: IInteractiveSessionModel;
-	readonly message: string | IInteractiveSessionReplyFollowup;
+	readonly session: IChatModel;
+	readonly message: string | IChatReplyFollowup;
 	readonly response: IInteractiveResponseModel | undefined;
 }
 
@@ -28,13 +28,13 @@ export interface IInteractiveResponseModel {
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly session: IInteractiveSessionModel;
+	readonly session: IChatModel;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
-	readonly followups?: IInteractiveSessionFollowup[] | undefined;
-	readonly errorDetails?: IInteractiveResponseErrorDetails;
+	readonly followups?: IChatFollowup[] | undefined;
+	readonly errorDetails?: IChatResponseErrorDetails;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 }
 
@@ -65,8 +65,8 @@ export class InteractiveRequestModel implements IInteractiveRequestModel {
 	}
 
 	constructor(
-		public readonly session: InteractiveSessionModel,
-		public readonly message: string | IInteractiveSessionReplyFollowup) {
+		public readonly session: ChatModel,
+		public readonly message: string | IChatReplyFollowup) {
 		this._id = 'request_' + InteractiveRequestModel.nextId++;
 	}
 }
@@ -98,7 +98,7 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._vote;
 	}
 
-	public get followups(): IInteractiveSessionFollowup[] | undefined {
+	public get followups(): IChatFollowup[] | undefined {
 		return this._followups;
 	}
 
@@ -106,7 +106,7 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._response;
 	}
 
-	public get errorDetails(): IInteractiveResponseErrorDetails | undefined {
+	public get errorDetails(): IChatResponseErrorDetails | undefined {
 		return this._errorDetails;
 	}
 
@@ -124,13 +124,13 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 
 	constructor(
 		private _response: IMarkdownString,
-		public readonly session: InteractiveSessionModel,
+		public readonly session: ChatModel,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
 		private _vote?: InteractiveSessionVoteDirection,
 		private _providerResponseId?: string,
-		private _errorDetails?: IInteractiveResponseErrorDetails,
-		private _followups?: IInteractiveSessionFollowup[]
+		private _errorDetails?: IChatResponseErrorDetails,
+		private _followups?: IChatFollowup[]
 	) {
 		super();
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
@@ -145,7 +145,7 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._providerResponseId = providerResponseId;
 	}
 
-	complete(errorDetails?: IInteractiveResponseErrorDetails): void {
+	complete(errorDetails?: IChatResponseErrorDetails): void {
 		this._isComplete = true;
 		this._errorDetails = errorDetails;
 		this._onDidChange.fire();
@@ -157,7 +157,7 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._onDidChange.fire();
 	}
 
-	setFollowups(followups: IInteractiveSessionFollowup[] | undefined): void {
+	setFollowups(followups: IChatFollowup[] | undefined): void {
 		this._followups = followups;
 		this._onDidChange.fire(); // Fire so that command followups get rendered on the row
 	}
@@ -168,39 +168,39 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 	}
 }
 
-export interface IInteractiveSessionModel {
+export interface IChatModel {
 	readonly onDidDispose: Event<void>;
-	readonly onDidChange: Event<IInteractiveSessionChangeEvent>;
+	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
 	readonly providerId: string;
 	readonly isInitialized: boolean;
 	// readonly title: string;
-	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
+	readonly welcomeMessage: IChatWelcomeMessageModel | undefined;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getRequests(): IInteractiveRequestModel[];
 	waitForInitialization(): Promise<void>;
 }
 
-export interface ISerializableInteractiveSessionsData {
-	[sessionId: string]: ISerializableInteractiveSessionData;
+export interface ISerializableChatsData {
+	[sessionId: string]: ISerializableChatData;
 }
 
-export interface ISerializableInteractiveSessionRequestData {
+export interface ISerializableChatRequestData {
 	providerResponseId: string | undefined;
 	message: string;
 	response: string | undefined;
-	responseErrorDetails: IInteractiveResponseErrorDetails | undefined;
-	followups: IInteractiveSessionFollowup[] | undefined;
+	responseErrorDetails: IChatResponseErrorDetails | undefined;
+	followups: IChatFollowup[] | undefined;
 	isCanceled: boolean | undefined;
 	vote: InteractiveSessionVoteDirection | undefined;
 }
 
-export interface ISerializableInteractiveSessionData {
+export interface ISerializableChatData {
 	sessionId: string;
 	creationDate: number;
-	welcomeMessage: (string | IInteractiveSessionReplyFollowup[])[] | undefined;
-	requests: ISerializableInteractiveSessionRequestData[];
+	welcomeMessage: (string | IChatReplyFollowup[])[] | undefined;
+	requests: ISerializableChatRequestData[];
 	requesterUsername: string;
 	responderUsername: string;
 	requesterAvatarIconUri: UriComponents | undefined;
@@ -209,39 +209,39 @@ export interface ISerializableInteractiveSessionData {
 	providerState: any;
 }
 
-export type IInteractiveSessionChangeEvent = IInteractiveSessionAddRequestEvent | IInteractiveSessionAddResponseEvent | IInteractiveSessionInitEvent;
+export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent;
 
-export interface IInteractiveSessionAddRequestEvent {
+export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IInteractiveRequestModel;
 }
 
-export interface IInteractiveSessionAddResponseEvent {
+export interface IChatAddResponseEvent {
 	kind: 'addResponse';
 	response: IInteractiveResponseModel;
 }
 
-export interface IInteractiveSessionInitEvent {
+export interface IChatInitEvent {
 	kind: 'initialize';
 }
 
-export class InteractiveSessionModel extends Disposable implements IInteractiveSessionModel {
+export class ChatModel extends Disposable implements IChatModel {
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
-	private readonly _onDidChange = this._register(new Emitter<IInteractiveSessionChangeEvent>());
+	private readonly _onDidChange = this._register(new Emitter<IChatChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
 	private _requests: InteractiveRequestModel[];
 	private _isInitializedDeferred = new DeferredPromise<void>();
 
-	private _session: IInteractiveSession | undefined;
-	get session(): IInteractiveSession | undefined {
+	private _session: IChat | undefined;
+	get session(): IChat | undefined {
 		return this._session;
 	}
 
-	private _welcomeMessage: InteractiveSessionWelcomeMessageModel | undefined;
-	get welcomeMessage(): InteractiveSessionWelcomeMessageModel | undefined {
+	private _welcomeMessage: ChatWelcomeMessageModel | undefined;
+	get welcomeMessage(): ChatWelcomeMessageModel | undefined {
 		return this._welcomeMessage;
 	}
 
@@ -295,7 +295,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 	constructor(
 		public readonly providerId: string,
-		private readonly initialData: ISerializableInteractiveSessionData | undefined,
+		private readonly initialData: ISerializableChatData | undefined,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -308,7 +308,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		this._initialResponderAvatarIconUri = initialData?.responderAvatarIconUri && URI.revive(initialData.responderAvatarIconUri);
 	}
 
-	private _deserialize(obj: ISerializableInteractiveSessionData): InteractiveRequestModel[] {
+	private _deserialize(obj: ISerializableChatData): InteractiveRequestModel[] {
 		const requests = obj.requests;
 		if (!Array.isArray(requests)) {
 			this.logService.error(`Ignoring malformed session data: ${obj}`);
@@ -317,10 +317,10 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 		if (obj.welcomeMessage) {
 			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-			this._welcomeMessage = new InteractiveSessionWelcomeMessageModel(content, obj.responderUsername, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri));
+			this._welcomeMessage = new ChatWelcomeMessageModel(content, obj.responderUsername, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri));
 		}
 
-		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
+		return requests.map((raw: ISerializableChatRequestData) => {
 			const request = new InteractiveRequestModel(this, raw.message);
 			if (raw.response || raw.responseErrorDetails) {
 				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this, true, raw.isCanceled, raw.vote, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
@@ -329,9 +329,9 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		});
 	}
 
-	initialize(session: IInteractiveSession, welcomeMessage: InteractiveSessionWelcomeMessageModel | undefined): void {
+	initialize(session: IChat, welcomeMessage: ChatWelcomeMessageModel | undefined): void {
 		if (this._session || this._isInitializedDeferred.isSettled) {
-			throw new Error('InteractiveSessionModel is already initialized');
+			throw new Error('ChatModel is already initialized');
 		}
 
 		this._session = session;
@@ -345,7 +345,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		if (session.onDidChangeState) {
 			this._register(session.onDidChangeState(state => {
 				this._providerState = state;
-				this.logService.trace('InteractiveSessionModel#acceptNewSessionState');
+				this.logService.trace('ChatModel#acceptNewSessionState');
 			}));
 		}
 		this._onDidChange.fire({ kind: 'initialize' });
@@ -365,7 +365,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return this._requests;
 	}
 
-	addRequest(message: string | IInteractiveSessionReplyFollowup): InteractiveRequestModel {
+	addRequest(message: string | IChatReplyFollowup): InteractiveRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
@@ -378,7 +378,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return request;
 	}
 
-	acceptResponseProgress(request: InteractiveRequestModel, progress: IInteractiveProgress): void {
+	acceptResponseProgress(request: InteractiveRequestModel, progress: IChatProgress): void {
 		if (!this._session) {
 			throw new Error('acceptResponseProgress: No session');
 		}
@@ -404,7 +404,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 	}
 
-	completeResponse(request: InteractiveRequestModel, rawResponse: IInteractiveResponse): void {
+	completeResponse(request: InteractiveRequestModel, rawResponse: IChatResponse): void {
 		if (!this._session) {
 			throw new Error('completeResponse: No session');
 		}
@@ -416,7 +416,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		request.response.complete(rawResponse.errorDetails);
 	}
 
-	setFollowups(request: InteractiveRequestModel, followups: IInteractiveSessionFollowup[] | undefined): void {
+	setFollowups(request: InteractiveRequestModel, followups: IChatFollowup[] | undefined): void {
 		if (!request.response) {
 			// Maybe something went wrong?
 			return;
@@ -430,7 +430,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		this._onDidChange.fire({ kind: 'addResponse', response });
 	}
 
-	toJSON(): ISerializableInteractiveSessionData {
+	toJSON(): ISerializableChatData {
 		return {
 			sessionId: this.sessionId,
 			creationDate: this._creationDate,
@@ -445,7 +445,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 					return c.value;
 				}
 			}),
-			requests: this._requests.map((r): ISerializableInteractiveSessionRequestData => {
+			requests: this._requests.map((r): ISerializableChatRequestData => {
 				return {
 					providerResponseId: r.response?.providerResponseId,
 					message: typeof r.message === 'string' ? r.message : r.message.message,
@@ -473,9 +473,9 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 }
 
-export type IInteractiveWelcomeMessageContent = IMarkdownString | IInteractiveSessionReplyFollowup[];
+export type IInteractiveWelcomeMessageContent = IMarkdownString | IChatReplyFollowup[];
 
-export interface IInteractiveSessionWelcomeMessageModel {
+export interface IChatWelcomeMessageModel {
 	readonly id: string;
 	readonly content: IInteractiveWelcomeMessageContent[];
 	readonly username: string;
@@ -483,7 +483,7 @@ export interface IInteractiveSessionWelcomeMessageModel {
 
 }
 
-export class InteractiveSessionWelcomeMessageModel implements IInteractiveSessionWelcomeMessageModel {
+export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	private static nextId = 0;
 
 	private _id: string;
@@ -492,6 +492,6 @@ export class InteractiveSessionWelcomeMessageModel implements IInteractiveSessio
 	}
 
 	constructor(public readonly content: IInteractiveWelcomeMessageContent[], public readonly username: string, public readonly avatarIconUri?: URI) {
-		this._id = 'welcome_' + InteractiveSessionWelcomeMessageModel.nextId++;
+		this._id = 'welcome_' + ChatWelcomeMessageModel.nextId++;
 	}
 }

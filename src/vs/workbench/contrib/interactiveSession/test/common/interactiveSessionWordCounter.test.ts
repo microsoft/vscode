@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
-suite('InteractiveSessionWordCounter', () => {
+suite('ChatWordCounter', () => {
 	function doTest(str: string, nWords: number, resultStr: string) {
 		const result = getNWords(str, nWords);
 		assert.strictEqual(result.value, resultStr);

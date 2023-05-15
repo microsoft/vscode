@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 
-export interface IInteractiveSessionConfiguration {
+export interface IChatConfiguration {
 	editor: {
 		readonly fontSize: number;
 		readonly fontFamily: string;
@@ -21,18 +21,18 @@ export interface IInteractiveSessionConfiguration {
 	};
 }
 
-export interface IInteractiveSessionEditorConfiguration {
+export interface IChatEditorConfiguration {
 	readonly foreground: Color | undefined;
-	readonly inputEditor: IInteractiveSessionInputEditorOptions;
-	readonly resultEditor: IInteractiveSessionResultEditorOptions;
+	readonly inputEditor: IChatInputEditorOptions;
+	readonly resultEditor: IChatResultEditorOptions;
 }
 
-export interface IInteractiveSessionInputEditorOptions {
+export interface IChatInputEditorOptions {
 	readonly backgroundColor: Color | undefined;
 	readonly accessibilitySupport: string;
 }
 
-export interface IInteractiveSessionResultEditorOptions {
+export interface IChatResultEditorOptions {
 	readonly fontSize: number;
 	readonly fontFamily: string | undefined;
 	readonly lineHeight: number;
@@ -48,14 +48,14 @@ export interface IInteractiveSessionResultEditorOptions {
 }
 
 
-export class InteractiveSessionEditorOptions extends Disposable {
+export class ChatEditorOptions extends Disposable {
 	private static readonly lineHeightEm = 1.4;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _config!: IInteractiveSessionEditorConfiguration;
-	public get configuration(): IInteractiveSessionEditorConfiguration {
+	private _config!: IChatEditorConfiguration;
+	public get configuration(): IChatEditorConfiguration {
 		return this._config;
 	}
 
@@ -90,7 +90,7 @@ export class InteractiveSessionEditorOptions extends Disposable {
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (InteractiveSessionEditorOptions.relevantSettingIds.some(id => e.affectsConfiguration(id))) {
+			if (ChatEditorOptions.relevantSettingIds.some(id => e.affectsConfiguration(id))) {
 				this.update();
 			}
 		}));
@@ -101,7 +101,7 @@ export class InteractiveSessionEditorOptions extends Disposable {
 		const editorConfig = this.configurationService.getValue<IEditorOptions>('editor');
 
 		// TODO shouldn't the setting keys be more specific?
-		const interactiveSessionEditorConfig = this.configurationService.getValue<IInteractiveSessionConfiguration>('interactiveSession').editor;
+		const interactiveSessionEditorConfig = this.configurationService.getValue<IChatConfiguration>('interactiveSession').editor;
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		this._config = {
 			foreground: this.themeService.getColorTheme().getColor(this.foreground),
@@ -114,7 +114,7 @@ export class InteractiveSessionEditorOptions extends Disposable {
 				fontSize: interactiveSessionEditorConfig.fontSize,
 				fontFamily: interactiveSessionEditorConfig.fontFamily === 'default' ? editorConfig.fontFamily : interactiveSessionEditorConfig.fontFamily,
 				fontWeight: interactiveSessionEditorConfig.fontWeight,
-				lineHeight: interactiveSessionEditorConfig.lineHeight ? interactiveSessionEditorConfig.lineHeight : InteractiveSessionEditorOptions.lineHeightEm * interactiveSessionEditorConfig.fontSize,
+				lineHeight: interactiveSessionEditorConfig.lineHeight ? interactiveSessionEditorConfig.lineHeight : ChatEditorOptions.lineHeightEm * interactiveSessionEditorConfig.fontSize,
 				bracketPairColorization: {
 					enabled: this.configurationService.getValue<boolean>('editor.bracketPairColorization.enabled'),
 					independentColorPoolPerBracketType: this.configurationService.getValue<boolean>('editor.bracketPairColorization.independentColorPoolPerBracketType'),

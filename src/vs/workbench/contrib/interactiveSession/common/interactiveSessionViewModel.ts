@@ -10,8 +10,8 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveResponseErrorDetails, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveRequestModel, IInteractiveResponseModel, IChatModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IChatResponseErrorDetails, IChatReplyFollowup, IChatResponseCommandFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
@@ -26,7 +26,7 @@ export function isWelcomeVM(item: unknown): item is IInteractiveWelcomeMessageVi
 	return !!item && typeof item === 'object' && 'content' in item;
 }
 
-export interface IInteractiveSessionViewModel {
+export interface IChatViewModel {
 	readonly providerId: string;
 	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
@@ -42,7 +42,7 @@ export interface IInteractiveRequestViewModel {
 	readonly dataId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly message: string | IInteractiveSessionReplyFollowup;
+	readonly message: string | IChatReplyFollowup;
 	readonly messageText: string;
 	currentRenderedHeight: number | undefined;
 }
@@ -53,7 +53,7 @@ export interface IInteractiveResponseRenderData {
 	isFullyRendered: boolean;
 }
 
-export interface IInteractiveSessionLiveUpdateData {
+export interface IChatLiveUpdateData {
 	wordCountAfterLastUpdate: number;
 	loadingStartTime: number;
 	lastUpdateTime: number;
@@ -74,16 +74,16 @@ export interface IInteractiveResponseViewModel {
 	readonly isCanceled: boolean;
 	readonly isPlaceholder: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
-	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
-	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
-	readonly errorDetails?: IInteractiveResponseErrorDetails;
-	readonly contentUpdateTimings?: IInteractiveSessionLiveUpdateData;
+	readonly replyFollowups?: IChatReplyFollowup[];
+	readonly commandFollowups?: IChatResponseCommandFollowup[];
+	readonly errorDetails?: IChatResponseErrorDetails;
+	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	renderData?: IInteractiveResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 }
 
-export class InteractiveSessionViewModel extends Disposable implements IInteractiveSessionViewModel {
+export class ChatViewModel extends Disposable implements IChatViewModel {
 	private readonly _onDidDisposeModel = this._register(new Emitter<void>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
@@ -109,7 +109,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	}
 
 	constructor(
-		private readonly _model: IInteractiveSessionModel,
+		private readonly _model: IChatModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -236,11 +236,11 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	get replyFollowups() {
-		return this._model.followups?.filter((f): f is IInteractiveSessionReplyFollowup => f.kind === 'reply');
+		return this._model.followups?.filter((f): f is IChatReplyFollowup => f.kind === 'reply');
 	}
 
 	get commandFollowups() {
-		return this._model.followups?.filter((f): f is IInteractiveSessionResponseCommandFollowup => f.kind === 'command');
+		return this._model.followups?.filter((f): f is IChatResponseCommandFollowup => f.kind === 'command');
 	}
 
 	get errorDetails() {
@@ -255,8 +255,8 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	currentRenderedHeight: number | undefined;
 
-	private _contentUpdateTimings: IInteractiveSessionLiveUpdateData | undefined = undefined;
-	get contentUpdateTimings(): IInteractiveSessionLiveUpdateData | undefined {
+	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
+	get contentUpdateTimings(): IChatLiveUpdateData | undefined {
 		return this._contentUpdateTimings;
 	}
 

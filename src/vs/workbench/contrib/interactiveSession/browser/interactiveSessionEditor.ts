@@ -17,17 +17,17 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
-import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
-import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ChatEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
+import { IViewState, ChatWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IChatModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
-export interface IInteractiveSessionEditorOptions extends IEditorOptions {
+export interface IChatEditorOptions extends IEditorOptions {
 	target: { sessionId: string } | { providerId: string };
 }
 
-export class InteractiveSessionEditor extends EditorPane {
-	private widget!: InteractiveSessionWidget;
+export class ChatEditor extends EditorPane {
+	private widget!: ChatWidget;
 
 	private _scopedContextKeyService!: IScopedContextKeyService;
 	override get scopedContextKeyService() {
@@ -43,9 +43,9 @@ export class InteractiveSessionEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
+		@IChatService private readonly interactiveSessionService: IChatService,
 	) {
-		super(InteractiveSessionEditorInput.EditorID, telemetryService, themeService, storageService);
+		super(ChatEditorInput.EditorID, telemetryService, themeService, storageService);
 	}
 
 	public async clear() {
@@ -60,7 +60,7 @@ export class InteractiveSessionEditor extends EditorPane {
 
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
-				InteractiveSessionWidget,
+				ChatWidget,
 				{ resource: true },
 				{
 					listForeground: editorForeground,
@@ -83,7 +83,7 @@ export class InteractiveSessionEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	override async setInput(input: InteractiveSessionEditorInput, options: IInteractiveSessionEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: ChatEditorInput, options: IChatEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, context, token);
 
 		const editorModel = await input.resolve();
@@ -92,13 +92,13 @@ export class InteractiveSessionEditor extends EditorPane {
 		}
 
 		if (!this.widget) {
-			throw new Error('InteractiveSessionEditor lifecycle issue: no editor widget');
+			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
 		this.updateModel(editorModel.model);
 	}
 
-	private updateModel(model: IInteractiveSessionModel): void {
+	private updateModel(model: IChatModel): void {
 		this._memento = new Memento('interactive-session-editor-' + model.sessionId, this.storageService);
 		this._viewState = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewState;
 		this.widget.setModel(model, { ...this._viewState });

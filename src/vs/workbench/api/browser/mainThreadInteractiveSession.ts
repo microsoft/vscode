@@ -8,31 +8,31 @@ import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtHostContext, ExtHostInteractiveSessionShape, IInteractiveRequestDto, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
-import { IInteractiveProgress, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IInteractiveSessionDynamicRequest, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ExtHostContext, ExtHostChatShape, IChatRequestDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IChatWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IChatContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
+import { IChatProgress, IChatRequest, IChatResponse, IChat, IChatDynamicRequest, IChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
-@extHostNamedCustomer(MainContext.MainThreadInteractiveSession)
-export class MainThreadInteractiveSession extends Disposable implements MainThreadInteractiveSessionShape {
+@extHostNamedCustomer(MainContext.MainThreadChat)
+export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	private readonly _providerRegistrations = this._register(new DisposableMap<number>());
-	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IInteractiveProgress) => void>();
+	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => void>();
 	private readonly _stateEmitters = new Map<number, Emitter<any>>();
 
-	private readonly _proxy: ExtHostInteractiveSessionShape;
+	private readonly _proxy: ExtHostChatShape;
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IInteractiveSessionService private readonly _interactiveSessionService: IInteractiveSessionService,
-		@IInteractiveSessionWidgetService private readonly _interactiveSessionWidgetService: IInteractiveSessionWidgetService,
-		@IInteractiveSessionContributionService private readonly interactiveSessionContribService: IInteractiveSessionContributionService,
+		@IChatService private readonly _interactiveSessionService: IChatService,
+		@IChatWidgetService private readonly _interactiveSessionWidgetService: IChatWidgetService,
+		@IChatContributionService private readonly interactiveSessionContribService: IChatContributionService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInteractiveSession);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
 
 		this._register(this._interactiveSessionService.onDidPerformUserAction(e => {
 			this._proxy.$onDidPerformUserAction(e);
@@ -62,7 +62,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	async $registerInteractiveSessionProvider(handle: number, id: string): Promise<void> {
+	async $registerChatProvider(handle: number, id: string): Promise<void> {
 		if (this.productService.quality === 'stable') {
 			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);
 			return;
@@ -77,7 +77,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 			id,
 			displayName: registration.label,
 			prepareSession: async (initialState, token) => {
-				const session = await this._proxy.$prepareInteractiveSession(handle, initialState, token);
+				const session = await this._proxy.$prepareChat(handle, initialState, token);
 				if (!session) {
 					return undefined;
 				}
@@ -88,7 +88,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 
 				const emitter = new Emitter<any>();
 				this._stateEmitters.set(session.id, emitter);
-				return <IInteractiveSession>{
+				return <IChat>{
 					id: session.id,
 					requesterUsername: session.requesterUsername,
 					requesterAvatarIconUri: URI.revive(session.requesterAvatarIconUri),
@@ -104,8 +104,8 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 				};
 			},
 			resolveRequest: async (session, context, token) => {
-				const dto = await this._proxy.$resolveInteractiveRequest(handle, session.id, context, token);
-				return <IInteractiveRequest>{
+				const dto = await this._proxy.$resolveRequest(handle, session.id, context, token);
+				return <IChatRequest>{
 					session,
 					...dto
 				};
@@ -114,11 +114,11 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 				const id = `${handle}_${request.session.id}`;
 				this._activeRequestProgressCallbacks.set(id, progress);
 				try {
-					const requestDto: IInteractiveRequestDto = {
+					const requestDto: IChatRequestDto = {
 						message: request.message,
 					};
-					const dto = await this._proxy.$provideInteractiveReply(handle, request.session.id, requestDto, token);
-					return <IInteractiveResponse>{
+					const dto = await this._proxy.$provideReply(handle, request.session.id, requestDto, token);
+					return <IChatResponse>{
 						session: request.session,
 						...dto
 					};
@@ -140,27 +140,27 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 		this._providerRegistrations.set(handle, unreg);
 	}
 
-	$acceptInteractiveResponseProgress(handle: number, sessionId: number, progress: IInteractiveProgress): void {
+	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress): void {
 		const id = `${handle}_${sessionId}`;
 		this._activeRequestProgressCallbacks.get(id)?.(progress);
 	}
 
-	async $acceptInteractiveSessionState(sessionId: number, state: any): Promise<void> {
+	async $acceptChatState(sessionId: number, state: any): Promise<void> {
 		this._stateEmitters.get(sessionId)?.fire(state);
 	}
 
-	$addInteractiveSessionRequest(context: any): void {
-		this._interactiveSessionService.addInteractiveRequest(context);
+	$addRequest(context: any): void {
+		this._interactiveSessionService.addRequest(context);
 	}
 
-	async $sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): Promise<void> {
+	async $sendRequestToProvider(providerId: string, message: IChatDynamicRequest): Promise<void> {
 		const widget = await this._interactiveSessionWidgetService.revealViewForProvider(providerId);
 		if (widget && widget.viewModel) {
-			this._interactiveSessionService.sendInteractiveRequestToProvider(widget.viewModel.sessionId, message);
+			this._interactiveSessionService.sendRequestToProvider(widget.viewModel.sessionId, message);
 		}
 	}
 
-	async $unregisterInteractiveSessionProvider(handle: number): Promise<void> {
+	async $unregisterChatProvider(handle: number): Promise<void> {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 }

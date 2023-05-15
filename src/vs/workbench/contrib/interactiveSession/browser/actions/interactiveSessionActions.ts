@@ -20,19 +20,19 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { getAccessibilityHelpText } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionAccessibilityHelp';
 import { clearChatEditor, clearChatSession } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionClear';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { IInteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
-import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
-import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
+import { IChatWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IChatEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
+import { ChatEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
+import { ChatViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
 import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionDetail, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
+import { IChatDetail, IChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const INTERACTIVE_SESSION_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 
-export function registerInteractiveSessionActions() {
-	registerEditorAction(class InteractiveSessionAcceptInput extends EditorAction {
+export function registerChatActions() {
+	registerEditorAction(class ChatAcceptInput extends EditorAction {
 		constructor() {
 			super({
 				id: 'interactiveSession.action.acceptInput',
@@ -50,7 +50,7 @@ export function registerInteractiveSessionActions() {
 		run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 			const editorUri = editor.getModel()?.uri;
 			if (editorUri) {
-				const widgetService = accessor.get(IInteractiveSessionWidgetService);
+				const widgetService = accessor.get(IChatWidgetService);
 				widgetService.getWidgetByInputUri(editorUri)?.acceptInput();
 			}
 		}
@@ -70,12 +70,12 @@ export function registerInteractiveSessionActions() {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
 					order: 0,
-					when: ActiveEditorContext.isEqualTo(InteractiveSessionEditorInput.EditorID),
+					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 				}]
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const widgetService = accessor.get(IInteractiveSessionWidgetService);
+			const widgetService = accessor.get(IChatWidgetService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget) {
@@ -99,12 +99,12 @@ export function registerInteractiveSessionActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const historyService = accessor.get(IInteractiveSessionWidgetHistoryService);
+			const historyService = accessor.get(IChatWidgetHistoryService);
 			historyService.clearHistory();
 		}
 	});
 
-	registerEditorAction(class FocusInteractiveSessionAction extends EditorAction {
+	registerEditorAction(class FocusChatAction extends EditorAction {
 		constructor() {
 			super({
 				id: 'interactiveSession.action.focus',
@@ -122,13 +122,13 @@ export function registerInteractiveSessionActions() {
 		run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 			const editorUri = editor.getModel()?.uri;
 			if (editorUri) {
-				const widgetService = accessor.get(IInteractiveSessionWidgetService);
+				const widgetService = accessor.get(IChatWidgetService);
 				widgetService.getWidgetByInputUri(editorUri)?.focusLastMessage();
 			}
 		}
 	});
 
-	registerEditorAction(class AccessibilityHelpInteractiveSessionAction extends EditorAction {
+	registerEditorAction(class AccessibilityHelpChatAction extends EditorAction {
 		constructor() {
 			super({
 				id: 'interactiveSession.action.accessibilityHelp',
@@ -143,7 +143,7 @@ export function registerInteractiveSessionActions() {
 		}
 
 		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-			const widgetService = accessor.get(IInteractiveSessionWidgetService);
+			const widgetService = accessor.get(IChatWidgetService);
 			const keybindingService = accessor.get(IKeybindingService);
 			const inputEditor = widgetService.lastFocusedWidget?.inputEditor;
 			const editorUri = editor.getModel()?.uri;
@@ -180,7 +180,7 @@ export function registerInteractiveSessionActions() {
 		}
 	});
 
-	registerAction2(class FocusInteractiveSessionInputAction extends Action2 {
+	registerAction2(class FocusChatInputAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.interactiveSession.focusInput',
@@ -197,12 +197,12 @@ export function registerInteractiveSessionActions() {
 			});
 		}
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			const widgetService = accessor.get(IInteractiveSessionWidgetService);
+			const widgetService = accessor.get(IChatWidgetService);
 			widgetService.lastFocusedWidget?.focusInput();
 		}
 	});
 
-	registerAction2(class GlobalClearInteractiveSessionAction extends Action2 {
+	registerAction2(class GlobalClearChatAction extends Action2 {
 		constructor() {
 			super({
 				id: `workbench.action.interactiveSession.clear`,
@@ -226,7 +226,7 @@ export function registerInteractiveSessionActions() {
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const widgetService = accessor.get(IInteractiveSessionWidgetService);
+			const widgetService = accessor.get(IChatWidgetService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget) {
@@ -238,11 +238,11 @@ export function registerInteractiveSessionActions() {
 	});
 }
 
-export function getOpenInteractiveSessionEditorAction(id: string, label: string, when?: string) {
-	return class OpenInteractiveSessionEditor extends Action2 {
+export function getOpenChatEditorAction(id: string, label: string, when?: string) {
+	return class OpenChatEditor extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.openInteractiveSession.${id}`,
+				id: `workbench.action.openChat.${id}`,
 				title: { value: localize('interactiveSession.open', "Open Editor ({0})", label), original: `Open Editor (${label})` },
 				f1: true,
 				category: INTERACTIVE_SESSION_CATEGORY,
@@ -252,12 +252,12 @@ export function getOpenInteractiveSessionEditorAction(id: string, label: string,
 
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({ resource: InteractiveSessionEditorInput.getNewEditorUri(), options: <IInteractiveSessionEditorOptions>{ target: { providerId: id }, pinned: true } });
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId: id }, pinned: true } });
 		}
 	};
 }
 
-const getClearInteractiveSessionActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
+const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	viewId,
 	id: `workbench.action.interactiveSession.${providerId}.clear`,
 	title: {
@@ -276,18 +276,18 @@ const getClearInteractiveSessionActionDescriptorForViewTitle = (viewId: string, 
 });
 
 export function getClearAction(viewId: string, providerId: string) {
-	return class ClearAction extends ViewAction<InteractiveSessionViewPane> {
+	return class ClearAction extends ViewAction<ChatViewPane> {
 		constructor() {
-			super(getClearInteractiveSessionActionDescriptorForViewTitle(viewId, providerId));
+			super(getClearChatActionDescriptorForViewTitle(viewId, providerId));
 		}
 
-		async runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
+		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
 			await view.clear();
 		}
 	};
 }
 
-const getHistoryInteractiveSessionActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
+const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	viewId,
 	id: `workbench.action.interactiveSession.${providerId}.history`,
 	title: {
@@ -306,17 +306,17 @@ const getHistoryInteractiveSessionActionDescriptorForViewTitle = (viewId: string
 });
 
 export function getHistoryAction(viewId: string, providerId: string) {
-	return class HistoryAction extends ViewAction<InteractiveSessionViewPane> {
+	return class HistoryAction extends ViewAction<ChatViewPane> {
 		constructor() {
-			super(getHistoryInteractiveSessionActionDescriptorForViewTitle(viewId, providerId));
+			super(getHistoryChatActionDescriptorForViewTitle(viewId, providerId));
 		}
 
-		async runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
+			const interactiveSessionService = accessor.get(IChatService);
 			const quickInputService = accessor.get(IQuickInputService);
 			const editorService = accessor.get(IEditorService);
 			const items = interactiveSessionService.getHistory();
-			const picks = items.map(i => (<IQuickPickItem & { interactiveSession: IInteractiveSessionDetail }>{
+			const picks = items.map(i => (<IQuickPickItem & { interactiveSession: IChatDetail }>{
 				label: i.title,
 				interactiveSession: i
 			}));
@@ -324,7 +324,7 @@ export function getHistoryAction(viewId: string, providerId: string) {
 			if (selection) {
 				const sessionId = selection.interactiveSession.sessionId;
 				await editorService.openEditor({
-					resource: InteractiveSessionEditorInput.getNewEditorUri(), options: <IInteractiveSessionEditorOptions>{ target: { sessionId }, pinned: true }
+					resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true }
 				});
 			}
 		}

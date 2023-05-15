@@ -19,13 +19,13 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveSessionWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveProviderInfo, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDetail, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, IInteractiveSlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ISerializableChatData, ISerializableChatsData, ChatModel, ChatWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IChatProgress, IChatProvider, IChatProviderInfo, IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatReplyFollowup, IChatService, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-const serializedInteractiveSessionKey = 'interactive.sessions';
+const serializedChatKey = 'interactive.sessions';
 
-type InteractiveSessionProviderInvokedEvent = {
+type ChatProviderInvokedEvent = {
 	providerId: string;
 	timeToFirstProgress: number;
 	totalTime: number;
@@ -33,90 +33,90 @@ type InteractiveSessionProviderInvokedEvent = {
 	requestType: 'string' | 'followup' | 'slashCommand';
 };
 
-type InteractiveSessionProviderInvokedClassification = {
+type ChatProviderInvokedClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that was invoked.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from invoking the provider to getting the first data.' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
-	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the InteractiveSessionProvider resulted in an error.' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the ChatProvider resulted in an error.' };
 	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
 	owner: 'roblourens';
-	comment: 'Provides insight into the performance of InteractiveSession providers.';
+	comment: 'Provides insight into the performance of Chat providers.';
 };
 
-type InteractiveSessionVoteEvent = {
+type ChatVoteEvent = {
 	providerId: string;
 	direction: 'up' | 'down';
 };
 
-type InteractiveSessionVoteClassification = {
+type ChatVoteClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this response came from.' };
 	direction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user voted up or down.' };
 	owner: 'roblourens';
-	comment: 'Provides insight into the performance of InteractiveSession providers.';
+	comment: 'Provides insight into the performance of Chat providers.';
 };
 
-type InteractiveSessionCopyEvent = {
+type ChatCopyEvent = {
 	providerId: string;
 	copyKind: 'action' | 'toolbar';
 };
 
-type InteractiveSessionCopyClassification = {
+type ChatCopyClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	copyKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the copy was initiated.' };
 	owner: 'roblourens';
-	comment: 'Provides insight into the usage of InteractiveSession features.';
+	comment: 'Provides insight into the usage of Chat features.';
 };
 
-type InteractiveSessionInsertEvent = {
+type ChatInsertEvent = {
 	providerId: string;
 	newFile: boolean;
 };
 
-type InteractiveSessionInsertClassification = {
+type ChatInsertClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	newFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code was inserted into a new untitled file.' };
 	owner: 'roblourens';
-	comment: 'Provides insight into the usage of InteractiveSession features.';
+	comment: 'Provides insight into the usage of Chat features.';
 };
 
-type InteractiveSessionCommandEvent = {
+type ChatCommandEvent = {
 	providerId: string;
 	commandId: string;
 };
 
-type InteractiveSessionCommandClassification = {
+type ChatCommandClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command that was executed.' };
 	owner: 'roblourens';
-	comment: 'Provides insight into the usage of InteractiveSession features.';
+	comment: 'Provides insight into the usage of Chat features.';
 };
 
-type InteractiveSessionTerminalEvent = {
+type ChatTerminalEvent = {
 	providerId: string;
 	languageId: string;
 };
 
-type InteractiveSessionTerminalClassification = {
+type ChatTerminalClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the code that was run in the terminal.' };
 	owner: 'roblourens';
-	comment: 'Provides insight into the usage of InteractiveSession features.';
+	comment: 'Provides insight into the usage of Chat features.';
 };
 
 const maxPersistedSessions = 20;
 
-export class InteractiveSessionService extends Disposable implements IInteractiveSessionService {
+export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
-	private readonly _providers = new Map<string, IInteractiveProvider>();
-	private readonly _slashCommandProviders = new Set<IInteractiveSlashCommandProvider>();
-	private readonly _sessionModels = new Map<string, InteractiveSessionModel>();
+	private readonly _providers = new Map<string, IChatProvider>();
+	private readonly _slashCommandProviders = new Set<ISlashCommandProvider>();
+	private readonly _sessionModels = new Map<string, ChatModel>();
 	private readonly _pendingRequests = new Map<string, CancelablePromise<void>>();
-	private readonly _persistedSessions: ISerializableInteractiveSessionsData;
+	private readonly _persistedSessions: ISerializableChatsData;
 	private readonly _hasProvider: IContextKey<boolean>;
 
-	private readonly _onDidPerformUserAction = this._register(new Emitter<IInteractiveSessionUserActionEvent>());
-	public readonly onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent> = this._onDidPerformUserAction.event;
+	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
+	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -130,9 +130,9 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		this._hasProvider = CONTEXT_PROVIDER_EXISTS.bindTo(this.contextKeyService);
 
-		const sessionData = storageService.get(serializedInteractiveSessionKey, StorageScope.WORKSPACE, '');
+		const sessionData = storageService.get(serializedChatKey, StorageScope.WORKSPACE, '');
 		if (sessionData) {
-			this._persistedSessions = this.deserializeInteractiveSessions(sessionData);
+			this._persistedSessions = this.deserializeChats(sessionData);
 			const countsForLog = Object.keys(this._persistedSessions).length;
 			this.trace('constructor', `Restored ${countsForLog} persisted sessions`);
 		} else {
@@ -144,7 +144,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	private saveState(): void {
-		let allSessions: (InteractiveSessionModel | ISerializableInteractiveSessionData)[] = Array.from(this._sessionModels.values())
+		let allSessions: (ChatModel | ISerializableChatData)[] = Array.from(this._sessionModels.values())
 			.filter(session => session.getRequests().length > 0);
 		allSessions = allSessions.concat(
 			Object.values(this._persistedSessions).filter(session => session.requests.length));
@@ -153,34 +153,34 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
 
 		const serialized = JSON.stringify(allSessions);
-		this.storageService.store(serializedInteractiveSessionKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(serializedChatKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	notifyUserAction(action: IInteractiveSessionUserActionEvent): void {
+	notifyUserAction(action: IChatUserActionEvent): void {
 		if (action.action.kind === 'vote') {
-			this.telemetryService.publicLog2<InteractiveSessionVoteEvent, InteractiveSessionVoteClassification>('interactiveSessionVote', {
+			this.telemetryService.publicLog2<ChatVoteEvent, ChatVoteClassification>('interactiveSessionVote', {
 				providerId: action.providerId,
 				direction: action.action.direction === InteractiveSessionVoteDirection.Up ? 'up' : 'down'
 			});
 		} else if (action.action.kind === 'copy') {
-			this.telemetryService.publicLog2<InteractiveSessionCopyEvent, InteractiveSessionCopyClassification>('interactiveSessionCopy', {
+			this.telemetryService.publicLog2<ChatCopyEvent, ChatCopyClassification>('interactiveSessionCopy', {
 				providerId: action.providerId,
 				copyKind: action.action.copyType === InteractiveSessionCopyKind.Action ? 'action' : 'toolbar'
 			});
 		} else if (action.action.kind === 'insert') {
-			this.telemetryService.publicLog2<InteractiveSessionInsertEvent, InteractiveSessionInsertClassification>('interactiveSessionInsert', {
+			this.telemetryService.publicLog2<ChatInsertEvent, ChatInsertClassification>('interactiveSessionInsert', {
 				providerId: action.providerId,
 				newFile: !!action.action.newFile
 			});
 		} else if (action.action.kind === 'command') {
 			const command = CommandsRegistry.getCommand(action.action.command.commandId);
 			const commandId = command ? action.action.command.commandId : 'INVALID';
-			this.telemetryService.publicLog2<InteractiveSessionCommandEvent, InteractiveSessionCommandClassification>('interactiveSessionCommand', {
+			this.telemetryService.publicLog2<ChatCommandEvent, ChatCommandClassification>('interactiveSessionCommand', {
 				providerId: action.providerId,
 				commandId
 			});
 		} else if (action.action.kind === 'runInTerminal') {
-			this.telemetryService.publicLog2<InteractiveSessionTerminalEvent, InteractiveSessionTerminalClassification>('interactiveSessionRunInTerminal', {
+			this.telemetryService.publicLog2<ChatTerminalEvent, ChatTerminalClassification>('interactiveSessionRunInTerminal', {
 				providerId: action.providerId,
 				languageId: action.action.languageId ?? ''
 			});
@@ -190,16 +190,16 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	private trace(method: string, message: string): void {
-		this.logService.trace(`InteractiveSessionService#${method}: ${message}`);
+		this.logService.trace(`ChatService#${method}: ${message}`);
 	}
 
 	private error(method: string, message: string): void {
-		this.logService.error(`InteractiveSessionService#${method} ${message}`);
+		this.logService.error(`ChatService#${method} ${message}`);
 	}
 
-	private deserializeInteractiveSessions(sessionData: string): ISerializableInteractiveSessionsData {
+	private deserializeChats(sessionData: string): ISerializableChatsData {
 		try {
-			const arrayOfSessions: ISerializableInteractiveSessionData[] = JSON.parse(sessionData);
+			const arrayOfSessions: ISerializableChatData[] = JSON.parse(sessionData);
 			if (!Array.isArray(arrayOfSessions)) {
 				throw new Error('Expected array');
 			}
@@ -207,33 +207,33 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			const sessions = arrayOfSessions.reduce((acc, session) => {
 				acc[session.sessionId] = session;
 				return acc;
-			}, {} as ISerializableInteractiveSessionsData);
+			}, {} as ISerializableChatsData);
 			return sessions;
 		} catch (err) {
-			this.error('deserializeInteractiveSessions', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
+			this.error('deserializeChats', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
 			return {};
 		}
 	}
 
-	getHistory(): IInteractiveSessionDetail[] {
+	getHistory(): IChatDetail[] {
 		const sessions = Object.values(this._persistedSessions);
 		sessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
 
 		return sessions.map(item => {
-			return <IInteractiveSessionDetail>{
+			return <IChatDetail>{
 				sessionId: item.sessionId,
 				title: item.requests[0]?.message || '',
 			};
 		});
 	}
 
-	startSession(providerId: string, token: CancellationToken): InteractiveSessionModel {
+	startSession(providerId: string, token: CancellationToken): ChatModel {
 		this.trace('startSession', `providerId=${providerId}`);
 		return this._startSession(providerId, undefined, token);
 	}
 
-	private _startSession(providerId: string, someSessionHistory: ISerializableInteractiveSessionData | undefined, token: CancellationToken): InteractiveSessionModel {
-		const model = this.instantiationService.createInstance(InteractiveSessionModel, providerId, someSessionHistory);
+	private _startSession(providerId: string, someSessionHistory: ISerializableChatData | undefined, token: CancellationToken): ChatModel {
+		const model = this.instantiationService.createInstance(ChatModel, providerId, someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
 		const modelInitPromise = this.initializeSession(model, someSessionHistory, token);
 		modelInitPromise.then(resolvedModel => {
@@ -251,7 +251,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		return model;
 	}
 
-	private async initializeSession(model: InteractiveSessionModel, sessionHistory: ISerializableInteractiveSessionData | undefined, token: CancellationToken): Promise<InteractiveSessionModel | undefined> {
+	private async initializeSession(model: ChatModel, sessionHistory: ISerializableChatData | undefined, token: CancellationToken): Promise<ChatModel | undefined> {
 		await this.extensionService.activateByEvent(`onInteractiveSession:${model.providerId}`);
 
 		const provider = this._providers.get(model.providerId);
@@ -259,7 +259,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Unknown provider: ${model.providerId}`);
 		}
 
-		let session: IInteractiveSession | undefined;
+		let session: IChat | undefined;
 		try {
 			session = withNullAsUndefined(await provider.prepareSession(model.providerState, token));
 		} catch (err) {
@@ -279,14 +279,14 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.trace('startSession', `Provider returned session`);
 
 		const welcomeMessage = sessionHistory ? undefined : withNullAsUndefined(await provider.provideWelcomeMessage?.(token));
-		const welcomeModel = welcomeMessage && new InteractiveSessionWelcomeMessageModel(
-			welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IInteractiveSessionReplyFollowup[]), session.responderUsername, session.responderAvatarIconUri);
+		const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
+			welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]), session.responderUsername, session.responderAvatarIconUri);
 
 		model.initialize(session, welcomeModel);
 		return model;
 	}
 
-	getOrRestoreSession(sessionId: string): InteractiveSessionModel | undefined {
+	getOrRestoreSession(sessionId: string): ChatModel | undefined {
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
 			return model;
@@ -301,7 +301,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		return this._startSession(sessionData.providerId, sessionData, CancellationToken.None);
 	}
 
-	async sendRequest(sessionId: string, request: string | IInteractiveSessionReplyFollowup): Promise<boolean> {
+	async sendRequest(sessionId: string, request: string | IChatReplyFollowup): Promise<boolean> {
 		const messageText = typeof request === 'string' ? request : request.message;
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${messageText.substring(0, 20)}${messageText.length > 20 ? '[...]' : ''}}`);
 		if (!messageText.trim()) {
@@ -330,7 +330,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		return true;
 	}
 
-	private async _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string | IInteractiveSessionReplyFollowup): Promise<void> {
+	private async _sendRequestAsync(model: ChatModel, provider: IChatProvider, message: string | IChatReplyFollowup): Promise<void> {
 		const request = model.addRequest(message);
 
 		const resolvedCommand = typeof message === 'string' && message.startsWith('/') ? await this.handleSlashCommand(model.sessionId, message) : message;
@@ -341,7 +341,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			'followup';
 
 		const rawResponsePromise = createCancelablePromise<void>(async token => {
-			const progressCallback = (progress: IInteractiveProgress) => {
+			const progressCallback = (progress: IChatProgress) => {
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -359,7 +359,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			const stopWatch = new StopWatch(false);
 			token.onCancellationRequested(() => {
 				this.trace('sendRequest', `Request for session ${model.sessionId} was cancelled`);
-				this.telemetryService.publicLog2<InteractiveSessionProviderInvokedEvent, InteractiveSessionProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 					providerId: provider.id,
 					timeToFirstProgress: -1,
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
@@ -383,7 +383,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 					rawResponse.errorDetails && gotProgress ? 'errorWithOutput' :
 						rawResponse.errorDetails ? 'error' :
 							'success';
-				this.telemetryService.publicLog2<InteractiveSessionProviderInvokedEvent, InteractiveSessionProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 					providerId: provider.id,
 					timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
 					totalTime: rawResponse.timings?.totalElapsed ?? 0,
@@ -417,7 +417,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		return command;
 	}
 
-	async getSlashCommands(sessionId: string, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
+	async getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined> {
 		const model = this._sessionModels.get(sessionId);
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
@@ -442,7 +442,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		]);
 
 		try {
-			const slashCommands = (await providerResults).filter(c => !!c) as IInteractiveSlashCommand[][];
+			const slashCommands = (await providerResults).filter(c => !!c) as ISlashCommand[][];
 			return withNullAsUndefined(slashCommands.flat());
 		} catch (e) {
 			this.logService.error(e);
@@ -452,7 +452,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 	}
 
-	async addInteractiveRequest(context: any): Promise<void> {
+	async addRequest(context: any): Promise<void> {
 		// This and resolveRequest are not currently used by any scenario, but leave for future use
 
 		// TODO How to decide which session this goes to?
@@ -481,7 +481,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.sendRequest(model.sessionId, request.message);
 	}
 
-	async sendInteractiveRequestToProvider(sessionId: string, message: IInteractiveSessionDynamicRequest): Promise<void> {
+	async sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): Promise<void> {
 		this.trace('sendInteractiveRequestToProvider', `sessionId: ${sessionId}`);
 		await this.sendRequest(sessionId, message.message);
 	}
@@ -490,7 +490,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		return Array.from(this._providers.keys());
 	}
 
-	async addCompleteRequest(sessionId: string, message: string, response: IInteractiveSessionCompleteResponse): Promise<void> {
+	async addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): Promise<void> {
 		this.trace('addCompleteRequest', `message: ${message}`);
 
 		const model = this._sessionModels.get(sessionId);
@@ -530,8 +530,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this._pendingRequests.get(sessionId)?.cancel();
 	}
 
-	registerProvider(provider: IInteractiveProvider): IDisposable {
-		this.trace('registerProvider', `Adding new interactive session provider`);
+	registerProvider(provider: IChatProvider): IDisposable {
+		this.trace('registerProvider', `Adding new chat provider`);
 
 		if (this._providers.has(provider.id)) {
 			throw new Error(`Provider ${provider.id} already registered`);
@@ -541,23 +541,23 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this._hasProvider.set(true);
 
 		return toDisposable(() => {
-			this.trace('registerProvider', `Disposing interactive session provider`);
+			this.trace('registerProvider', `Disposing chat provider`);
 			this._providers.delete(provider.id);
 			this._hasProvider.set(this._providers.size > 0);
 		});
 	}
 
-	registerSlashCommandProvider(provider: IInteractiveSlashCommandProvider): IDisposable {
-		this.trace('registerProvider', `Adding new interactive slash command provider`);
+	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable {
+		this.trace('registerProvider', `Adding new slash command provider`);
 
 		this._slashCommandProviders.add(provider);
 		return toDisposable(() => {
-			this.trace('registerProvider', `Disposing interactive slash command provider`);
+			this.trace('registerProvider', `Disposing slash command provider`);
 			this._slashCommandProviders.delete(provider);
 		});
 	}
 
-	getProviderInfos(): IInteractiveProviderInfo[] {
+	getProviderInfos(): IChatProviderInfo[] {
 		return Array.from(this._providers.values()).map(provider => {
 			return {
 				id: provider.id,

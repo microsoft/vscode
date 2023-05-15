@@ -9,9 +9,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IInteractiveSessionModel, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IChatModel, ChatModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
-export interface IInteractiveSession {
+export interface IChat {
 	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
 	requesterUsername: string;
 	requesterAvatarIconUri?: URI;
@@ -22,56 +22,56 @@ export interface IInteractiveSession {
 	dispose?(): void;
 }
 
-export interface IInteractiveRequest {
-	session: IInteractiveSession;
-	message: string | IInteractiveSessionReplyFollowup;
+export interface IChatRequest {
+	session: IChat;
+	message: string | IChatReplyFollowup;
 }
 
-export interface IInteractiveResponseErrorDetails {
+export interface IChatResponseErrorDetails {
 	message: string;
 	responseIsIncomplete?: boolean;
 	responseIsFiltered?: boolean;
 }
 
-export interface IInteractiveResponse {
-	session: IInteractiveSession;
-	errorDetails?: IInteractiveResponseErrorDetails;
+export interface IChatResponse {
+	session: IChat;
+	errorDetails?: IChatResponseErrorDetails;
 	timings?: {
 		firstProgress: number;
 		totalElapsed: number;
 	};
 }
 
-export type IInteractiveProgress =
+export type IChatProgress =
 	{ content: string } | { responseId: string };
 
-export interface IPersistedInteractiveState { }
-export interface IInteractiveProvider {
+export interface IPersistedChatState { }
+export interface IChatProvider {
 	readonly id: string;
 	readonly displayName: string;
 	readonly iconUrl?: string;
-	prepareSession(initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined>;
-	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
-	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IInteractiveSessionReplyFollowup[])[] | undefined>;
-	provideFollowups?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSessionFollowup[] | undefined>;
-	provideReply(request: IInteractiveRequest, progress: (progress: IInteractiveProgress) => void, token: CancellationToken): ProviderResult<IInteractiveResponse>;
-	provideSlashCommands?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
+	prepareSession(initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined>;
+	resolveRequest?(session: IChat, context: any, token: CancellationToken): ProviderResult<IChatRequest>;
+	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IChatReplyFollowup[])[] | undefined>;
+	provideFollowups?(session: IChat, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
+	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse>;
+	provideSlashCommands?(session: IChat, token: CancellationToken): ProviderResult<ISlashCommand[]>;
 }
 
-export interface IInteractiveSlashCommandProvider {
+export interface ISlashCommandProvider {
 	chatProviderId: string;
-	provideSlashCommands(token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
+	provideSlashCommands(token: CancellationToken): ProviderResult<ISlashCommand[]>;
 	resolveSlashCommand(command: string, token: CancellationToken): ProviderResult<string>;
 }
 
-export interface IInteractiveSlashCommand {
+export interface ISlashCommand {
 	command: string;
-	provider?: IInteractiveSlashCommandProvider;
+	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
 }
 
-export interface IInteractiveSessionReplyFollowup {
+export interface IChatReplyFollowup {
 	kind: 'reply';
 	message: string;
 	title?: string;
@@ -79,21 +79,21 @@ export interface IInteractiveSessionReplyFollowup {
 	metadata?: any;
 }
 
-export interface IInteractiveSessionResponseCommandFollowup {
+export interface IChatResponseCommandFollowup {
 	kind: 'command';
 	commandId: string;
 	args?: any[];
 	title: string; // supports codicon strings
 }
 
-export type IInteractiveSessionFollowup = IInteractiveSessionReplyFollowup | IInteractiveSessionResponseCommandFollowup;
+export type IChatFollowup = IChatReplyFollowup | IChatResponseCommandFollowup;
 
 export enum InteractiveSessionVoteDirection {
 	Up = 1,
 	Down = 2
 }
 
-export interface IInteractiveSessionVoteAction {
+export interface IChatVoteAction {
 	kind: 'vote';
 	responseId: string;
 	direction: InteractiveSessionVoteDirection;
@@ -105,7 +105,7 @@ export enum InteractiveSessionCopyKind {
 	Toolbar = 2
 }
 
-export interface IInteractiveSessionCopyAction {
+export interface IChatCopyAction {
 	kind: 'copy';
 	responseId: string;
 	codeBlockIndex: number;
@@ -115,7 +115,7 @@ export interface IInteractiveSessionCopyAction {
 	copiedText: string;
 }
 
-export interface IInteractiveSessionInsertAction {
+export interface IChatInsertAction {
 	kind: 'insert';
 	responseId: string;
 	codeBlockIndex: number;
@@ -123,26 +123,26 @@ export interface IInteractiveSessionInsertAction {
 	newFile?: boolean;
 }
 
-export interface IInteractiveSessionTerminalAction {
+export interface IChatTerminalAction {
 	kind: 'runInTerminal';
 	responseId: string;
 	codeBlockIndex: number;
 	languageId?: string;
 }
 
-export interface IInteractiveSessionCommandAction {
+export interface IChatCommandAction {
 	kind: 'command';
-	command: IInteractiveSessionResponseCommandFollowup;
+	command: IChatResponseCommandFollowup;
 }
 
-export type InteractiveSessionUserAction = IInteractiveSessionVoteAction | IInteractiveSessionCopyAction | IInteractiveSessionInsertAction | IInteractiveSessionTerminalAction | IInteractiveSessionCommandAction;
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction;
 
-export interface IInteractiveSessionUserActionEvent {
-	action: InteractiveSessionUserAction;
+export interface IChatUserActionEvent {
+	action: ChatUserAction;
 	providerId: string;
 }
 
-export interface IInteractiveSessionDynamicRequest {
+export interface IChatDynamicRequest {
 	/**
 	 * The message that will be displayed in the UI
 	 */
@@ -154,43 +154,43 @@ export interface IInteractiveSessionDynamicRequest {
 	metadata?: any;
 }
 
-export interface IInteractiveSessionCompleteResponse {
+export interface IChatCompleteResponse {
 	message: string;
-	errorDetails?: IInteractiveResponseErrorDetails;
+	errorDetails?: IChatResponseErrorDetails;
 }
 
-export interface IInteractiveSessionDetail {
+export interface IChatDetail {
 	sessionId: string;
 	title: string;
 }
 
-export interface IInteractiveProviderInfo {
+export interface IChatProviderInfo {
 	id: string;
 	displayName: string;
 }
 
-export const IInteractiveSessionService = createDecorator<IInteractiveSessionService>('IInteractiveSessionService');
+export const IChatService = createDecorator<IChatService>('IChatService');
 
-export interface IInteractiveSessionService {
+export interface IChatService {
 	_serviceBrand: undefined;
-	registerProvider(provider: IInteractiveProvider): IDisposable;
-	registerSlashCommandProvider(provider: IInteractiveSlashCommandProvider): IDisposable;
-	getProviderInfos(): IInteractiveProviderInfo[];
-	startSession(providerId: string, token: CancellationToken): InteractiveSessionModel | undefined;
-	getOrRestoreSession(sessionId: string): IInteractiveSessionModel | undefined;
+	registerProvider(provider: IChatProvider): IDisposable;
+	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
+	getProviderInfos(): IChatProviderInfo[];
+	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
+	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string | IInteractiveSessionReplyFollowup): Promise<boolean>;
+	sendRequest(sessionId: string, message: string | IChatReplyFollowup): Promise<boolean>;
 	cancelCurrentRequestForSession(sessionId: string): void;
-	getSlashCommands(sessionId: string, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
+	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	clearSession(sessionId: string): void;
-	addInteractiveRequest(context: any): void;
-	addCompleteRequest(sessionId: string, message: string, response: IInteractiveSessionCompleteResponse): void;
-	sendInteractiveRequestToProvider(sessionId: string, message: IInteractiveSessionDynamicRequest): void;
-	getHistory(): IInteractiveSessionDetail[];
+	addRequest(context: any): void;
+	addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): void;
+	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
+	getHistory(): IChatDetail[];
 
-	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
-	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;
+	onDidPerformUserAction: Event<IChatUserActionEvent>;
+	notifyUserAction(event: IChatUserActionEvent): void;
 }

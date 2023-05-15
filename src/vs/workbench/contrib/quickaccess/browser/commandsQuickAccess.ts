@@ -34,9 +34,9 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IChatWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -76,7 +76,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IProductService private readonly productService: IProductService,
 		@ISemanticSimilarityService private readonly semanticSimilarityService: ISemanticSimilarityService,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService
+		@IChatService private readonly interactiveSessionService: IChatService
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
@@ -84,7 +84,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				const info = this.interactiveSessionService.getProviderInfos()[0];
 				return info
 					? {
-						label: localize('askXInInteractiveSession', "Ask {0}: {1}", info.displayName, filter),
+						label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
 						commandId: AskInInteractiveAction.ID,
 						accept: () => commandService.executeCommand(AskInInteractiveAction.ID, filter)
 					}
@@ -302,19 +302,19 @@ export class ClearCommandHistoryAction extends Action2 {
 // TODO: Should this live here? It seems fairly generic and could live in the interactive code.
 export class AskInInteractiveAction extends Action2 {
 
-	static readonly ID = 'workbench.action.askCommandInInteractiveSession';
+	static readonly ID = 'workbench.action.askCommandInChat';
 
 	constructor() {
 		super({
 			id: AskInInteractiveAction.ID,
-			title: { value: localize('askInInteractiveSession', "Ask In Interactive Session"), original: 'Ask In Interactive Session' },
+			title: { value: localize('askInChat', "Ask In Interactive Session"), original: 'Ask In Interactive Session' },
 			f1: false
 		});
 	}
 
 	async run(accessor: ServicesAccessor, filter?: string): Promise<void> {
-		const interactiveSessionService = accessor.get(IInteractiveSessionService);
-		const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+		const interactiveSessionService = accessor.get(IChatService);
+		const interactiveSessionWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
 
 		if (!filter) {
@@ -338,7 +338,7 @@ export class AskInInteractiveAction extends Action2 {
 		const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
 		if (widget?.viewModel) {
 			// TODO: Maybe this could provide metadata saying it came from the command palette?
-			interactiveSessionService.sendInteractiveRequestToProvider(widget.viewModel.sessionId, { message: filter });
+			interactiveSessionService.sendRequestToProvider(widget.viewModel.sessionId, { message: filter });
 		}
 	}
 }

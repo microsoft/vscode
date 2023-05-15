@@ -20,9 +20,9 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IChatWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionCopyAction, IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveResponseViewModel, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -31,18 +31,18 @@ import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-export interface IInteractiveSessionCodeBlockActionContext {
+export interface IChatCodeBlockActionContext {
 	code: string;
 	languageId: string;
 	codeBlockIndex: number;
 	element: IInteractiveResponseViewModel;
 }
 
-export function isCodeBlockActionContext(thing: unknown): thing is IInteractiveSessionCodeBlockActionContext {
+export function isCodeBlockActionContext(thing: unknown): thing is IChatCodeBlockActionContext {
 	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
 }
 
-export function registerInteractiveSessionCodeBlockActions() {
+export function registerChatCodeBlockActions() {
 	registerAction2(class CopyCodeBlockAction extends Action2 {
 		constructor() {
 			super({
@@ -55,7 +55,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.copy,
 				menu: {
-					id: MenuId.InteractiveSessionCodeBlock,
+					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 				}
 			});
@@ -70,10 +70,10 @@ export function registerInteractiveSessionCodeBlockActions() {
 			const clipboardService = accessor.get(IClipboardService);
 			clipboardService.writeText(context.code);
 
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+			const interactiveSessionService = accessor.get(IChatService);
+			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
-				action: <IInteractiveSessionCopyAction>{
+				action: <IChatCopyAction>{
 					kind: 'copy',
 					responseId: context.element.providerResponseId,
 					codeBlockIndex: context.codeBlockIndex,
@@ -111,7 +111,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 
 		// Report copy to extensions
 		if (context.element.providerResponseId) {
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			const interactiveSessionService = accessor.get(IChatService);
 			interactiveSessionService.notifyUserAction({
 				providerId: context.element.providerId,
 				action: {
@@ -147,7 +147,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.insert,
 				menu: {
-					id: MenuId.InteractiveSessionCodeBlock,
+					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 				}
 			});
@@ -192,7 +192,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 			await this.handleTextEditor(accessor, activeEditorControl, activeModel, context);
 		}
 
-		private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: IInteractiveSessionCodeBlockActionContext) {
+		private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: IChatCodeBlockActionContext) {
 			if (!notebookEditor.hasModel()) {
 				return;
 			}
@@ -217,7 +217,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 			this.notifyUserAction(accessor, context);
 		}
 
-		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, context: IInteractiveSessionCodeBlockActionContext) {
+		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, context: IChatCodeBlockActionContext) {
 			this.notifyUserAction(accessor, context);
 			const bulkEditService = accessor.get(IBulkEditService);
 
@@ -228,9 +228,9 @@ export function registerInteractiveSessionCodeBlockActions() {
 			})]);
 		}
 
-		private notifyUserAction(accessor: ServicesAccessor, context: IInteractiveSessionCodeBlockActionContext) {
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+		private notifyUserAction(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
+			const interactiveSessionService = accessor.get(IChatService);
+			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
 				action: {
 					kind: 'insert',
@@ -255,7 +255,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.newFile,
 				menu: {
-					id: MenuId.InteractiveSessionCodeBlock,
+					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					isHiddenByDefault: true,
 				}
@@ -272,10 +272,10 @@ export function registerInteractiveSessionCodeBlockActions() {
 			}
 
 			const editorService = accessor.get(IEditorService);
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			const interactiveSessionService = accessor.get(IChatService);
 			editorService.openEditor(<IUntitledTextResourceEditorInput>{ contents: context.code, languageId: context.languageId, resource: undefined });
 
-			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
 				action: {
 					kind: 'insert',
@@ -300,7 +300,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.terminal,
 				menu: {
-					id: MenuId.InteractiveSessionCodeBlock,
+					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					isHiddenByDefault: true,
 				},
@@ -323,7 +323,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 				}
 			}
 
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			const interactiveSessionService = accessor.get(IChatService);
 			const terminalService = accessor.get(ITerminalService);
 			const editorService = accessor.get(IEditorService);
 			const terminalEditorService = accessor.get(ITerminalEditorService);
@@ -347,7 +347,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 
 			terminal.sendText(context.code, false, true);
 
-			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
 				action: {
 					kind: 'runInTerminal',
@@ -361,7 +361,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 
 	function navigateCodeBlocks(accessor: ServicesAccessor, reverse?: boolean): void {
 		const codeEditorService = accessor.get(ICodeEditorService);
-		const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+		const interactiveSessionWidgetService = accessor.get(IChatWidgetService);
 		const widget = interactiveSessionWidgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -433,8 +433,8 @@ export function registerInteractiveSessionCodeBlockActions() {
 	});
 }
 
-function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): IInteractiveSessionCodeBlockActionContext | undefined {
-	const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): IChatCodeBlockActionContext | undefined {
+	const interactiveSessionWidgetService = accessor.get(IChatWidgetService);
 	const model = editor.getModel();
 	if (!model) {
 		return;

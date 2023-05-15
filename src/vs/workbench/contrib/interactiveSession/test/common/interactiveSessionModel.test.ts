@@ -9,11 +9,11 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { ChatModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
-suite('InteractiveSessionModel', () => {
+suite('ChatModel', () => {
 	const testDisposables = new DisposableStore();
 
 	let instantiationService: TestInstantiationService;
@@ -30,7 +30,7 @@ suite('InteractiveSessionModel', () => {
 	});
 
 	test('Waits for initialization', async () => {
-		const model = new InteractiveSessionModel('provider', undefined, new NullLogService());
+		const model = new ChatModel('provider', undefined, new NullLogService());
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -46,7 +46,7 @@ suite('InteractiveSessionModel', () => {
 	});
 
 	test('Initialization fails when model is disposed', async () => {
-		const model = new InteractiveSessionModel('provider', undefined, new NullLogService());
+		const model = new ChatModel('provider', undefined, new NullLogService());
 		model.dispose();
 
 		await assert.rejects(() => model.waitForInitialization());

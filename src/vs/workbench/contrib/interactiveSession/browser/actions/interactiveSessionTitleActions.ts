@@ -12,14 +12,14 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
 import { CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatService, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export function registerInteractiveSessionTitleActions() {
+export function registerChatTitleActions() {
 	registerAction2(class VoteUpAction extends Action2 {
 		constructor() {
 			super({
@@ -33,7 +33,7 @@ export function registerInteractiveSessionTitleActions() {
 				icon: Codicon.thumbsup,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('up'),
 				menu: {
-					id: MenuId.InteractiveSessionTitle,
+					id: MenuId.ChatTitle,
 					group: 'navigation',
 					order: 1
 				}
@@ -46,8 +46,8 @@ export function registerInteractiveSessionTitleActions() {
 				return;
 			}
 
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+			const interactiveSessionService = accessor.get(IChatService);
+			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: item.providerId,
 				action: {
 					kind: 'vote',
@@ -72,7 +72,7 @@ export function registerInteractiveSessionTitleActions() {
 				icon: Codicon.thumbsdown,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('down'),
 				menu: {
-					id: MenuId.InteractiveSessionTitle,
+					id: MenuId.ChatTitle,
 					group: 'navigation',
 					order: 2
 				}
@@ -85,8 +85,8 @@ export function registerInteractiveSessionTitleActions() {
 				return;
 			}
 
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+			const interactiveSessionService = accessor.get(IChatService);
+			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: item.providerId,
 				action: {
 					kind: 'vote',
@@ -110,7 +110,7 @@ export function registerInteractiveSessionTitleActions() {
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.insert,
 				menu: {
-					id: MenuId.InteractiveSessionTitle,
+					id: MenuId.ChatTitle,
 					group: 'navigation',
 					isHiddenByDefault: true,
 					when: NOTEBOOK_IS_ACTIVE_EDITOR

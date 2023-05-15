@@ -25,18 +25,18 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IInteractiveSessionExecuteActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
-import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
+import { IChatExecuteActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
+import { IChatWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { ChatFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { CONTEXT_INTERACTIVE_INPUT_HAS_TEXT, CONTEXT_IN_INTERACTIVE_INPUT } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionReplyFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
+import { IChatReplyFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
 
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
 
-export class InteractiveSessionInputPart extends Disposable implements IHistoryNavigationWidget {
+export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	public static readonly INPUT_SCHEME = 'interactiveSessionInput';
 	private static _counter = 0;
 
@@ -49,7 +49,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidAcceptFollowup = this._register(new Emitter<IInteractiveSessionReplyFollowup>());
+	private _onDidAcceptFollowup = this._register(new Emitter<IChatReplyFollowup>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
 	private inputEditorHeight = 0;
@@ -69,11 +69,11 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 	private inputEditorHasText: IContextKey<boolean>;
 	private providerId: string | undefined;
 
-	public readonly inputUri = URI.parse(`${InteractiveSessionInputPart.INPUT_SCHEME}:input-${InteractiveSessionInputPart._counter++}`);
+	public readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
 
 	constructor(
-		// private readonly editorOptions: InteractiveSessionEditorOptions, // TODO this should be used
-		@IInteractiveSessionWidgetHistoryService private readonly historyService: IInteractiveSessionWidgetHistoryService,
+		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
+		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -141,7 +141,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		this._inputEditor.focus();
 	}
 
-	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
+	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		const editorValue = this._inputEditor.getValue();
 		if (!query && editorValue) {
 			// Followups and programmatic messages don't go to history
@@ -152,7 +152,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		this._inputEditor.setValue('');
 	}
 
-	render(container: HTMLElement, initialValue: string, widget: IInteractiveSessionWidget) {
+	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this.container = dom.append(container, $('.interactive-input-part'));
 		this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
 
@@ -208,13 +208,13 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 			this._onDidBlur.fire();
 		}));
 
-		const toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.InteractiveSessionExecute, {
+		const toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.ChatExecute, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
 		}));
 		toolbar.getElement().classList.add('interactive-execute-toolbar');
-		toolbar.context = <IInteractiveSessionExecuteActionContext>{ widget };
+		toolbar.context = <IChatExecuteActionContext>{ widget };
 
 		this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
 		this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
@@ -226,12 +226,12 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		}
 	}
 
-	async renderFollowups(items?: IInteractiveSessionReplyFollowup[]): Promise<void> {
+	async renderFollowups(items?: IChatReplyFollowup[]): Promise<void> {
 		this.followupsDisposables.clear();
 		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
-			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire(followup)));
+			this.followupsDisposables.add(new ChatFollowups(this.followupsContainer, items, undefined, followup => this._onDidAcceptFollowup.fire(followup)));
 		}
 	}
 

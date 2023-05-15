@@ -50,12 +50,12 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
-import { IInteractiveSessionCodeBlockInfo } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
-import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { IChatCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
+import { IChatCodeBlockInfo } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { ChatFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
+import { ChatEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatReplyFollowup, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, IInteractiveWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
@@ -81,22 +81,22 @@ interface IItemHeightChangeParams {
 
 const forceVerboseLayoutTracing = false;
 
-export interface IInteractiveSessionRendererDelegate {
+export interface IChatRendererDelegate {
 	getListLength(): number;
-	getSlashCommands(): IInteractiveSlashCommand[];
+	getSlashCommands(): ISlashCommand[];
 }
 
 export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
 	static readonly ID = 'item';
 
-	private readonly codeBlocksByResponseId = new Map<string, IInteractiveSessionCodeBlockInfo[]>();
-	private readonly codeBlocksByEditorUri = new ResourceMap<IInteractiveSessionCodeBlockInfo>();
+	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
+	private readonly codeBlocksByEditorUri = new ResourceMap<IChatCodeBlockInfo>();
 
 	private readonly renderer: MarkdownRenderer;
 
-	protected readonly _onDidClickFollowup = this._register(new Emitter<IInteractiveSessionReplyFollowup>());
-	readonly onDidClickFollowup: Event<IInteractiveSessionReplyFollowup> = this._onDidClickFollowup.event;
+	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatReplyFollowup>());
+	readonly onDidClickFollowup: Event<IChatReplyFollowup> = this._onDidClickFollowup.event;
 
 	protected readonly _onDidChangeItemHeight = this._register(new Emitter<IItemHeightChangeParams>());
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
@@ -107,14 +107,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private _isVisible = true;
 
 	constructor(
-		private readonly editorOptions: InteractiveSessionEditorOptions,
-		private readonly delegate: IInteractiveSessionRendererDelegate,
+		private readonly editorOptions: ChatEditorOptions,
+		private readonly delegate: IChatRendererDelegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
+		@IChatService private readonly interactiveSessionService: IChatService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -158,12 +158,12 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return 8;
 	}
 
-	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IInteractiveSessionCodeBlockInfo[] {
+	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IChatCodeBlockInfo[] {
 		const codeBlocks = this.codeBlocksByResponseId.get(response.id);
 		return codeBlocks ?? [];
 	}
 
-	getCodeBlockInfoForEditor(uri: URI): IInteractiveSessionCodeBlockInfo | undefined {
+	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
 		return this.codeBlocksByEditorUri.get(uri);
 	}
 
@@ -190,13 +190,13 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
-		const titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.InteractiveSessionTitle, {
+		const titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.ChatTitle, {
 			menuOptions: {
 				shouldForwardArgs: true
 			},
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof MenuItemAction) {
-					return scopedInstantiationService.createInstance(InteractiveSessionVoteButton, action, options as IMenuEntryActionViewItemOptions);
+					return scopedInstantiationService.createInstance(ChatVoteButton, action, options as IMenuEntryActionViewItemOptions);
 				}
 
 				return undefined;
@@ -287,7 +287,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		if (isResponseVM(element) && element.commandFollowups?.length) {
 			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
-			templateData.elementDisposables.add(new InteractiveSessionFollowups(
+			templateData.elementDisposables.add(new ChatFollowups(
 				followupsContainer,
 				element.commandFollowups,
 				defaultButtonStyles,
@@ -310,7 +310,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		for (const item of element.content) {
 			if (Array.isArray(item)) {
-				templateData.elementDisposables.add(new InteractiveSessionFollowups(
+				templateData.elementDisposables.add(new ChatFollowups(
 					templateData.value,
 					item,
 					undefined,
@@ -401,7 +401,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
 		markdown = new MarkdownString(toRender);
 
-		const codeblocks: IInteractiveSessionCodeBlockInfo[] = [];
+		const codeblocks: IChatCodeBlockInfo[] = [];
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
@@ -483,16 +483,16 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 }
 
-export class InteractiveSessionListDelegate implements IListVirtualDelegate<InteractiveTreeItem> {
+export class ChatListDelegate implements IListVirtualDelegate<InteractiveTreeItem> {
 	constructor(
 		@ILogService private readonly logService: ILogService
 	) { }
 
 	private _traceLayout(method: string, message: string) {
 		if (forceVerboseLayoutTracing) {
-			this.logService.info(`InteractiveSessionListDelegate#${method}: ${message}`);
+			this.logService.info(`ChatListDelegate#${method}: ${message}`);
 		} else {
-			this.logService.trace(`InteractiveSessionListDelegate#${method}: ${message}`);
+			this.logService.trace(`ChatListDelegate#${method}: ${message}`);
 		}
 	}
 
@@ -512,7 +512,7 @@ export class InteractiveSessionListDelegate implements IListVirtualDelegate<Inte
 	}
 }
 
-export class InteractiveSessionAccessibilityProvider implements IListAccessibilityProvider<InteractiveTreeItem> {
+export class ChatAccessibilityProvider implements IListAccessibilityProvider<InteractiveTreeItem> {
 
 	getWidgetRole(): AriaRole {
 		return 'list';
@@ -577,7 +577,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 	private currentScrollWidth = 0;
 
 	constructor(
-		private readonly options: InteractiveSessionEditorOptions,
+		private readonly options: ChatEditorOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -588,7 +588,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
-		this.toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.InteractiveSessionCodeBlock, {
+		this.toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.ChatCodeBlock, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
@@ -701,7 +701,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 		this.layout(width);
 
-		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
+		this.toolbar.context = <IChatCodeBlockActionContext>{
 			code: data.text,
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
@@ -765,7 +765,7 @@ class EditorPool extends Disposable {
 	}
 
 	constructor(
-		private readonly options: InteractiveSessionEditorOptions,
+		private readonly options: ChatEditorOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -821,7 +821,7 @@ class ResourcePool<T extends IDisposable> extends Disposable {
 	}
 }
 
-class InteractiveSessionVoteButton extends MenuEntryActionViewItem {
+class ChatVoteButton extends MenuEntryActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.toggle('checked', this.action.checked);

@@ -22,16 +22,16 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { clearChatSession } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionClear';
-import { IInteractiveSessionCodeBlockInfo, IInteractiveSessionWidget, IInteractiveSessionWidgetService, IInteractiveSessionWidgetViewContext } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
-import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
-import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
+import { IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { ChatInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
+import { IChatRendererDelegate, InteractiveListItemRenderer, ChatAccessibilityProvider, ChatListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
+import { ChatEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { ChatViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
 import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
-import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveResponseViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IChatContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
+import { IChatModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IChatReplyFollowup, IChatService, ISlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveResponseViewModel, ChatViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 const $ = dom.$;
 
@@ -44,15 +44,15 @@ export interface IViewState {
 	// renderData
 }
 
-export interface IInteractiveSessionWidgetStyles {
+export interface IChatWidgetStyles {
 	listForeground: string;
 	listBackground: string;
 	inputEditorBackground: string;
 	resultEditorBackground: string;
 }
 
-export class InteractiveSessionWidget extends Disposable implements IInteractiveSessionWidget {
-	public static readonly CONTRIBS: { new(...args: [IInteractiveSessionWidget, ...any]): any }[] = [];
+export class ChatWidget extends Disposable implements IChatWidget {
+	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): any }[] = [];
 
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
@@ -63,8 +63,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private tree!: WorkbenchObjectTree<InteractiveTreeItem>;
 	private renderer!: InteractiveListItemRenderer;
 
-	private inputPart!: InteractiveSessionInputPart;
-	private editorOptions!: InteractiveSessionEditorOptions;
+	private inputPart!: ChatInputPart;
+	private editorOptions!: ChatEditorOptions;
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
@@ -77,8 +77,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private previousTreeScrollHeight: number = 0;
 
 	private viewModelDisposables = new DisposableStore();
-	private _viewModel: InteractiveSessionViewModel | undefined;
-	private set viewModel(viewModel: InteractiveSessionViewModel | undefined) {
+	private _viewModel: ChatViewModel | undefined;
+	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
 			return;
 		}
@@ -103,23 +103,23 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		return this._viewModel;
 	}
 
-	private lastSlashCommands: IInteractiveSlashCommand[] | undefined;
-	private slashCommandsPromise: Promise<IInteractiveSlashCommand[] | undefined> | undefined;
+	private lastSlashCommands: ISlashCommand[] | undefined;
+	private slashCommandsPromise: Promise<ISlashCommand[] | undefined> | undefined;
 
 	constructor(
-		readonly viewContext: IInteractiveSessionWidgetViewContext,
-		private readonly styles: IInteractiveSessionWidgetStyles,
+		readonly viewContext: IChatWidgetViewContext,
+		private readonly styles: IChatWidgetStyles,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
-		@IInteractiveSessionWidgetService interactiveSessionWidgetService: IInteractiveSessionWidgetService,
+		@IChatService private readonly interactiveSessionService: IChatService,
+		@IChatWidgetService interactiveSessionWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
 		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
-		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
+		this._register((interactiveSessionWidgetService as ChatWidgetService).register(this));
 	}
 
 	get providerId(): string {
@@ -139,7 +139,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
-		this.editorOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
+		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		this.createList(this.listContainer);
 		this.createInput(this.container);
 
@@ -152,7 +152,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			revealLastElement(this.tree);
 		}
 
-		InteractiveSessionWidget.CONTRIBS.forEach(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
+		ChatWidget.CONTRIBS.forEach(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
 	}
 
 	focusInput(): void {
@@ -192,7 +192,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	private async renderFollowups(items?: IInteractiveSessionReplyFollowup[]): Promise<void> {
+	private async renderFollowups(items?: IChatReplyFollowup[]): Promise<void> {
 		this.inputPart.renderFollowups(items);
 
 		if (this.bodyDimension) {
@@ -216,7 +216,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	async getSlashCommands(): Promise<IInteractiveSlashCommand[] | undefined> {
+	async getSlashCommands(): Promise<ISlashCommand[] | undefined> {
 		if (!this.viewModel) {
 			return;
 		}
@@ -224,7 +224,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		if (!this.slashCommandsPromise) {
 			this.slashCommandsPromise = this.interactiveSessionService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None).then(commands => {
 				// If this becomes a repeated pattern, we should have a real internal slash command provider system
-				const clearCommand: IInteractiveSlashCommand = {
+				const clearCommand: ISlashCommand = {
 					command: 'clear',
 					sortText: 'z_clear',
 					detail: localize('clear', "Clear the session"),
@@ -242,8 +242,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private createList(listContainer: HTMLElement): void {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
-		const delegate = scopedInstantiationService.createInstance(InteractiveSessionListDelegate);
-		const rendererDelegate: IInteractiveSessionRendererDelegate = {
+		const delegate = scopedInstantiationService.createInstance(ChatListDelegate);
+		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
 			getSlashCommands: () => this.lastSlashCommands ?? [],
 		};
@@ -254,7 +254,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		this.tree = <WorkbenchObjectTree<InteractiveTreeItem>>scopedInstantiationService.createInstance(
 			WorkbenchObjectTree,
-			'InteractiveSession',
+			'Chat',
 			listContainer,
 			delegate,
 			[this.renderer],
@@ -262,7 +262,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				identityProvider: { getId: (e: InteractiveTreeItem) => e.id },
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
-				accessibilityProvider: new InteractiveSessionAccessibilityProvider(),
+				accessibilityProvider: new ChatAccessibilityProvider(),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
 				overrideStyles: {
@@ -299,7 +299,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		e.browserEvent.stopPropagation();
 
 		this.contextMenuService.showContextMenu({
-			menuId: MenuId.InteractiveSessionContext,
+			menuId: MenuId.ChatContext,
 			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: this.contextKeyService,
 			getAnchor: () => e.anchor,
@@ -324,7 +324,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private createInput(container: HTMLElement): void {
-		this.inputPart = this.instantiationService.createInstance(InteractiveSessionInputPart);
+		this.inputPart = this.instantiationService.createInstance(ChatInputPart);
 		this.inputPart.render(container, '', this);
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
@@ -337,13 +337,13 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
 	}
 
-	setModel(model: IInteractiveSessionModel, viewState: IViewState): void {
+	setModel(model: IChatModel, viewState: IViewState): void {
 		if (!this.container) {
 			throw new Error('Call render() before setModel()');
 		}
 
 		this.container.setAttribute('data-session-id', model.sessionId);
-		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
+		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model);
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
 			this.slashCommandsPromise = undefined;
 			this.requestInProgress.set(this.viewModel!.requestInProgress);
@@ -362,7 +362,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
+	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
 
@@ -382,11 +382,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IInteractiveSessionCodeBlockInfo[] {
+	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IChatCodeBlockInfo[] {
 		return this.renderer.getCodeBlockInfosForResponse(response);
 	}
 
-	getCodeBlockInfoForEditor(uri: URI): IInteractiveSessionCodeBlockInfo | undefined {
+	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
 		return this.renderer.getCodeBlockInfoForEditor(uri);
 	}
 
@@ -436,34 +436,34 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 }
 
-export class InteractiveSessionWidgetService implements IInteractiveSessionWidgetService {
+export class ChatWidgetService implements IChatWidgetService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _widgets: InteractiveSessionWidget[] = [];
-	private _lastFocusedWidget: InteractiveSessionWidget | undefined = undefined;
+	private _widgets: ChatWidget[] = [];
+	private _lastFocusedWidget: ChatWidget | undefined = undefined;
 
-	get lastFocusedWidget(): InteractiveSessionWidget | undefined {
+	get lastFocusedWidget(): ChatWidget | undefined {
 		return this._lastFocusedWidget;
 	}
 
 	constructor(
 		@IViewsService private readonly viewsService: IViewsService,
-		@IInteractiveSessionContributionService private readonly interactiveSessionContributionService: IInteractiveSessionContributionService,
+		@IChatContributionService private readonly interactiveSessionContributionService: IChatContributionService,
 	) { }
 
-	getWidgetByInputUri(uri: URI): InteractiveSessionWidget | undefined {
+	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
 	}
 
-	async revealViewForProvider(providerId: string): Promise<InteractiveSessionWidget | undefined> {
+	async revealViewForProvider(providerId: string): Promise<ChatWidget | undefined> {
 		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
-		const view = await this.viewsService.openView<InteractiveSessionViewPane>(viewId);
+		const view = await this.viewsService.openView<ChatViewPane>(viewId);
 
 		return view?.widget;
 	}
 
-	private setLastFocusedWidget(widget: InteractiveSessionWidget | undefined): void {
+	private setLastFocusedWidget(widget: ChatWidget | undefined): void {
 		if (widget === this._lastFocusedWidget) {
 			return;
 		}
@@ -471,7 +471,7 @@ export class InteractiveSessionWidgetService implements IInteractiveSessionWidge
 		this._lastFocusedWidget = widget;
 	}
 
-	register(newWidget: InteractiveSessionWidget): IDisposable {
+	register(newWidget: ChatWidget): IDisposable {
 		if (this._widgets.some(widget => widget === newWidget)) {
 			throw new Error('Cannot register the same widget multiple times');
 		}

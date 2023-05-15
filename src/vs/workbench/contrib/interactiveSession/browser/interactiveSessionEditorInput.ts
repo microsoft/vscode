@@ -13,11 +13,11 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import type { IInteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
-import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import type { IChatEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
+import { IChatModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
-export class InteractiveSessionEditorInput extends EditorInput {
+export class ChatEditorInput extends EditorInput {
 	static readonly TypeID: string = 'workbench.input.interactiveSession';
 	static readonly EditorID: string = 'workbench.editor.interactiveSession';
 	static count = 0;
@@ -28,28 +28,28 @@ export class InteractiveSessionEditorInput extends EditorInput {
 
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
-		return InteractiveSessionUri.generate(handle);
+		return ChatUri.generate(handle);
 	}
 
 	constructor(
 		readonly resource: URI,
-		readonly options: IInteractiveSessionEditorOptions,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService
+		readonly options: IChatEditorOptions,
+		@IChatService private readonly interactiveSessionService: IChatService
 	) {
 		super();
 
-		const parsed = InteractiveSessionUri.parse(resource);
+		const parsed = ChatUri.parse(resource);
 		if (typeof parsed?.handle !== 'number') {
 			throw new Error('Invalid interactive session URI');
 		}
 
 		this.sessionId = 'sessionId' in options.target ? options.target.sessionId : undefined;
 		this.providerId = 'providerId' in options.target ? options.target.providerId : undefined;
-		this.inputCount = InteractiveSessionEditorInput.count++;
+		this.inputCount = ChatEditorInput.count++;
 	}
 
 	override get editorId(): string | undefined {
-		return InteractiveSessionEditorInput.EditorID;
+		return ChatEditorInput.EditorID;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -57,18 +57,18 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		return otherInput instanceof InteractiveSessionEditorInput && otherInput.resource.toString() === this.resource.toString();
+		return otherInput instanceof ChatEditorInput && otherInput.resource.toString() === this.resource.toString();
 	}
 
 	override get typeId(): string {
-		return InteractiveSessionEditorInput.TypeID;
+		return ChatEditorInput.TypeID;
 	}
 
 	override getName(): string {
 		return nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
 	}
 
-	override async resolve(): Promise<InteractiveSessionEditorModel | null> {
+	override async resolve(): Promise<ChatEditorModel | null> {
 		const model = typeof this.sessionId === 'string' ?
 			this.interactiveSessionService.getOrRestoreSession(this.sessionId) :
 			this.interactiveSessionService.startSession(this.providerId!, CancellationToken.None);
@@ -79,7 +79,7 @@ export class InteractiveSessionEditorInput extends EditorInput {
 
 		this.sessionId = model.sessionId;
 		await model.waitForInitialization();
-		return this._register(new InteractiveSessionEditorModel(model));
+		return this._register(new ChatEditorModel(model));
 	}
 
 	override dispose(): void {
@@ -90,7 +90,7 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	}
 }
 
-export class InteractiveSessionEditorModel extends Disposable implements IEditorModel {
+export class ChatEditorModel extends Disposable implements IEditorModel {
 	private _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
@@ -98,7 +98,7 @@ export class InteractiveSessionEditorModel extends Disposable implements IEditor
 	private _isResolved = false;
 
 	constructor(
-		readonly model: IInteractiveSessionModel
+		readonly model: IChatModel
 	) { super(); }
 
 	async resolve(): Promise<void> {
@@ -119,7 +119,7 @@ export class InteractiveSessionEditorModel extends Disposable implements IEditor
 	}
 }
 
-export namespace InteractiveSessionUri {
+export namespace ChatUri {
 
 	export const scheme = Schemas.vscodeInteractiveSesssion;
 
@@ -148,18 +148,18 @@ export namespace InteractiveSessionUri {
 	}
 }
 
-interface ISerializedInteractiveSessionEditorInput {
-	options: IInteractiveSessionEditorOptions;
+interface ISerializedChatEditorInput {
+	options: IChatEditorOptions;
 	resource: URI;
 }
 
-export class InteractiveSessionEditorInputSerializer implements IEditorSerializer {
+export class ChatEditorInputSerializer implements IEditorSerializer {
 	canSerialize(input: EditorInput): boolean {
-		return input instanceof InteractiveSessionEditorInput;
+		return input instanceof ChatEditorInput;
 	}
 
 	serialize(input: EditorInput): string | undefined {
-		if (!(input instanceof InteractiveSessionEditorInput)) {
+		if (!(input instanceof ChatEditorInput)) {
 			return undefined;
 		}
 
@@ -167,7 +167,7 @@ export class InteractiveSessionEditorInputSerializer implements IEditorSerialize
 			return undefined;
 		}
 
-		const obj: ISerializedInteractiveSessionEditorInput = {
+		const obj: ISerializedChatEditorInput = {
 			options: input.options,
 			resource: input.resource
 		};
@@ -176,9 +176,9 @@ export class InteractiveSessionEditorInputSerializer implements IEditorSerialize
 
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
-			const parsed: ISerializedInteractiveSessionEditorInput = JSON.parse(serializedEditor);
+			const parsed: ISerializedChatEditorInput = JSON.parse(serializedEditor);
 			const resource = URI.revive(parsed.resource);
-			return instantiationService.createInstance(InteractiveSessionEditorInput, resource, parsed.options as IInteractiveSessionEditorOptions);
+			return instantiationService.createInstance(ChatEditorInput, resource, parsed.options as IChatEditorOptions);
 		} catch (err) {
 			return undefined;
 		}

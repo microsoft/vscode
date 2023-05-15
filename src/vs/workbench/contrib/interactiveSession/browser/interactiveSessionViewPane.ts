@@ -20,12 +20,12 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { Memento } from 'vs/workbench/common/memento';
 import { SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IInteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { IViewState, InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
-import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IViewState, ChatWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IChatModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
-export interface IInteractiveSessionViewOptions {
+export interface IChatViewOptions {
 	readonly providerId: string;
 }
 
@@ -34,18 +34,18 @@ interface IViewPaneState extends IViewState {
 }
 
 export const INTERACTIVE_SIDEBAR_PANEL_ID = 'workbench.panel.interactiveSessionSidebar';
-export class InteractiveSessionViewPane extends ViewPane implements IInteractiveSessionViewPane {
+export class ChatViewPane extends ViewPane implements IChatViewPane {
 	static ID = 'workbench.panel.interactiveSession.view';
 
-	private _widget!: InteractiveSessionWidget;
-	get widget(): InteractiveSessionWidget { return this._widget; }
+	private _widget!: ChatWidget;
+	get widget(): ChatWidget { return this._widget; }
 
 	private modelDisposables = this._register(new DisposableStore());
 	private memento: Memento;
 	private viewState: IViewPaneState;
 
 	constructor(
-		private readonly interactiveSessionViewOptions: IInteractiveSessionViewOptions,
+		private readonly interactiveSessionViewOptions: IChatViewOptions,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -57,7 +57,7 @@ export class InteractiveSessionViewPane extends ViewPane implements IInteractive
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
+		@IChatService private readonly interactiveSessionService: IChatService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -66,7 +66,7 @@ export class InteractiveSessionViewPane extends ViewPane implements IInteractive
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 	}
 
-	private updateModel(model?: IInteractiveSessionModel | undefined): void {
+	private updateModel(model?: IChatModel | undefined): void {
 		this.modelDisposables.clear();
 
 		model = model ?? this.interactiveSessionService.startSession(this.interactiveSessionViewOptions.providerId, CancellationToken.None);
@@ -84,7 +84,7 @@ export class InteractiveSessionViewPane extends ViewPane implements IInteractive
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
 
 		this._widget = this._register(scopedInstantiationService.createInstance(
-			InteractiveSessionWidget,
+			ChatWidget,
 			{ viewId: this.id },
 			{
 				listForeground: SIDE_BAR_FOREGROUND,

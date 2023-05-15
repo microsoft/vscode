@@ -18,15 +18,15 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asCssVariable, editorBackground, foreground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { InteractiveListItemRenderer } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
-import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSessionReplyFollowup, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { InteractiveSessionViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { ChatEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { ChatModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ChatViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IChatWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
-export function registerInteractiveSessionQuickQuestionActions() {
+export function registerChatQuickQuestionActions() {
 	registerAction2(AskQuickQuestionAction);
 }
 
@@ -53,7 +53,7 @@ class AskQuickQuestionAction extends Action2 {
 
 	run(accessor: ServicesAccessor, query: string): void {
 		const quickInputService = accessor.get(IQuickInputService);
-		const interactiveSessionService = accessor.get(IInteractiveSessionService);
+		const interactiveSessionService = accessor.get(IChatService);
 		const instantiationService = accessor.get(IInstantiationService);
 
 		// First things first, clear the existing timer that will dispose the session
@@ -159,30 +159,30 @@ class AskQuickQuestionAction extends Action2 {
 
 class InteractiveQuickPickSession extends Disposable {
 
-	private _model: InteractiveSessionModel;
-	private _viewModel: InteractiveSessionViewModel;
+	private _model: ChatModel;
+	private _viewModel: ChatViewModel;
 
-	private readonly _onDidClickFollowup: Emitter<IInteractiveSessionReplyFollowup> = this._register(new Emitter<IInteractiveSessionReplyFollowup>());
-	onDidClickFollowup: Event<IInteractiveSessionReplyFollowup> = this._onDidClickFollowup.event;
+	private readonly _onDidClickFollowup: Emitter<IChatReplyFollowup> = this._register(new Emitter<IChatReplyFollowup>());
+	onDidClickFollowup: Event<IChatReplyFollowup> = this._onDidClickFollowup.event;
 
 	private _listDisposable: DisposableStore | undefined;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IInteractiveSessionService private readonly _interactiveSessionService: IInteractiveSessionService,
-		@IInteractiveSessionWidgetService private readonly _interactiveSessionWidgetService: IInteractiveSessionWidgetService
+		@IChatService private readonly _interactiveSessionService: IChatService,
+		@IChatWidgetService private readonly _interactiveSessionWidgetService: IChatWidgetService
 	) {
 		super();
 
 		const providerInfo = _interactiveSessionService.getProviderInfos()[0];
 		this._model = this._register(_interactiveSessionService.startSession(providerInfo.id, CancellationToken.None)!);
-		this._viewModel = this._register(new InteractiveSessionViewModel(this._model, _instantiationService));
+		this._viewModel = this._register(new ChatViewModel(this._model, _instantiationService));
 	}
 
 	createList(container: HTMLElement, offsetWidth: number) {
 		this._listDisposable?.dispose();
 		this._listDisposable = new DisposableStore();
-		const options = this._listDisposable.add(this._instantiationService.createInstance(InteractiveSessionEditorOptions, 'quickpick-interactive', foreground, editorBackground, editorBackground));
+		const options = this._listDisposable.add(this._instantiationService.createInstance(ChatEditorOptions, 'quickpick-interactive', foreground, editorBackground, editorBackground));
 		const list = this._listDisposable.add(this._instantiationService.createInstance(
 			InteractiveListItemRenderer,
 			options,

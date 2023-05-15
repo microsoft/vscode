@@ -8,8 +8,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
 
-export const IInteractiveSessionWidgetHistoryService = createDecorator<IInteractiveSessionWidgetHistoryService>('IInteractiveSessionWidgetHistoryService');
-export interface IInteractiveSessionWidgetHistoryService {
+export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');
+export interface IChatWidgetHistoryService {
 	_serviceBrand: undefined;
 
 	readonly onDidClearHistory: Event<void>;
@@ -19,15 +19,15 @@ export interface IInteractiveSessionWidgetHistoryService {
 	saveHistory(providerId: string, history: string[]): void;
 }
 
-interface IInteractiveSessionHistory {
+interface IChatHistory {
 	history: { [providerId: string]: string[] };
 }
 
-export class InteractiveSessionWidgetHistoryService implements IInteractiveSessionWidgetHistoryService {
+export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 	_serviceBrand: undefined;
 
 	private memento: Memento;
-	private viewState: IInteractiveSessionHistory;
+	private viewState: IChatHistory;
 
 	private readonly _onDidClearHistory = new Emitter<void>();
 	readonly onDidClearHistory: Event<void> = this._onDidClearHistory.event;
@@ -36,7 +36,7 @@ export class InteractiveSessionWidgetHistoryService implements IInteractiveSessi
 		@IStorageService storageService: IStorageService
 	) {
 		this.memento = new Memento('interactive-session', storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IInteractiveSessionHistory;
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatHistory;
 	}
 
 	getHistory(providerId: string): string[] {

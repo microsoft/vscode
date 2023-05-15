@@ -8,19 +8,19 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IChatWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { CONTEXT_INTERACTIVE_INPUT_HAS_TEXT, CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
-export interface IInteractiveSessionExecuteActionContext {
-	widget: IInteractiveSessionWidget;
+export interface IChatExecuteActionContext {
+	widget: IChatWidget;
 }
 
-function isExecuteActionContext(thing: unknown): thing is IInteractiveSessionExecuteActionContext {
+function isExecuteActionContext(thing: unknown): thing is IChatExecuteActionContext {
 	return typeof thing === 'object' && thing !== null && 'widget' in thing;
 }
 
-export function registerInteractiveSessionExecuteActions() {
+export function registerChatExecuteActions() {
 	registerAction2(class SubmitAction extends Action2 {
 		constructor() {
 			super({
@@ -34,7 +34,7 @@ export function registerInteractiveSessionExecuteActions() {
 				icon: Codicon.send,
 				precondition: CONTEXT_INTERACTIVE_INPUT_HAS_TEXT,
 				menu: {
-					id: MenuId.InteractiveSessionExecute,
+					id: MenuId.ChatExecute,
 					when: CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.negate(),
 					group: 'navigation',
 				}
@@ -63,7 +63,7 @@ export function registerInteractiveSessionExecuteActions() {
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.debugStop,
 				menu: {
-					id: MenuId.InteractiveSessionExecute,
+					id: MenuId.ChatExecute,
 					when: CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS,
 					group: 'navigation',
 				}
@@ -76,7 +76,7 @@ export function registerInteractiveSessionExecuteActions() {
 				return;
 			}
 
-			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			const interactiveSessionService = accessor.get(IChatService);
 			if (context.widget.viewModel) {
 				interactiveSessionService.cancelCurrentRequestForSession(context.widget.viewModel.sessionId);
 			}

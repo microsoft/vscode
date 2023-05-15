@@ -17,10 +17,10 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IInteractiveSessionWidget, IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { ChatWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
+import { ChatInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
 
 const decorationDescription = 'interactive session';
 const slashCommandPlaceholderDecorationType = 'interactive-session-detail';
@@ -29,7 +29,7 @@ const slashCommandTextDecorationType = 'interactive-session-text';
 class InputEditorDecorations extends Disposable {
 
 	constructor(
-		private readonly widget: IInteractiveSessionWidget,
+		private readonly widget: IChatWidget,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
@@ -131,16 +131,16 @@ class InputEditorDecorations extends Disposable {
 	}
 }
 
-InteractiveSessionWidget.CONTRIBS.push(InputEditorDecorations);
+ChatWidget.CONTRIBS.push(InputEditorDecorations);
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IInteractiveSessionWidgetService private readonly interactiveSessionWidgetService: IInteractiveSessionWidgetService,
+		@IChatWidgetService private readonly interactiveSessionWidgetService: IChatWidgetService,
 	) {
 		super();
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: InteractiveSessionInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, _position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.interactiveSessionWidgetService.getWidgetByInputUri(model.uri);

@@ -8,10 +8,10 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { IChatWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
-export function registerInteractiveSessionCopyActions() {
+export function registerChatCopyActions() {
 	registerAction2(class CopyAllAction extends Action2 {
 		constructor() {
 			super({
@@ -23,14 +23,14 @@ export function registerInteractiveSessionCopyActions() {
 				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				menu: {
-					id: MenuId.InteractiveSessionContext
+					id: MenuId.ChatContext
 				}
 			});
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
 			const clipboardService = accessor.get(IClipboardService);
-			const interactiveWidgetService = accessor.get(IInteractiveSessionWidgetService);
+			const interactiveWidgetService = accessor.get(IChatWidgetService);
 			const widget = interactiveWidgetService.lastFocusedWidget;
 			if (widget) {
 				const viewModel = widget.viewModel;
@@ -56,7 +56,7 @@ export function registerInteractiveSessionCopyActions() {
 				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				menu: {
-					id: MenuId.InteractiveSessionContext
+					id: MenuId.ChatContext
 				}
 			});
 		}

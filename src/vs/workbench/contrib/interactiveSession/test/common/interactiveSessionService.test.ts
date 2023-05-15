@@ -14,13 +14,13 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewsService } from 'vs/workbench/common/views';
-import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IInteractiveSlashCommand, IPersistedInteractiveState } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { InteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionServiceImpl';
+import { IChatContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
+import { IChatProgress, IChatProvider, IChatRequest, IChatResponse, IChat, ISlashCommand, IPersistedChatState } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ChatService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionServiceImpl';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
-class SimpleTestProvider extends Disposable implements IInteractiveProvider {
+class SimpleTestProvider extends Disposable implements IChatProvider {
 	private static sessionId = 0;
 
 	lastInitialState = undefined;
@@ -35,7 +35,7 @@ class SimpleTestProvider extends Disposable implements IInteractiveProvider {
 
 	prepareSession(initialState: any) {
 		this.lastInitialState = initialState;
-		return Promise.resolve(<IInteractiveSession>{
+		return Promise.resolve(<IChat>{
 			id: SimpleTestProvider.sessionId++,
 			username: 'test',
 			responderUsername: 'test',
@@ -48,12 +48,12 @@ class SimpleTestProvider extends Disposable implements IInteractiveProvider {
 		this._onDidChangeState.fire(state);
 	}
 
-	async provideReply(request: IInteractiveRequest) {
+	async provideReply(request: IChatRequest) {
 		return { session: request.session, followups: [] };
 	}
 }
 
-suite('InteractiveSession', () => {
+suite('Chat', () => {
 	const testDisposables = new DisposableStore();
 
 	let storageService: IStorageService;
@@ -66,7 +66,7 @@ suite('InteractiveSession', () => {
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IViewsService, new TestExtensionService());
-		instantiationService.stub(IInteractiveSessionContributionService, new TestExtensionService());
+		instantiationService.stub(IChatContributionService, new TestExtensionService());
 	});
 
 	teardown(() => {
@@ -74,7 +74,7 @@ suite('InteractiveSession', () => {
 	});
 
 	test('retrieveSession', async () => {
-		const testService = instantiationService.createInstance(InteractiveSessionService);
+		const testService = instantiationService.createInstance(ChatService);
 		const provider1 = new SimpleTestProvider('provider1');
 		const provider2 = new SimpleTestProvider('provider2');
 		testService.registerProvider(provider1);
@@ -94,7 +94,7 @@ suite('InteractiveSession', () => {
 		provider2.changeState({ state: 'provider2_state' });
 		storageService.flush();
 
-		const testService2 = instantiationService.createInstance(InteractiveSessionService);
+		const testService2 = instantiationService.createInstance(ChatService);
 		testService2.registerProvider(provider1);
 		testService2.registerProvider(provider2);
 		const retrieved1 = testService2.getOrRestoreSession(session1.sessionId);
@@ -107,7 +107,7 @@ suite('InteractiveSession', () => {
 
 	test('Handles failed session startup', async () => {
 		function getFailProvider(providerId: string) {
-			return new class implements IInteractiveProvider {
+			return new class implements IChatProvider {
 				readonly id = providerId;
 				readonly displayName = 'Test';
 
@@ -117,13 +117,13 @@ suite('InteractiveSession', () => {
 					throw new Error('Failed to start session');
 				}
 
-				async provideReply(request: IInteractiveRequest) {
+				async provideReply(request: IChatRequest) {
 					return { session: request.session, followups: [] };
 				}
 			};
 		}
 
-		const testService = instantiationService.createInstance(InteractiveSessionService);
+		const testService = instantiationService.createInstance(ChatService);
 		const provider1 = getFailProvider('provider1');
 		testService.registerProvider(provider1);
 
@@ -132,15 +132,15 @@ suite('InteractiveSession', () => {
 	});
 
 	test('Can\'t register same provider id twice', async () => {
-		const testService = instantiationService.createInstance(InteractiveSessionService);
+		const testService = instantiationService.createInstance(ChatService);
 		const id = 'testProvider';
 		testService.registerProvider({
 			id,
 			displayName: 'Test',
-			prepareSession: function (initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined> {
+			prepareSession: function (initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined> {
 				throw new Error('Function not implemented.');
 			},
-			provideReply: function (request: IInteractiveRequest, progress: (progress: IInteractiveProgress) => void, token: CancellationToken): ProviderResult<IInteractiveResponse> {
+			provideReply: function (request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse> {
 				throw new Error('Function not implemented.');
 			}
 		});
@@ -149,10 +149,10 @@ suite('InteractiveSession', () => {
 			testService.registerProvider({
 				id,
 				displayName: 'Test',
-				prepareSession: function (initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined> {
+				prepareSession: function (initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined> {
 					throw new Error('Function not implemented.');
 				},
-				provideReply: function (request: IInteractiveRequest, progress: (progress: IInteractiveProgress) => void, token: CancellationToken): ProviderResult<IInteractiveResponse> {
+				provideReply: function (request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse> {
 					throw new Error('Function not implemented.');
 				}
 			});
@@ -160,13 +160,13 @@ suite('InteractiveSession', () => {
 	});
 
 	test('getSlashCommands', async () => {
-		const testService = instantiationService.createInstance(InteractiveSessionService);
+		const testService = instantiationService.createInstance(ChatService);
 		const provider = new class extends SimpleTestProvider {
 			constructor() {
 				super('testProvider');
 			}
 
-			provideSlashCommands(): ProviderResult<IInteractiveSlashCommand[]> {
+			provideSlashCommands(): ProviderResult<ISlashCommand[]> {
 				return [
 					{
 						command: 'command',
@@ -189,18 +189,18 @@ suite('InteractiveSession', () => {
 	});
 
 	test('sendInteractiveRequestToProvider', async () => {
-		const testService = instantiationService.createInstance(InteractiveSessionService);
+		const testService = instantiationService.createInstance(ChatService);
 		testService.registerProvider(new SimpleTestProvider('testProvider'));
 
 		const model = testService.startSession('testProvider', CancellationToken.None);
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.sendInteractiveRequestToProvider(model.sessionId, { message: 'test request' });
+		await testService.sendRequestToProvider(model.sessionId, { message: 'test request' });
 		assert.strictEqual(model.getRequests().length, 1);
 	});
 
 	test('addCompleteRequest', async () => {
-		const testService = instantiationService.createInstance(InteractiveSessionService);
+		const testService = instantiationService.createInstance(ChatService);
 		testService.registerProvider(new SimpleTestProvider('testProvider'));
 
 		const model = testService.startSession('testProvider', CancellationToken.None);
