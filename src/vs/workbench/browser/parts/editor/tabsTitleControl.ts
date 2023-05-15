@@ -240,8 +240,6 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private setTabsWidthFixed() {
-		this.preventTabsWidthTransition();
-
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			const { width } = tabContainer.getBoundingClientRect();
 
@@ -253,19 +251,8 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private preventTabsWidthTransition() {
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			tabContainer.classList.add('stop-transition');
-		});
-
-		// If the fixed-width tabs were still transitioning to their normal width, we need to make sure
-		// that the transition finishes before we fix widths again, therefore we force a browser layout:
-		void this.tabsContainer?.offsetWidth;
-	}
-
 	private resetTabsWidthFixed() {
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			tabContainer.classList.remove('stop-transition');
 			tabContainer.style.removeProperty('--tab-sizing-current-width');
 		});
 	}
