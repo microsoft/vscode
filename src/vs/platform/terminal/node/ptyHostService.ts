@@ -312,9 +312,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	async restartPtyHost(): Promise<void> {
-		this._isResponsive = true;
 		this._disposePtyHost();
-		[this._connection, this._proxy] = await this._startPtyHost();
+		this._isResponsive = true;
+		[this._connection, this._proxy] = this._startPtyHost();
 	}
 
 	private _disposePtyHost(): void {
