@@ -35,8 +35,6 @@ import { SignService } from 'vs/platform/sign/browser/signService';
 import { IWorkbenchConstructionOptions, IWorkbench, ITunnel } from 'vs/workbench/browser/web.api';
 import { BrowserStorageService } from 'vs/workbench/services/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { BufferLogger } from 'vs/platform/log/common/bufferLog';
-import { FileLoggerService } from 'vs/platform/log/common/fileLog';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/window/common/window';
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
@@ -88,6 +86,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { UserDataProfileInitializer } from 'vs/workbench/services/userDataProfile/browser/userDataProfileInit';
 import { UserDataSyncInitializer } from 'vs/workbench/services/userDataSync/browser/userDataSyncInit';
+import { BrowserLoggerService } from 'vs/workbench/services/log/browser/log';
 
 export class BrowserMain extends Disposable {
 
@@ -245,15 +244,28 @@ export class BrowserMain extends Disposable {
 		const environmentService = new BrowserWorkbenchEnvironmentService(workspace.id, logsPath, this.configuration, productService);
 		serviceCollection.set(IBrowserWorkbenchEnvironmentService, environmentService);
 
-		// Log
-		const logLevel = getLogLevel(environmentService);
-		const bufferLogger = new BufferLogger(logLevel);
-		const otherLoggers: ILogger[] = [new ConsoleLogger(logLevel)];
+		// Logger
+		const loggerService = new BrowserLoggerService(getLogLevel(environmentService), logsPath);
+		serviceCollection.set(ILoggerService, loggerService);
+
+		// Log Service
+		const otherLoggers: ILogger[] = [new ConsoleLogger(loggerService.getLogLevel())];
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
-			otherLoggers.push(new ConsoleLogInAutomationLogger(logLevel));
+			otherLoggers.push(new ConsoleLogInAutomationLogger(loggerService.getLogLevel()));
 		}
-		const logService = new LogService(bufferLogger, otherLoggers);
+		const logger = loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: localize('rendererLog', "Window") });
+		const logService = new LogService(logger, otherLoggers);
 		serviceCollection.set(ILogService, logService);
+
+		// Files
+		const fileService = this._register(new FileService(logService));
+		serviceCollection.set(IWorkbenchFileService, fileService);
+		// Cycling dependency between log service and file service
+		loggerService.acquireFileService(fileService);
+
+		// Register File System Providers depending on IndexedDB support
+		// Register them early because they are needed for the profiles initialization
+		await this.registerIndexedDBFileSystemProviders(environmentService, fileService, logService, loggerService, logsPath);
 
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
@@ -274,18 +286,6 @@ export class BrowserMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-		// Files
-		const fileService = this._register(new FileService(logService));
-		serviceCollection.set(IWorkbenchFileService, fileService);
-
-		// Logger
-		const loggerService = new FileLoggerService(logLevel, logsPath, fileService);
-		serviceCollection.set(ILoggerService, loggerService);
-
-		// Register File System Providers depending on IndexedDB support
-		// Register them early because they are needed for the profiles initialization
-		await this.registerIndexedDBFileSystemProviders(environmentService, fileService, bufferLogger, logService, loggerService, logsPath);
 
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
@@ -406,7 +406,7 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private async registerIndexedDBFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, bufferLogger: BufferLogger, logService: ILogService, loggerService: ILoggerService, logsPath: URI): Promise<void> {
+	private async registerIndexedDBFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, logService: ILogService, loggerService: ILoggerService, logsPath: URI): Promise<void> {
 		// IndexedDB is used for logging and user data
 		let indexedDB: IndexedDB | undefined;
 		const userDataStore = 'vscode-userdata-store';
@@ -429,8 +429,6 @@ export class BrowserMain extends Disposable {
 		} else {
 			fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
 		}
-
-		bufferLogger.logger = loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: localize('rendererLog', "Window") });
 
 		// User data
 		let userDataProvider;
