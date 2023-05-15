@@ -5,7 +5,7 @@
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveSessionViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IInteractiveResponseViewModel, IInteractiveSessionViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -29,6 +29,12 @@ export interface IInteractiveSessionWidgetService {
 	getWidgetByInputUri(uri: URI): IInteractiveSessionWidget | undefined;
 }
 
+export interface IInteractiveSessionCodeBlockInfo {
+	codeBlockIndex: number;
+	element: IInteractiveResponseViewModel;
+	focus(): void;
+}
+
 export type IInteractiveSessionWidgetViewContext = { viewId: string } | { resource: boolean };
 
 export interface IInteractiveSessionWidget {
@@ -42,6 +48,8 @@ export interface IInteractiveSessionWidget {
 	focusLastMessage(): void;
 	focusInput(): void;
 	getSlashCommands(): Promise<IInteractiveSlashCommand[] | undefined>;
+	getCodeBlockInfoForEditor(uri: URI): IInteractiveSessionCodeBlockInfo | undefined;
+	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IInteractiveSessionCodeBlockInfo[];
 }
 
 export interface IInteractiveSessionViewPane {

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -24,6 +24,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
+import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 export type Recording = {
 	when: Date;
@@ -56,6 +57,8 @@ type TelemetryDataClassification = {
 export class Session {
 
 	private _lastInput: string | undefined;
+	private _lastTextModelChanges: LineRangeMapping[] | undefined;
+	private _lastSnapshot: ITextSnapshot | undefined;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
 	private readonly _teldata: Partial<TelemetryData>;
@@ -87,9 +90,17 @@ export class Session {
 		return this._lastInput;
 	}
 
+	get lastSnapshot(): ITextSnapshot | undefined {
+		return this._lastSnapshot;
+	}
+
 	get wholeRange(): Range {
 		return this.textModelN.getDecorationRange(this._wholeRangeMarkerId)!;
 		// return new Range(1, 1, 1, 1);
+	}
+
+	createSnapshot(): void {
+		this._lastSnapshot = this.textModelN.createSnapshot();
 	}
 
 	addExchange(exchange: SessionExchange): void {
@@ -99,6 +110,14 @@ export class Session {
 
 	get lastExchange(): SessionExchange | undefined {
 		return this._exchange[this._exchange.length - 1];
+	}
+
+	get lastTextModelChanges() {
+		return this._lastTextModelChanges ?? [];
+	}
+
+	set lastTextModelChanges(changes: LineRangeMapping[]) {
+		this._lastTextModelChanges = changes;
 	}
 
 	recordExternalEditOccurred() {
