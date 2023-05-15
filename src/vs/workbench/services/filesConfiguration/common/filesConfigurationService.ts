@@ -9,11 +9,17 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, FileSystemProviderCapabilities, IBaseFileStat } from 'vs/platform/files/common/files';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { IdleValue } from 'vs/base/common/async';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ResourceMap } from 'vs/base/common/map';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -49,6 +55,16 @@ export interface IFilesConfigurationService {
 
 	//#endregion
 
+	//#region Configured Readonly
+
+	readonly onReadonlyChange: Event<void>;
+
+	isReadonly(resource: URI, stat?: IBaseFileStat): boolean;
+
+	updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void>;
+
+	//#endregion
+
 	readonly onFilesAssociationChange: Event<void>;
 
 	readonly isHotExitEnabled: boolean;
@@ -70,6 +86,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly _onFilesAssociationChange = this._register(new Emitter<void>());
 	readonly onFilesAssociationChange = this._onFilesAssociationChange.event;
 
+	private readonly _onReadonlyConfigurationChange = this._register(new Emitter<void>());
+	readonly onReadonlyChange = this._onReadonlyConfigurationChange.event;
+
 	private configuredAutoSaveDelay?: number;
 	private configuredAutoSaveOnFocusChange: boolean | undefined;
 	private configuredAutoSaveOnWindowChange: boolean | undefined;
@@ -80,10 +99,19 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	private currentHotExitConfig: string;
 
+	private readonly readonlyIncludeMatcher = this._register(new IdleValue(() => this.createReadonlyMatcher(FILES_READONLY_INCLUDE_CONFIG)));
+	private readonly readonlyExcludeMatcher = this._register(new IdleValue(() => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
+	private configuredReadonlyFromPermissions: boolean | undefined;
+
+	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -97,6 +125,71 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		this.onFilesConfigurationChange(configuration);
 
 		this.registerListeners();
+	}
+
+	private createReadonlyMatcher(config: string) {
+		const matcher = this._register(new ResourceGlobMatcher(
+			resource => this.configurationService.getValue(config, { resource }),
+			event => event.affectsConfiguration(config),
+			this.contextService,
+			this.configurationService
+		));
+
+		this._register(matcher.onExpressionChange(() => this._onReadonlyConfigurationChange.fire()));
+
+		return matcher;
+	}
+
+	isReadonly(resource: URI, stat?: IBaseFileStat): boolean {
+
+		// if the entire file system provider is readonly, we respect that
+		// and do not allow to change readonly. we take this as a hint that
+		// the provider has no capabilities of writing.
+		if (this.fileService.hasCapability(resource, FileSystemProviderCapabilities.Readonly)) {
+			return true;
+		}
+
+		// session override always wins over the others
+		const sessionReadonlyOverride = this.sessionReadonlyOverrides.get(resource);
+		if (typeof sessionReadonlyOverride === 'boolean') {
+			return sessionReadonlyOverride;
+		}
+
+		if (
+			this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome) ||
+			this.uriIdentityService.extUri.isEqual(resource, withNullAsUndefined(this.contextService.getWorkspace().configuration))
+		) {
+			return false; // explicitly exclude some paths from readonly that we need for configuration
+		}
+
+		// configured glob patterns win over stat information
+		if (this.readonlyIncludeMatcher.value.matches(resource)) {
+			return !this.readonlyExcludeMatcher.value.matches(resource);
+		}
+
+		// finally check for stat information
+		return (this.configuredReadonlyFromPermissions && stat?.locked) ?? stat?.readonly ?? false;
+	}
+
+	async updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void> {
+		if (readonly === 'toggle') {
+			let stat: IFileStatWithMetadata | undefined = undefined;
+			try {
+				stat = await this.fileService.resolve(resource, { resolveMetadata: true });
+			} catch (error) {
+				// ignore
+			}
+
+			readonly = !this.isReadonly(resource, stat);
+		}
+
+		if (readonly === 'reset') {
+			this.sessionReadonlyOverrides.delete(resource);
+		} else {
+			this.sessionReadonlyOverrides.set(resource, readonly);
+		}
+
+		this._onReadonlyConfigurationChange.fire();
 	}
 
 	private registerListeners(): void {
@@ -140,8 +233,6 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		}
 
 		this.autoSaveAfterShortDelayContext.set(this.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY);
-
-		// Emit as event
 		this._onAutoSaveConfigurationChange.fire(this.getAutoSaveConfiguration());
 
 		// Check for change in files associations
@@ -157,6 +248,13 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			this.currentHotExitConfig = hotExitMode;
 		} else {
 			this.currentHotExitConfig = HotExitConfiguration.ON_EXIT;
+		}
+
+		// Readonly
+		const readonlyFromPermissions = Boolean(configuration?.files?.readonlyFromPermissions);
+		if (readonlyFromPermissions !== Boolean(this.configuredReadonlyFromPermissions)) {
+			this.configuredReadonlyFromPermissions = readonlyFromPermissions;
+			this._onReadonlyConfigurationChange.fire();
 		}
 	}
 

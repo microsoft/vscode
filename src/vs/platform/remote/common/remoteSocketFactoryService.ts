@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ISocket } from 'vs/base/parts/ipc/common/ipc.net';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RemoteConnectionOfType, RemoteConnectionType, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -18,7 +19,7 @@ export interface IRemoteSocketFactoryService {
 	 * @param factory function that returns the socket factory, or undefined if
 	 * it can't handle the data.
 	 */
-	register<T extends RemoteConnectionType>(type: T, factory: ISocketFactory<T>): void;
+	register<T extends RemoteConnectionType>(type: T, factory: ISocketFactory<T>): IDisposable;
 
 	connect(connectTo: RemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket>;
 }
@@ -33,9 +34,15 @@ export class RemoteSocketFactoryService implements IRemoteSocketFactoryService {
 
 	private readonly factories: { [T in RemoteConnectionType]?: ISocketFactory<T>[] } = {};
 
-	public register<T extends RemoteConnectionType>(type: T, factory: ISocketFactory<T>): void {
+	public register<T extends RemoteConnectionType>(type: T, factory: ISocketFactory<T>): IDisposable {
 		this.factories[type] ??= [];
 		this.factories[type]!.push(factory);
+		return toDisposable(() => {
+			const idx = this.factories[type]?.indexOf(factory);
+			if (typeof idx === 'number' && idx >= 0) {
+				this.factories[type]?.splice(idx, 1);
+			}
+		});
 	}
 
 	private getSocketFactory<T extends RemoteConnectionType>(messagePassing: RemoteConnectionOfType<T>): ISocketFactory<T> | undefined {

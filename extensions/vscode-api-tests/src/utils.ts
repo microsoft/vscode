@@ -62,6 +62,17 @@ export function disposeAll(disposables: vscode.Disposable[]) {
 	vscode.Disposable.from(...disposables).dispose();
 }
 
+export function usingDisposables<R>(fn: (this: Mocha.Context, store: vscode.Disposable[]) => Promise<R>) {
+	return async function (this: Mocha.Context): Promise<R> {
+		const disposables: vscode.Disposable[] = [];
+		try {
+			return await fn.call(this, disposables);
+		} finally {
+			disposeAll(disposables);
+		}
+	};
+}
+
 export function delay(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }

@@ -94,6 +94,7 @@ export interface INotebookDelegateForWebview {
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
 	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void;
+	didFocusOutputInputChange(inputFocused: boolean): void;
 }
 
 interface BacklayerWebviewOptions {
@@ -337,7 +338,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						padding-left: var(--notebook-output-node-left-padding);
 						box-sizing: border-box;
 						border-top: none;
-						border: 1px solid var(--theme-notebook-output-border);
 					}
 
 					/* markdown */
@@ -877,6 +877,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				case 'notebookPerformanceMessage': {
 					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
 					break;
+				}
+				case 'outputInputFocus': {
+					this.notebookEditor.didFocusOutputInputChange(data.inputFocused);
 				}
 			}
 		}));

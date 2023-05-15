@@ -216,7 +216,7 @@ class MoveToFileRefactorCommand implements Command {
 			...destinationItems
 		], {
 			title: vscode.l10n.t("Move to File"),
-			placeHolder: vscode.l10n.t("Enter file path"),
+			placeHolder: vscode.l10n.t("Select move destination"),
 		});
 		if (!picked) {
 			return;

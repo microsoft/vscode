@@ -31,9 +31,9 @@ declare module 'vscode' {
 		onDidClose: Event<Error | undefined>;
 		onDidEnd: Event<void>;
 
-		dataHandler: (data: Uint8Array) => void;
-		endHandler: () => void;
-		drainHandler?: () => void;
+		send: (data: Uint8Array) => void;
+		end: () => void;
+		drain?: () => Thenable<void>;
 	}
 
 	export class ManagedResolvedAuthority {
@@ -58,6 +58,13 @@ declare module 'vscode' {
 		themeIcon: string;
 		id: string;
 		label: string;
+	}
+
+	export namespace env {
+		/** Quality of the application. May be undefined if running from sources. */
+		export const appQuality: string | undefined;
+		/** Commit of the application. May be undefined if running from sources. */
+		export const appCommit: string | undefined;
 	}
 
 	interface TunnelOptions {

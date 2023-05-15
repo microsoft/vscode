@@ -8,7 +8,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import * as performance from 'vs/base/common/performance';
 import { isCI } from 'vs/base/common/platform';
-import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -29,7 +28,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IRemoteAuthorityResolverService, RemoteConnectionType, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteConnectionType, RemoteAuthorityResolverError, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { getRemoteName, parseAuthorityWithPort } from 'vs/platform/remote/common/remoteHosts';
 import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
@@ -44,7 +43,6 @@ import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/commo
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionRunningLocationTracker, filterExtensionDescriptions } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
@@ -62,7 +60,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 	private readonly _extensionScanner: CachedExtensionScanner;
 	private readonly _localCrashTracker = new ExtensionHostCrashTracker();
-	private _resolveAuthorityAttempt: number = 0;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -80,7 +77,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteExtensionsScannerService remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
@@ -98,7 +95,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			extensionEnablementService,
 			configurationService,
 			remoteAgentService,
-			_remoteAuthorityResolverService
+			remoteAuthorityResolverService
 		);
 		super(
 			extensionsProposedApi,
@@ -118,7 +115,8 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			logService,
 			remoteAgentService,
 			remoteExtensionsScannerService,
-			lifecycleService
+			lifecycleService,
+			remoteAuthorityResolverService
 		);
 
 		this._extensionScanner = extensionScanner;
@@ -272,56 +270,26 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 	// --- impl
 
-	private async _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
+	protected async _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
 
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
-			try {
-				const { host, port } = parseAuthorityWithPort(remoteAuthority);
-				return {
-					authority: {
-						authority: remoteAuthority,
-						connectTo: {
-							type: RemoteConnectionType.WebSocket,
-							host,
-							port
-						},
-						connectionToken: undefined
-					}
-				};
-			} catch {
-				// continue
-			}
+			const { host, port } = parseAuthorityWithPort(remoteAuthority);
+			return {
+				authority: {
+					authority: remoteAuthority,
+					connectTo: {
+						type: RemoteConnectionType.WebSocket,
+						host,
+						port
+					},
+					connectionToken: undefined
+				}
+			};
 		}
 
-		const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
-		if (localProcessExtensionHosts.length === 0) {
-			// no local process extension hosts
-			throw new Error(`Cannot resolve authority`);
-		}
-
-		this._resolveAuthorityAttempt++;
-		const results = await Promise.all(localProcessExtensionHosts.map(extHost => extHost.resolveAuthority(remoteAuthority, this._resolveAuthorityAttempt)));
-
-		let bestErrorResult: IResolveAuthorityErrorResult | null = null;
-		for (const result of results) {
-			if (result.type === 'ok') {
-				return result.value;
-			}
-			if (!bestErrorResult) {
-				bestErrorResult = result;
-				continue;
-			}
-			const bestErrorIsUnknown = (bestErrorResult.error.code === RemoteAuthorityResolverErrorCode.Unknown);
-			const errorIsUnknown = (result.error.code === RemoteAuthorityResolverErrorCode.Unknown);
-			if (bestErrorIsUnknown && !errorIsUnknown) {
-				bestErrorResult = result;
-			}
-		}
-
-		// we can only reach this if there is an error
-		throw new RemoteAuthorityResolverError(bestErrorResult!.error.message, bestErrorResult!.error.code, bestErrorResult!.error.detail);
+		return this._resolveAuthorityOnExtensionHosts(ExtensionHostKind.LocalProcess, remoteAuthority);
 	}
 
 	private async _getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
@@ -348,63 +316,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 		// we can only reach this if there was no resolver extension that can return the cannonical uri
 		throw new Error(`Cannot get canonical URI because no extension is installed to resolve ${getRemoteAuthorityPrefix(remoteAuthority)}`);
-	}
-
-	private async _resolveAuthorityInitial(remoteAuthority: string): Promise<ResolverResult> {
-		const MAX_ATTEMPTS = 5;
-
-		for (let attempt = 1; ; attempt++) {
-			try {
-				return this._resolveAuthorityWithLogging(remoteAuthority);
-			} catch (err) {
-				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
-					// There is no point in retrying if there is no resolver found
-					throw err;
-				}
-
-				if (RemoteAuthorityResolverError.isNotAvailable(err)) {
-					// The resolver is not available and asked us to not retry
-					throw err;
-				}
-
-				if (attempt >= MAX_ATTEMPTS) {
-					// Too many failed attempts, give up
-					throw err;
-				}
-			}
-		}
-	}
-
-	private async _resolveAuthorityAgain(): Promise<void> {
-		const remoteAuthority = this._environmentService.remoteAuthority;
-		if (!remoteAuthority) {
-			return;
-		}
-
-		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
-		try {
-			const result = await this._resolveAuthorityWithLogging(remoteAuthority);
-			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
-		} catch (err) {
-			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
-		}
-	}
-
-	private async _resolveAuthorityWithLogging(remoteAuthority: string): Promise<ResolverResult> {
-		const authorityPrefix = getRemoteAuthorityPrefix(remoteAuthority);
-		const sw = StopWatch.create(false);
-		this._logService.info(`Invoking resolveAuthority(${authorityPrefix})...`);
-		try {
-			performance.mark(`code/willResolveAuthority/${authorityPrefix}`);
-			const result = await this._resolveAuthority(remoteAuthority);
-			performance.mark(`code/didResolveAuthorityOK/${authorityPrefix}`);
-			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority}' after ${sw.elapsed()} ms`);
-			return result;
-		} catch (err) {
-			performance.mark(`code/didResolveAuthorityError/${authorityPrefix}`);
-			this._logService.error(`resolveAuthority(${authorityPrefix}) returned an error after ${sw.elapsed()} ms`, err);
-			throw err;
-		}
 	}
 
 	protected async _resolveExtensions(): Promise<ResolvedExtensions> {
@@ -809,7 +720,7 @@ class RestartExtensionHostAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionService = accessor.get(IExtensionService);
 
-		const stopped = await extensionService.stopExtensionHosts();
+		const stopped = await extensionService.stopExtensionHosts(nls.localize('restartExtensionHost.reason', "Restart of extensions explicitly requested by user."));
 		if (stopped) {
 			extensionService.startExtensionHosts();
 		}

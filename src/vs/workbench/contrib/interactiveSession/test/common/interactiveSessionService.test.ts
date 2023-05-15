@@ -97,9 +97,9 @@ suite('InteractiveSession', () => {
 		const testService2 = instantiationService.createInstance(InteractiveSessionService);
 		testService2.registerProvider(provider1);
 		testService2.registerProvider(provider2);
-		const retrieved1 = testService2.retrieveSession(session1.sessionId);
+		const retrieved1 = testService2.getOrRestoreSession(session1.sessionId);
 		await retrieved1!.waitForInitialization();
-		const retrieved2 = testService2.retrieveSession(session2.sessionId);
+		const retrieved2 = testService2.getOrRestoreSession(session2.sessionId);
 		await retrieved2!.waitForInitialization();
 		assert.deepStrictEqual(provider1.lastInitialState, { state: 'provider1_state' });
 		assert.deepStrictEqual(provider2.lastInitialState, { state: 'provider2_state' });

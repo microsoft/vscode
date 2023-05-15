@@ -17,10 +17,12 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IInteractiveSessionExecuteActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
@@ -75,12 +77,28 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 
 		this.inputEditorHasText = CONTEXT_INTERACTIVE_INPUT_HAS_TEXT.bindTo(contextKeyService);
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.verbosity.chatInput')) {
+				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+			}
+		}));
+	}
+
+	private _getAriaLabel(): string {
+		const verbose = this.configurationService.getValue<boolean>('accessibility.verbosity.chatInput');
+		if (verbose) {
+			const kbLabel = this.keybindingService.lookupKeybinding('interactiveSession.action.accessibilityHelp')?.getLabel();
+			return kbLabel ? localize('interactiveSessionInput.accessibilityHelp', "Chat Input,  Type code here and press Enter to run. Use {0} for Interactive Session Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Interactive Session Accessibility Help command for more information.");
+		}
+		return localize('interactiveSessionInput', "Chat Input");
 	}
 
 	setState(providerId: string, inputValue: string): void {
@@ -152,7 +170,7 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 
 		const options = getSimpleEditorOptions();
 		options.readOnly = false;
-		options.ariaLabel = localize('interactiveSessionInput', "Interactive Session Input");
+		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
 		options.fontSize = 13;
 		options.lineHeight = 20;

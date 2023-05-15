@@ -13,6 +13,7 @@ import { GithubPushErrorHandler } from './pushErrorHandler';
 import { GitBaseExtension } from './typings/git-base';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
 import { GithubBranchProtectionProviderManager } from './branchProtection';
+import { GitHubCanonicalUriIdentityProvider } from './canonicalUriIdentityProvider';
 
 export function activate(context: ExtensionContext): void {
 	const disposables: Disposable[] = [];
@@ -29,6 +30,7 @@ export function activate(context: ExtensionContext): void {
 
 	disposables.push(initializeGitBaseExtension());
 	disposables.push(initializeGitExtension(context, logger));
+	disposables.push(new GitHubCanonicalUriIdentityProvider());
 }
 
 function initializeGitBaseExtension(): Disposable {
