@@ -714,7 +714,8 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Update tabs sizing
-		if (oldOptions.tabSizingFixedMaxWidth !== newOptions.tabSizingFixedMaxWidth ||
+		if (
+			oldOptions.tabSizingFixedMaxWidth !== newOptions.tabSizingFixedMaxWidth ||
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
 			this.updateTabSizing();
