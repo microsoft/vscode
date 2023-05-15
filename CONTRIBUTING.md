@@ -93,7 +93,7 @@ Once submitted, your report will go into the [issue tracking](https://github.com
 
 We use GitHub Actions to help us manage issues. These Actions and their descriptions can be [viewed here](https://github.com/microsoft/vscode-github-triage-actions). Some examples of what these Actions do are:
 
-* Automatically closes any issue marked `needs-more-info` if there has been no response in the past 7 days.
+* Automatically closes any issue marked `info-needed` if there has been no response in the past 7 days.
 * Automatically lock issues 45 days after they are closed.
 * Automatically implement the VS Code [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests).
 
