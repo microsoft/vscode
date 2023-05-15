@@ -120,6 +120,25 @@ export class Session {
 		this._lastTextModelChanges = changes;
 	}
 
+	get hasChangedText(): boolean {
+		return !this.textModel0.equalsTextBuffer(this.textModelN.getTextBuffer());
+	}
+
+	asChangedText(): string | undefined {
+		if (!this._lastTextModelChanges || this._lastTextModelChanges.length === 0) {
+			return undefined;
+		}
+
+		let startLine = Number.MAX_VALUE;
+		let endLine = Number.MIN_VALUE;
+		for (const change of this._lastTextModelChanges) {
+			startLine = Math.min(startLine, change.modifiedRange.startLineNumber);
+			endLine = Math.max(endLine, change.modifiedRange.endLineNumberExclusive);
+		}
+
+		return this.textModelN.getValueInRange(new Range(startLine, 1, endLine, Number.MAX_VALUE));
+	}
+
 	recordExternalEditOccurred() {
 		this._teldata.edits = true;
 	}

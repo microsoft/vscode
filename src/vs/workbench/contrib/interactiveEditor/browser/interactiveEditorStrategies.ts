@@ -18,13 +18,14 @@ import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, I
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorLivePreviewWidget';
 import { EditResponse, Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { InteractiveEditorWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
 import { getValueFromSnapshot } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
 
@@ -53,6 +54,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		private readonly _widget: InteractiveEditorWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
 
@@ -85,6 +87,8 @@ export class PreviewStrategy extends EditModeStrategy {
 		const editResponse = this._session.lastExchange?.response;
 		if (editResponse.workspaceEdits) {
 			await this._bulkEditService.apply(editResponse.workspaceEdits);
+			this._instaService.invokeFunction(showSingleCreateFile, editResponse);
+
 
 		} else if (!editResponse.workspaceEditsIncludeLocalEdits) {
 
@@ -210,6 +214,7 @@ export class LiveStrategy extends EditModeStrategy {
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
@@ -255,6 +260,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 		if (this._lastResponse?.workspaceEdits) {
 			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
+			this._instaService.invokeFunction(showSingleCreateFile, this._lastResponse);
 		}
 	}
 
@@ -338,7 +344,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
-		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService);
+		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, instaService);
 
 		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session.textModel0);
 		this._previewZone = instaService.createInstance(InteractiveEditorFileCreatePreviewWidget, editor);
@@ -366,5 +372,12 @@ export class LivePreviewStrategy extends LiveStrategy {
 		} else {
 			this._previewZone.hide();
 		}
+	}
+}
+
+function showSingleCreateFile(accessor: ServicesAccessor, edit: EditResponse) {
+	const editorService = accessor.get(IEditorService);
+	if (edit.singleCreateFileEdit) {
+		editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
 	}
 }
