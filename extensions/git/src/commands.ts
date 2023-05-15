@@ -308,7 +308,7 @@ function getCheckoutProcessor(repository: Repository, type: string): CheckoutPro
 }
 
 function sanitizeBranchName(name: string, whitespaceChar: string): string {
-	return name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, whitespaceChar);
+	return name ? name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, whitespaceChar) : name;
 }
 
 function sanitizeRemoteName(name: string) {
