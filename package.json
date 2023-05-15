@@ -227,9 +227,5 @@
     "@vscode/windows-process-tree": "0.4.2",
     "@vscode/windows-registry": "1.0.10",
     "windows-foreground-love": "0.5.0"
-  },
-  "resolutions": {
-    "elliptic": "^6.5.3",
-    "nwmatcher": "^1.4.4"
   }
 }
