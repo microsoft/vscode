@@ -38,23 +38,23 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const enum State {
-	CREATE_SESSION,
-	INIT_UI,
-	WAIT_FOR_INPUT,
-	MAKE_REQUEST,
-	APPLY_RESPONSE,
-	SHOW_RESPONSE,
-	PAUSE,
-	DONE,
+	CREATE_SESSION = 'CREATE_SESSION',
+	INIT_UI = 'INIT_UI',
+	WAIT_FOR_INPUT = 'WAIT_FOR_INPUT',
+	MAKE_REQUEST = 'MAKE_REQUEST',
+	APPLY_RESPONSE = 'APPLY_RESPONSE',
+	SHOW_RESPONSE = 'SHOW_RESPONSE',
+	PAUSE = 'PAUSE',
+	DONE = 'DONE',
 }
 
 const enum Message {
 	NONE = 0,
-	END_SESSION = 2 ** 0,
-	PAUSE_SESSION = 2 ** 1,
-	CANCEL_REQUEST = 2 ** 2,
-	CANCEL_INPUT = 2 ** 3,
-	ACCEPT_INPUT = 2 ** 4
+	END_SESSION = 1 << 0,
+	PAUSE_SESSION = 1 << 1,
+	CANCEL_REQUEST = 1 << 2,
+	CANCEL_INPUT = 1 << 3,
+	ACCEPT_INPUT = 1 << 4
 }
 
 export interface InteractiveEditorRunOptions {
@@ -151,39 +151,13 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	private async _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {
 		this._logService.trace('[IE] setState to ', state);
-		let nextState: State | undefined;
-		switch (state) {
-			case State.CREATE_SESSION:
-				nextState = await this._createSession(options);
-				break;
-			case State.INIT_UI:
-				nextState = await this._initUI();
-				break;
-			case State.WAIT_FOR_INPUT:
-				nextState = await this._waitForInput(options);
-				break;
-			case State.MAKE_REQUEST:
-				nextState = await this._makeRequest();
-				break;
-			case State.APPLY_RESPONSE:
-				nextState = await this._applyResponse();
-				break;
-			case State.SHOW_RESPONSE:
-				nextState = await this._showResponse();
-				break;
-			case State.PAUSE:
-				this._pause();
-				break;
-			case State.DONE:
-				this._done();
-				break;
-		}
+		const nextState = await this[state](options);
 		if (nextState) {
 			this._nextState(nextState, options);
 		}
 	}
 
-	private async _createSession(options: InteractiveEditorRunOptions | undefined): Promise<State.DONE | State.INIT_UI> {
+	private async [State.CREATE_SESSION](options: InteractiveEditorRunOptions | undefined): Promise<State.DONE | State.INIT_UI> {
 		assertType(this._editor.hasModel());
 
 		let session: Session | undefined = options?.existingSession;
@@ -228,7 +202,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return State.INIT_UI;
 	}
 
-	private async _initUI(): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE> {
+	private async [State.INIT_UI](): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE> {
 		assertType(this._activeSession);
 
 		// hide/cancel inline completions when invoking IE
@@ -299,7 +273,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	private async _waitForInput(options: InteractiveEditorRunOptions | undefined): Promise<State.DONE | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
+	private async [State.WAIT_FOR_INPUT](options: InteractiveEditorRunOptions | undefined): Promise<State.DONE | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
 		assertType(this._activeSession);
 
 		this._zone.show(this._activeSession.wholeRange.getEndPosition());
@@ -363,7 +337,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return State.MAKE_REQUEST;
 	}
 
-	private async _makeRequest(): Promise<State.APPLY_RESPONSE | State.PAUSE | State.DONE> {
+	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.DONE> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
 		assertType(this._activeSession.lastInput);
@@ -430,7 +404,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	private async _applyResponse(): Promise<State.SHOW_RESPONSE | State.DONE> {
+	private async [State.APPLY_RESPONSE](): Promise<State.SHOW_RESPONSE | State.DONE> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -464,7 +438,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return State.SHOW_RESPONSE;
 	}
 
-	private async _showResponse(): Promise<State.WAIT_FOR_INPUT | State.DONE> {
+	private async [State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT | State.DONE> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -513,7 +487,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return State.WAIT_FOR_INPUT;
 	}
 
-	private async _pause() {
+	private async [State.PAUSE]() {
 		assertType(this._activeSession);
 
 		this._ctxLastEditKind.reset();
@@ -531,10 +505,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._activeSession = undefined;
 	}
 
-	private async _done() {
+	private async [State.DONE]() {
 		assertType(this._activeSession);
 		this._interactiveEditorSessionService.releaseSession(this._activeSession);
-		this._pause();
+		this[State.PAUSE]();
 	}
 
 	// ---- controller API
