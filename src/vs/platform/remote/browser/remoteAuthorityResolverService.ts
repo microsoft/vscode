@@ -104,8 +104,9 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, options?: ResolvedOptions): void {
 		if (this._resolveAuthorityRequests.has(resolvedAuthority.authority)) {
 			const request = this._resolveAuthorityRequests.get(resolvedAuthority.authority)!;
+			// For non-websocket types, it's expected the embedder passes a `remoteResourceProvider`
+			// which is wrapped to a `IResourceUriProvider` and is not handled here.
 			if (resolvedAuthority.connectTo.type === RemoteConnectionType.WebSocket) {
-				// todo@connor4312 need to implement some kind of loopback for ext host based messaging
 				RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.connectTo.host, resolvedAuthority.connectTo.port);
 			}
 			if (resolvedAuthority.connectionToken) {
