@@ -202,7 +202,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
 		templateDisposable.add(inputWidget);
 
-		return { inputWidget, elementDisposables: templateDisposable.add(new DisposableStore()), templateDisposable };
+		return { inputWidget, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
@@ -211,7 +211,12 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
-		templateData.elementDisposables.add({ dispose: () => this.inputWidgets.delete(input) });
+		templateData.elementDisposables.add({
+			dispose: () => {
+				this.inputWidgets.delete(input);
+				this.contentHeights.delete(input);
+			}
+		});
 
 		// Widget cursor selections
 		const selections = this.editorSelections.get(input);
