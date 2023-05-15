@@ -282,7 +282,14 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
-		const raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+		let raw: IInteractiveEditorSession | undefined | null;
+		try {
+			raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+		} catch (error) {
+			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
+			this._logService.error(error);
+			return undefined;
+		}
 		if (!raw) {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return undefined;
