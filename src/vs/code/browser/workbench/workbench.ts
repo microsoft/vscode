@@ -394,11 +394,6 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		return false;
 	}
 
-	private encodePathURIComponent(uri: URI): string {
-		const absolutePath = `${posix.sep}${ltrim(uri.path, posix.sep)}`;
-		return encodeURIComponent(absolutePath).replaceAll('%2F', '/');
-	}
-
 	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): string | undefined {
 
 		// Empty
@@ -409,34 +404,13 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		// Folder
 		else if (isFolderToOpen(workspace)) {
-			let queryParamFolder: string;
-			if (this.config.remoteAuthority && workspace.folderUri.scheme === Schemas.vscodeRemote) {
-				// when connected to a remote and having a folder
-				// for that remote, only use the path as query
-				// value to form shorter, nicer URLs.
-				// ensure paths are absolute (begin with `/`)
-				// clipboard: ltrim(workspace.folderUri.path, posix.sep)
-				queryParamFolder = this.encodePathURIComponent(workspace.folderUri);
-			} else {
-				queryParamFolder = encodeURIComponent(workspace.folderUri.toString(true));
-			}
-
+			const queryParamFolder = this.encodeWorkspacePath(workspace.folderUri);
 			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${queryParamFolder}`;
 		}
 
 		// Workspace
 		else if (isWorkspaceToOpen(workspace)) {
-			let queryParamWorkspace: string;
-			if (this.config.remoteAuthority && workspace.workspaceUri.scheme === Schemas.vscodeRemote) {
-				// when connected to a remote and having a workspace
-				// for that remote, only use the path as query
-				// value to form shorter, nicer URLs.
-				// ensure paths are absolute (begin with `/`)
-				queryParamWorkspace = this.encodePathURIComponent(workspace.workspaceUri);
-			} else {
-				queryParamWorkspace = encodeURIComponent(workspace.workspaceUri.toString(true));
-			}
-
+			const queryParamWorkspace = this.encodeWorkspacePath(workspace.workspaceUri);
 			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${queryParamWorkspace}`;
 		}
 
@@ -446,6 +420,22 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		}
 
 		return targetHref;
+	}
+
+	private encodeWorkspacePath(uri: URI): string {
+		if (this.config.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
+
+			// when connected to a remote and having a folder
+			// or workspace for that remote, only use the path
+			// as query value to form shorter, nicer URLs.
+			// however, we still need to `encodeURIComponent`
+			// to ensure to preserve special characters, such
+			// as `+` in the path.
+
+			return encodeURIComponent(`${posix.sep}${ltrim(uri.path, posix.sep)}`).replaceAll('%2F', '/');
+		}
+
+		return encodeURIComponent(uri.toString(true));
 	}
 
 	private isSame(workspaceA: IWorkspace, workspaceB: IWorkspace): boolean {
