@@ -1533,6 +1533,7 @@ export class SearchResult extends Disposable {
 	private disposePastResults: () => void = () => { };
 	private _isDirty = false;
 	private _onWillChangeModelListener: IDisposable | undefined;
+	private _onDidChangeModelListener: IDisposable | undefined;
 
 	constructor(
 		private _searchModel: SearchModel,
@@ -1676,14 +1677,15 @@ export class SearchResult extends Disposable {
 			}
 		);
 
-		widget.onDidChangeModel(
-			(model) => {
-				if (model) {
-					this.onNotebookEditorWidgetAdded(widget, model?.uri);
+		this._onDidChangeModelListener?.dispose();
+		// listen to view model change as we are searching on both inputs and outputs
+		this._onDidChangeModelListener = widget.onDidAttachViewModel(
+			() => {
+				if (widget.hasModel()) {
+					this.onNotebookEditorWidgetAdded(widget, widget.textModel.uri);
 				}
 			}
 		);
-
 	}
 
 	private onModelAdded(model: ITextModel): void {
@@ -1894,6 +1896,7 @@ export class SearchResult extends Disposable {
 
 	override dispose(): void {
 		this._onWillChangeModelListener?.dispose();
+		this._onDidChangeModelListener?.dispose();
 		this.disposePastResults();
 		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();

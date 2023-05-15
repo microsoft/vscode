@@ -66,6 +66,7 @@ export interface ICachedInset<K extends ICommonCellInfo> {
 	cellInfo: K;
 	renderer?: INotebookRendererInfo;
 	cachedCreation: ICreationRequestMessage;
+	initialized?: boolean;
 }
 
 export interface IResolvedBackLayerWebview {
@@ -611,6 +612,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								}
 
 								this.reversedPendingWebviewIdleInsetMapping.delete(update.id);
+							}
+
+							{
+								if (!update.init) {
+									return;
+								}
+
+								const output = this.reversedInsetMapping.get(update.id);
+
+								if (!output) {
+									return;
+								}
+
+								const inset = this.insetMapping.get(output)!;
+								inset.initialized = true;
 							}
 						} else {
 							this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
