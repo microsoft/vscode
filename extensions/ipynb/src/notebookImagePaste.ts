@@ -49,6 +49,8 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 
 	private readonly id = 'insertAttachment';
 
+	private readonly defaultPriority = 5;
+
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
 		_ranges: readonly vscode.Range[],
@@ -66,7 +68,7 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 		}
 
 		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, this.id, vscode.l10n.t('Insert Image as Attachment'));
-		pasteEdit.priority = this.getPriority(dataTransfer);
+		pasteEdit.priority = this.getPastePriority(dataTransfer);
 		pasteEdit.additionalEdit = insert.additionalEdit;
 		return pasteEdit;
 	}
@@ -84,20 +86,20 @@ class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscod
 
 		const dropEdit = new vscode.DocumentDropEdit(insert.insertText);
 		dropEdit.id = this.id;
-		dropEdit.priority = this.getPriority(dataTransfer);
+		dropEdit.priority = this.defaultPriority;
 		dropEdit.additionalEdit = insert.additionalEdit;
 		dropEdit.label = vscode.l10n.t('Insert Image as Attachment');
 		return dropEdit;
 	}
 
-	private getPriority(dataTransfer: vscode.DataTransfer): number {
+	private getPastePriority(dataTransfer: vscode.DataTransfer): number {
 		if (dataTransfer.get('text/plain')) {
 			// Deprioritize in favor of normal text content
 			return -5;
 		}
 
 		// Otherwise boost priority so attachments are preferred
-		return 5;
+		return this.defaultPriority;
 	}
 
 	private async createInsertImageAttachmentEdit(

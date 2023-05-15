@@ -74,6 +74,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 			diffCodeLens: false,
 			stickyScroll: { enabled: false },
 			minimap: { enabled: false },
+			isInEmbeddedEditor: true
 		}, {
 			originalEditor: { contributions: diffContributions },
 			modifiedEditor: { contributions: diffContributions }

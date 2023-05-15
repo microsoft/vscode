@@ -37,7 +37,7 @@ declare module 'vscode' {
 		 *
 		 * @return Optional workspace edit that applies the paste. Return undefined to use standard pasting.
 		 */
-		provideDocumentPasteEdits(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<DocumentPasteEdit>;
+		provideDocumentPasteEdits?(document: TextDocument, ranges: readonly Range[], dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<DocumentPasteEdit>;
 	}
 
 	/**
@@ -98,7 +98,7 @@ declare module 'vscode' {
 		 * Note that {@link DataTransferFile} entries are only created when dropping content from outside the editor, such as
 		 * from the operating system.
 		 */
-		readonly pasteMimeTypes: readonly string[];
+		readonly pasteMimeTypes?: readonly string[];
 	}
 
 	namespace languages {

@@ -99,6 +99,7 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	modifiedAriaLabel: localize('original', 'Original'),
 	diffAlgorithm: 'advanced',
 	readOnly: true,
+	isInEmbeddedEditor: true
 };
 
 export interface InteractiveEditorWidgetViewState {
@@ -371,6 +372,7 @@ export class InteractiveEditorWidget {
 	updateMarkdownMessage(message: Node | undefined) {
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
 		if (!message) {
+			this._ctxMessageCropState.reset();
 			reset(this._elements.message);
 
 		} else {

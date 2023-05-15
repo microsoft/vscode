@@ -1830,8 +1830,9 @@ export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
 
 export interface IPasteEditProviderMetadataDto {
 	readonly supportsCopy: boolean;
+	readonly supportsPaste: boolean;
 	readonly copyMimeTypes?: readonly string[];
-	readonly pasteMimeTypes: readonly string[];
+	readonly pasteMimeTypes?: readonly string[];
 }
 
 export interface IPasteEditDto {

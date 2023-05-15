@@ -13,12 +13,13 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
+import type { IInteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export class InteractiveSessionEditorInput extends EditorInput {
-	static readonly ID: string = 'workbench.input.interactiveSession';
+	static readonly TypeID: string = 'workbench.input.interactiveSession';
+	static readonly EditorID: string = 'workbench.editor.interactiveSession';
 	static count = 0;
 
 	private readonly inputCount: number;
@@ -48,7 +49,7 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	}
 
 	override get editorId(): string | undefined {
-		return InteractiveSessionEditor.ID;
+		return InteractiveSessionEditorInput.EditorID;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -60,16 +61,16 @@ export class InteractiveSessionEditorInput extends EditorInput {
 	}
 
 	override get typeId(): string {
-		return InteractiveSessionEditorInput.ID;
+		return InteractiveSessionEditorInput.TypeID;
 	}
 
 	override getName(): string {
-		return nls.localize('interactiveSessionEditorName', "Interactive Session") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		return nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
 	}
 
 	override async resolve(): Promise<InteractiveSessionEditorModel | null> {
 		const model = typeof this.sessionId === 'string' ?
-			this.interactiveSessionService.retrieveSession(this.sessionId) :
+			this.interactiveSessionService.getOrRestoreSession(this.sessionId) :
 			this.interactiveSessionService.startSession(this.providerId!, CancellationToken.None);
 
 		if (!model) {

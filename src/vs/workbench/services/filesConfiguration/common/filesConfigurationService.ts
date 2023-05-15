@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, FileSystemProviderCapabilities, IBaseFileStat } from 'vs/platform/files/common/files';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
@@ -19,6 +19,7 @@ import { IdleValue } from 'vs/base/common/async';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -58,7 +59,7 @@ export interface IFilesConfigurationService {
 
 	readonly onReadonlyChange: Event<void>;
 
-	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean;
+	isReadonly(resource: URI, stat?: IBaseFileStat): boolean;
 
 	updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void>;
 
@@ -139,7 +140,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return matcher;
 	}
 
-	isReadonly(resource: URI, stat?: IFileStatWithMetadata): boolean {
+	isReadonly(resource: URI, stat?: IBaseFileStat): boolean {
 
 		// if the entire file system provider is readonly, we respect that
 		// and do not allow to change readonly. we take this as a hint that
@@ -154,8 +155,11 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			return sessionReadonlyOverride;
 		}
 
-		if (this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome)) {
-			return false; // never turn configuration folder readonly
+		if (
+			this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome) ||
+			this.uriIdentityService.extUri.isEqual(resource, withNullAsUndefined(this.contextService.getWorkspace().configuration))
+		) {
+			return false; // explicitly exclude some paths from readonly that we need for configuration
 		}
 
 		// configured glob patterns win over stat information

@@ -320,7 +320,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'patternProperties': {
 					'.*': { 'type': 'boolean' }
 				},
-				'markdownDescription': localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Changing this setting has no effect on existing local file history entries."),
+				'markdownDescription': localize('exclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
 			'workbench.localHistory.mergeWindow': {
@@ -696,10 +696,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'security.allowedUNCHosts': {
 				'type': 'array',
 				'items': {
-					'type': 'string'
+					'type': 'string',
+					'pattern': '^[^\\\\]+$',
+					'patternErrorMessage': localize('security.allowedUNCHosts.patternErrorMessage', 'UNC host names must not contain backslashes.')
 				},
 				'default': [],
-				'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
+				'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names (without leading or trailing backslash, for example `192.168.0.1` or `my-server`) to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
 				'included': isWeb ? true /* web maybe connected to a windows machine */ : isWindows,
 				'scope': ConfigurationScope.MACHINE
 			}

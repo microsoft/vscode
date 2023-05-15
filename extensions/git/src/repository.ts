@@ -2056,9 +2056,10 @@ export class Repository implements Disposable {
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
 
 		const start = new Date().getTime();
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken });
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, similarityThreshold, untrackedChanges, cancellationToken });
 		const totalTime = new Date().getTime() - start;
 
 		this.isRepositoryHuge = didHitLimit ? { limit } : false;
