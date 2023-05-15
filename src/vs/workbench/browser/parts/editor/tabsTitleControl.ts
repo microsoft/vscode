@@ -108,6 +108,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabsContainer: HTMLElement | undefined;
 	private editorToolbarContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
+	private tabSizingFixedDisposables: DisposableStore | undefined;
 
 	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
@@ -162,6 +163,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	protected create(parent: HTMLElement): void {
+		this.tabSizingFixedDisposables = new DisposableStore;
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
@@ -224,18 +226,16 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private updateTabSizing(): void {
-		if (this.tabsContainer) {
-			const options = this.accessor.partOptions;
-			if (options.tabSizing === 'fixed') {
-				this.tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', `${options.tabSizingFixedMaxWidth}px`);
-				this.tabsContainer.onmouseenter = () => this.setTabsWidthFixed();
-				this.tabsContainer.onmouseleave = () => this.resetTabsWidthFixed();
-			} else {
-				this.tabsContainer.style.removeProperty('--tab-sizing-fixed-max-width');
-				this.tabsContainer.onmouseenter = null;
-				this.tabsContainer.onmouseleave = null;
-				this.resetTabsWidthFixed();
-			}
+		const [tabsContainer, tabSizingFixedDisposables] = assertAllDefined(this.tabsContainer, this.tabSizingFixedDisposables);
+		const options = this.accessor.partOptions;
+		if (options.tabSizing === 'fixed') {
+			tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', `${options.tabSizingFixedMaxWidth}px`);
+			tabSizingFixedDisposables.add(addDisposableListener(tabsContainer, EventType.MOUSE_ENTER, () => this.setTabsWidthFixed()));
+			tabSizingFixedDisposables.add(addDisposableListener(tabsContainer, EventType.MOUSE_LEAVE, () => this.resetTabsWidthFixed()));
+		} else {
+			tabsContainer.style.removeProperty('--tab-sizing-fixed-max-width');
+			tabSizingFixedDisposables.clear();
+			this.resetTabsWidthFixed();
 		}
 	}
 
