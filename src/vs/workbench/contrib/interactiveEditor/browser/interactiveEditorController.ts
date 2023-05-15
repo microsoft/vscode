@@ -23,6 +23,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -105,6 +106,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxLastEditKind = CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND.bindTo(contextKeyService);
@@ -135,6 +137,17 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	getId(): string {
 		return INTERACTIVE_EDITOR_ID;
+	}
+
+	private _getMode(): EditMode {
+		let editMode: EditMode = this._configurationService.getValue('interactiveEditor.editMode');
+		const isDefault = editMode === EditMode.LivePreview;
+		if (this._accessibilityService.isScreenReaderOptimized() && isDefault) {
+			// By default, use preview mode for screen reader users
+			editMode = EditMode.Preview;
+			this._configurationService.updateValue('interactiveEditor.editMode', EditMode.Preview);
+		}
+		return editMode;
 	}
 
 	getWidgetPosition(): Position | undefined {
@@ -171,7 +184,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			session = await this._interactiveEditorSessionService.createSession(
 				this._editor,
-				{ editMode: this._configurationService.getValue('interactiveEditor.editMode'), wholeRange: options?.initialRange },
+				{ editMode: this._getMode(), wholeRange: options?.initialRange },
 				createSessionCts.token
 			);
 
