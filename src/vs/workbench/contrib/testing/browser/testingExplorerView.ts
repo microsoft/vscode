@@ -82,7 +82,7 @@ export class TestingExplorerView extends ViewPane {
 	private filterActionBar = this._register(new MutableDisposable());
 	private container!: HTMLElement;
 	private treeHeader!: HTMLElement;
-	private countSummary!: CountSummary;
+	private countSummary: CountSummary | undefined;
 	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());
 	private readonly badgeDisposable = this._register(new MutableDisposable<IDisposable>());
@@ -429,7 +429,7 @@ export class TestingExplorerView extends ViewPane {
 
 	private renderActivityCount() {
 		const countBadgeType = this.configurationService.getValue<TestingCountBadge>(TestingConfigKeys.CountBadge);
-		if (countBadgeType === TestingCountBadge.Off || this.countSummary[countBadgeType] === 0) {
+		if (!this.countSummary || countBadgeType === TestingCountBadge.Off || this.countSummary[countBadgeType] === 0) {
 			this.badgeDisposable.value = undefined;
 		} else {
 			const badge = new NumberBadge(this.countSummary[countBadgeType], num => this.getLocalizedBadgeString(countBadgeType, num));
