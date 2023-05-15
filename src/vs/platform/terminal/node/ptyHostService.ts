@@ -36,10 +36,9 @@ let lastPtyId = 0;
 export class PtyHostService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
-	// TODO: Avoid ! ?
-	private _connection!: IPtyHostConnection;
+	private _connection: IPtyHostConnection;
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
-	private _proxy!: IPtyService;
+	private _proxy: IPtyService;
 
 	private readonly _shellEnv: Promise<typeof process.env>;
 	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string; originalText: string[] }>;

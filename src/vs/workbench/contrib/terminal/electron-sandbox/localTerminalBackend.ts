@@ -65,7 +65,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IProductService private readonly _productService: IProductService,
 		@IHistoryService private readonly _historyService: IHistoryService,
@@ -92,12 +91,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 		const client = new MessagePortClient(port, `window:${this._environmentService.window.id}`);
 		this._ptyHostDirectProxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHostWindow));
-
-		// Testing
-		// this._logService.info('latency: ', this._ptyHostDirectProxy.getLatency(0));
-		// this._ptyHostDirectProxy.onProcessData(e => {
-		// 	this._logService.info('message port process data: ' + e.event);
-		// });
 
 		// Attach process listeners
 		this._ptyHostDirectProxy!.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
