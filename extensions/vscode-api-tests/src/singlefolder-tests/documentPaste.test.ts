@@ -49,8 +49,8 @@ const textPlain = 'text/plain';
 					const str = await existing.asString();
 					// text/plain includes the trailing new line in this case
 					// On windows, this will always be `\r\n` even if the document uses `\n`
-					const eol = str.match(/\r?\n$/);
-					const reversed = reverseString(str.slice(0, -eol![0].length));
+					const eol = str.match(/\r?\n$/)?.[0] ?? '\n';
+					const reversed = reverseString(str.slice(0, -eol.length));
 					dataTransfer.set(textPlain, new vscode.DataTransferItem(reversed + '\n'));
 				}
 			}
@@ -170,7 +170,32 @@ const textPlain = 'text/plain';
 		const newDocContent = getNextDocumentText(disposables, doc);
 		await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
 		assert.strictEqual(await newDocContent, 'cba\ndef');
+	}));
 
+
+	test('One failing provider should not effect other', usingDisposables(async (disposables) => {
+		const file = await createRandomFile('abc\ndef');
+		const doc = await vscode.workspace.openTextDocument(file);
+
+		const editor = await vscode.window.showTextDocument(doc);
+		editor.selections = [new vscode.Selection(0, 0, 0, 3)];
+
+		disposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
+			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+				dataTransfer.set(textPlain, new vscode.DataTransferItem('xyz'));
+			}
+		}, { copyMimeTypes: [textPlain] }));
+
+		disposables.push(vscode.languages.registerDocumentPasteEditProvider({ language: 'plaintext' }, new class implements vscode.DocumentPasteEditProvider {
+			async prepareDocumentPaste(_document: vscode.TextDocument, _ranges: readonly vscode.Range[], _dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<void> {
+				throw new Error('Expected testing error from bad provider');
+			}
+		}, { copyMimeTypes: [textPlain] }));
+
+		await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
+		const newDocContent = getNextDocumentText(disposables, doc);
+		await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+		assert.strictEqual(await newDocContent, 'xyz\ndef');
 	}));
 });
 
@@ -181,10 +206,9 @@ function reverseString(str: string) {
 function getNextDocumentText(disposables: vscode.Disposable[], doc: vscode.TextDocument): Promise<string> {
 	return new Promise<string>(resolve => {
 		disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
-			if (e.document === doc) {
-				resolve(doc.getText());
+			if (e.document.uri.fsPath === doc.uri.fsPath) {
+				resolve(e.document.getText());
 			}
 		}));
 	});
 }
-
