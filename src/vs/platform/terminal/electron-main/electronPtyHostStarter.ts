@@ -58,8 +58,6 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		const port = this.utilityProcess.connect();
 		const client = new MessagePortClient(port, 'ptyHost');
 
-		// TODO: Do we need to listen for window close to close the port?
-
 		const store = new DisposableStore();
 		store.add(client);
 		store.add(this.utilityProcess);
