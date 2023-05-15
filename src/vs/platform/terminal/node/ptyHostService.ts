@@ -57,6 +57,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	private readonly _shellEnv: Promise<typeof process.env>;
 	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string; originalText: string[] }>;
+	private _wasQuitRequested = false;
 	private _restartCount = 0;
 	private _isResponsive = true;
 	private _isDisposed = false;
@@ -105,6 +106,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		this._register(toDisposable(() => this._disposePtyHost()));
 
+
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
 
@@ -115,6 +117,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		} else {
 			this._ensurePtyHost();
 		}
+
+		this._ptyHostStarter.onWillShutdown?.(() => this._wasQuitRequested = true);
 	}
 
 	private get _ignoreProcessNames(): string[] {
@@ -140,7 +144,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
-		this._logService.info('startPtyHost', new Error().stack);
 		const connection = this._ptyHostStarter.start(lastPtyId);
 		const client = connection.client;
 
@@ -154,7 +157,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// Handle exit
 		this._register(connection.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
-			if (!this._isDisposed) {
+			if (!this._wasQuitRequested && !this._isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
 					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
 					this._restartCount++;

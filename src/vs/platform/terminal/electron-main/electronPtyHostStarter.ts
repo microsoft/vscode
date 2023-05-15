@@ -23,6 +23,8 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 
 	private readonly _onBeforeWindowConnection = new Emitter<void>();
 	readonly onBeforeWindowConnection = this._onBeforeWindowConnection.event;
+	private readonly _onWillShutdown = new Emitter<void>();
+	readonly onWillShutdown = this._onWillShutdown.event;
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
@@ -30,6 +32,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly _logService: ILogService
 	) {
+		this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire());
 		// Listen for new windows to establish connection directly to pty host
 		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
 	}
