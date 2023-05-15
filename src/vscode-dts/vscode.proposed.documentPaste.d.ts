@@ -61,7 +61,7 @@ declare module 'vscode' {
 		 *
 		 * Defaults to `0`.
 		 */
-		priority?: number; // TODO: try relative priority using mime types?
+		priority?: number;
 
 		/**
 		 * The text or snippet to insert at the pasted locations.
