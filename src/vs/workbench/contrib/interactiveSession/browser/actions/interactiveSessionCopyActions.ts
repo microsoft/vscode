@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 export function registerInteractiveSessionCopyActions() {
@@ -33,8 +33,9 @@ export function registerInteractiveSessionCopyActions() {
 			const interactiveWidgetService = accessor.get(IInteractiveSessionWidgetService);
 			const widget = interactiveWidgetService.lastFocusedWidget;
 			if (widget) {
-				const model = widget.getModel();
-				const sessionAsText = model?.getItems()
+				const viewModel = widget.viewModel;
+				const sessionAsText = viewModel?.getItems()
+					.filter((item): item is (IInteractiveRequestViewModel | IInteractiveResponseViewModel) => isRequestVM(item) || isResponseVM(item))
 					.map(stringifyItem)
 					.join('\n\n');
 				if (sessionAsText) {
@@ -75,5 +76,5 @@ export function registerInteractiveSessionCopyActions() {
 
 function stringifyItem(item: IInteractiveRequestViewModel | IInteractiveResponseViewModel): string {
 	return isRequestVM(item) ?
-		`${item.username}: ${item.message}` : `${item.username}: ${item.response.value}`;
+		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.value}`;
 }

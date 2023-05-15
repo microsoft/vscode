@@ -1,10 +1,6 @@
 name: $(Date:yyyyMMdd)$(Rev:.r)
 
-trigger:
-  batch: true
-  branches:
-    include:
-      - main
+trigger: none
 pr: none
 
 resources:
@@ -26,36 +22,13 @@ extends:
   parameters:
     npmPackages:
       - name: vscode-markdown-languageserver
+        workingDirectory: extensions/markdown-language-features/server
 
         buildSteps:
-          - script: npm install
+          - script: yarn install
             displayName: Install dependencies
 
-          - script: npm run compile
+          - script: gulp compile-extension:markdown-language-features-server
             displayName: Compile
-
-          - script: npm run api-extractor
-            displayName: API Extractor
-
-        testPlatforms:
-          - name: Linux
-            nodeVersions:
-              - 16.x
-          - name: MacOS
-            nodeVersions:
-              - 16.x
-          - name: Windows
-            nodeVersions:
-              - 16.x
-
-        testSteps:
-          - script: npm install
-            displayName: Install dependencies
-
-          - script: npm run compile
-            displayName: Compile
-
-          - script: npm test
-            displayName: Test npm package
 
         publishPackage: ${{ parameters.publishPackage }}

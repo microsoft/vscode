@@ -733,7 +733,7 @@ declare module 'vscode' {
 		 */
 		OpenOpen = 0,
 		/**
-		 * The decoration's range will not widen when edits occur at the start of end.
+		 * The decoration's range will not widen when edits occur at the start or end.
 		 */
 		ClosedClosed = 1,
 		/**
@@ -3710,7 +3710,18 @@ declare module 'vscode' {
 		 * the file is being created with.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: {
+			readonly overwrite?: boolean;
+			readonly ignoreIfExists?: boolean;
+
+			/**
+			 * The initial contents of the new file.
+			 *
+			 * If creating a file from a {@link DocumentDropEditProvider drop operation}, you can
+			 * pass in a {@link DataTransferFile} to improve performance by avoiding extra data copying.
+			 */
+			readonly contents?: Uint8Array | DataTransferFile;
+		}, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
@@ -6499,7 +6510,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given trace message to the channel. Use this method to log verbose information.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Trace trace} log level.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Trace trace} log level.
 		 *
 		 * @param message trace message to log
 		 */
@@ -6508,7 +6519,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given debug message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Debug debug} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Debug debug} log level or lower.
 		 *
 		 * @param message debug message to log
 		 */
@@ -6517,7 +6528,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given information message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Info info} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Info info} log level or lower.
 		 *
 		 * @param message info message to log
 		 */
@@ -6526,7 +6537,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given warning message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Warning warning} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Warning warning} log level or lower.
 		 *
 		 * @param message warning message to log
 		 */
@@ -6535,7 +6546,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given error or error message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Error error} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Error error} log level or lower.
 		 *
 		 * @param error Error or error message to log
 		 */
@@ -10414,6 +10425,8 @@ declare module 'vscode' {
 
 	/**
 	 * A file associated with a {@linkcode DataTransferItem}.
+	 *
+	 * Instances of this type can only be created by the editor and not by extensions.
 	 */
 	export interface DataTransferFile {
 		/**
@@ -11045,7 +11058,7 @@ declare module 'vscode' {
 		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const closeEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
+		 * const closeEmitter = new vscode.EventEmitter<void>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidClose: closeEmitter.event,
@@ -11058,7 +11071,8 @@ declare module 'vscode' {
 		 *     closeEmitter.fire();
 		 *   }
 		 * };
-		 * vscode.window.createTerminal({ name: 'Exit example', pty });
+		 * const terminal = vscode.window.createTerminal({ name: 'Exit example', pty });
+		 * terminal.show(true);
 		 * ```
 		 */
 		onDidClose?: Event<void | number>;
@@ -12490,6 +12504,21 @@ declare module 'vscode' {
 		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
 
 		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook document} will be saved to disk.
+		 *
+		 * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrity the editor
+		 * might save without firing this event. For instance when shutting down with dirty files.
+		 *
+		 * *Note 2:* Subscribers are called sequentially and they can {@link NotebookDocumentWillSaveEvent.waitUntil delay} saving
+		 * by registering asynchronous work. Protection against misbehaving listeners is implemented as such:
+		 *  * there is an overall time budget that all listeners share and if that is exhausted no further listener is called
+		 *  * listeners that take a long time or produce errors frequently will not be called anymore
+		 *
+		 * The current thresholds are 1.5 seconds as overall time budget and a listener can misbehave 3 times before being ignored.
+		 */
+		export const onWillSaveNotebookDocument: Event<NotebookDocumentWillSaveEvent>;
+
+		/**
 		 * An event that is emitted when a {@link NotebookDocument notebook} is saved.
 		 */
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
@@ -13556,6 +13585,61 @@ declare module 'vscode' {
 		 * An array of {@link NotebookDocumentCellChange cell changes}.
 		 */
 		readonly cellChanges: readonly NotebookDocumentCellChange[];
+	}
+
+	/**
+	 * An event that is fired when a {@link NotebookDocument notebook document} will be saved.
+	 *
+	 * To make modifications to the document before it is being saved, call the
+	 * {@linkcode NotebookDocumentWillSaveEvent.waitUntil waitUntil}-function with a thenable
+	 * that resolves to a {@link WorkspaceEdit workspace edit}.
+	 */
+	export interface NotebookDocumentWillSaveEvent {
+		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
+		 * The {@link NotebookDocument notebook document} that will be saved.
+		 */
+		readonly notebook: NotebookDocument;
+
+		/**
+		 * The reason why save was triggered.
+		 */
+		readonly reason: TextDocumentSaveReason;
+
+		/**
+		 * Allows to pause the event loop and to apply {@link WorkspaceEdit workspace edit}.
+		 * Edits of subsequent calls to this function will be applied in order. The
+		 * edits will be *ignored* if concurrent modifications of the notebook document happened.
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillSaveNotebookDocument(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that resolves to {@link WorkspaceEdit workspace edit}.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event loop until the provided thenable resolved.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	/**
@@ -15564,17 +15648,34 @@ declare module 'vscode' {
 		readonly label: string;
 	}
 
+	/**
+	 * Optional options to be used when calling {@link authentication.getSession} with the flag `forceNewSession`.
+	 */
+	export interface AuthenticationForceNewSessionOptions {
+		/**
+		 * An optional message that will be displayed to the user when we ask to re-authenticate. Providing additional context
+		 * as to why you are asking a user to re-authenticate can help increase the odds that they will accept.
+		 */
+		detail?: string;
+	}
 
 	/**
 	 * Options to be used when getting an {@link AuthenticationSession} from an {@link AuthenticationProvider}.
 	 */
 	export interface AuthenticationGetSessionOptions {
 		/**
-		 * Whether the existing user session preference should be cleared.
+		 * Whether the existing session preference should be cleared.
 		 *
 		 * For authentication providers that support being signed into multiple accounts at once, the user will be
 		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
 		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 *
+		 * Note:
+		 * The preference is extension specific. So if one extension calls {@link authentication.getSession getSession}, it will not
+		 * affect the session preference for another extension calling {@link authentication.getSession getSession}. Additionally,
+		 * the preference is set for the current workspace and also globally. This means that new workspaces will use the "global"
+		 * value at first and then when this flag is provided, a new value can be set for that workspace. This also means
+		 * that pre-existing workspaces will not lose their preference if a new workspace sets this flag.
 		 *
 		 * Defaults to false.
 		 */
@@ -15607,7 +15708,7 @@ declare module 'vscode' {
 		 *
 		 * This defaults to false.
 		 */
-		forceNewSession?: boolean | { detail: string };
+		forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
 
 		/**
 		 * Whether we should show the indication to sign in in the Accounts menu.
@@ -15757,7 +15858,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -15810,12 +15911,15 @@ declare module 'vscode' {
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
 		 * value will be returned (with injected {@link args} values for any templated values).
+		 *
 		 * @param message - The message to localize. Supports index templating where strings like `{0}` and `{1}` are
 		 * replaced by the item at that index in the {@link args} array.
 		 * @param args - The arguments to be used in the localized string. The index of the argument is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.t('Hello {0}!', 'World');`
+		 *
+		 * @example
+		 * l10n.t('Hello {0}!', 'World');
 		 */
 		export function t(message: string, ...args: Array<string | number | boolean>): string;
 
@@ -15823,18 +15927,22 @@ declare module 'vscode' {
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
 		 * value will be returned (with injected {@link args} values for any templated values).
+		 *
 		 * @param message The message to localize. Supports named templating where strings like `{foo}` and `{bar}` are
 		 * replaced by the value in the Record for that key (foo, bar, etc).
 		 * @param args The arguments to be used in the localized string. The name of the key in the record is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.t('Hello {name}', { name: 'Erich' });`
+		 *
+		 * @example
+		 * l10n.t('Hello {name}', { name: 'Erich' });
 		 */
 		export function t(message: string, args: Record<string, any>): string;
 		/**
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
 		 * value will be returned (with injected args values for any templated values).
+		 *
 		 * @param options The options to use when localizing the message.
 		 * @returns localized string with injected arguments.
 		 */

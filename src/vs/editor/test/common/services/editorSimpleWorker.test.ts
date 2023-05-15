@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { TextEdit } from 'vs/editor/common/languages';
 import { EditorSimpleWorker, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
@@ -141,6 +143,81 @@ suite('EditorSimpleWorker', () => {
 		});
 	});
 
+	async function testEdits(lines: string[], edits: TextEdit[]): Promise<unknown> {
+		const model = worker.addModel(lines);
+
+		const smallerEdits = await worker.computeHumanReadableDiff(
+			model.uri.toString(),
+			edits,
+			{ ignoreTrimWhitespace: false, maxComputationTimeMs: 0 }
+		);
+
+		const t1 = applyEdits(model.getValue(), edits);
+		const t2 = applyEdits(model.getValue(), smallerEdits);
+		assert.deepStrictEqual(t1, t2);
+
+		return smallerEdits.map(e => ({ range: Range.lift(e.range).toString(), text: e.text }));
+	}
+
+
+	test('computeHumanReadableDiff 1', async () => {
+		assert.deepStrictEqual(
+			await testEdits(
+				[
+					'function test() {}'
+				],
+				[{
+					text: "\n/** Some Comment */\n",
+					range: new Range(1, 1, 1, 1)
+				}]),
+			([{ range: "[1,1 -> 1,1]", text: "\n/** Some Comment */\n" }])
+		);
+	});
+
+	test('computeHumanReadableDiff 2', async () => {
+		assert.deepStrictEqual(
+			await testEdits(
+				[
+					'function test() {}'
+				],
+				[{
+					text: 'function test(myParam: number) { console.log(myParam); }',
+					range: new Range(1, 1, 1, Number.MAX_SAFE_INTEGER)
+				}]),
+			([{ range: '[1,15 -> 1,15]', text: 'myParam: number' }, { range: '[1,18 -> 1,18]', text: ' console.log(myParam); ' }])
+		);
+	});
+
+	test('computeHumanReadableDiff 3', async () => {
+		assert.deepStrictEqual(
+			await testEdits(
+				[
+					'',
+					'',
+					'',
+					''
+				],
+				[{
+					text: 'function test(myParam: number) { console.log(myParam); }\n\n',
+					range: new Range(2, 1, 3, 20)
+				}]),
+			([{ range: '[2,1 -> 2,1]', text: 'function test(myParam: number) { console.log(myParam); }\n' }])
+		);
+	});
+
+	test('computeHumanReadableDiff 4', async () => {
+		assert.deepStrictEqual(
+			await testEdits(
+				[
+					'function algorithm() {}',
+				],
+				[{
+					text: 'function alm() {}',
+					range: new Range(1, 1, 1, Number.MAX_SAFE_INTEGER)
+				}]),
+			([{ range: "[1,10 -> 1,19]", text: "alm" }])
+		);
+	});
 
 	test('ICommonModel#getValueInRange, issue #17424', function () {
 
@@ -189,3 +266,43 @@ suite('EditorSimpleWorker', () => {
 		assert.deepStrictEqual(words, ['one', 'line', 'two', 'line', 'past', 'empty', 'single', 'and', 'now', 'we', 'are', 'done']);
 	});
 });
+
+function applyEdits(text: string, edits: { range: IRange; text: string }[]): string {
+	const transformer = new PositionOffsetTransformer(text);
+	const offsetEdits = edits.map(e => {
+		const range = Range.lift(e.range);
+		return ({
+			startOffset: transformer.getOffset(range.getStartPosition()),
+			endOffset: transformer.getOffset(range.getEndPosition()),
+			text: e.text
+		});
+	});
+
+	offsetEdits.sort((a, b) => b.startOffset - a.startOffset);
+
+	for (const edit of offsetEdits) {
+		text = text.substring(0, edit.startOffset) + edit.text + text.substring(edit.endOffset);
+	}
+
+	return text;
+}
+
+class PositionOffsetTransformer {
+	private readonly lineStartOffsetByLineIdx: number[];
+
+	constructor(text: string) {
+		this.lineStartOffsetByLineIdx = [];
+		this.lineStartOffsetByLineIdx.push(0);
+		for (let i = 0; i < text.length; i++) {
+			if (text.charAt(i) === '\n') {
+				this.lineStartOffsetByLineIdx.push(i + 1);
+			}
+		}
+		this.lineStartOffsetByLineIdx.push(text.length + 1);
+	}
+
+	getOffset(position: Position): number {
+		const nextLineOffset = this.lineStartOffsetByLineIdx[position.lineNumber];
+		return Math.min(this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1, nextLineOffset - 1);
+	}
+}

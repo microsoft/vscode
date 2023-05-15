@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import * as Proto from '../tsServer/protocol/protocol';
+import { API } from '../tsServer/api';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
+import { DocumentSelector } from '../configuration/documentSelector';
 
 // as we don't do deltas, for performance reasons, don't compute semantic tokens for documents above that limit
 const CONTENT_LENGTH_LIMIT = 100000;

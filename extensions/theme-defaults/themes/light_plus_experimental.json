@@ -1,6 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
-	"name": "Light+ (Experimental)",
+	"name": "Default Light Modern",
 	"include": "./light_plus.json",
 	"colors": {
 		"activityBar.activeBorder": "#005FB8",
@@ -147,6 +147,6 @@
 		"titleBar.inactiveBackground": "#f8f8f8",
 		"titleBar.inactiveForeground": "#8b949e",
 		"welcomePage.tileBackground": "#f3f3f3",
-		"widgetBorder": "#0000001a",
+		"widget.border": "#0000001a",
 	},
 }

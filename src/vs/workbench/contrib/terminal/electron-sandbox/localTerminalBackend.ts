@@ -14,12 +14,11 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ILocalPtyService, IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, ITerminalProfileResolverService, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
@@ -30,15 +29,16 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
+import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
 	) {
 		const backend = instantiationService.createInstance(LocalTerminalBackend, undefined);
 		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-		terminalService.handleNewRegisteredBackend(backend);
+		terminalInstanceService.didRegisterBackend(backend.remoteAuthority);
 	}
 }
 
@@ -262,7 +262,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		const baseEnv = await (shellLaunchConfig.useShellEnvironment ? this.getShellEnvironment() : this.getEnvironment());
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
 		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
-			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, variableResolver);
+			const workspaceFolder = getWorkspaceForTerminal(shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
+			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 		return env;
 	}

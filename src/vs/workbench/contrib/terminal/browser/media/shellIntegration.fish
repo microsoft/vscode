@@ -28,6 +28,38 @@ if status --is-login; and set -q VSCODE_PATH_PREFIX
 end
 set -e VSCODE_PATH_PREFIX
 
+# Apply EnvironmentVariableCollections if needed
+if test -n "$VSCODE_ENV_REPLACE"
+	set ITEMS (string split : $VSCODE_ENV_REPLACE)
+	for B in $ITEMS
+		set split (string split = $B)
+		set -gx "$split[1]" "$split[2]"
+	end
+	set -e VSCODE_ENV_REPLACE
+end
+if test -n "$VSCODE_ENV_PREPEND"
+	set ITEMS (string split : $VSCODE_ENV_PREPEND)
+	for B in $ITEMS
+		set split (string split = $B)
+		set -gx "$split[1]" "$split[2]$$split[1]" # avoid -p as it adds a space
+	end
+	set -e VSCODE_ENV_PREPEND
+end
+if test -n "$VSCODE_ENV_APPEND"
+	set ITEMS (string split : $VSCODE_ENV_APPEND)
+	for B in $ITEMS
+		set split (string split = $B)
+		set -gx "$split[1]" "$$split[1]$split[2]" # avoid -a as it adds a space
+	end
+	set -e VSCODE_ENV_APPEND
+end
+
+# Handle the shell integration nonce
+if set -q VSCODE_NONCE
+	set -l __vsc_nonce $VSCODE_NONCE
+	set -e VSCODE_NONCE
+end
+
 # Helper function
 function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
 	builtin printf "\e]633;%s\a" (string join ";" $argv)
@@ -37,7 +69,7 @@ end
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec
 	__vsc_esc C
-	__vsc_esc E (__vsc_escape_value "$argv")
+	__vsc_esc E (__vsc_escape_value "$argv") $__vsc_nonce
 
 	# Creates a marker to indicate a command was run.
 	set --global _vsc_has_cmd

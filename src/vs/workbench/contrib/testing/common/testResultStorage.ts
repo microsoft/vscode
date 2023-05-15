@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { bufferToStream, newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
-import { Lazy } from 'vs/base/common/lazy';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -14,8 +13,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { HydratedTestResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testTypes';
-import { HydratedTestResult, ITestResult, LiveOutputController, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export const RETAIN_MAX_RESULTS = 128;
 const RETAIN_MIN_RESULTS = 16;
@@ -34,11 +33,6 @@ export interface ITestResultStorage {
 	 * Persists the list of test results.
 	 */
 	persist(results: ReadonlyArray<ITestResult>): Promise<void>;
-
-	/**
-	 * Gets the output controller for a new or existing test result.
-	 */
-	getOutputController(resultId: string): LiveOutputController;
 }
 
 export const ITestResultStorage = createDecorator('ITestResultStorage');
@@ -80,7 +74,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 					return undefined;
 				}
 
-				return new HydratedTestResult(contents, () => this.readOutputForResultId(id), (o, l) => this.readOutputRangeForResultId(id, o, l));
+				return new HydratedTestResult(contents);
 			} catch (e) {
 				this.logService.warn(`Error deserializing stored test result ${id}`, e);
 				return undefined;
@@ -88,21 +82,6 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 		}));
 
 		return results.filter(isDefined);
-	}
-
-	/**
-	 * @override
-	 */
-	public getOutputController(resultId: string) {
-		return new LiveOutputController(
-			new Lazy(() => {
-				const stream = newWriteableBufferStream();
-				const promise = this.storeOutputForResultId(resultId, stream);
-				return [stream, promise];
-			}),
-			() => this.readOutputForResultId(resultId),
-			(o, l) => this.readOutputRangeForResultId(resultId, o, l)
-		);
 	}
 
 	/**
@@ -150,10 +129,6 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 			todo.push(this.storeForResultId(result.id, obj));
 			toStore.push({ id: result.id, rev: currentRevision, bytes: contents.byteLength });
 			budget -= contents.byteLength;
-
-			if (result instanceof LiveTestResult && result.completedAt !== undefined) {
-				todo.push(result.output.close());
-			}
 		}
 
 		for (const id of toDelete.keys()) {

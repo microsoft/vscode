@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import * as PConst from '../protocol.const';
+import { DocumentSelector } from '../configuration/documentSelector';
 import { CachedResponse } from '../tsServer/cachedResponse';
+import { parseKindModifier } from '../tsServer/protocol/modifiers';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as PConst from '../tsServer/protocol/protocol.const';
+import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { DocumentSelector } from '../utils/documentSelector';
-import { parseKindModifier } from '../utils/modifiers';
-import * as typeConverters from '../utils/typeConverters';
 
 const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {

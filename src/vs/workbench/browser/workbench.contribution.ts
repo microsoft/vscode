@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
-import { ConfigurationMigrationWorkbenchContribution, workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ConfigurationMigrationWorkbenchContribution, securityConfigurationNodeBase, workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -317,7 +317,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.localHistory.exclude': {
 				'type': 'object',
-				'markdownDescription': localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Changing this setting has no effect on existing local file history entries."),
+				'patternProperties': {
+					'.*': { 'type': 'boolean' }
+				},
+				'markdownDescription': localize('exclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
 			'workbench.localHistory.mergeWindow': {
@@ -341,6 +344,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.commandPalette.experimental.suggestCommands': {
 				'type': 'boolean',
 				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
+				'default': false
+			},
+			'workbench.commandPalette.experimental.useSemanticSimilarity': {
+				'type': 'boolean',
+				'description': localize('useSemanticSimilarity', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Semantic Similarity."),
 				'default': false
 			},
 			'workbench.quickOpen.closeOnFocusLost': {
@@ -677,6 +685,25 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('zenMode.silentNotifications', "Controls whether notifications do not disturb mode should be enabled while in Zen Mode. If true, only error notifications will pop out.")
+			}
+		}
+	});
+
+	// Security
+	registry.registerConfiguration({
+		...securityConfigurationNodeBase,
+		'properties': {
+			'security.allowedUNCHosts': {
+				'type': 'array',
+				'items': {
+					'type': 'string',
+					'pattern': '^[^\\\\]+$',
+					'patternErrorMessage': localize('security.allowedUNCHosts.patternErrorMessage', 'UNC host names must not contain backslashes.')
+				},
+				'default': [],
+				'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names (without leading or trailing backslash, for example `192.168.0.1` or `my-server`) to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
+				'included': isWeb ? true /* web maybe connected to a windows machine */ : isWindows,
+				'scope': ConfigurationScope.MACHINE
 			}
 		}
 	});

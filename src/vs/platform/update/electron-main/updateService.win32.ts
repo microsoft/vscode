@@ -53,7 +53,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	@memoize
 	get cachePath(): Promise<string> {
-		const result = path.join(tmpdir(), `vscode-update-${this.productService.target}-${process.arch}`);
+		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
 		return pfs.Promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
@@ -224,7 +224,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		});
 
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
-		const mutex = await import('windows-mutex');
+		const mutex = await import('@vscode/windows-mutex');
 
 		// poll for mutex-ready
 		pollUntil(() => mutex.isActive(readyMutexName))

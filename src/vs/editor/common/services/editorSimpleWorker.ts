@@ -12,7 +12,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { IMirrorTextModel, IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
+import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
 import { DiffAlgorithmName, IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
@@ -21,11 +21,12 @@ import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { DiffComputer, IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { ILinesDiffComputer, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions } from 'vs/editor/common/diff/linesDiffComputer';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -57,7 +58,7 @@ export interface IRawModelData {
 /**
  * @internal
  */
-export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
+export interface ICommonModel extends ILinkComputerTarget, IDocumentColorComputerTarget, IMirrorModel {
 	uri: URI;
 	version: number;
 	eol: string;
@@ -73,6 +74,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
 	offsetAt(position: IPosition): number;
 	positionAt(offset: number): IPosition;
+	findMatches(regex: RegExp): RegExpMatchArray[];
 }
 
 /**
@@ -105,6 +107,22 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public getValue(): string {
 		return this.getText();
+	}
+
+	public findMatches(regex: RegExp): RegExpMatchArray[] {
+		const matches = [];
+		for (let i = 0; i < this._lines.length; i++) {
+			const line = this._lines[i];
+			const offsetToAdd = this.offsetAt(new Position(i + 1, 1));
+			const iteratorOverMatches = line.matchAll(regex);
+			for (const match of iteratorOverMatches) {
+				if (match.index || match.index === 0) {
+					match.index = match.index + offsetToAdd;
+				}
+				matches.push(match);
+			}
+		}
+		return matches;
 	}
 
 	public getLinesContent(): string[] {
@@ -395,7 +413,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	}
 
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
-		const diffAlgorithm: ILinesDiffComputer = algorithm === 'experimental' ? linesDiffComputers.experimental : linesDiffComputers.smart;
+		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.advanced : linesDiffComputers.legacy;
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
@@ -406,7 +424,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		return {
 			identical,
-			quitEarly: result.quitEarly,
+			quitEarly: result.hitTimeout,
 			changes: result.changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [
 				m.originalRange.startLineNumber,
 				m.originalRange.startColumn,
@@ -531,7 +549,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return result;
 	}
 
-	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
+	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): Promise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;
@@ -580,34 +598,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			const originalLines = original.split(/\r\n|\n|\r/);
 			const modifiedLines = text.split(/\r\n|\n|\r/);
 
-			const diff = linesDiffComputers.experimental.computeDiff(originalLines, modifiedLines, { maxComputationTimeMs: 1000, ignoreTrimWhitespace: false });
-
-			// TODO this should be fixed in the experimental diff algorithm, but it might have consequences for the merge editor.
-			function moveUpInvalidInnerChanges(alignments: LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[] {
-				return alignments.map(a => {
-					if (!a.innerChanges) {
-						return a;
-					}
-					return new LineRangeMapping(a.originalRange, a.modifiedRange, a.innerChanges.map(c => {
-						if (c.originalRange.endColumn === 1 && c.originalRange.endLineNumber > originalLineCount) {
-							if (c.originalRange.isEmpty() || c.modifiedRange.isEmpty()) {
-								return new RangeMapping(
-									new Range(c.originalRange.startLineNumber - 1, Number.MAX_SAFE_INTEGER, c.originalRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-									new Range(c.modifiedRange.startLineNumber - 1, Number.MAX_SAFE_INTEGER, c.modifiedRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-								);
-							} else {
-								return new RangeMapping(
-									new Range(c.originalRange.startLineNumber, c.originalRange.startColumn, c.originalRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-									new Range(c.modifiedRange.startLineNumber, c.modifiedRange.startColumn, c.modifiedRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-								);
-							}
-						}
-						return c;
-					}));
-				});
-			}
-
-			const repairedAlignments = moveUpInvalidInnerChanges(diff.changes, originalLines.length, modifiedLines.length);
+			const diff = linesDiffComputers.advanced.computeDiff(originalLines, modifiedLines, options);
 
 			const start = Range.lift(range).getStartPosition();
 
@@ -632,7 +623,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				return result;
 			}
 
-			for (const c of repairedAlignments) {
+			for (const c of diff.changes) {
 				if (c.innerChanges) {
 					for (const x of c.innerChanges) {
 						result.push({
@@ -665,6 +656,16 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		}
 
 		return computeLinks(model);
+	}
+
+	// --- BEGIN default document colors -----------------------------------------------------------
+
+	public async computeDefaultDocumentColors(modelUrl: string): Promise<IColorInformation[] | null> {
+		const model = this._getModel(modelUrl);
+		if (!model) {
+			return null;
+		}
+		return computeDefaultDocumentColors(model);
 	}
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------

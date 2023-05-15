@@ -26,6 +26,7 @@ export namespace EditorContextKeys {
 
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false, nls.localize('editorReadonly', "Whether the editor is read only"));
 	export const inDiffEditor = new RawContextKey<boolean>('inDiffEditor', false, nls.localize('inDiffEditor', "Whether the context is a diff editor"));
+	export const isEmbeddedDiffEditor = new RawContextKey<boolean>('isEmbeddedDiffEditor', false, nls.localize('isEmbeddedDiffEditor', "Whether the context is an embedded diff editor"));
 	export const columnSelection = new RawContextKey<boolean>('editorColumnSelection', false, nls.localize('editorColumnSelection', "Whether `editor.columnSelection` is enabled"));
 	export const writable = readOnly.toNegated();
 	export const hasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false, nls.localize('editorHasSelection', "Whether the editor has text selected"));
@@ -44,6 +45,8 @@ export namespace EditorContextKeys {
 	export const stickyScrollFocused = new RawContextKey<boolean>('stickyScrollFocused', false, nls.localize('stickyScrollFocused', "Whether the sticky scroll is focused"));
 	export const stickyScrollVisible = new RawContextKey<boolean>('stickyScrollVisible', false, nls.localize('stickyScrollVisible', "Whether the sticky scroll is visible"));
 
+	export const standaloneColorPickerVisible = new RawContextKey<boolean>('standaloneColorPickerVisible', false, nls.localize('standaloneColorPickerVisible', "Whether the standalone color picker is visible"));
+	export const standaloneColorPickerFocused = new RawContextKey<boolean>('standaloneColorPickerFocused', false, nls.localize('standaloneColorPickerFocused', "Whether the standalone color picker is focused"));
 	/**
 	 * A context key that is set when an editor is part of a larger editor, like notebooks or
 	 * (future) a diff editor

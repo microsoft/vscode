@@ -212,8 +212,8 @@ export class ContentHoverController extends Disposable {
 		return this._widget.isVisible;
 	}
 
-	public containsNode(node: Node): boolean {
-		return this._widget.getDomNode().contains(node);
+	public containsNode(node: Node | null | undefined): boolean {
+		return (node ? this._widget.getDomNode().contains(node) : false);
 	}
 
 	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
@@ -689,7 +689,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 }
 
-class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
+export class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
 	public readonly hoverElement: HTMLElement;
 	private readonly actionsElement: HTMLElement;

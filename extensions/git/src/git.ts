@@ -401,9 +401,14 @@ export class Git {
 		return new Repository(this, repository, dotGit, logger);
 	}
 
-	async init(repository: string): Promise<void> {
-		await this.exec(repository, ['init']);
-		return;
+	async init(repository: string, options: { defaultBranch?: string } = {}): Promise<void> {
+		const args = ['init'];
+
+		if (options.defaultBranch && options.defaultBranch !== '') {
+			args.push('-b', options.defaultBranch);
+		}
+
+		await this.exec(repository, args);
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {

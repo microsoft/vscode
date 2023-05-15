@@ -525,7 +525,8 @@ function parseImplicitActivationEvents(tree: JsonNode): Set<string> {
 	const languageContributions = findNodeAtLocation(tree, ['contributes', 'languages']);
 	languageContributions?.children?.forEach(child => {
 		const id = findNodeAtLocation(child, ['id']);
-		if (id && id.type === 'string') {
+		const configuration = findNodeAtLocation(child, ['configuration']);
+		if (id && id.type === 'string' && configuration && configuration.type === 'string') {
 			activationEvents.add(`onLanguage:${id.value}`);
 		}
 	});

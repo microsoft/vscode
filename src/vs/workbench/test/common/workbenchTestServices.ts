@@ -17,13 +17,17 @@ import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/wo
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
+import { IBaseFileStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { ISaveOptions, IRevertOptions, SaveReason, GroupIdentifier } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import product from 'vs/platform/product/common/product';
 import { IActivity, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { AbstractLoggerService, ILogger, LogLevel, NullLogger } from 'vs/platform/log/common/log';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { AutoSaveMode, IAutoSaveConfiguration, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class TestLoggerService extends AbstractLoggerService {
 	constructor(logsHome?: URI) {
@@ -140,6 +144,27 @@ export class TestStorageService extends InMemoryStorageService {
 	}
 }
 
+export class TestHistoryService implements IHistoryService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(private root?: URI) { }
+
+	async reopenLastClosedEditor(): Promise<void> { }
+	async goForward(): Promise<void> { }
+	async goBack(): Promise<void> { }
+	async goPrevious(): Promise<void> { }
+	async goLast(): Promise<void> { }
+	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
+	clear(): void { }
+	clearRecentlyOpened(): void { }
+	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
+	async openNextRecentlyUsedEditor(group?: GroupIdentifier): Promise<void> { }
+	async openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void> { }
+	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
+	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
+}
+
 export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
@@ -204,6 +229,7 @@ export function createFileStat(resource: URI, readonly = false): IFileStatWithMe
 		isDirectory: false,
 		isSymbolicLink: false,
 		readonly,
+		locked: false,
 		name: basename(resource),
 		children: undefined
 	};
@@ -266,3 +292,22 @@ export class TestActivityService implements IActivityService {
 
 	dispose() { }
 }
+
+export const NullFilesConfigurationService = new class implements IFilesConfigurationService {
+
+	_serviceBrand: undefined;
+
+	readonly onAutoSaveConfigurationChange = Event.None;
+	readonly onReadonlyChange = Event.None;
+	readonly onFilesAssociationChange = Event.None;
+
+	readonly isHotExitEnabled = false;
+	readonly hotExitConfiguration = undefined;
+
+	getAutoSaveConfiguration(): IAutoSaveConfiguration { throw new Error('Method not implemented.'); }
+	getAutoSaveMode(): AutoSaveMode { throw new Error('Method not implemented.'); }
+	toggleAutoSave(): Promise<void> { throw new Error('Method not implemented.'); }
+	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
+	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
+	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }
+};

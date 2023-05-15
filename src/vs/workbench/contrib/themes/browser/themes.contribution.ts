@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from 'vs
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
@@ -33,10 +33,17 @@ import { Emitter } from 'vs/base/common/event';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { isWeb } from 'vs/base/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -693,3 +700,126 @@ MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	order: 3
 });
 
+type DefaultThemeUpdatedNotificationReaction = 'keepNew' | 'keepOld' | 'tryNew' | 'cancel' | 'browse';
+
+class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribution {
+
+	static STORAGE_KEY = 'themeUpdatedNotificationShown';
+
+	constructor(
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IWorkbenchThemeService private readonly _workbenchThemeService: IWorkbenchThemeService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IHostService private readonly _hostService: IHostService,
+	) {
+		if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
+			return;
+		}
+		setTimeout(async () => {
+			if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
+				return;
+			}
+			if (await this._hostService.hadLastFocus()) {
+				this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+				if (this._workbenchThemeService.hasUpdatedDefaultThemes()) {
+					this._showYouGotMigratedNotification();
+				} else {
+					const currentTheme = this._workbenchThemeService.getColorTheme().settingsId;
+					if (currentTheme === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD || currentTheme === ThemeSettingDefaults.COLOR_THEME_DARK_OLD) {
+						this._tryNewThemeNotification();
+					}
+				}
+			}
+		}, 3000);
+	}
+
+	private async _showYouGotMigratedNotification(): Promise<void> {
+		const usingLight = this._workbenchThemeService.getColorTheme().type === ColorScheme.LIGHT;
+		const newThemeSettingsId = usingLight ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+		const newTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
+		if (newTheme) {
+			const choices = [
+				{
+					label: localize('button.keep', "Keep New Theme"),
+					run: () => {
+						this._writeTelemetry('keepNew');
+					}
+				},
+				{
+					label: localize('button.browse', "Browse Themes"),
+					run: () => {
+						this._writeTelemetry('browse');
+						this._commandService.executeCommand(SelectColorThemeCommandId);
+					}
+				},
+				{
+					label: localize('button.revert', "Revert"),
+					run: async () => {
+						this._writeTelemetry('keepOld');
+						const oldSettingsId = usingLight ? ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD : ThemeSettingDefaults.COLOR_THEME_DARK_OLD;
+						const oldTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === oldSettingsId);
+						if (oldTheme) {
+							this._workbenchThemeService.setColorTheme(oldTheme, 'auto');
+						}
+					}
+				}
+			];
+			await this._notificationService.prompt(
+				Severity.Info,
+				localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. If you prefer, you can switch back to the old theme or try one of the many other color themes available.", newTheme.label),
+				choices,
+				{
+					onCancel: () => this._writeTelemetry('cancel')
+				}
+			);
+		}
+	}
+
+	private async _tryNewThemeNotification(): Promise<void> {
+		const newThemeSettingsId = this._workbenchThemeService.getColorTheme().type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+		const theme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
+		if (theme) {
+			const choices: IPromptChoice[] = [{
+				label: localize('button.tryTheme', "Try New Theme"),
+				run: () => {
+					this._writeTelemetry('tryNew');
+					this._workbenchThemeService.setColorTheme(theme, 'auto');
+				}
+			},
+			{
+				label: localize('button.cancel', "Cancel"),
+				run: () => {
+					this._writeTelemetry('cancel');
+				}
+			}];
+			await this._notificationService.prompt(
+				Severity.Info,
+				localize({ key: 'newThemeNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. Do you want to give it a try?", theme.label),
+				choices,
+				{ onCancel: () => this._writeTelemetry('cancel') }
+			);
+		}
+	}
+
+	private _writeTelemetry(outcome: DefaultThemeUpdatedNotificationReaction): void {
+		type ThemeUpdatedNoticationClassification = {
+			owner: 'aeschli';
+			comment: 'Reaction to the notification that theme has updated to a new default theme';
+			web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this is running on web' };
+			reaction: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Outcome of the notification' };
+		};
+		type ThemeUpdatedNoticationEvent = {
+			web: boolean;
+			reaction: DefaultThemeUpdatedNotificationReaction;
+		};
+
+		this._telemetryService.publicLog2<ThemeUpdatedNoticationEvent, ThemeUpdatedNoticationClassification>('themeUpdatedNotication', {
+			web: isWeb,
+			reaction: outcome
+		});
+	}
+}
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(DefaultThemeUpdatedNotificationContribution, LifecyclePhase.Eventually);

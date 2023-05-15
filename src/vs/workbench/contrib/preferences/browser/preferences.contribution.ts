@@ -418,8 +418,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
-				args = sanitizeOpenSettingsArgs(args);
+			run(accessor: ServicesAccessor, args?: string | IOpenSettingsActionOptions) {
+				// Match the behaviour of workbench.action.openSettings
+				args = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openWorkspaceSettings(args);
 			}
 		});
@@ -763,7 +764,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL,
-					precondition: CONTEXT_SETTINGS_ROW_FOCUS,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS),
 					keybinding: {
 						primary: KeyCode.Enter,
 						weight: KeybindingWeight.WorkbenchContrib,

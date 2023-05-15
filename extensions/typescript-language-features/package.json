@@ -68,6 +68,15 @@
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
   "contributes": {
+    "walkthroughs": [
+      {
+        "id": "tempNodejsWelcome",
+        "title": "tempNodejsTitle",
+        "description": "tempNodejsDescription",
+        "steps": [],
+        "when": "false"
+      }
+    ],
     "jsonValidation": [
       {
         "fileMatch": "package.json",
@@ -231,17 +240,6 @@
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
           "scope": "machine"
-        },
-        "typescript.tsserver.trace": {
-          "type": "string",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%typescript.tsserver.trace%",
-          "scope": "window"
         },
         "javascript.suggest.completeFunctionCalls": {
           "type": "boolean",
@@ -524,6 +522,12 @@
             "%format.semicolons.insert%",
             "%format.semicolons.remove%"
           ]
+        },
+        "typescript.format.indentSwitchCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.indentSwitchCase%",
+          "scope": "resource"
         },
         "javascript.validate.enable": {
           "type": "boolean",
@@ -900,6 +904,12 @@
             "index",
             "js"
           ],
+          "enumItemLabels": [
+            null,
+            null,
+            null,
+            "%typescript.preferences.importModuleSpecifierEnding.label.js%"
+          ],
           "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifierEnding.auto%",
             "%typescript.preferences.importModuleSpecifierEnding.minimal%",
@@ -917,6 +927,12 @@
             "minimal",
             "index",
             "js"
+          ],
+          "enumItemLabels": [
+            null,
+            null,
+            null,
+            "%typescript.preferences.importModuleSpecifierEnding.label.js%"
           ],
           "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifierEnding.auto%",
@@ -1016,6 +1032,18 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.preferences.useAliasesForRenames%",
+          "scope": "language-overridable"
+        },
+        "javascript.preferences.renameMatchingJsxTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameMatchingJsxTags%",
+          "scope": "language-overridable"
+        },
+        "typescript.preferences.renameMatchingJsxTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.preferences.renameMatchingJsxTags%",
           "scope": "language-overridable"
         },
         "typescript.updateImportsOnFileMove.enabled": {
@@ -1221,6 +1249,18 @@
           "tags": [
             "experimental"
           ]
+        },
+        "typescript.preferGoToSourceDefinition": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.preferGoToSourceDefinition%",
+          "scope": "window"
+        },
+				"javascript.preferGoToSourceDefinition": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.preferGoToSourceDefinition%",
+          "scope": "window"
         }
       }
     },
@@ -1559,59 +1599,6 @@
           {
             "kind": "source.organizeImports",
             "title": "%codeActions.source.organizeImports.title%"
-          }
-        ]
-      }
-    ],
-    "walkthroughs": [
-      {
-        "id": "nodejsWelcome",
-        "title": "%walkthroughs.nodejsWelcome.title%",
-        "icon": "media/nodejsWalkthroughIcon.png",
-        "description": "%walkthroughs.nodejsWelcome.description%",
-        "when": "false",
-        "steps": [
-          {
-            "id": "walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows",
-            "title": "%walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.title%",
-            "description": "%walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.description%",
-            "media": {
-              "svg": "resources/walkthroughs/install-node-js.svg"
-            },
-            "when": "isWindows || isMac"
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.downloadNode.forLinux",
-            "title": "%walkthroughs.nodejsWelcome.downloadNode.forLinux.title%",
-            "description": "%walkthroughs.nodejsWelcome.downloadNode.forLinux.description%",
-            "media": {
-              "svg": "resources/walkthroughs/install-node-js.svg"
-            },
-            "when": "isLinux"
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.makeJsFile",
-            "title": "%walkthroughs.nodejsWelcome.makeJsFile.title%",
-            "description": "%walkthroughs.nodejsWelcome.makeJsFile.description%",
-            "media": {
-              "svg": "resources/walkthroughs/create-a-js-file.svg"
-            }
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.debugJsFile",
-            "title": "%walkthroughs.nodejsWelcome.debugJsFile.title%",
-            "description": "%walkthroughs.nodejsWelcome.debugJsFile.description%",
-            "media": {
-              "svg": "resources/walkthroughs/debug-and-run.svg"
-            }
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.learnMoreAboutJs",
-            "title": "%walkthroughs.nodejsWelcome.learnMoreAboutJs.title%",
-            "description": "%walkthroughs.nodejsWelcome.learnMoreAboutJs.description%",
-            "media": {
-              "svg": "resources/walkthroughs/learn-more.svg"
-            }
           }
         ]
       }

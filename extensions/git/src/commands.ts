@@ -22,7 +22,7 @@ import { pickRemoteSource } from './remoteSource';
 class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	get label(): string { return `${this.repository.isBranchProtected(this.ref.name ?? '') ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
+	get label(): string { return `${this.repository.isBranchProtected(this.ref) ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
 	get description(): string { return this.shortCommit; }
 	get refName(): string | undefined { return this.ref.name; }
 
@@ -305,6 +305,10 @@ function getCheckoutProcessor(repository: Repository, type: string): CheckoutPro
 	}
 
 	return undefined;
+}
+
+function sanitizeBranchName(name: string, whitespaceChar: string): string {
+	return name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, whitespaceChar);
 }
 
 function sanitizeRemoteName(name: string) {
@@ -772,7 +776,11 @@ export class CommandCenter {
 			}
 		}
 
-		await this.git.init(repositoryPath);
+		const config = workspace.getConfiguration('git');
+		const defaultBranchName = config.get<string>('defaultBranchName', 'main');
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
+
+		await this.git.init(repositoryPath, { defaultBranch: sanitizeBranchName(defaultBranchName, branchWhitespaceChar) });
 
 		let message = l10n.t('Would you like to open the initialized repository?');
 		const open = l10n.t('Open');
@@ -883,7 +891,7 @@ export class CommandCenter {
 			const document = window.activeTextEditor?.document;
 
 			// If the document doesn't match what we opened then don't attempt to select the range
-			// Additioanlly if there was no previous document we don't have information to select a range
+			// Additionally if there was no previous document we don't have information to select a range
 			if (document?.uri.toString() !== uri.toString() || !activeTextEditor || !previousURI || !previousSelection) {
 				continue;
 			}
@@ -2179,9 +2187,6 @@ export class CommandCenter {
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
-		const sanitize = (name: string) => name ?
-			name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
-			: name;
 
 		let rawBranchName = defaultName;
 
@@ -2206,7 +2211,7 @@ export class CommandCenter {
 				ignoreFocusOut: true,
 				validateInput: (name: string) => {
 					const validateName = new RegExp(branchValidationRegex);
-					const sanitizedName = sanitize(name);
+					const sanitizedName = sanitizeBranchName(name, branchWhitespaceChar);
 					if (validateName.test(sanitizedName)) {
 						// If the sanitized name that we will use is different than what is
 						// in the input box, show an info message to the user informing them
@@ -2224,7 +2229,7 @@ export class CommandCenter {
 			});
 		}
 
-		return sanitize(rawBranchName || '');
+		return sanitizeBranchName(rawBranchName || '', branchWhitespaceChar);
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {

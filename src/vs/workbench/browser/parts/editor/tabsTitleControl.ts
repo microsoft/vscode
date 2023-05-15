@@ -28,7 +28,7 @@ import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -53,6 +53,7 @@ import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
+import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 
 interface IEditorInputLabel {
 	editor: EditorInput;
@@ -2113,7 +2114,7 @@ registerThemingParticipant((theme, collector) => {
 	// - in high contrast theme
 	// - if we have a contrast border (which draws an outline - https://github.com/microsoft/vscode/issues/109117)
 	// - on Safari (https://github.com/microsoft/vscode/issues/108996)
-	if (isHighContrast(theme.type) && !isSafari && !activeContrastBorderColor) {
+	if (!isHighContrast(theme.type) && !isSafari && !activeContrastBorderColor) {
 		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 		const editorBackgroundColor = theme.getColor(editorBackground);
 		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);

@@ -17,6 +17,35 @@ $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 $Global:__LastHistoryId = -1
 
+# Store the nonce in script scope and unset the global
+$Nonce = $env:VSCODE_NONCE
+$env:VSCODE_NONCE = $null
+
+if ($env:VSCODE_ENV_REPLACE) {
+	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
+	foreach ($Item in $Split) {
+		$Inner = $Item.Split('=')
+		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1])
+	}
+	$env:VSCODE_ENV_REPLACE = $null
+}
+if ($env:VSCODE_ENV_PREPEND) {
+	$Split = $env:VSCODE_ENV_PREPEND.Split(":")
+	foreach ($Item in $Split) {
+		$Inner = $Item.Split('=')
+		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1] + [Environment]::GetEnvironmentVariable($Inner[0]))
+	}
+	$env:VSCODE_ENV_PREPEND = $null
+}
+if ($env:VSCODE_ENV_APPEND) {
+	$Split = $env:VSCODE_ENV_APPEND.Split(":")
+	foreach ($Item in $Split) {
+		$Inner = $Item.Split('=')
+		[Environment]::SetEnvironmentVariable($Inner[0], [Environment]::GetEnvironmentVariable($Inner[0]) + $Inner[1])
+	}
+	$env:VSCODE_ENV_APPEND = $null
+}
+
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
@@ -42,7 +71,7 @@ function Global:Prompt() {
 			$Result += "$([char]0x1b)]633;D`a"
 		} else {
 			# Command finished command line
-			# OSC 633 ; A ; <CommandLine?> ST
+			# OSC 633 ; E ; <CommandLine?> ; <Nonce?> ST
 			$Result  = "$([char]0x1b)]633;E;"
 			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
 			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
@@ -53,6 +82,7 @@ function Global:Prompt() {
 				$CommandLine = ""
 			}
 			$Result += $(__VSCode-Escape-Value $CommandLine)
+			$Result += ";$Nonce"
 			$Result += "`a"
 			# Command finished exit code
 			# OSC 633 ; D [; <ExitCode>] ST

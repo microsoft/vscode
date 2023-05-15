@@ -53,24 +53,25 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { FileThemeIcon, FolderThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, NoTreeViewError, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
-import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
-import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
+import { CodeDataTransfers, LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
+import { toExternalVSDataTransfer } from 'vs/editor/browser/dnd';
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
+import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 
 export class TreeViewPane extends ViewPane {
 
@@ -346,20 +347,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						children = node.children;
 					} else {
 						node = node ?? self.root;
-						try {
-							node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
-							children = node.children ?? [];
-						} catch (e) {
-							if (e instanceof NoTreeViewError) {
-								// It can happen that a tree view is hidden right as `getChildren` is called. This results in an error because the data provider gets removed.
-								// The tree will shortly get cleaned up in this case. We just need to handle the error here.
-								node.children = [];
-								children = [];
-								return children;
-							} else {
-								throw e;
-							}
-						}
+						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+						children = node.children ?? [];
 					}
 					if (node instanceof Root) {
 						const oldEmpty = this._isEmpty;
@@ -896,9 +885,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}
 		try {
 			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
-			await Promise.all(itemOrItems.map(element => {
-				return tree.expand(element, false);
-			}));
+			for (const element of itemOrItems) {
+				await tree.expand(element, false);
+			}
 		} catch (e) {
 			// The extension could have changed the tree during the reveal.
 			// Because of that, we ignore errors.
@@ -1558,7 +1547,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		return dndController.handleDrag(itemHandles, uuid, dragCancellationToken).then(additionalDataTransfer => {
 			if (additionalDataTransfer) {
 				const unlistedTypes: string[] = [];
-				for (const item of additionalDataTransfer.entries()) {
+				for (const item of additionalDataTransfer) {
 					if ((item[0] !== this.treeMimeType) && (dndController.dragMimeTypes.findIndex(value => value === item[0]) < 0)) {
 						unlistedTypes.push(item[0]);
 					}
@@ -1634,10 +1623,9 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		const dataTransfer = toVSDataTransfer(originalEvent.dataTransfer!);
-		addExternalEditorsDropData(dataTransfer, originalEvent);
+		const dataTransfer = toExternalVSDataTransfer(originalEvent.dataTransfer!);
 
-		const types = new Set<string>(Array.from(dataTransfer.entries()).map(x => x[0]));
+		const types = new Set<string>(Array.from(dataTransfer, x => x[0]));
 
 		if (originalEvent.dataTransfer) {
 			// Also add uri-list if we have any files. At this stage we can't actually access the file itself though.
@@ -1698,11 +1686,10 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			willDropUuid = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype)![0].identifier;
 		}
 
-		const originalDataTransfer = toVSDataTransfer(originalEvent.dataTransfer);
-		addExternalEditorsDropData(originalDataTransfer, originalEvent, true);
+		const originalDataTransfer = toExternalVSDataTransfer(originalEvent.dataTransfer, true);
 
 		const outDataTransfer = new VSDataTransfer();
-		for (const [type, item] of originalDataTransfer.entries()) {
+		for (const [type, item] of originalDataTransfer) {
 			if (type === this.treeMimeType || dndController.dropMimeTypes.includes(type) || (item.asFile() && dndController.dropMimeTypes.includes(DataTransfers.FILES.toLowerCase()))) {
 				outDataTransfer.append(type, item);
 				if (type === this.treeMimeType) {
@@ -1717,7 +1704,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 		const additionalDataTransfer = await this.treeViewsDragAndDropService.removeDragOperationTransfer(willDropUuid);
 		if (additionalDataTransfer) {
-			for (const [type, item] of additionalDataTransfer.entries()) {
+			for (const [type, item] of additionalDataTransfer) {
 				outDataTransfer.append(type, item);
 			}
 		}

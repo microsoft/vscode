@@ -162,20 +162,20 @@ function compile_giomodules {
   if [ -f "$1/glib-2.0/gio-querymodules" ]; then
     rm -rf "$GIO_MODULE_DIR"
     ensure_dir_exists "$GIO_MODULE_DIR"
-    ln -s "$1"/gio/modules/*.so "$GIO_MODULE_DIR"
+    ln -s "$SNAP"/usr/lib/"$ARCH"/gio/modules/*.so "$GIO_MODULE_DIR"
     "$1/glib-2.0/gio-querymodules" "$GIO_MODULE_DIR"
   fi
 }
 if [ "$needs_update" = true ]; then
-  async_exec compile_giomodules "$SNAP/usr/lib/$ARCH"
+  async_exec compile_giomodules "/snap/core20/current/usr/lib/$ARCH"
 fi
 
 # Setup compiled gsettings schema
-GS_SCHEMA_DIR="$SNAP_USER_DATA/.local/share/glib-2.0/schemas"
+export GSETTINGS_SCHEMA_DIR="$SNAP_USER_DATA/.local/share/glib-2.0/schemas"
 function compile_schemas {
   if [ -f "$1" ]; then
-    rm -rf "$GS_SCHEMA_DIR"
-    ensure_dir_exists "$GS_SCHEMA_DIR"
+    rm -rf "$GSETTINGS_SCHEMA_DIR"
+    ensure_dir_exists "$GSETTINGS_SCHEMA_DIR"
     for ((i = 0; i < ${#data_dirs_array[@]}; i++)); do
       schema_dir="${data_dirs_array[$i]}/glib-2.0/schemas"
       if [ -f "$schema_dir/gschemas.compiled" ]; then
@@ -183,20 +183,20 @@ function compile_schemas {
         continue
       fi
       if [ -n "$(ls -A "$schema_dir"/*.xml 2>/dev/null)" ]; then
-        ln -s "$schema_dir"/*.xml "$GS_SCHEMA_DIR"
+        ln -s "$schema_dir"/*.xml "$GSETTINGS_SCHEMA_DIR"
       fi
       if [ -n "$(ls -A "$schema_dir"/*.override 2>/dev/null)" ]; then
-        ln -s "$schema_dir"/*.override "$GS_SCHEMA_DIR"
+        ln -s "$schema_dir"/*.override "$GSETTINGS_SCHEMA_DIR"
       fi
     done
     # Only compile schemas if we copied anything
-    if [ -n "$(ls -A "$GS_SCHEMA_DIR"/*.xml "$GS_SCHEMA_DIR"/*.override 2>/dev/null)" ]; then
-      "$1" "$GS_SCHEMA_DIR"
+    if [ -n "$(ls -A "$GSETTINGS_SCHEMA_DIR"/*.xml "$GSETTINGS_SCHEMA_DIR"/*.override 2>/dev/null)" ]; then
+      "$1" "$GSETTINGS_SCHEMA_DIR"
     fi
   fi
 }
 if [ "$needs_update" = true ]; then
-  async_exec compile_schemas "$SNAP/usr/lib/$ARCH/glib-2.0/glib-compile-schemas"
+  async_exec compile_schemas "/snap/core20/current/usr/lib/$ARCH/glib-2.0/glib-compile-schemas"
 fi
 
 # Gdk-pixbuf loaders

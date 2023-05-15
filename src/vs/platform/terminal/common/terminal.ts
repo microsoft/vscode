@@ -12,6 +12,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
@@ -173,6 +174,7 @@ export interface IPtyHostAttachTarget {
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
 	hasChildProcesses: boolean;
+	shellIntegrationNonce: string;
 }
 
 export interface IReconnectionProperties {
@@ -482,7 +484,23 @@ export interface IShellLaunchConfig {
 	 * This is a terminal that attaches to an already running terminal.
 	 */
 	attachPersistentProcess?: {
-		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionProperties?: IReconnectionProperties; type?: TerminalType; waitOnExit?: WaitOnExitValue; hideFromUser?: boolean; isFeatureTerminal?: boolean;
+		id: number;
+		findRevivedId?: boolean;
+		pid: number;
+		title: string;
+		titleSource: TitleEventSource;
+		cwd: string;
+		icon?: TerminalIcon;
+		color?: string;
+		hasChildProcesses?: boolean;
+		fixedDimensions?: IFixedTerminalDimensions;
+		environmentVariableCollections?: ISerializableEnvironmentVariableCollections;
+		reconnectionProperties?: IReconnectionProperties;
+		type?: TerminalType;
+		waitOnExit?: WaitOnExitValue;
+		hideFromUser?: boolean;
+		isFeatureTerminal?: boolean;
+		shellIntegrationNonce: string;
 	};
 
 	/**
@@ -597,9 +615,11 @@ export interface ITerminalProcessOptions {
 	shellIntegration: {
 		enabled: boolean;
 		suggestEnabled: boolean;
+		nonce: string;
 	};
 	windowsEnableConpty: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	workspaceFolder: IWorkspaceFolder | undefined;
 }
 
 export interface ITerminalEnvironment {
@@ -859,3 +879,55 @@ export enum TerminalExitReason {
 	User = 3,
 	Extension = 4,
 }
+
+export interface ITerminalOutputMatch {
+	regexMatch: RegExpMatchArray;
+	outputLines: string[];
+}
+
+/**
+ * A matcher that runs on a sub-section of a terminal command's output
+ */
+export interface ITerminalOutputMatcher {
+	/**
+	 * A string or regex to match against the unwrapped line. If this is a regex with the multiline
+	 * flag, it will scan an amount of lines equal to `\n` instances in the regex + 1.
+	 */
+	lineMatcher: string | RegExp;
+	/**
+	 * Which side of the output to anchor the {@link offset} and {@link length} against.
+	 */
+	anchor: 'top' | 'bottom';
+	/**
+	 * The number of rows above or below the {@link anchor} to start matching against.
+	 */
+	offset: number;
+	/**
+	 * The number of rows to match against, this should be as small as possible for performance
+	 * reasons. This is capped at 40.
+	 */
+	length: number;
+
+	/**
+	 * If multiple matches are expected - this will result in {@link outputLines} being returned
+	 * when there's a {@link regexMatch} from {@link offset} to {@link length}
+	 */
+	multipleMatches?: boolean;
+}
+
+export interface ITerminalCommandSelector {
+	id: string;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	exitStatus: boolean;
+	commandExitResult: 'success' | 'error';
+}
+
+export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyService');
+
+/**
+ * A service responsible for communicating with the pty host process on Electron.
+ *
+ * **This service should only be used within the terminal component.**
+ */
+export interface ILocalPtyService extends IPtyService { }

@@ -9,7 +9,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { QuickInputController } from 'vs/platform/quickinput/browser/quickInput';
 import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -29,11 +28,10 @@ export class QuickInputService extends BaseQuickInputService {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILayoutService layoutService: ILayoutService,
 		@IHoverService private readonly hoverService: IHoverService
 	) {
-		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
+		super(instantiationService, contextKeyService, themeService, layoutService);
 
 		this.registerListeners();
 	}
@@ -72,7 +70,7 @@ class QuickInputHoverDelegate implements IHoverDelegate {
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
 		return this.hoverService.showHover({
 			...options,
-			hideOnHover: false,
+			showHoverHint: true,
 			hideOnKeyDown: false,
 			skipFadeInAnimation: true,
 		}, focus);

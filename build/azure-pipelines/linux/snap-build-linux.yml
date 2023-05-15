@@ -54,4 +54,3 @@ steps:
   - publish: $(SNAP_PATH)
     artifact: vscode_client_linux_$(VSCODE_ARCH)_snap
     displayName: Publish snap package
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

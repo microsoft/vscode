@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -15,10 +16,12 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -48,12 +51,13 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
+import { IInteractiveSessionCodeBlockInfo } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, IInteractiveWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
-import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
+import { IWordCountResult, getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 const $ = dom.$;
 
@@ -86,6 +90,9 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	static readonly cursorCharacter = '\u258c';
 	static readonly ID = 'item';
 
+	private readonly codeBlocksByResponseId = new Map<string, IInteractiveSessionCodeBlockInfo[]>();
+	private readonly codeBlocksByEditorUri = new ResourceMap<IInteractiveSessionCodeBlockInfo>();
+
 	private readonly renderer: MarkdownRenderer;
 
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IInteractiveSessionReplyFollowup>());
@@ -97,6 +104,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private readonly _editorPool: EditorPool;
 
 	private _currentLayoutWidth: number = 0;
+	private _isVisible = true;
 
 	constructor(
 		private readonly editorOptions: InteractiveSessionEditorOptions,
@@ -125,8 +133,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private shouldRenderProgressively(element: IInteractiveResponseViewModel): boolean {
-		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering') && element.progressiveResponseRenderingEnabled;
+	private progressiveRenderEnabled(): boolean {
+		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering');
 	}
 
 	private getProgressiveRenderRate(element: IInteractiveResponseViewModel): number {
@@ -148,6 +156,19 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 
 		return 8;
+	}
+
+	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IInteractiveSessionCodeBlockInfo[] {
+		const codeBlocks = this.codeBlocksByResponseId.get(response.id);
+		return codeBlocks ?? [];
+	}
+
+	getCodeBlockInfoForEditor(uri: URI): IInteractiveSessionCodeBlockInfo | undefined {
+		return this.codeBlocksByEditorUri.get(uri);
+	}
+
+	setVisible(visible: boolean): void {
+		this._isVisible = visible;
 	}
 
 	layout(width: number): void {
@@ -194,7 +215,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				'welcome';
 		this.traceLayout('renderElement', `${kind}, index=${index}`);
 
-		CONTEXT_RESPONSE_HAS_PROVIDER_ID.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.providerResponseId && !element.isPlaceholder);
+		CONTEXT_RESPONSE_HAS_PROVIDER_ID.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.providerResponseId);
 		if (isResponseVM(element)) {
 			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set(element.vote === InteractiveSessionVoteDirection.Up ? 'up' : element.vote === InteractiveSessionVoteDirection.Down ? 'down' : '');
 		} else {
@@ -221,10 +242,11 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		// Do a progressive render if
 		// - This the last response in the list
+		// - And it is not a placeholder response ("Thinking...")
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		// - And, the feature is not disabled in configuration
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively(element)) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && !element.isPlaceholder && (!element.isComplete || element.renderData) && this.progressiveRenderEnabled()) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
@@ -239,8 +261,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 					throw err;
 				}
 			};
-			runProgressiveRender(true);
 			timer.cancelAndSet(runProgressiveRender, 50);
+			runProgressiveRender(true);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else if (isRequestVM(element)) {
@@ -306,7 +328,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
+	/**
+	 *	@returns true if progressive rendering should be considered complete- the element's data is fully rendered or the view is not visible
+	 */
 	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
+		if (!this._isVisible) {
+			return true;
+		}
+
 		disposables.clear();
 
 		let isFullyRendered = false;
@@ -316,8 +345,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			this.basicRenderElement(element.response.value, element, index, templateData);
 			isFullyRendered = true;
 		} else {
-			// TODO- this method has the side effect of updating element.renderData
-			const toRender = this.getProgressiveMarkdownToRender(element);
+			const renderValue = this.getWordsForProgressiveRender(element);
 			isFullyRendered = !!element.renderData?.isFullyRendered;
 			if (isFullyRendered) {
 				// We've reached the end of the available content, so do a normal render
@@ -330,10 +358,20 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				}
 				disposables.clear();
 				this.basicRenderElement(element.response.value, element, index, templateData);
-			} else if (toRender) {
-				// Doing the progressive render
-				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
+			} else if (renderValue) {
+				element.renderData = {
+					renderedWordCount: renderValue.actualWordCount,
+					lastRenderTime: Date.now(),
+					isFullyRendered: renderValue.isFullString
+				};
+
+				// Don't add the cursor if it will go after a codeblock, since this will always cause layout shifting
+				// when the codeblock is the last thing in the response, and that happens often.
+				const plusCursor = renderValue.value.match(/```\s*$/) ?
+					renderValue.value :
+					renderValue.value + ` ${InteractiveListItemRenderer.cursorCharacter}`;
 				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
+				// Doing the progressive render
 				dom.clearNode(templateData.value);
 				templateData.value.appendChild(result.element);
 				disposables.add(result);
@@ -362,10 +400,13 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const usedSlashCommand = slashCommands.find(s => markdown.value.startsWith(`/${s.command} `));
 		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
 		markdown = new MarkdownString(toRender);
+
+		const codeblocks: IInteractiveSessionCodeBlockInfo[] = [];
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
-				const ref = this.renderCodeBlock({ languageId, text, codeBlockIndex: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService }, disposables);
+				const data = { languageId, text, codeBlockIndex: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService };
+				const ref = this.renderCodeBlock(data, disposables);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
@@ -374,10 +415,27 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 					this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 				}));
 
+				if (isResponseVM(element)) {
+					const info = {
+						codeBlockIndex: data.codeBlockIndex,
+						element,
+						focus() {
+							ref.object.focus();
+						}
+					};
+					codeblocks.push(info);
+					this.codeBlocksByEditorUri.set(ref.object.textModel.uri, info);
+					disposables.add(toDisposable(() => this.codeBlocksByEditorUri.delete(ref.object.textModel.uri)));
+				}
 				disposablesList.push(ref);
 				return ref.object.element;
 			}
 		});
+
+		if (isResponseVM(element)) {
+			this.codeBlocksByResponseId.set(element.id, codeblocks);
+			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
+		}
 
 		if (usedSlashCommand) {
 			const slashCommandElement = $('span.interactive-slash-command', { title: usedSlashCommand.detail }, `/${usedSlashCommand.command} `);
@@ -400,7 +458,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return ref;
 	}
 
-	private getProgressiveMarkdownToRender(element: IInteractiveResponseViewModel): string | undefined {
+	private getWordsForProgressiveRender(element: IInteractiveResponseViewModel): IWordCountResult | undefined {
 		const renderData = element.renderData ?? { renderedWordCount: 0, lastRenderTime: 0 };
 		const rate = this.getProgressiveRenderRate(element);
 		const numWordsToRender = renderData.lastRenderTime === 0 ?
@@ -413,15 +471,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			return undefined;
 		}
 
-		const result = getNWords(element.response.value, numWordsToRender);
-
-		element.renderData = {
-			renderedWordCount: result.actualWordCount,
-			lastRenderTime: Date.now(),
-			isFullyRendered: result.isFullString
-		};
-
-		return result.value;
+		return getNWords(element.response.value, numWordsToRender);
 	}
 
 	disposeElement(node: ITreeNode<InteractiveTreeItem, FuzzyScore>, index: number, templateData: IInteractiveListItemTemplate): void {
@@ -464,17 +514,29 @@ export class InteractiveSessionListDelegate implements IListVirtualDelegate<Inte
 
 export class InteractiveSessionAccessibilityProvider implements IListAccessibilityProvider<InteractiveTreeItem> {
 
+	getWidgetRole(): AriaRole {
+		return 'list';
+	}
+
+	getRole(element: InteractiveTreeItem): AriaRole | undefined {
+		return 'listitem';
+	}
+
 	getWidgetAriaLabel(): string {
-		return localize('interactiveSession', "Interactive Session");
+		return localize('chat', "Chat");
 	}
 
 	getAriaLabel(element: InteractiveTreeItem): string {
 		if (isRequestVM(element)) {
-			return localize('interactiveRequest', "Request: {0}", element.messageText);
+			return element.messageText;
 		}
 
 		if (isResponseVM(element)) {
-			return localize('interactiveResponse', "Response: {0}", element.response.value);
+			return element.response.value;
+		}
+
+		if (isWelcomeVM(element)) {
+			return element.content.map(c => 'value' in c ? c.value : c.map(followup => followup.message).join('\n')).join('\n');
 		}
 
 		return '';
@@ -495,16 +557,11 @@ interface IInteractiveResultCodeBlockPart {
 	readonly textModel: ITextModel;
 	layout(width: number): void;
 	render(data: IInteractiveResultCodeBlockData, width: number): void;
+	focus(): void;
 	dispose(): void;
 }
 
-export interface IInteractiveResultCodeBlockInfo {
-	providerId: string;
-	responseId: string;
-	codeBlockIndex: number;
-}
-
-export const codeBlockInfosByModelUri = new ResourceMap<IInteractiveResultCodeBlockInfo>();
+const defaultCodeblockPadding = 10;
 
 class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPart {
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
@@ -516,6 +573,8 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 	public readonly textModel: ITextModel;
 	public readonly element: HTMLElement;
+
+	private currentScrollWidth = 0;
 
 	constructor(
 		private readonly options: InteractiveSessionEditorOptions,
@@ -544,7 +603,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			scrollBeyondLastLine: false,
 			lineDecorationsWidth: 8,
 			dragAndDrop: false,
-			padding: { top: 2, bottom: 2 },
+			padding: { top: defaultCodeblockPadding, bottom: defaultCodeblockPadding },
 			mouseWheelZoom: false,
 			scrollbar: {
 				alwaysConsumeMouseWheel: false
@@ -569,6 +628,9 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			this.editor.updateOptions(this.getEditorOptionsFromConfig());
 		}));
 
+		this._register(this.editor.onDidScrollChange(e => {
+			this.currentScrollWidth = e.scrollWidth;
+		}));
 		this._register(this.editor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged) {
 				this._onDidChangeContentHeight.fire(e.contentHeight);
@@ -584,6 +646,21 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName('javascript');
 		this.textModel = this._register(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
 		this.editor.setModel(this.textModel);
+	}
+
+	focus(): void {
+		this.editor.focus();
+	}
+
+	private updatePaddingForLayout() {
+		// scrollWidth = "the width of the content that needs to be scrolled"
+		// contentWidth = "the width of the area where content is displayed"
+		const horizontalScrollbarVisible = this.currentScrollWidth > this.editor.getLayoutInfo().contentWidth;
+		const scrollbarHeight = this.editor.getLayoutInfo().horizontalScrollbarHeight;
+		const bottomPadding = horizontalScrollbarVisible ?
+			Math.max(defaultCodeblockPadding - scrollbarHeight, 2) :
+			defaultCodeblockPadding;
+		this.editor.updateOptions({ padding: { top: defaultCodeblockPadding, bottom: bottomPadding } });
 	}
 
 	private getEditorOptionsFromConfig(): IEditorOptions {
@@ -604,6 +681,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		const realContentHeight = this.editor.getContentHeight();
 		const editorBorder = 2;
 		this.editor.layout({ width: width - editorBorder, height: realContentHeight });
+		this.updatePaddingForLayout();
 	}
 
 	render(data: IInteractiveResultCodeBlockData, width: number): void {
@@ -615,27 +693,30 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			this.layout(width);
 		}
 
-		this.setText(data.text);
-		this.setLanguage(data.languageId);
+		const text = this.fixCodeText(data.text, data.languageId);
+		this.setText(text);
+
+		const vscodeLanguageId = withNullAsUndefined(this.languageService.getLanguageIdByLanguageName(data.languageId));
+		this.setLanguage(vscodeLanguageId);
 
 		this.layout(width);
-
-		if (isResponseVM(data.element) && data.element.providerResponseId) {
-			// For telemetry reporting
-			codeBlockInfosByModelUri.set(this.textModel.uri, {
-				providerId: data.element.providerId,
-				responseId: data.element.providerResponseId,
-				codeBlockIndex: data.codeBlockIndex
-			});
-		} else {
-			codeBlockInfosByModelUri.delete(this.textModel.uri);
-		}
 
 		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
 			code: data.text,
 			codeBlockIndex: data.codeBlockIndex,
-			element: data.element
+			element: data.element,
+			languageId: vscodeLanguageId
 		};
+	}
+
+	private fixCodeText(text: string, languageId: string): string {
+		if (languageId === 'php') {
+			if (!text.trim().startsWith('<')) {
+				return `<?php\n${text}\n?>`;
+			}
+		}
+
+		return text;
 	}
 
 	private setText(newText: string): void {
@@ -667,8 +748,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		}
 	}
 
-	private setLanguage(languageId: string): void {
-		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
+	private setLanguage(vscodeLanguageId: string | undefined): void {
 		this.textModel.setLanguage(vscodeLanguageId ?? PLAINTEXT_LANGUAGE_ID);
 	}
 }

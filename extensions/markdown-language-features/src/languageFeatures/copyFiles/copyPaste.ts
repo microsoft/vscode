@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { coalesce } from '../../util/arrays';
 import { Schemes } from '../../util/schemes';
-import { getNewFileName } from './copyFiles';
+import { NewFilePathGenerator } from './copyFiles';
 import { createUriListSnippet, tryGetUriListSnippet } from './dropIntoEditor';
 
 const supportedImageMimes = new Set([
+	'image/bmp',
+	'image/gif',
+	'image/jpeg',
 	'image/png',
-	'image/jpg',
+	'image/webp',
 ]);
 
 class PasteEditProvider implements vscode.DocumentPasteEditProvider {
+
+	private readonly _id = 'insertLink';
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
@@ -26,55 +32,81 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		if (document.uri.scheme === Schemes.notebookCell) {
-			return;
-		}
-
-		for (const imageMime of supportedImageMimes) {
-			const file = dataTransfer.get(imageMime)?.asFile();
-			if (file) {
-				const edit = await this._makeCreateImagePasteEdit(document, file, token);
-				if (token.isCancellationRequested) {
-					return;
-				}
-
-				if (edit) {
-					return edit;
-				}
-			}
+		const createEdit = await this._makeCreateImagePasteEdit(document, dataTransfer, token);
+		if (createEdit) {
+			return createEdit;
 		}
 
 		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-		return snippet ? new vscode.DocumentPasteEdit(snippet) : undefined;
-	}
-
-	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
-		if (file.uri) {
-			// If file is already in workspace, we don't want to create a copy of it
-			const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
-			if (workspaceFolder) {
-				const snippet = createUriListSnippet(document, [file.uri]);
-				return snippet ? new vscode.DocumentPasteEdit(snippet) : undefined;
-			}
-		}
-
-		const uri = await getNewFileName(document, file);
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		const snippet = createUriListSnippet(document, [uri]);
 		if (!snippet) {
 			return;
 		}
 
-		// Note that there is currently no way to undo the file creation :/
-		const workspaceEdit = new vscode.WorkspaceEdit();
-		workspaceEdit.createFile(uri, { contents: await file.data() });
+		const uriEdit = new vscode.DocumentPasteEdit(snippet.snippet, this._id, snippet.label);
+		uriEdit.priority = this._getPriority(dataTransfer);
+		return uriEdit;
+	}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(snippet);
+	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
+		if (document.uri.scheme === Schemes.untitled) {
+			return;
+		}
+
+		interface FileEntry {
+			readonly uri: vscode.Uri;
+			readonly newFileContents?: vscode.DataTransferFile;
+		}
+
+		const pathGenerator = new NewFilePathGenerator();
+		const fileEntries = coalesce(await Promise.all(Array.from(dataTransfer, async ([mime, item]): Promise<FileEntry | undefined> => {
+			if (!supportedImageMimes.has(mime)) {
+				return;
+			}
+
+			const file = item?.asFile();
+			if (!file) {
+				return;
+			}
+
+			if (file.uri) {
+				// If the file is already in a workspace, we don't want to create a copy of it
+				const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
+				if (workspaceFolder) {
+					return { uri: file.uri };
+				}
+			}
+
+			const uri = await pathGenerator.getNewFilePath(document, file, token);
+			return uri ? { uri, newFileContents: file } : undefined;
+		})));
+		if (!fileEntries.length) {
+			return;
+		}
+
+		const workspaceEdit = new vscode.WorkspaceEdit();
+		for (const entry of fileEntries) {
+			if (entry.newFileContents) {
+				workspaceEdit.createFile(entry.uri, { contents: entry.newFileContents });
+			}
+		}
+
+		const snippet = createUriListSnippet(document, fileEntries.map(entry => entry.uri));
+		if (!snippet) {
+			return;
+		}
+
+		const pasteEdit = new vscode.DocumentPasteEdit(snippet.snippet, this._id, snippet.label);
 		pasteEdit.additionalEdit = workspaceEdit;
+		pasteEdit.priority = this._getPriority(dataTransfer);
 		return pasteEdit;
+	}
+
+	private _getPriority(dataTransfer: vscode.DataTransfer): number {
+		if (dataTransfer.get('text/plain')) {
+			// Deprioritize in favor of normal text content
+			return -10;
+		}
+		return 0;
 	}
 }
 

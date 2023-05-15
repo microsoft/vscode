@@ -5,19 +5,19 @@
 
 import * as vscode from 'vscode';
 import { Command, CommandManager } from '../commands/commandManager';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { TelemetryReporter } from '../logging/telemetry';
+import * as fixNames from '../tsServer/protocol/fixNames';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { nulToken } from '../utils/cancellation';
-import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as fixNames from '../utils/fixNames';
 import { memoize } from '../utils/memoize';
 import { equals } from '../utils/objects';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
+import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 type ApplyCodeActionCommand_args = {
 	readonly resource: vscode.Uri;

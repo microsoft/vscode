@@ -398,11 +398,11 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		await Event.toPromise(promptedEmitter.event);
 		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
-		assert.strictEqual(recommendations.length, mockTestData.validRecommendedExtensions.length);
-		mockTestData.validRecommendedExtensions.forEach(x => {
+		const expected = [...mockTestData.validRecommendedExtensions, 'unknown.extension'];
+		assert.strictEqual(recommendations.length, expected.length);
+		expected.forEach(x => {
 			assert.strictEqual(recommendations.indexOf(x.toLowerCase()) > -1, true);
 		});
-
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if they are already installed', () => {

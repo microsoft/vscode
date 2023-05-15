@@ -3,127 +3,6 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
-
-  - script: |
-      set -e
-      cat << EOF > ~/.netrc
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
-
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
-
-  - script: |
-      set -e
-      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-      git checkout FETCH_HEAD
-    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-    displayName: Checkout override commit
-
-  - script: |
-      set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
-
-  - script: node build/setup-npm-registry.js $NPM_REGISTRY
-    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM Registry
-
-  - script: |
-      mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH > .build/yarnlockhash
-      node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
-    displayName: Prepare yarn cache flags
-
-  - task: Cache@2
-    inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
-
-  - task: Cache@2
-    inputs:
-      key: '"builtInDeps" | .build/builtindepshash'
-      path: .build/builtInExtensions
-    displayName: Restore built-in extensions
-
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
-    displayName: Extract node_modules cache
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
-      npm install -g node-gyp@latest
-      node-gyp --version
-    displayName: Update node-gyp
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      npm config set always-auth=true --location=project
-      yarn config set registry "$NPM_REGISTRY"
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
-
-  - task: npmAuthenticate@0
-    inputs:
-      workingFile: .npmrc
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM Authentication
-
-  - script: |
-      set -e
-      export npm_config_arch=$(VSCODE_ARCH)
-      export npm_config_node_gyp=$(which node-gyp)
-
-      for i in {1..5}; do # try 5 times
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
-          exit 1
-        fi
-        echo "Yarn failed $i, trying again..."
-      done
-    env:
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
-      node build/lib/builtInExtensions.js
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Download missing built-in extensions
-
-  - script: |
-      set -e
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
-      mkdir -p .build/node_modules_cache
-      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
-
-  - download: current
-    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
-    displayName: Download $(VSCODE_ARCH) artifact
-
   - task: UseDotNet@2
     inputs:
       version: 6.x
@@ -132,19 +11,24 @@ steps:
     continueOnError: true
     displayName: Download ESRPClient
 
-  - script: |
-      set -e
-      node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
+
+  - download: current
+    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+    displayName: Download $(VSCODE_ARCH) artifact
+
+  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Codesign
 
-  - script: |
-      set -e
-      node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Notarize
 
-  - script: |
-      set -e
-      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+  - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
     displayName: Extract signed app
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
@@ -152,20 +36,10 @@ steps:
       set -e
       APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
       APP_NAME="`ls $APP_ROOT | head -n 1`"
-      echo "##vso[task.setvariable variable=APP_PATH]$APP_ROOT/$APP_NAME"
-    displayName: Find application path
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-  - script: |
-      set -e
-      codesign -dv --deep --verbose=4 "$(APP_PATH)"
+      APP_PATH="$APP_ROOT/$APP_NAME"
+      codesign -dv --deep --verbose=4 "$APP_PATH"
+      "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
     displayName: Verify signature
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-  - script: |
-      set -e
-      "$(APP_PATH)/Contents/Resources/app/bin/code" --export-default-configuration=.build
-    displayName: Verify signed application starts OK
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |

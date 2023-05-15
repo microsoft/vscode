@@ -119,18 +119,31 @@ export namespace Event {
 	}
 
 	/**
+	 * Wraps an event in another event that performs some function on the event object before firing.
+	 *
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param each The function to perform on the event object.
+	 * @param disposable A disposable store to add the new EventEmitter to.
 	 */
 	export function forEach<I>(event: Event<I>, each: (i: I) => void, disposable?: DisposableStore): Event<I> {
 		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables), disposable);
 	}
 
 	/**
+	 * Wraps an event in another event that fires only when some condition is met.
+	 *
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param filter The filter function that defines the condition. The event will fire for the object if this function
+	 * returns true.
+	 * @param disposable A disposable store to add the new EventEmitter to.
 	 */
 	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T, disposable?: DisposableStore): Event<T>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean, disposable?: DisposableStore): Event<T>;
@@ -147,8 +160,7 @@ export namespace Event {
 	}
 
 	/**
-	 * Given a collection of events, returns a single event which emits
-	 * whenever any of the provided events emit.
+	 * Given a collection of events, returns a single event which emits whenever any of the provided events emit.
 	 */
 	export function any<T>(...events: Event<T>[]): Event<T>;
 	export function any(...events: Event<any>[]): Event<void>;
@@ -293,9 +305,22 @@ export namespace Event {
 	}
 
 	/**
+	 * Filters an event such that some condition is _not_ met more than once in a row, effectively ensuring duplicate
+	 * event objects from different sources do not fire the same event object.
+	 *
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param equals The equality condition.
+	 * @param disposable A disposable store to add the new EventEmitter to.
+	 *
+	 * @example
+	 * ```
+	 * // Fire only one time when a single window is opened or focused
+	 * Event.latch(Event.any(onDidOpenWindow, onDidFocusWindow))
+	 * ```
 	 */
 	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b, disposable?: DisposableStore): Event<T> {
 		let firstCall = true;
@@ -334,9 +359,24 @@ export namespace Event {
 	}
 
 	/**
+	 * Buffers an event until it has a listener attached.
+	 *
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param flushAfterTimeout Determines whether to flush the buffer after a timeout immediately or after a
+	 * `setTimeout` when the first event listener is added.
+	 * @param _buffer Internal: A source event array used for tests.
+	 *
+	 * @example
+	 * ```
+	 * // Start accumulating events, when the first listener is attached, flush
+	 * // the event after a timeout such that multiple listeners attached before
+	 * // the timeout would receive the event
+	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
+	 * ```
 	 */
 	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = []): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
@@ -403,38 +443,48 @@ export namespace Event {
 
 		constructor(readonly event: Event<T>) { }
 
+		/** @see {@link Event.map} */
 		map<O>(fn: (i: T) => O): IChainableEvent<O> {
 			return new ChainableEvent(map(this.event, fn, this.disposables));
 		}
 
+		/** @see {@link Event.forEach} */
 		forEach(fn: (i: T) => void): IChainableEvent<T> {
 			return new ChainableEvent(forEach(this.event, fn, this.disposables));
 		}
 
+		/** @see {@link Event.filter} */
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
 		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T> {
 			return new ChainableEvent(filter(this.event, fn, this.disposables));
 		}
 
+		/** @see {@link Event.reduce} */
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R> {
 			return new ChainableEvent(reduce(this.event, merge, initial, this.disposables));
 		}
 
+		/** @see {@link Event.reduce} */
 		latch(): IChainableEvent<T> {
 			return new ChainableEvent(latch(this.event, undefined, this.disposables));
 		}
 
+		/** @see {@link Event.debounce} */
 		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
 		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
 		debounce<R>(merge: (last: R | undefined, event: T) => R, delay: number = 100, leading = false, flushOnListenerRemove = false, leakWarningThreshold?: number): IChainableEvent<R> {
 			return new ChainableEvent(debounce(this.event, merge, delay, leading, flushOnListenerRemove, leakWarningThreshold, this.disposables));
 		}
 
+		/**
+		 * Attach a listener to the event.
+		 */
 		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {
 			return this.event(listener, thisArgs, disposables);
 		}
 
+		/** @see {@link Event.once} */
 		once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 			return once(this.event)(listener, thisArgs, disposables);
 		}
@@ -444,6 +494,24 @@ export namespace Event {
 		}
 	}
 
+	/**
+	 * Wraps the event in an {@link IChainableEvent}, allowing a more functional programming style.
+	 *
+	 * @example
+	 * ```
+	 * // Normal
+	 * const onEnterPressNormal = Event.filter(
+	 *   Event.map(onKeyPress.event, e => new StandardKeyboardEvent(e)),
+	 *   e.keyCode === KeyCode.Enter
+	 * ).event;
+	 *
+	 * // Using chain
+	 * const onEnterPressChain = Event.chain(onKeyPress.event)
+	 *   .map(e => new StandardKeyboardEvent(e))
+	 *   .filter(e => e.keyCode === KeyCode.Enter)
+	 *   .event;
+	 * ```
+	 */
 	export function chain<T>(event: Event<T>): IChainableEvent<T> {
 		return new ChainableEvent(event);
 	}
@@ -453,6 +521,9 @@ export namespace Event {
 		removeListener(event: string | symbol, listener: Function): unknown;
 	}
 
+	/**
+	 * Creates an {@link Event} from a node event emitter.
+	 */
 	export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
 		const fn = (...args: any[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.on(eventName, fn);
@@ -467,6 +538,9 @@ export namespace Event {
 		removeEventListener(event: string | symbol, listener: Function): void;
 	}
 
+	/**
+	 * Creates an {@link Event} from a DOM event emitter.
+	 */
 	export function fromDOMEventEmitter<T>(emitter: DOMEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
 		const fn = (...args: any[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.addEventListener(eventName, fn);
@@ -476,15 +550,31 @@ export namespace Event {
 		return result.event;
 	}
 
+	/**
+	 * Creates a promise out of an event, using the {@link Event.once} helper.
+	 */
 	export function toPromise<T>(event: Event<T>): Promise<T> {
 		return new Promise(resolve => once(event)(resolve));
 	}
 
+	/**
+	 * Adds a listener to an event and calls the listener immediately with undefined as the event object.
+	 *
+	 * @example
+	 * ```
+	 * // Initialize the UI and update it when dataChangeEvent fires
+	 * runAndSubscribe(dataChangeEvent, () => this._updateUI());
+	 * ```
+	 */
 	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable {
 		handler(undefined);
 		return event(e => handler(e));
 	}
 
+	/**
+	 * Adds a listener to an event and calls the listener immediately with undefined as the event object. A new
+	 * {@link DisposableStore} is passed to the listener which is disposed when the returned disposable is disposed.
+	 */
 	export function runAndSubscribeWithStore<T>(event: Event<T>, handler: (e: T | undefined, disposableStore: DisposableStore) => any): IDisposable {
 		let store: DisposableStore | null = null;
 
@@ -509,13 +599,13 @@ export namespace Event {
 		private _counter = 0;
 		private _hasChanged = false;
 
-		constructor(readonly obs: IObservable<T, any>, store: DisposableStore | undefined) {
+		constructor(readonly _observable: IObservable<T, any>, store: DisposableStore | undefined) {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
-					obs.addObserver(this);
+					_observable.addObserver(this);
 				},
 				onDidRemoveLastListener: () => {
-					obs.removeObserver(this);
+					_observable.removeObserver(this);
 				}
 			};
 			if (!store) {
@@ -528,27 +618,76 @@ export namespace Event {
 		}
 
 		beginUpdate<T>(_observable: IObservable<T, void>): void {
-			// console.assert(_observable === this.obs);
+			// assert(_observable === this.obs);
 			this._counter++;
 		}
 
+		handlePossibleChange<T>(_observable: IObservable<T, unknown>): void {
+			// assert(_observable === this.obs);
+		}
+
 		handleChange<T, TChange>(_observable: IObservable<T, TChange>, _change: TChange): void {
+			// assert(_observable === this.obs);
 			this._hasChanged = true;
 		}
 
 		endUpdate<T>(_observable: IObservable<T, void>): void {
-			if (--this._counter === 0) {
+			// assert(_observable === this.obs);
+			this._counter--;
+			if (this._counter === 0) {
+				this._observable.reportChanges();
 				if (this._hasChanged) {
 					this._hasChanged = false;
-					this.emitter.fire(this.obs.get());
+					this.emitter.fire(this._observable.get());
 				}
 			}
 		}
 	}
 
+	/**
+	 * Creates an event emitter that is fired when the observable changes.
+	 * Each listeners subscribes to the emitter.
+	 */
 	export function fromObservable<T>(obs: IObservable<T, any>, store?: DisposableStore): Event<T> {
 		const observer = new EmitterObserver(obs, store);
 		return observer.emitter.event;
+	}
+
+	/**
+	 * Each listener is attached to the observable directly.
+	 */
+	export function fromObservableLight(observable: IObservable<any>): Event<void> {
+		return (listener) => {
+			let count = 0;
+			let didChange = false;
+			const observer: IObserver = {
+				beginUpdate() {
+					count++;
+				},
+				endUpdate() {
+					count--;
+					if (count === 0) {
+						observable.reportChanges();
+						if (didChange) {
+							didChange = false;
+							listener();
+						}
+					}
+				},
+				handlePossibleChange() {
+					// noop
+				},
+				handleChange() {
+					didChange = true;
+				}
+			};
+			observable.addObserver(observer);
+			return {
+				dispose() {
+					observable.removeObserver(observer);
+				}
+			};
+		};
 	}
 }
 

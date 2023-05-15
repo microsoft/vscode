@@ -18,12 +18,16 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateData, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/worker/textMate.worker';
 import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerTokenizerController';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { INITIAL, IRawTheme, StackDiff } from 'vscode-textmate';
 
 export class TextMateWorkerHost implements IDisposable {
+	private static _reportedMismatchingTokens = false;
+
 	private _workerProxyPromise: Promise<TextMateTokenizationWorker | null> | null = null;
 	private _worker: MonacoWebWorker<TextMateTokenizationWorker> | null = null;
 	private _workerProxy: TextMateTokenizationWorker | null = null;
@@ -40,6 +44,8 @@ export class TextMateWorkerHost implements IDisposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 	}
 
@@ -163,6 +169,19 @@ export class TextMateWorkerHost implements IDisposable {
 				this.getWorkerProxy().then((workerProxy) => {
 					workerProxy?.retokenize(textModel.uri.toString(), startLineNumber, endLineNumberExclusive);
 				});
+			},
+			reportMismatchingTokens: (lineNumber) => {
+				if (TextMateWorkerHost._reportedMismatchingTokens) {
+					return;
+				}
+				TextMateWorkerHost._reportedMismatchingTokens = true;
+
+				this._notificationService.error({
+					message: 'Async Tokenization Token Mismatch in line ' + lineNumber,
+					name: 'Async Tokenization Token Mismatch',
+				});
+
+				this._telemetryService.publicLog2<{}, { owner: 'hediet'; comment: 'Used to see if async tokenization is bug-free' }>('asyncTokenizationMismatchingTokens', {});
 			},
 		};
 	}

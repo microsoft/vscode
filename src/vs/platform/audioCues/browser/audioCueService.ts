@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { IObservable, observableFromEvent, derived, IObserver } from 'vs/base/common/observable';
+import { observableFromEvent, derived } from 'vs/base/common/observable';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -26,7 +26,7 @@ export interface IAudioCueService {
 
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
-
+	sounds: Map<string, HTMLAudioElement> = new Map();
 	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
@@ -68,13 +68,18 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 
 		this.playingSounds.add(sound);
-
-		const url = FileAccess.asBrowserUri(
-			`vs/platform/audioCues/browser/media/${sound.fileName}`
-		).toString(true);
+		const url = FileAccess.asBrowserUri(`vs/platform/audioCues/browser/media/${sound.fileName}`).toString(true);
 
 		try {
-			await playAudio(url, this.getVolumeInPercent() / 100);
+			const sound = this.sounds.get(url);
+			if (sound) {
+				sound.volume = this.getVolumeInPercent() / 100;
+				sound.currentTime = 0;
+				await sound.play();
+			} else {
+				const playedSound = await playAudio(url, this.getVolumeInPercent() / 100);
+				this.sounds.set(url, playedSound);
+			}
 		} catch (e) {
 			console.error('Error while playing sound', e);
 		} finally {
@@ -122,7 +127,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	public onEnabledChanged(cue: AudioCue): Event<void> {
-		return eventFromObservable(this.isEnabledCache.get(cue));
+		return Event.fromObservableLight(this.isEnabledCache.get(cue));
 	}
 }
 
@@ -130,12 +135,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
  * Play the given audio url.
  * @volume value between 0 and 1
  */
-function playAudio(url: string, volume: number): Promise<void> {
+function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
 	return new Promise((resolve, reject) => {
 		const audio = new Audio(url);
 		audio.volume = volume;
 		audio.addEventListener('ended', () => {
-			resolve();
+			resolve(audio);
 		});
 		audio.addEventListener('error', (e) => {
 			// When the error event fires, ended might not be called
@@ -146,38 +151,6 @@ function playAudio(url: string, volume: number): Promise<void> {
 			reject(e);
 		});
 	});
-}
-
-function eventFromObservable(observable: IObservable<any>): Event<void> {
-	return (listener) => {
-		let count = 0;
-		let didChange = false;
-		const observer: IObserver = {
-			beginUpdate() {
-				count++;
-			},
-			endUpdate() {
-				count--;
-				if (count === 0 && didChange) {
-					didChange = false;
-					listener();
-				}
-			},
-			handleChange() {
-				if (count === 0) {
-					listener();
-				} else {
-					didChange = true;
-				}
-			}
-		};
-		observable.addObserver(observer);
-		return {
-			dispose() {
-				observable.removeObserver(observer);
-			}
-		};
-	};
 }
 
 class Cache<TArg, TValue> {

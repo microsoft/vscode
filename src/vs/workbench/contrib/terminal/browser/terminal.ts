@@ -20,7 +20,6 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
-import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -68,10 +67,8 @@ export interface ITerminalInstanceService {
 	 * Create a new terminal instance.
 	 * @param launchConfig The shell launch config.
 	 * @param target The target of the terminal.
-	 * @param resource The URI for the terminal. Note that this is the unique identifier for the
-	 * terminal, not the cwd.
 	 */
-	createInstance(launchConfig: IShellLaunchConfig, target: TerminalLocation, resource?: URI): ITerminalInstance;
+	createInstance(launchConfig: IShellLaunchConfig, target: TerminalLocation): ITerminalInstance;
 
 	/**
 	 * Gets the registered backend for a remote authority (undefined = local). This is a convenience
@@ -79,6 +76,8 @@ export interface ITerminalInstanceService {
 	 * @param remoteAuthority The remote authority of the backend.
 	 */
 	getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined>;
+
+	didRegisterBackend(remoteAuthority?: string): void;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
@@ -183,7 +182,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
-	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
+	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
+	revealActiveTerminal(): Promise<void>;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
@@ -212,7 +212,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
-	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 	toggleEscapeSequenceLogging(): Promise<void>;
 
 	getEditingTerminal(): ITerminalInstance | undefined;
@@ -242,7 +241,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
-	resolveResource(instance: ITerminalInstance | URI): URI;
+	resolveResource(instance: ITerminalInstance): URI;
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput;
 	getInputFromResource(resource: URI): EditorInput;
 }
@@ -262,14 +261,13 @@ interface ITerminalEditorInputObject {
 	readonly isFeatureTerminal?: boolean;
 	readonly hideFromUser?: boolean;
 	readonly reconnectionProperties?: IReconnectionProperties;
+	readonly shellIntegrationNonce: string;
 }
 
 export interface ISerializedTerminalEditorInput extends ITerminalEditorInputObject {
-	readonly resource: string;
 }
 
 export interface IDeserializedTerminalEditorInput extends ITerminalEditorInputObject {
-	readonly resource: URI;
 }
 
 export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean };
@@ -455,8 +453,6 @@ export interface ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 
-	quickFix: ITerminalQuickFixAddon | undefined;
-
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
 	 * with this terminal.
@@ -467,11 +463,6 @@ export interface ITerminalInstance {
 	 * The position of the terminal.
 	 */
 	target?: TerminalLocation;
-
-	/**
-	 * Whether or not shell integration telemetry / warnings should be reported for this terminal.
-	 */
-	disableShellIntegrationReporting: boolean;
 
 	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
@@ -532,6 +523,7 @@ export interface ITerminalInstance {
 	onDidChangeHasChildProcesses: Event<boolean>;
 
 	onDidFocus: Event<ITerminalInstance>;
+	onDidRequestFocus: Event<void>;
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
 
@@ -650,6 +642,11 @@ export interface ITerminalInstance {
 	 * The remote-aware $HOME directory (or Windows equivalent) of the terminal.
 	 */
 	userHome: string | undefined;
+
+	/**
+	 * The nonce used to verify commands coming from shell integration.
+	 */
+	shellIntegrationNonce: string;
 
 	/**
 	 * Registers and returns a marker

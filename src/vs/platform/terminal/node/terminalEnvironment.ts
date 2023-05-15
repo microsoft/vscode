@@ -129,6 +129,10 @@ export function getShellIntegrationInjection(
 		'VSCODE_INJECTION': '1'
 	};
 
+	if (options.shellIntegration.nonce) {
+		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
+	}
+
 	// Windows
 	if (isWindows) {
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
@@ -142,9 +146,10 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
-			if (options.shellIntegration.suggestEnabled) {
-				envMixin['VSCODE_SUGGEST'] = '1';
-			}
+			// TODO: Uncomment when suggestEnabled is ready for use
+			// if (options.shellIntegration.suggestEnabled) {
+			// 	envMixin['VSCODE_SUGGEST'] = '1';
+			// }
 			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
@@ -186,9 +191,10 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
-			if (options.shellIntegration.suggestEnabled) {
-				envMixin['VSCODE_SUGGEST'] = '1';
-			}
+			// TODO: Uncomment when suggestEnabled is ready for use
+			// if (options.shellIntegration.suggestEnabled) {
+			// 	envMixin['VSCODE_SUGGEST'] = '1';
+			// }
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			return { newArgs, envMixin };
@@ -259,7 +265,7 @@ function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProc
 		const merged = new MergedEnvironmentVariableCollection(deserialized);
 
 		// Get all prepend PATH entries
-		const pathEntry = merged.map.get('PATH');
+		const pathEntry = merged.getVariableMap({ workspaceFolder: options.workspaceFolder }).get('PATH');
 		const prependToPath: string[] = [];
 		if (pathEntry) {
 			for (const mutator of pathEntry) {

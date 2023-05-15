@@ -17,6 +17,7 @@ import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common
 import { ExtensionIdentifier, ExtensionIdentifierMap, IExtension, IExtensionContributions, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -32,7 +33,7 @@ import { IExtensionHostManager, createExtensionHostManager } from 'vs/workbench/
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionRunningLocationTracker, filterExtensionIdentifiers } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
-import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, WillStopExtensionHostsEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -61,6 +62,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private readonly _onDidChangeResponsiveChange = this._register(new Emitter<IResponsiveStateChangeEvent>());
 	public readonly onDidChangeResponsiveChange = this._onDidChangeResponsiveChange.event;
+
+	private readonly _onWillStop = this._register(new Emitter<WillStopExtensionHostsEvent>());
+	public readonly onWillStop = this._onWillStop.event;
 
 	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 	private readonly _registry = new LockableExtensionDescriptionRegistry(this._activationEventReader);
@@ -160,7 +164,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			const connection = this._remoteAgentService.getConnection();
 			connection?.dispose();
 
-			this.stopExtensionHosts();
+			this._doStopExtensionHosts();
 		}));
 	}
 
@@ -519,7 +523,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Stopping / Starting / Restarting
 
-	public stopExtensionHosts(): void {
+	public stopExtensionHosts(): Promise<boolean>;
+	public stopExtensionHosts(force: true): void;
+	public stopExtensionHosts(force?: boolean): void | Promise<boolean> {
+		if (force) {
+			return this._doStopExtensionHosts();
+		}
+
+		return this._doStopExtensionHostsWithVeto();
+	}
+
+	protected _doStopExtensionHosts(): void {
 		const previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		for (const extensionStatus of this._extensionStatus.values()) {
 			if (extensionStatus.activationStarted) {
@@ -541,6 +555,25 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (previouslyActivatedExtensionIds.length > 0) {
 			this._onDidChangeExtensionsStatus.fire(previouslyActivatedExtensionIds);
 		}
+	}
+
+	private async _doStopExtensionHostsWithVeto(): Promise<boolean> {
+		const vetos: (boolean | Promise<boolean>)[] = [];
+
+		this._onWillStop.fire({
+			veto(value) {
+				vetos.push(value);
+			}
+		});
+
+		const veto = await handleVetos(vetos, error => this._logService.error(error));
+		if (!veto) {
+			this._doStopExtensionHosts();
+		} else {
+			this._logService.warn('Extension Host stop request was vetoed');
+		}
+
+		return !veto;
 	}
 
 	private _startExtensionHostsIfNecessary(isInitialStart: boolean, initialActivationEvents: string[]): void {
@@ -603,7 +636,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
 		console.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. Code: ${code}, Signal: ${signal}`);
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
-			this.stopExtensionHosts();
+			this._doStopExtensionHosts();
 		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
 			if (signal) {
 				this._onRemoteExtensionHostCrashed(extensionHost, signal);
@@ -679,7 +712,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	public async startExtensionHosts(): Promise<void> {
-		this.stopExtensionHosts();
+		this._doStopExtensionHosts();
 
 		const lock = await this._registry.acquireLock('startExtensionHosts');
 		try {
@@ -690,11 +723,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		} finally {
 			lock.dispose();
 		}
-	}
-
-	public async restartExtensionHost(): Promise<void> {
-		this.stopExtensionHosts();
-		await this.startExtensionHosts();
 	}
 
 	//#endregion
