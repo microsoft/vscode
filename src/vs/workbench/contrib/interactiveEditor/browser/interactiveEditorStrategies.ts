@@ -206,6 +206,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _ctxInlineDiff: IContextKey<boolean>;
 	private _lastResponse?: EditResponse;
+	private _editCount: number = 0;
 
 	constructor(
 		protected readonly _session: Session,
@@ -255,6 +256,9 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	async apply() {
+		if (this._editCount > 0) {
+			this._editor.pushUndoStop();
+		}
 		if (this._lastResponse?.workspaceEdits) {
 			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
 		}
@@ -281,7 +285,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -291,9 +295,11 @@ export class LiveStrategy extends EditModeStrategy {
 			return last && [Selection.fromPositions(last)];
 		};
 
-		this._editor.pushUndoStop();
-		this._editor.executeEdits('interactive-editor-live', edits, cursorStateComputerAndInlineDiffCollection);
-		this._editor.pushUndoStop();
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			this._editor.pushUndoStop();
+		}
+		this._editor.executeEdits('interactive-editor-live', edits, ignoreInlineDiff ? undefined : cursorStateComputerAndInlineDiffCollection);
 	}
 
 	override async renderChanges(response: EditResponse, textModel0Changes: LineRangeMapping[]) {
@@ -362,9 +368,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 
 	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
-		this._editor.pushUndoStop();
-		this._editor.executeEdits('interactive-editor-livePreview', edits);
-		this._editor.pushUndoStop();
+		super.makeChanges(_response, edits, true);
 	}
 
 	override async renderChanges(response: EditResponse, changes: LineRangeMapping[]) {
