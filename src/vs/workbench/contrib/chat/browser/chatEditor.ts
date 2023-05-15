@@ -43,14 +43,14 @@ export class ChatEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly interactiveSessionService: IChatService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super(ChatEditorInput.EditorID, telemetryService, themeService, storageService);
 	}
 
 	public async clear() {
 		if (this.widget?.viewModel) {
-			this.interactiveSessionService.clearSession(this.widget.viewModel.sessionId);
+			this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
 	}
 

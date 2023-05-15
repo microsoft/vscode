@@ -46,8 +46,8 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			const interactiveSessionService = accessor.get(IChatService);
-			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: item.providerId,
 				action: {
 					kind: 'vote',
@@ -85,8 +85,8 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			const interactiveSessionService = accessor.get(IChatService);
-			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: item.providerId,
 				action: {
 					kind: 'vote',

@@ -60,11 +60,11 @@ export class ChatEditorOptions extends Disposable {
 	}
 
 	private static readonly relevantSettingIds = [
-		'interactiveSession.editor.lineHeight',
-		'interactiveSession.editor.fontSize',
-		'interactiveSession.editor.fontFamily',
-		'interactiveSession.editor.fontWeight',
-		'interactiveSession.editor.wordWrap',
+		'chat.editor.lineHeight',
+		'chat.editor.fontSize',
+		'chat.editor.fontFamily',
+		'chat.editor.fontWeight',
+		'chat.editor.wordWrap',
 		'editor.cursorBlinking',
 		'editor.fontLigatures',
 		'editor.accessibilitySupport',
@@ -101,7 +101,7 @@ export class ChatEditorOptions extends Disposable {
 		const editorConfig = this.configurationService.getValue<IEditorOptions>('editor');
 
 		// TODO shouldn't the setting keys be more specific?
-		const interactiveSessionEditorConfig = this.configurationService.getValue<IChatConfiguration>('interactiveSession').editor;
+		const chatEditorConfig = this.configurationService.getValue<IChatConfiguration>('chat')?.editor;
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		this._config = {
 			foreground: this.themeService.getColorTheme().getColor(this.foreground),
@@ -111,15 +111,15 @@ export class ChatEditorOptions extends Disposable {
 			},
 			resultEditor: {
 				backgroundColor: this.themeService.getColorTheme().getColor(this.resultEditorBackgroundColor),
-				fontSize: interactiveSessionEditorConfig.fontSize,
-				fontFamily: interactiveSessionEditorConfig.fontFamily === 'default' ? editorConfig.fontFamily : interactiveSessionEditorConfig.fontFamily,
-				fontWeight: interactiveSessionEditorConfig.fontWeight,
-				lineHeight: interactiveSessionEditorConfig.lineHeight ? interactiveSessionEditorConfig.lineHeight : ChatEditorOptions.lineHeightEm * interactiveSessionEditorConfig.fontSize,
+				fontSize: chatEditorConfig.fontSize,
+				fontFamily: chatEditorConfig.fontFamily === 'default' ? editorConfig.fontFamily : chatEditorConfig.fontFamily,
+				fontWeight: chatEditorConfig.fontWeight,
+				lineHeight: chatEditorConfig.lineHeight ? chatEditorConfig.lineHeight : ChatEditorOptions.lineHeightEm * chatEditorConfig.fontSize,
 				bracketPairColorization: {
 					enabled: this.configurationService.getValue<boolean>('editor.bracketPairColorization.enabled'),
 					independentColorPoolPerBracketType: this.configurationService.getValue<boolean>('editor.bracketPairColorization.independentColorPoolPerBracketType'),
 				},
-				wordWrap: interactiveSessionEditorConfig.wordWrap,
+				wordWrap: chatEditorConfig.wordWrap,
 				fontLigatures: editorConfig.fontLigatures,
 			}
 

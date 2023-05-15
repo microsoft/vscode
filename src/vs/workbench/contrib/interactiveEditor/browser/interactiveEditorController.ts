@@ -645,22 +645,22 @@ export class InteractiveEditorController implements IEditorContribution {
 }
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
-	const interactiveSessionService = accessor.get(IChatService);
-	const providerId = interactiveSessionService.getProviderInfos()[0]?.id;
+	const chatService = accessor.get(IChatService);
+	const providerId = chatService.getProviderInfos()[0]?.id;
 
-	const interactiveSessionWidgetService = accessor.get(IChatWidgetService);
-	const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
+	const chatWidgetService = accessor.get(IChatWidgetService);
+	const widget = await chatWidgetService.revealViewForProvider(providerId);
 	if (widget && widget.viewModel) {
-		interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
+		chatService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
 		widget.focusLastMessage();
 	}
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {
-	const interactiveSessionService = accessor.get(IChatService);
+	const chatService = accessor.get(IChatService);
 	const widgetService = accessor.get(IChatWidgetService);
 
-	const providerId = interactiveSessionService.getProviderInfos()[0]?.id;
+	const providerId = chatService.getProviderInfos()[0]?.id;
 	const widget = await widgetService.revealViewForProvider(providerId);
 	if (!widget) {
 		return;

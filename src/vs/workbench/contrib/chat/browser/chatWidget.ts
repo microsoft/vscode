@@ -111,15 +111,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		private readonly styles: IChatWidgetStyles,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChatService private readonly interactiveSessionService: IChatService,
-		@IChatWidgetService interactiveSessionWidgetService: IChatWidgetService,
+		@IChatService private readonly chatService: IChatService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
 		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
-		this._register((interactiveSessionWidgetService as ChatWidgetService).register(this));
+		this._register((chatWidgetService as ChatWidgetService).register(this));
 	}
 
 	get providerId(): string {
@@ -222,7 +222,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (!this.slashCommandsPromise) {
-			this.slashCommandsPromise = this.interactiveSessionService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None).then(commands => {
+			this.slashCommandsPromise = this.chatService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None).then(commands => {
 				// If this becomes a repeated pattern, we should have a real internal slash command provider system
 				const clearCommand: ISlashCommand = {
 					command: 'clear',
@@ -374,7 +374,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const input = query ?? editorValue;
-			const result = await this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
 			if (result) {
 				revealLastElement(this.tree);
 				this.inputPart.acceptInput(query);

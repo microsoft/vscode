@@ -57,7 +57,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IChatService private readonly interactiveSessionService: IChatService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -69,7 +69,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	private updateModel(model?: IChatModel | undefined): void {
 		this.modelDisposables.clear();
 
-		model = model ?? this.interactiveSessionService.startSession(this.interactiveSessionViewOptions.providerId, CancellationToken.None);
+		model = model ?? this.chatService.startSession(this.interactiveSessionViewOptions.providerId, CancellationToken.None);
 		if (!model) {
 			throw new Error('Could not start interactive session');
 		}
@@ -97,7 +97,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		}));
 		this._widget.render(parent);
 
-		const initialModel = this.viewState.sessionId ? this.interactiveSessionService.getOrRestoreSession(this.viewState.sessionId) : undefined;
+		const initialModel = this.viewState.sessionId ? this.chatService.getOrRestoreSession(this.viewState.sessionId) : undefined;
 		this.updateModel(initialModel);
 	}
 
@@ -107,7 +107,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 
 	async clear(): Promise<void> {
 		if (this.widget.viewModel) {
-			this.interactiveSessionService.clearSession(this.widget.viewModel.sessionId);
+			this.chatService.clearSession(this.widget.viewModel.sessionId);
 			this.updateModel();
 		}
 	}

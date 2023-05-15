@@ -114,7 +114,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly interactiveSessionService: IChatService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -292,7 +292,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				element.commandFollowups,
 				defaultButtonStyles,
 				followup => {
-					this.interactiveSessionService.notifyUserAction({
+					this.chatService.notifyUserAction({
 						providerId: element.providerId,
 						action: {
 							kind: 'command',

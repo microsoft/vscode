@@ -111,8 +111,8 @@ export function registerChatCodeBlockActions() {
 
 		// Report copy to extensions
 		if (context.element.providerResponseId) {
-			const interactiveSessionService = accessor.get(IChatService);
-			interactiveSessionService.notifyUserAction({
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction({
 				providerId: context.element.providerId,
 				action: {
 					kind: 'copy',
@@ -229,8 +229,8 @@ export function registerChatCodeBlockActions() {
 		}
 
 		private notifyUserAction(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
-			const interactiveSessionService = accessor.get(IChatService);
-			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
 				action: {
 					kind: 'insert',
@@ -272,10 +272,10 @@ export function registerChatCodeBlockActions() {
 			}
 
 			const editorService = accessor.get(IEditorService);
-			const interactiveSessionService = accessor.get(IChatService);
+			const chatService = accessor.get(IChatService);
 			editorService.openEditor(<IUntitledTextResourceEditorInput>{ contents: context.code, languageId: context.languageId, resource: undefined });
 
-			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
+			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
 				action: {
 					kind: 'insert',
@@ -323,7 +323,7 @@ export function registerChatCodeBlockActions() {
 				}
 			}
 
-			const interactiveSessionService = accessor.get(IChatService);
+			const chatService = accessor.get(IChatService);
 			const terminalService = accessor.get(ITerminalService);
 			const editorService = accessor.get(IEditorService);
 			const terminalEditorService = accessor.get(ITerminalEditorService);
@@ -347,7 +347,7 @@ export function registerChatCodeBlockActions() {
 
 			terminal.sendText(context.code, false, true);
 
-			interactiveSessionService.notifyUserAction(<IChatUserActionEvent>{
+			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
 				action: {
 					kind: 'runInTerminal',
@@ -361,8 +361,8 @@ export function registerChatCodeBlockActions() {
 
 	function navigateCodeBlocks(accessor: ServicesAccessor, reverse?: boolean): void {
 		const codeEditorService = accessor.get(ICodeEditorService);
-		const interactiveSessionWidgetService = accessor.get(IChatWidgetService);
-		const widget = interactiveSessionWidgetService.lastFocusedWidget;
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
@@ -434,13 +434,13 @@ export function registerChatCodeBlockActions() {
 }
 
 function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): IChatCodeBlockActionContext | undefined {
-	const interactiveSessionWidgetService = accessor.get(IChatWidgetService);
+	const chatWidgetService = accessor.get(IChatWidgetService);
 	const model = editor.getModel();
 	if (!model) {
 		return;
 	}
 
-	const widget = interactiveSessionWidgetService.lastFocusedWidget;
+	const widget = chatWidgetService.lastFocusedWidget;
 	if (!widget) {
 		return;
 	}

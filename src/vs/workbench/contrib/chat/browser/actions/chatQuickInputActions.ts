@@ -53,7 +53,7 @@ class AskQuickQuestionAction extends Action2 {
 
 	run(accessor: ServicesAccessor, query: string): void {
 		const quickInputService = accessor.get(IQuickInputService);
-		const interactiveSessionService = accessor.get(IChatService);
+		const chatService = accessor.get(IChatService);
 		const instantiationService = accessor.get(IInstantiationService);
 
 		// First things first, clear the existing timer that will dispose the session
@@ -67,7 +67,7 @@ class AskQuickQuestionAction extends Action2 {
 		}
 
 		// Check if any providers are available. If not, show nothing
-		const providerInfo = interactiveSessionService.getProviderInfos()[0];
+		const providerInfo = chatService.getProviderInfos()[0];
 		if (!providerInfo) {
 			return;
 		}
@@ -169,13 +169,13 @@ class InteractiveQuickPickSession extends Disposable {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IChatService private readonly _interactiveSessionService: IChatService,
-		@IChatWidgetService private readonly _interactiveSessionWidgetService: IChatWidgetService
+		@IChatService private readonly _chatService: IChatService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) {
 		super();
 
-		const providerInfo = _interactiveSessionService.getProviderInfos()[0];
-		this._model = this._register(_interactiveSessionService.startSession(providerInfo.id, CancellationToken.None)!);
+		const providerInfo = _chatService.getProviderInfos()[0];
+		this._model = this._register(_chatService.startSession(providerInfo.id, CancellationToken.None)!);
 		this._viewModel = this._register(new ChatViewModel(this._model, _instantiationService));
 	}
 
@@ -252,11 +252,11 @@ class InteractiveQuickPickSession extends Disposable {
 			const lastRequest = requests[requests.length - 1];
 			this._model.cancelRequest(lastRequest);
 		}
-		await this._interactiveSessionService.sendRequest(this.sessionId, query);
+		await this._chatService.sendRequest(this.sessionId, query);
 	}
 
 	async openInChat(value: string) {
-		const widget = await this._interactiveSessionWidgetService.revealViewForProvider(this.providerId);
+		const widget = await this._chatWidgetService.revealViewForProvider(this.providerId);
 		if (!widget?.viewModel) {
 			return;
 		}
@@ -265,9 +265,9 @@ class InteractiveQuickPickSession extends Disposable {
 		const response = requests.find(r => r.response?.response.value !== undefined);
 		const message = response?.response?.response.value;
 		if (message) {
-			this._interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, value, { message });
+			this._chatService.addCompleteRequest(widget.viewModel.sessionId, value, { message });
 		} else if (value) {
-			this._interactiveSessionService.sendRequest(widget.viewModel.sessionId, value);
+			this._chatService.sendRequest(widget.viewModel.sessionId, value);
 		}
 		widget.focusInput();
 	}

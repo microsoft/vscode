@@ -76,12 +76,12 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IProductService private readonly productService: IProductService,
 		@ISemanticSimilarityService private readonly semanticSimilarityService: ISemanticSimilarityService,
-		@IChatService private readonly interactiveSessionService: IChatService
+		@IChatService private readonly chatService: IChatService
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
 			noResultsPick: (filter) => {
-				const info = this.interactiveSessionService.getProviderInfos()[0];
+				const info = this.chatService.getProviderInfos()[0];
 				return info
 					? {
 						label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
@@ -313,8 +313,8 @@ export class AskInInteractiveAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, filter?: string): Promise<void> {
-		const interactiveSessionService = accessor.get(IChatService);
-		const interactiveSessionWidgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 		const logService = accessor.get(ILogService);
 
 		if (!filter) {
@@ -322,7 +322,7 @@ export class AskInInteractiveAction extends Action2 {
 		}
 
 		let providerId: string;
-		const providerInfos = interactiveSessionService.getProviderInfos();
+		const providerInfos = chatService.getProviderInfos();
 		switch (providerInfos.length) {
 			case 0:
 				throw new Error('No interactive session provider found.');
@@ -335,10 +335,10 @@ export class AskInInteractiveAction extends Action2 {
 				break;
 		}
 
-		const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
+		const widget = await chatWidgetService.revealViewForProvider(providerId);
 		if (widget?.viewModel) {
 			// TODO: Maybe this could provide metadata saying it came from the command palette?
-			interactiveSessionService.sendRequestToProvider(widget.viewModel.sessionId, { message: filter });
+			chatService.sendRequestToProvider(widget.viewModel.sessionId, { message: filter });
 		}
 	}
 }

@@ -76,9 +76,9 @@ export function registerChatExecuteActions() {
 				return;
 			}
 
-			const interactiveSessionService = accessor.get(IChatService);
+			const chatService = accessor.get(IChatService);
 			if (context.widget.viewModel) {
-				interactiveSessionService.cancelCurrentRequestForSession(context.widget.viewModel.sessionId);
+				chatService.cancelCurrentRequestForSession(context.widget.viewModel.sessionId);
 			}
 		}
 	});

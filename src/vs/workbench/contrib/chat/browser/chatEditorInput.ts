@@ -34,7 +34,7 @@ export class ChatEditorInput extends EditorInput {
 	constructor(
 		readonly resource: URI,
 		readonly options: IChatEditorOptions,
-		@IChatService private readonly interactiveSessionService: IChatService
+		@IChatService private readonly chatService: IChatService
 	) {
 		super();
 
@@ -70,8 +70,8 @@ export class ChatEditorInput extends EditorInput {
 
 	override async resolve(): Promise<ChatEditorModel | null> {
 		const model = typeof this.sessionId === 'string' ?
-			this.interactiveSessionService.getOrRestoreSession(this.sessionId) :
-			this.interactiveSessionService.startSession(this.providerId!, CancellationToken.None);
+			this.chatService.getOrRestoreSession(this.sessionId) :
+			this.chatService.startSession(this.providerId!, CancellationToken.None);
 
 		if (!model) {
 			return null;
@@ -85,7 +85,7 @@ export class ChatEditorInput extends EditorInput {
 	override dispose(): void {
 		super.dispose();
 		if (this.sessionId) {
-			this.interactiveSessionService.clearSession(this.sessionId);
+			this.chatService.clearSession(this.sessionId);
 		}
 	}
 }
