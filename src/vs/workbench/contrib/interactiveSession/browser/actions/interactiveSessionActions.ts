@@ -212,9 +212,19 @@ export function registerInteractiveSessionActions() {
 				},
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.clearAll,
-				f1: true
+				f1: true,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.WinCtrl | KeyCode.KeyL,
+					when: CONTEXT_IN_INTERACTIVE_SESSION,
+					mac: {
+						primary: KeyMod.WinCtrl | KeyCode.KeyL,
+						secondary: [KeyMod.CtrlCmd | KeyCode.KeyK]
+					}
+				}
 			});
 		}
+
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const widgetService = accessor.get(IInteractiveSessionWidgetService);
 
