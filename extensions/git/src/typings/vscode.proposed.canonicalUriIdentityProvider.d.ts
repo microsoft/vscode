@@ -11,6 +11,8 @@ declare module 'vscode' {
 		/**
 		 *
 		 * @param scheme The URI scheme that this provider can provide canonical URI identities for.
+		 * A canonical URI represents the conversion of a resource's alias into a source of truth URI.
+		 * Multiple aliases may convert to the same source of truth URI.
 		 * @param provider A provider which can convert URIs for workspace folders of scheme @param scheme to
 		 * a canonical URI identifier which is stable across machines.
 		 */

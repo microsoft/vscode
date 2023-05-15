@@ -10,7 +10,9 @@ declare module 'vscode' {
 	export namespace workspace {
 		/**
 		 *
-		 * @param scheme The URI scheme that this provider can provide canonical URI identites for.
+		 * @param scheme The URI scheme that this provider can provide canonical URI identities for.
+		 * A canonical URI represents the conversion of a resource's alias into a source of truth URI.
+		 * Multiple aliases may convert to the same source of truth URI.
 		 * @param provider A provider which can convert URIs for workspace folders of scheme @param scheme to
 		 * a canonical URI identifier which is stable across machines.
 		 */
@@ -27,9 +29,9 @@ declare module 'vscode' {
 	export interface CanonicalUriIdentityProvider {
 		/**
 		 *
-		 * @param uri The URI to provide a canonical {@link Uri} identity for.
+		 * @param uri The URI to provide a canonical URI identity for.
 		 * @param token A cancellation token for the request.
-		 * @returns A string representing the canonical {@link Uri} identity for the requested uri.
+		 * @returns The canonical URI identity for the requested URI.
 		 */
 		provideCanonicalUriIdentity(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 	}
