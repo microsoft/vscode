@@ -106,6 +106,23 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 		// Working copy operations
 		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => this.onWillRunWorkingCopyFileOperation(e)));
+
+		this._register(extensionService.onWillStop(e => {
+			const dirtyCustomEditors = workingCopyService.workingCopies.filter(workingCopy => {
+				return workingCopy instanceof MainThreadCustomEditorModel && workingCopy.isDirty();
+			});
+			if (!dirtyCustomEditors.length) {
+				return;
+			}
+
+			e.veto((async () => {
+				let didSaveAll = true;
+				for (const dirtyCustomEditor of dirtyCustomEditors) {
+					didSaveAll &&= await dirtyCustomEditor.save();
+				}
+				return !didSaveAll;
+			})(), 'mainThreadCustomEditors');
+		}));
 	}
 
 	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: extHostProtocol.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void {
