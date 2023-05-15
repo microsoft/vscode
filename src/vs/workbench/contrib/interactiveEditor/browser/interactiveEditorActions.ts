@@ -404,7 +404,6 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 			keybinding: [{
 				weight: KeybindingWeight.EditorContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo(EditMode.Preview)
 			}, {
 				weight: KeybindingWeight.EditorContrib + 10,
 				primary: KeyCode.Escape,
@@ -412,6 +411,7 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 			}],
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
+				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo(EditMode.Preview),
 				group: '0_main',
 				order: 0
 			}

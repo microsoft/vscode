@@ -143,8 +143,22 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
 		this._logService.trace('[IE] session starting');
+		await this._finishOrCancel();
+
 		await this._nextState(State.CREATE_SESSION, { ...options });
 		this._logService.trace('[IE] session done or paused');
+	}
+
+	private async _finishOrCancel(): Promise<void> {
+		if (this._activeSession) {
+			if (this._activeSession.editMode === EditMode.Preview) {
+				this._logService.trace('[IE] an EXISTING session is active, cancelling first');
+				await this.cancelSession();
+			} else {
+				this._logService.trace('[IE] an EXISTING session is active, finishing first');
+				await this.applyChanges();
+			}
+		}
 	}
 
 	// ---- state machine
@@ -158,6 +172,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	private async [State.CREATE_SESSION](options: InteractiveEditorRunOptions | undefined): Promise<State.DONE | State.INIT_UI> {
+		assertType(this._activeSession === undefined);
 		assertType(this._editor.hasModel());
 
 		let session: Session | undefined = options?.existingSession;
@@ -264,8 +279,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					// cancel all sibling sessions
 					for (const editor of editors) {
 						if (editor !== this._editor) {
-							InteractiveEditorController.get(editor)?.cancelSession();
-
+							InteractiveEditorController.get(editor)?._finishOrCancel();
 						}
 					}
 					break;
