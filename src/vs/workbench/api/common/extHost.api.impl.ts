@@ -1097,6 +1097,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'editSessionIdentityProvider');
 				return extHostWorkspace.getOnWillCreateEditSessionIdentityEvent(extension)(listener, thisArgs, disposables);
 			},
+			registerCanonicalUriIdentityProvider: (scheme: string, provider: vscode.CanonicalUriIdentityProvider) => {
+				checkProposedApiEnabled(extension, 'canonicalUriIdentityProvider');
+				return extHostWorkspace.registerCanonicalUriIdentityProvider(scheme, provider);
+			},
+			provideCanonicalUriIdentity: (uri: vscode.Uri, token: vscode.CancellationToken) => {
+				checkProposedApiEnabled(extension, 'canonicalUriIdentityProvider');
+				return extHostWorkspace.provideCanonicalUriIdentity(uri, token);
+			}
 		};
 
 		// namespace: scm

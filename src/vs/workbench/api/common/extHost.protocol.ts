@@ -1203,6 +1203,8 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 	$registerEditSessionIdentityProvider(handle: number, scheme: string): void;
 	$unregisterEditSessionIdentityProvider(handle: number): void;
+	$registerCanonicalUriIdentityProvider(handle: number, scheme: string): void;
+	$unregisterCanonicalUriIdentityProvider(handle: number): void;
 }
 
 export interface IFileChangeDto {
@@ -1549,6 +1551,7 @@ export interface ExtHostWorkspaceShape {
 	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
 	$provideEditSessionIdentityMatch(folder: UriComponents, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
 	$onWillCreateEditSessionIdentity(folder: UriComponents, token: CancellationToken, timeout: number): Promise<void>;
+	$provideCanonicalUriIdentity(uri: UriComponents, token: CancellationToken): Promise<UriComponents | undefined>;
 }
 
 export interface ExtHostFileSystemInfoShape {
