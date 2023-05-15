@@ -141,7 +141,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		this.createList(this.listContainer);
-		this.setupColors(this.listContainer);
 		this.createInput(this.container);
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
@@ -241,10 +240,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		return this.slashCommandsPromise;
 	}
 
-	private setupColors(container: HTMLElement) {
-		container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
-	}
-
 	private createList(listContainer: HTMLElement): void {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const delegate = scopedInstantiationService.createInstance(InteractiveSessionListDelegate);
@@ -339,6 +334,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private onDidStyleChange(): void {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
+		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
 	}
 
 	setModel(model: IInteractiveSessionModel, viewState: IViewState): void {
