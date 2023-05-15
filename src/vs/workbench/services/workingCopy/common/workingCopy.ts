@@ -24,8 +24,9 @@ export const enum WorkingCopyCapabilities {
 	Untitled = 1 << 1,
 
 	/**
-	 * Signals that a dirty working copy can
-	 * be discarded without prompting the user.
+	 * The working copy will not indicate that
+	 * it is dirty and unsaved content will be
+	 * discarded without prompting if closed.
 	 */
 	Scratchpad = 1 << 2,
 }
