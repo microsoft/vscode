@@ -6,6 +6,7 @@
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { Barrier, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
@@ -24,6 +25,7 @@ import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
@@ -101,6 +103,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
@@ -612,7 +615,13 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (this._strategy) {
 			const strategy = this._strategy;
 			this._strategy = undefined;
-			await strategy?.apply();
+			try {
+				await strategy?.apply();
+			} catch (err) {
+				this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
+				this._logService.error('[IE] FAILED to apply changes');
+				this._logService.error(err);
+			}
 			strategy?.dispose();
 			this._messages.fire(Message.END_SESSION);
 
@@ -626,7 +635,13 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (this._strategy) {
 			const strategy = this._strategy;
 			this._strategy = undefined;
-			await strategy?.cancel();
+			try {
+				await strategy?.cancel();
+			} catch (err) {
+				this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
+				this._logService.error('[IE] FAILED to discard changes');
+				this._logService.error(err);
+			}
 			strategy?.dispose();
 			this._messages.fire(Message.END_SESSION);
 		}
