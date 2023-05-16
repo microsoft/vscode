@@ -287,8 +287,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	attachToElement(container: HTMLElement): HTMLElement {
-		// Update the theme when attaching as the terminal location could have changed
-		this._updateTheme();
 		if (!this._container) {
 			this.raw.open(container);
 		}
