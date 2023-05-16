@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
 import * as interactiveEditorActions from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorActions';
 import { IInteractiveEditorService, INTERACTIVE_EDITOR_ID } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
@@ -33,7 +33,7 @@ registerAction2(interactiveEditorActions.NextFromHistory);
 registerAction2(interactiveEditorActions.ViewInChatAction);
 registerAction2(interactiveEditorActions.ExpandMessageAction);
 registerAction2(interactiveEditorActions.ContractMessageAction);
-registerAction2(interactiveEditorActions.AccessibilityHelpEditorAction);
+registerEditorAction(interactiveEditorActions.AccessibilityHelpEditorAction);
 
 registerAction2(interactiveEditorActions.ToggleInlineDiff);
 registerAction2(interactiveEditorActions.FeebackHelpfulCommand);
