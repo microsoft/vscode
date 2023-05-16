@@ -94,8 +94,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _getAriaLabel(): string {
 		const verbose = this.configurationService.getValue<boolean>('accessibility.verbosity.chatInput');
 		if (verbose) {
-			const kbLabel = this.keybindingService.lookupKeybinding('interactiveSession.action.accessibilityHelp')?.getLabel();
-			return kbLabel ? localize('interactiveSessionInput.accessibilityHelp', "Chat Input,  Type code here and press Enter to run. Use {0} for Interactive Session Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Interactive Session Accessibility Help command for more information.");
+			const kbLabel = this.keybindingService.lookupKeybinding('chat.action.accessibilityHelp')?.getLabel();
+			return kbLabel ? localize('actions.chat.accessibiltyHelp', "Chat Input,  Type code here and press enter to run. Use {0} for Chat Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Chat Accessibility Help command for more information.");
 		}
 		return localize('interactiveSessionInput', "Chat Input");
 	}
