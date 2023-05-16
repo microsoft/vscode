@@ -131,8 +131,8 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		this._finishExistingSession();
 		this._store.dispose();
-		this.cancelSession();
 	}
 
 	getId(): string {
@@ -145,7 +145,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (this._accessibilityService.isScreenReaderOptimized() && editModeValue === editMode.defaultValue) {
 			// By default, use preview mode for screen reader users
 			editModeValue = EditMode.Preview;
-			this._configurationService.updateValue('interactiveEditor.editMode', EditMode.Preview);
 		}
 		return editModeValue!;
 	}
@@ -156,19 +155,19 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
 		this._logService.trace('[IE] session starting');
-		await this._finishOrCancel();
+		await this._finishExistingSession();
 
 		await this._nextState(State.CREATE_SESSION, { ...options });
 		this._logService.trace('[IE] session done or paused');
 	}
 
-	private async _finishOrCancel(): Promise<void> {
+	private async _finishExistingSession(): Promise<void> {
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
-				this._logService.trace('[IE] an EXISTING session is active, cancelling first');
+				this._logService.trace('[IE] finishing existing session, using CANCEL', this._activeSession.editMode);
 				await this.cancelSession();
 			} else {
-				this._logService.trace('[IE] an EXISTING session is active, finishing first');
+				this._logService.trace('[IE] finishing existing session, using APPLY', this._activeSession.editMode);
 				await this.applyChanges();
 			}
 		}
@@ -292,7 +291,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					// cancel all sibling sessions
 					for (const editor of editors) {
 						if (editor !== this._editor) {
-							InteractiveEditorController.get(editor)?._finishOrCancel();
+							InteractiveEditorController.get(editor)?._finishExistingSession();
 						}
 					}
 					break;
@@ -507,7 +506,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			try {
 				this._ignoreModelContentChanged = true;
-				await this._strategy.renderChanges(response, this._activeSession.lastTextModelChanges);
+				await this._strategy.renderChanges(response);
 			} finally {
 				this._ignoreModelContentChanged = false;
 			}
@@ -561,8 +560,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	toggleInlineDiff(): void {
-		this._strategy?.toggleInlineDiff();
+	toggleDiff(): void {
+		this._strategy?.toggleDiff();
 	}
 
 	focus(): void {
