@@ -24,6 +24,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Range } from 'vs/editor/common/core/range';
 import { fromNow } from 'vs/base/common/date';
 import { IInteractiveEditorSessionService, Recording } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 
 
 export class StartSessionAction extends EditorAction2 {
@@ -545,5 +546,23 @@ export class ContractMessageAction extends AbstractInteractiveEditorAction {
 	}
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
 		ctrl.updateExpansionState(false);
+	}
+}
+
+
+export class AccessibilityHelpEditorAction extends AbstractInteractiveEditorAction {
+	constructor() {
+		super({
+			id: 'interactiveSession.action.accessibilityHelpEditor',
+			title: localize('actions.interactiveSession.accessibiltyHelpEditor', "Interactive Session Editor Accessibility Help"),
+			precondition: ContextKeyExpr.has('interactiveEditorFocused'),
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.F1,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+	override runInteractiveEditorCommand(accessor: ServicesAccessor, ctrl: InteractiveEditorController, editor: ICodeEditor, ...args: any[]): void {
+		runAccessibilityHelpAction(accessor, editor, 'editor');
 	}
 }

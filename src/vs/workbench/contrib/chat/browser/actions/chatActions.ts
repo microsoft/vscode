@@ -143,24 +143,6 @@ export function registerChatActions() {
 		}
 	});
 
-	registerEditorAction(class AccessibilityHelpEditorAction extends EditorAction {
-		constructor() {
-			super({
-				id: 'interactiveSession.action.accessibilityHelpEditor',
-				label: localize('actions.interactiveSession.accessibiltyHelpEditor', "Interactive Session Editor Accessibility Help"),
-				alias: 'Interactive Session Editor Accessibility Help',
-				precondition: ContextKeyExpr.has('interactiveEditorFocused'),
-				kbOpts: {
-					primary: KeyMod.Alt | KeyCode.F1,
-					weight: KeybindingWeight.EditorContrib
-				}
-			});
-		}
-		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-			runAccessibilityHelpAction(accessor, editor, 'editor');
-		}
-	});
-
 	registerAction2(class FocusChatInputAction extends Action2 {
 		constructor() {
 			super({
