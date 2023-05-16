@@ -129,7 +129,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'chat.action.accessibilityHelp',
-				label: localize('actions.chat.accessibiltyHelp', "Chat View Accessibility Help"),
+				label: localize('chat.action.accessibiltyHelp', "Chat View Accessibility Help"),
 				alias: 'Chat View Accessibility Help',
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
 				kbOpts: {

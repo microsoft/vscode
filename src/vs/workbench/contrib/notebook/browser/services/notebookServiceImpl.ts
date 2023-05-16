@@ -529,6 +529,7 @@ export class NotebookService extends Disposable implements INotebookService {
 						type,
 						extension: extension.description,
 						entrypoint: notebookContribution.entrypoint,
+						localResourceRoots: notebookContribution.localResourceRoots ?? [],
 					}));
 				}
 			}

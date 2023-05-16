@@ -260,8 +260,21 @@ export class InteractiveEditorController implements IEditorContribution {
 		}));
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
-			if (!this._ignoreModelContentChanged) {
-				this._activeSession!.recordExternalEditOccurred();
+			if (this._ignoreModelContentChanged) {
+				return;
+			}
+
+			const wholeRange = this._activeSession!.wholeRange;
+			let editIsOutsideOfWholeRange = false;
+			for (const { range } of e.changes) {
+				editIsOutsideOfWholeRange = !Range.areIntersectingOrTouching(range, wholeRange);
+			}
+
+			this._activeSession!.recordExternalEditOccurred(editIsOutsideOfWholeRange);
+
+			if (editIsOutsideOfWholeRange) {
+				this._logService.trace('[IE] text changed outside of whole range, FINISH session');
+				this._finishExistingSession();
 			}
 		}));
 

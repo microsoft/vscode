@@ -643,8 +643,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
 		}));
 
-		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName('javascript');
-		this.textModel = this._register(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
+		this.textModel = this._register(this.modelService.createModel('', null, undefined));
 		this.editor.setModel(this.textModel);
 	}
 

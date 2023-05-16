@@ -46,7 +46,7 @@ class AskQuickQuestionAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-				when: ContextKeyExpr.equals('config.interactiveSession.experimental.quickQuestion.enable', true),
+				when: ContextKeyExpr.equals('config.chat.experimental.quickQuestion.enable', true),
 			}
 		});
 	}

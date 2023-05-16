@@ -1084,7 +1084,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return [
 			this.notebookService.getNotebookProviderResourceRoots(),
 			this.notebookService.getRenderers().map(x => dirname(x.entrypoint.path)),
-			Array.from(this.notebookService.getStaticPreloads(this.notebookViewType), x => dirname(x.entrypoint)),
+			...Array.from(this.notebookService.getStaticPreloads(this.notebookViewType), x => [
+				dirname(x.entrypoint),
+				...x.localResourceRoots,
+			]),
 			workspaceFolders,
 			notebookDir,
 			this.getBuiltinLocalResourceRoots()
