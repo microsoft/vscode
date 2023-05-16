@@ -30,13 +30,15 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 	getState(extension: Readonly<IRelaxedExtensionDescription>): WindowState {
 		// todo@connor4312: this can be changed to just return this._state after proposed api is finalized
+		const state = this._state;
+
 		return {
 			get focused() {
-				return this.focused;
+				return state.focused;
 			},
 			get active() {
 				checkProposedApiEnabled(extension, 'windowActivity');
-				return this.active;
+				return state.active;
 			},
 		};
 	}

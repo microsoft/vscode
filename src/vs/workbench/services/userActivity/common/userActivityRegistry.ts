@@ -6,7 +6,7 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
 
-export const userActivityRegistry = new class {
+class UserActivityRegistry {
 	private todo: { new(s: IUserActivityService, ...args: any[]): any }[] = [];
 
 	public add = (ctor: { new(s: IUserActivityService, ...args: any[]): any }) => {
@@ -18,4 +18,6 @@ export const userActivityRegistry = new class {
 		this.todo.forEach(this.add);
 		this.todo = [];
 	}
-};
+}
+
+export const userActivityRegistry = new UserActivityRegistry();
