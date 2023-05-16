@@ -13,7 +13,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorsOrder } from 'vs/workbench/common/editor';
@@ -28,7 +27,6 @@ import { CellKind, CellUri, NotebookSetting } from 'vs/workbench/contrib/noteboo
 import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -734,94 +732,3 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 	}
 });
 
-
-registerAction2(class FixCellErrorction extends NotebookCellAction<ICellRange> {
-	constructor() {
-		super({
-			id: 'notebook.cell.fixError',
-			title: localize('notebook.cell.fixError', 'Fix Execution Error'),
-			description: {
-				description: localize('notebook.cell.fixError', 'Fix Execution Error'),
-				args: [
-					{
-						name: 'range',
-						description: 'The cell range',
-						schema: {
-							'type': 'object',
-							'required': ['start', 'end'],
-							'properties': {
-								'start': {
-									'type': 'number'
-								},
-								'end': {
-									'type': 'number'
-								}
-							}
-						}
-					},
-					{
-						name: 'language',
-						description: 'The target cell language',
-						schema: {
-							'type': 'string'
-						}
-					}
-				]
-			}
-		});
-	}
-
-	protected override getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
-		if (!context || typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
-			return;
-		}
-
-		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
-
-		if (!activeEditorContext || !activeEditorContext.notebookEditor.hasModel() || context.start >= activeEditorContext.notebookEditor.getLength()) {
-			return;
-		}
-
-		return {
-			notebookEditor: activeEditorContext.notebookEditor,
-			cell: activeEditorContext.notebookEditor.cellAt(context.start)!
-		};
-	}
-
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const cell = context.cell;
-
-		const outputViewModel = cell.outputsViewModels.filter(vm => vm.model.outputs.find(item => item.mime === 'application/vnd.code.notebook.error'));
-
-		if (outputViewModel.length) {
-			const vm = outputViewModel[0];
-			const textDecoder = new TextDecoder();
-
-			const output = vm.model.outputs.find(item => item.mime === 'application/vnd.code.notebook.error')!;
-
-			type ErrorLike = Partial<Error>;
-
-			let err: ErrorLike;
-			try {
-				err = <ErrorLike>JSON.parse(textDecoder.decode(output.data.buffer));
-
-				if (!err.name && !err.message) {
-					return;
-				}
-
-				const errString = [err.name, err.message].filter(Boolean).join(': ');
-				context.notebookEditor.showProgress();
-
-				const commandService = accessor.get(ICommandService);
-				await commandService.executeCommand('interactiveEditor.start', {
-					autoSend: true,
-					message: `/fix ${errString}`,
-				});
-				context.notebookEditor.hideProgress();
-			} catch (e) {
-				console.log(e);
-			}
-		}
-	}
-});
