@@ -198,6 +198,7 @@ export interface ISerializableChatRequestData {
 
 export interface ISerializableChatData {
 	sessionId: string;
+	providerId: string;
 	creationDate: number;
 	welcomeMessage: (string | IChatReplyFollowup[])[] | undefined;
 	requests: ISerializableChatRequestData[];
@@ -205,8 +206,16 @@ export interface ISerializableChatData {
 	responderUsername: string;
 	requesterAvatarIconUri: UriComponents | undefined;
 	responderAvatarIconUri: UriComponents | undefined;
-	providerId: string;
 	providerState: any;
+}
+
+export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
+	const data = obj as ISerializableChatData;
+	return typeof data === 'object' &&
+		typeof data.providerId === 'string' &&
+		typeof data.sessionId === 'string' &&
+		typeof data.requesterUsername === 'string' &&
+		typeof data.responderUsername === 'string';
 }
 
 export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent;

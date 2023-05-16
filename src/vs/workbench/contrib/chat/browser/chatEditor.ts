@@ -19,11 +19,11 @@ import { Memento } from 'vs/workbench/common/memento';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { IViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatEditorOptions extends IEditorOptions {
-	target: { sessionId: string } | { providerId: string };
+	target: { sessionId: string } | { providerId: string } | { data: ISerializableChatData };
 }
 
 export class ChatEditor extends EditorPane {
