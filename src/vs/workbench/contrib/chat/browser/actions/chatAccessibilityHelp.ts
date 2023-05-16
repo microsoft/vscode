@@ -15,14 +15,11 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 
 export function getAccessibilityHelpText(keybindingService: IKeybindingService, type: 'chat' | 'editor', currentInput?: string): string {
 	const content = [];
+	content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the interactive editor input via the Escape key."));
 	if (type === 'chat') {
-		content.push(localize('chat.accessibilityHelp', "Chat Accessibility Help"));
-		content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the interactive editor input via the Escape key."));
 		content.push(descriptionForCommand('interactiveSession.action.focus', localize('interactiveSession.action.focus', 'The Focus Interactive Session ({0}) command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow.',), localize('interactiveSession.action.focusNoKb', 'The Focus Interactive Session command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow and is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.interactiveSession.focusInput', localize('workbench.action.interactiveSession.focusInput', 'The Focus Interactive Session Input ({0}) command focuses the input box for chat requests.'), localize('workbench.action.interactiveSession.focusInputNoKb', 'Focus Interactive Session Input command focuses the input box for chat requests and is currently not triggerable by a keybinding.'), keybindingService));
 	} else {
-		content.push(localize('interactiveSessionEditor.accessibilityHelp', "Interactive Session Editor Accessibility Help"));
-		content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the interactive editor input via the Escape key."));
 		content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request."));
 		const regex = /^(\/fix|\/explain)/;
 		const match = currentInput?.match(regex);
@@ -31,13 +28,10 @@ export function getAccessibilityHelpText(keybindingService: IKeybindingService, 
 			case 'fix':
 				// TODO: check that config value is preview before suggesting this, add instructions for other setting values
 				content.push(localize('interactiveSession.diff', "Tab again to enter the DiffReview editor with the changes. Use Up/DownArrow to navigate lines with the proposed changes."));
-				content.push(localize('interactiveSession.acceptReject', "Tab again to reach the accept/reject buttons, which will accept or reject the change."));
-				break;
-			case 'explain':
-				// TODO: once we've decided on an approach
+				content.push(localize('interactiveSession.acceptReject', "Tab again to reach the action bar, which can be navigated with Left/RightArrow."));
 				break;
 			default:
-				content.push(localize('interactiveSession.toolbar', "Tab again to reach the toolbar."));
+				content.push(localize('interactiveSession.toolbar', "Tab again to reach the action bar, which can be navigated with Left/RightArrow."));
 				content.push(localize('interactiveSession.toolbarButtons', "Tab again to focus the response."));
 				break;
 		}
