@@ -35,7 +35,7 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 		}
 
 		const remoteUrl = repository.remotes.find((remote) => remote.name === repository.HEAD?.upstream?.remote)?.pushUrl?.replace(/^(git@[^\/:]+)(:)/i, 'ssh://$1/');
-		const remote = remoteUrl ? await vscode.workspace.provideCanonicalUriIdentity(vscode.Uri.parse(remoteUrl), token) : null;
+		const remote = remoteUrl ? await vscode.workspace.provideCanonicalUri(vscode.Uri.parse(remoteUrl), token) : null;
 
 		return JSON.stringify({
 			remote: remote?.toString() ?? remoteUrl,

@@ -16,23 +16,23 @@ declare module 'vscode' {
 		 * @param provider A provider which can convert URIs for workspace folders of scheme @param scheme to
 		 * a canonical URI identifier which is stable across machines.
 		 */
-		export function registerCanonicalUriIdentityProvider(scheme: string, provider: CanonicalUriIdentityProvider): Disposable;
+		export function registerCanonicalUriProvider(scheme: string, provider: CanonicalUriProvider): Disposable;
 
 		/**
 		 *
 		 * @param uri The URI to provide a canonical URI identity for.
 		 * @param token A cancellation token for the request.
 		 */
-		export function provideCanonicalUriIdentity(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+		export function getCanonicalUri(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 	}
 
-	export interface CanonicalUriIdentityProvider {
+	export interface CanonicalUriProvider {
 		/**
 		 *
 		 * @param uri The URI to provide a canonical URI identity for.
 		 * @param token A cancellation token for the request.
 		 * @returns The canonical URI identity for the requested URI.
 		 */
-		provideCanonicalUriIdentity(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+		provideCanonicalUri(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
 	}
 }

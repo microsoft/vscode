@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CanonicalUriIdentityProvider, Disposable, Uri, workspace } from 'vscode';
+import { CancellationToken, CanonicalUriProvider, Disposable, Uri, workspace } from 'vscode';
 
 const SUPPORTED_SCHEMES = ['ssh', 'https'];
 
-export class GitHubCanonicalUriIdentityProvider implements CanonicalUriIdentityProvider {
+export class GitHubCanonicalUriProvider implements CanonicalUriProvider {
 
 	private disposables: Disposable[] = [];
 	constructor() {
-		this.disposables.push(...SUPPORTED_SCHEMES.map((scheme) => workspace.registerCanonicalUriIdentityProvider(scheme, this)));
+		this.disposables.push(...SUPPORTED_SCHEMES.map((scheme) => workspace.registerCanonicalUriProvider(scheme, this)));
 	}
 
 	dispose() { this.disposables.forEach((disposable) => disposable.dispose()); }
 
-	async provideCanonicalUriIdentity(uri: Uri, _token: CancellationToken): Promise<Uri | undefined> {
+	async provideCanonicalUri(uri: Uri, _token: CancellationToken): Promise<Uri | undefined> {
 		switch (uri.scheme) {
 			case 'ssh':
 				// if this is a git@github.com URI, return the HTTPS equivalent
