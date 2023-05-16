@@ -145,8 +145,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	}
 
 	private setDirty(dirty: boolean): void {
-		// Scratchpad working copies are never dirty
-		if (this.dirty === dirty || this.isScratchpad) {
+		if (this.dirty === dirty || this.isScratchpad /* Scratchpad working copies are never dirty */) {
 			return;
 		}
 
