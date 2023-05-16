@@ -1874,7 +1874,7 @@ export class SearchView extends ViewPane {
 						if (editorWidget) {
 							// Ensure that the editor widget is binded. If if is, then this should return immediately.
 							// Otherwise, it will bind the widget.
-							await elemParent.bindNotebookEditorWidget(editorWidget);
+							elemParent.bindNotebookEditorWidget(editorWidget);
 							await elemParent.updateMatchesForEditorWidget();
 
 							const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
@@ -1887,6 +1887,7 @@ export class SearchView extends ViewPane {
 
 							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
 								this.tree.setSelection([match], getSelectionKeyboardEvent());
+								this.tree.setFocus([match]);
 							}
 						}
 
