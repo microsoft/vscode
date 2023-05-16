@@ -55,7 +55,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
 
 	private static readonly REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD = 500;
-	private static readonly REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY = 1000;
+	private static readonly REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY = 60 * 1000;
+	private static readonly REMOTE_CONNECTION_LATENCY_SCHEDULER_FIRST_RUN_DELAY = 10 * 1000;
 
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
@@ -70,7 +71,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private connectionState: 'initializing' | 'connected' | 'connected-slow' | 'reconnecting' | 'disconnected' | undefined = undefined;
 	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
-	private readonly measureRemoteConnectionLatencyScheduler = this._register(new RunOnceScheduler(() => this.measureRemoteConnectionLatency(), RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY));
+	private measureRemoteConnectionLatencyScheduler: RunOnceScheduler | undefined = undefined;
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 
@@ -107,33 +108,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		this.updateWhenInstalledExtensionsRegistered();
 		this.updateRemoteStatusIndicator();
-
-		this.measureRemoteConnectionLatencyScheduler.schedule();
-	}
-
-	private async measureRemoteConnectionLatency() {
-		if (
-			!this.remoteAuthority ||							// only when having a remote connection
-			!!this.environmentService.options?.windowIndicator	// only when we own the indicator to show this state
-		) {
-			return;
-		}
-
-		// Measure round trip if we are connected or connected-slow
-		// but only when the window has focus to prevent constantly
-		// waking up the connection to the remote
-
-		if (this.hostService.hasFocus && (this.connectionState === 'connected' || this.connectionState === 'connected-slow')) {
-			const connectionLatency = await measureRoundTripTime(this.remoteAgentService);
-
-			if (typeof connectionLatency === 'number' && connectionLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD) {
-				this.setState('connected-slow');
-			} else if (this.connectionState === 'connected-slow') {
-				this.setState('connected');
-			}
-		}
-
-		this.measureRemoteConnectionLatencyScheduler.schedule();
 	}
 
 	private registerActions(): void {
@@ -204,8 +178,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				};
 			});
 		}
-
-
 	}
 
 	private registerListeners(): void {
@@ -297,8 +269,46 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					this.connectionStateContextKey.set(this.connectionState);
 			}
 
+			// indicate status
 			this.updateRemoteStatusIndicator();
+
+			// start measuring connection latency once connected
+			if (newState === 'connected') {
+				this.scheduleMeasureRemoteConnectionLatency();
+			}
 		}
+	}
+
+	private scheduleMeasureRemoteConnectionLatency(): void {
+		if (
+			!this.remoteAuthority ||								// only when having a remote connection
+			!!this.environmentService.options?.windowIndicator ||	// only when we own the indicator to show this state
+			this.measureRemoteConnectionLatencyScheduler			// already scheduled
+		) {
+			return;
+		}
+
+		this.measureRemoteConnectionLatencyScheduler = this._register(new RunOnceScheduler(() => this.measureRemoteConnectionLatency(), RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY));
+		this.measureRemoteConnectionLatencyScheduler.schedule(RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SCHEDULER_FIRST_RUN_DELAY);
+	}
+
+	private async measureRemoteConnectionLatency(): Promise<void> {
+
+		// Measure round trip if we are connected or connected-slow
+		// but only when the window has focus to prevent constantly
+		// waking up the connection to the remote
+
+		if (this.hostService.hasFocus && (this.connectionState === 'connected' || this.connectionState === 'connected-slow')) {
+			const connectionLatency = await measureRoundTripTime(this.remoteAgentService);
+
+			if (typeof connectionLatency === 'number' && connectionLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD) {
+				this.setState('connected-slow');
+			} else if (this.connectionState === 'connected-slow') {
+				this.setState('connected');
+			}
+		}
+
+		this.measureRemoteConnectionLatencyScheduler?.schedule();
 	}
 
 	private validatedGroup(group: string) {
@@ -350,7 +360,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						tooltip.appendText(nls.localize({ key: 'host.tooltip', comment: ['{0} is a remote host name, e.g. Dev Container'] }, "Editing on {0}", hostLabel));
 					}
 					if (this.connectionState === 'connected-slow') {
-						this.renderRemoteStatusIndicator(`${nls.localize('slowConnection', "$(remote) {0} - $(alert) High Latency", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`);
+						this.renderRemoteStatusIndicator(`${nls.localize('slowConnection', "$(remote) {0} - $(alert) High Latency", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, tooltip);
 					} else {
 						this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
 					}
