@@ -51,7 +51,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
-import { IInteractiveProgress, IInteractiveResponseErrorDetails, IInteractiveSessionDynamicRequest, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatProgress, IChatResponseErrorDetails, IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -1117,7 +1117,7 @@ export interface MainThreadUrlsShape extends IDisposable {
 	$createAppUri(uri: UriComponents): Promise<UriComponents>;
 }
 
-export interface IInteractiveSessionDto {
+export interface IChatDto {
 	id: number;
 	requesterUsername: string;
 	requesterAvatarIconUri?: UriComponents;
@@ -1126,41 +1126,41 @@ export interface IInteractiveSessionDto {
 	inputPlaceholder?: string;
 }
 
-export interface IInteractiveRequestDto {
-	message: string | IInteractiveSessionReplyFollowup;
+export interface IChatRequestDto {
+	message: string | IChatReplyFollowup;
 }
 
-export interface IInteractiveResponseDto {
-	errorDetails?: IInteractiveResponseErrorDetails;
+export interface IChatResponseDto {
+	errorDetails?: IChatResponseErrorDetails;
 	timings: {
 		firstProgress: number;
 		totalElapsed: number;
 	};
 }
 
-export interface MainThreadInteractiveSessionShape extends IDisposable {
-	$registerInteractiveSessionProvider(handle: number, id: string): Promise<void>;
-	$acceptInteractiveSessionState(sessionId: number, state: any): Promise<void>;
-	$addInteractiveSessionRequest(context: any): void;
-	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
-	$unregisterInteractiveSessionProvider(handle: number): Promise<void>;
-	$acceptInteractiveResponseProgress(handle: number, sessionId: number, progress: IInteractiveProgress): void;
+export interface MainThreadChatShape extends IDisposable {
+	$registerChatProvider(handle: number, id: string): Promise<void>;
+	$acceptChatState(sessionId: number, state: any): Promise<void>;
+	$addRequest(context: any): void;
+	$sendRequestToProvider(providerId: string, message: IChatDynamicRequest): void;
+	$unregisterChatProvider(handle: number): Promise<void>;
+	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatProgress): void;
 
 	$registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void>;
 	$unregisterSlashCommandProvider(handle: number): Promise<void>;
 }
 
-export interface ExtHostInteractiveSessionShape {
-	$prepareInteractiveSession(handle: number, initialState: any, token: CancellationToken): Promise<IInteractiveSessionDto | undefined>;
-	$resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IInteractiveRequestDto, 'id'> | undefined>;
-	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IInteractiveSessionReplyFollowup[])[] | undefined>;
-	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSessionFollowup[] | undefined>;
-	$provideInteractiveReply(handle: number, sessionId: number, request: IInteractiveRequestDto, token: CancellationToken): Promise<IInteractiveResponseDto | undefined>;
-	$provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
+export interface ExtHostChatShape {
+	$prepareChat(handle: number, initialState: any, token: CancellationToken): Promise<IChatDto | undefined>;
+	$resolveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IChatRequestDto, 'id'> | undefined>;
+	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined>;
+	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
+	$provideReply(handle: number, sessionId: number, request: IChatRequestDto, token: CancellationToken): Promise<IChatResponseDto | undefined>;
+	$provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	$releaseSession(sessionId: number): void;
-	$onDidPerformUserAction(event: IInteractiveSessionUserActionEvent): Promise<void>;
+	$onDidPerformUserAction(event: IChatUserActionEvent): Promise<void>;
 
-	$provideProviderSlashCommands(handle: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
+	$provideProviderSlashCommands(handle: number, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	$resolveSlashCommand(handle: number, command: string, token: CancellationToken): Promise<string | undefined>;
 }
 
@@ -2532,7 +2532,7 @@ export const MainContext = {
 	MainThreadNotebookKernels: createProxyIdentifier<MainThreadNotebookKernelsShape>('MainThreadNotebookKernels'),
 	MainThreadNotebookRenderers: createProxyIdentifier<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
 	MainThreadInteractive: createProxyIdentifier<MainThreadInteractiveShape>('MainThreadInteractive'),
-	MainThreadInteractiveSession: createProxyIdentifier<MainThreadInteractiveSessionShape>('MainThreadInteractiveSession'),
+	MainThreadChat: createProxyIdentifier<MainThreadChatShape>('MainThreadChat'),
 	MainThreadInteractiveEditor: createProxyIdentifier<MainThreadInteractiveEditorShape>('MainThreadInteractiveEditor'),
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
@@ -2594,7 +2594,7 @@ export const ExtHostContext = {
 	ExtHostNotebookDocumentSaveParticipant: createProxyIdentifier<ExtHostNotebookDocumentSaveParticipantShape>('ExtHostNotebookDocumentSaveParticipant'),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostInteractiveEditor: createProxyIdentifier<ExtHostInteractiveEditorShape>('ExtHostInteractiveEditor'),
-	ExtHostInteractiveSession: createProxyIdentifier<ExtHostInteractiveSessionShape>('ExtHostInteractiveSession'),
+	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),

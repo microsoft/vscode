@@ -33,8 +33,8 @@ import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionSe
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorStrategies';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
 import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -645,22 +645,22 @@ export class InteractiveEditorController implements IEditorContribution {
 }
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
-	const interactiveSessionService = accessor.get(IInteractiveSessionService);
-	const providerId = interactiveSessionService.getProviderInfos()[0]?.id;
+	const chatService = accessor.get(IChatService);
+	const providerId = chatService.getProviderInfos()[0]?.id;
 
-	const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
-	const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
+	const chatWidgetService = accessor.get(IChatWidgetService);
+	const widget = await chatWidgetService.revealViewForProvider(providerId);
 	if (widget && widget.viewModel) {
-		interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
+		chatService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
 		widget.focusLastMessage();
 	}
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {
-	const interactiveSessionService = accessor.get(IInteractiveSessionService);
-	const widgetService = accessor.get(IInteractiveSessionWidgetService);
+	const chatService = accessor.get(IChatService);
+	const widgetService = accessor.get(IChatWidgetService);
 
-	const providerId = interactiveSessionService.getProviderInfos()[0]?.id;
+	const providerId = chatService.getProviderInfos()[0]?.id;
 	const widget = await widgetService.revealViewForProvider(providerId);
 	if (!widget) {
 		return;
