@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
+import { Dimension, addDisposableListener, addStandardDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -44,6 +44,7 @@ import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interact
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -470,14 +471,28 @@ export class InteractiveEditorWidget {
 		this._previewDiffEditor.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lineRangeAsRange), 'diff-hidden');
 		this._previewDiffEditor.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');
 		this._previewDiffEditor.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
-
 		this._onDidChangeHeight.fire();
-		this._previewDiffEditor.onDidUpdateDiff(() => {
-			if (this._accessibilityService.isScreenReaderOptimized()) {
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			this._previewDiffEditor.onDidUpdateDiff(() => {
+				const modified = this._previewDiffEditor.getModifiedEditor().getDomNode();
+				const original = this._previewDiffEditor.getOriginalEditor().getDomNode();
+				const container = this._previewDiffEditor.getContainerDomNode();
+				if (!modified || !original) {
+					return;
+				}
+				// prevent escape from focusing the underlying editors
+				this._previewDiffEditor.getContainerDomNode().classList.add('screen-reader-interactive-editor-widget');
+				// prevent the user from having to tab through the underlying editors
+				modified.querySelector('.previewDiff textarea.inputarea')?.setAttribute('disabled', '');
+				original.querySelector('.previewDiff textarea.inputarea')?.setAttribute('disabled', '');
+				// open the diff review
 				this._previewDiffEditor.diffReviewNext();
+				// remove the X button because going back to the underlying editors is not an accessible experience
+				container.querySelector('div > div.diff-review-actions > div > ul > li > a')?.remove();
+				// go back to the input so the placeholder text is read
 				this._inputEditor.focus();
-			}
-		});
+			});
+		}
 	}
 
 	hideEditsPreview() {
