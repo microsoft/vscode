@@ -29,6 +29,12 @@ const configuration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 			tags: ['accessibility']
+		},
+		'accessibility.verbosity.interactiveEditor': {
+			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the interactive editor accessibility help menu when the interactive editor input is focused'),
+			type: 'boolean',
+			default: true,
+			tags: ['accessibility']
 		}
 	}
 };
