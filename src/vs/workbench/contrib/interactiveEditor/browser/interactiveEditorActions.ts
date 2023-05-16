@@ -258,10 +258,10 @@ export class DicardAction extends AbstractInteractiveEditorAction {
 			title: localize('discard', 'Discard'),
 			icon: Codicon.discard,
 			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
-			// keybinding: {
-			// 	weight: KeybindingWeight.EditorContrib - 1,
-			// 	primary: KeyCode.Escape
-			// },
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Shift + KeyCode.Escape
+			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
 				order: 0

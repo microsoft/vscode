@@ -332,21 +332,6 @@ export class InteractiveEditorWidget {
 		return base + editorHeight + markdownMessageHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
-	saveViewState(): InteractiveEditorWidgetViewState {
-		const editorViewState = this._inputEditor.saveViewState();
-		return {
-			editorViewState,
-			input: this.value,
-			placeholder: this.placeholder
-		};
-	}
-
-	restoreViewState(state: InteractiveEditorWidgetViewState) {
-		this.value = state.input;
-		this.placeholder = state.placeholder;
-		this._inputEditor.restoreViewState(state.editorViewState);
-	}
-
 	updateProgress(show: boolean) {
 		if (show) {
 			this._progressBar.infinite();
