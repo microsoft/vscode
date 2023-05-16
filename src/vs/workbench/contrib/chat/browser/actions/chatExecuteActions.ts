@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_INTERACTIVE_INPUT_HAS_TEXT, CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -30,7 +30,7 @@ export function registerChatExecuteActions() {
 					original: 'Submit'
 				},
 				f1: false,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.send,
 				precondition: CONTEXT_INTERACTIVE_INPUT_HAS_TEXT,
 				menu: {
@@ -60,7 +60,7 @@ export function registerChatExecuteActions() {
 					original: 'Cancel'
 				},
 				f1: false,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.debugStop,
 				menu: {
 					id: MenuId.ChatExecute,

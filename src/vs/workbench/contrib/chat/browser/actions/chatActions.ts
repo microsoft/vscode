@@ -29,7 +29,7 @@ import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chat
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export const INTERACTIVE_SESSION_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
+export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 
 export function registerChatActions() {
 	registerEditorAction(class ChatAcceptInput extends EditorAction {
@@ -94,7 +94,7 @@ export function registerChatActions() {
 					value: localize('interactiveSession.clearHistory.label', "Clear Input History"),
 					original: 'Clear Input History'
 				},
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				f1: true,
 			});
 		}
@@ -210,7 +210,7 @@ export function registerChatActions() {
 					value: localize('interactiveSession.clear.label', "Clear"),
 					original: 'Clear'
 				},
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.clearAll,
 				f1: true,
 				keybinding: {
@@ -245,7 +245,7 @@ export function getOpenChatEditorAction(id: string, label: string, when?: string
 				id: `workbench.action.openChat.${id}`,
 				title: { value: localize('interactiveSession.open', "Open Editor ({0})", label), original: `Open Editor (${label})` },
 				f1: true,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				precondition: ContextKeyExpr.deserialize(when)
 			});
 		}
@@ -270,7 +270,7 @@ const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: st
 		group: 'navigation',
 		order: 0
 	},
-	category: INTERACTIVE_SESSION_CATEGORY,
+	category: CHAT_CATEGORY,
 	icon: Codicon.clearAll,
 	f1: false
 });
@@ -300,7 +300,7 @@ const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: 
 		group: 'navigation',
 		order: 0
 	},
-	category: INTERACTIVE_SESSION_CATEGORY,
+	category: CHAT_CATEGORY,
 	icon: Codicon.history,
 	f1: false
 });

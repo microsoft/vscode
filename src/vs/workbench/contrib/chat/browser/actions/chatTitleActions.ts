@@ -10,7 +10,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -29,7 +29,7 @@ export function registerChatTitleActions() {
 					original: 'Vote Up'
 				},
 				f1: false,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('up'),
 				menu: {
@@ -68,7 +68,7 @@ export function registerChatTitleActions() {
 					original: 'Vote Down'
 				},
 				f1: false,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('down'),
 				menu: {
@@ -107,7 +107,7 @@ export function registerChatTitleActions() {
 					original: 'Insert into Notebook'
 				},
 				f1: false,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
 				menu: {
 					id: MenuId.ChatTitle,

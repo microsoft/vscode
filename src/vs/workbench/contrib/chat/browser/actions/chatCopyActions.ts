@@ -7,7 +7,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
@@ -21,7 +21,7 @@ export function registerChatCopyActions() {
 					original: 'Copy All'
 				},
 				f1: false,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext
 				}
@@ -54,7 +54,7 @@ export function registerChatCopyActions() {
 					original: 'Copy'
 				},
 				f1: false,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext
 				}

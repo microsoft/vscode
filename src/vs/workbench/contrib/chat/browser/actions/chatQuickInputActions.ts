@@ -22,7 +22,7 @@ import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
@@ -42,7 +42,7 @@ class AskQuickQuestionAction extends Action2 {
 			id: 'chat.action.askQuickQuestion',
 			title: { value: localize('askQuickQuestion', "Ask Quick Question"), original: 'Ask Quick Question' },
 			f1: true,
-			category: INTERACTIVE_SESSION_CATEGORY,
+			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,

@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
@@ -19,16 +19,16 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const defaultFileName = 'chat.json';
-const filters = [{ name: localize('interactiveSession.file.label', "Chat Session"), extensions: ['json'] }];
+const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
 
-export function registerInteractiveSessionExportActions() {
-	registerAction2(class ExportInteractiveSessionAction extends Action2 {
+export function registerChatExportActions() {
+	registerAction2(class ExportChatAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.export',
-				category: INTERACTIVE_SESSION_CATEGORY,
+				id: 'workbench.action.chat.export',
+				category: CHAT_CATEGORY,
 				title: {
-					value: localize('interactiveSession.export.label', "Export Session") + '...',
+					value: localize('chat.export.label', "Export Session") + '...',
 					original: 'Export Session...'
 				},
 				f1: true,
@@ -38,7 +38,7 @@ export function registerInteractiveSessionExportActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
-			const interactiveSessionService = accessor.get(IChatService);
+			const chatService = accessor.get(IChatService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget || !widget.viewModel) {
@@ -54,7 +54,7 @@ export function registerInteractiveSessionExportActions() {
 				return;
 			}
 
-			const model = interactiveSessionService.getSession(widget.viewModel.sessionId);
+			const model = chatService.getSession(widget.viewModel.sessionId);
 			if (!model) {
 				return;
 			}
@@ -65,15 +65,15 @@ export function registerInteractiveSessionExportActions() {
 		}
 	});
 
-	registerAction2(class ImportInteractiveSessionAction extends Action2 {
+	registerAction2(class ImportChatAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.interactiveSession.import',
+				id: 'workbench.action.chat.import',
 				title: {
-					value: localize('interactiveSession.import.label', "Import Session") + '...',
+					value: localize('chat.import.label', "Import Session") + '...',
 					original: 'Export Session...'
 				},
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				f1: true,
 			});
 		}

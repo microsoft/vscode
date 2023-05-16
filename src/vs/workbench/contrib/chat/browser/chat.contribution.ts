@@ -21,7 +21,7 @@ import { registerChatCopyActions } from 'vs/workbench/contrib/chat/browser/actio
 import { registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { registerChatQuickQuestionActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
-import { registerInteractiveSessionExportActions } from 'vs/workbench/contrib/chat/browser/actions/interactiveSessionImportExport';
+import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/actions/chatImportExport';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatContributionService } from 'vs/workbench/contrib/chat/browser/chatContributionServiceImpl';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
@@ -127,7 +127,7 @@ registerChatCodeBlockActions();
 registerChatTitleActions();
 registerChatExecuteActions();
 registerChatQuickQuestionActions();
-registerInteractiveSessionExportActions();
+registerChatExportActions();
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatContributionService, ChatContributionService, InstantiationType.Delayed);
