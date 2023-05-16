@@ -15,7 +15,7 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 
 export function getAccessibilityHelpText(keybindingService: IKeybindingService, type: 'chat' | 'editor', currentInput?: string): string {
 	const content = [];
-	content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the interactive editor input via the Escape key."));
+	content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the input via the Escape key."));
 	if (type === 'chat') {
 		content.push(descriptionForCommand('interactiveSession.action.focus', localize('interactiveSession.action.focus', 'The Focus Interactive Session ({0}) command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow.',), localize('interactiveSession.action.focusNoKb', 'The Focus Interactive Session command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow and is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.interactiveSession.focusInput', localize('workbench.action.interactiveSession.focusInput', 'The Focus Interactive Session Input ({0}) command focuses the input box for chat requests.'), localize('workbench.action.interactiveSession.focusInputNoKb', 'Focus Interactive Session Input command focuses the input box for chat requests and is currently not triggerable by a keybinding.'), keybindingService));
@@ -81,6 +81,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 			}
 			inputEditor.focus();
 			disposable.dispose();
+			e.stopPropagation();
 		}
 	});
 }
