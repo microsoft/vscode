@@ -1832,7 +1832,24 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	collapseAll(): void {
+		const updatedSelection = this.selection.getNodes().map(node => this.getTopmostParent(this.model.getNodeLocation(node)));
+		const updatedFocus = this.view.getFocusedElements().map(node => this.getTopmostParent(this.model.getNodeLocation(node)));
+
 		this.model.setCollapsed(this.model.rootRef, true, true);
+
+		this.setSelection(updatedSelection);
+		this.setFocus(updatedFocus);
+	}
+
+	private getTopmostParent(location: TRef): TRef {
+		let current = location;
+		while (true) {
+			const parent = this.model.getParentNodeLocation(current);
+			if (!parent) {
+				return current;
+			}
+			current = parent;
+		}
 	}
 
 	isCollapsible(location: TRef): boolean {
