@@ -131,6 +131,7 @@ export class TabsTitleControl extends TitleControl {
 	private path: IPath = isWindows ? win32 : posix;
 
 	private lastMouseWheelEventTime = 0;
+	private isMouseOverTabs = false;
 
 	constructor(
 		parent: HTMLElement,
@@ -176,8 +177,9 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.setAttribute('role', 'tablist');
 		this.tabsContainer.draggable = true;
 		this.tabsContainer.classList.add('tabs-container');
-		this.updateTabSizing();
 		this._register(Gesture.addTarget(this.tabsContainer));
+
+		this.updateTabSizing(false);
 
 		// Tabs Scrollbar
 		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
@@ -225,38 +227,48 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private updateTabSizing(): void {
+	private updateTabSizing(fromEvent: boolean): void {
 		const [tabsContainer, tabSizingFixedDisposables] = assertAllDefined(this.tabsContainer, this.tabSizingFixedDisposables);
+
+		tabSizingFixedDisposables.clear();
+
 		const options = this.accessor.partOptions;
 		if (options.tabSizing === 'fixed') {
 			tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', `${options.tabSizingFixedMaxWidth}px`);
-			tabSizingFixedDisposables.add(addDisposableListener(tabsContainer, EventType.MOUSE_ENTER, () => this.setTabsWidthFixed()));
-			tabSizingFixedDisposables.add(addDisposableListener(tabsContainer, EventType.MOUSE_LEAVE, () => this.resetTabsWidthFixed()));
-		} else {
+
+			// For https://github.com/microsoft/vscode/issues/40290 we want to
+			// preserve the current tab widths as long as the mouse is over the
+			// tabs so that you can quickly close them via mouse click. For that
+			// we track mouse movements over the tabs container.
+
+			tabSizingFixedDisposables.add(addDisposableListener(tabsContainer, EventType.MOUSE_ENTER, () => {
+				this.isMouseOverTabs = true;
+			}));
+			tabSizingFixedDisposables.add(addDisposableListener(tabsContainer, EventType.MOUSE_LEAVE, () => {
+				this.isMouseOverTabs = false;
+				this.updateTabsFixedWith(false);
+			}));
+		} else if (fromEvent) {
 			tabsContainer.style.removeProperty('--tab-sizing-fixed-max-width');
-			tabSizingFixedDisposables.clear();
-			this.resetTabsWidthFixed();
+			this.updateTabsFixedWith(false);
 		}
 	}
 
-	private setTabsWidthFixed() {
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			const { width } = tabContainer.getBoundingClientRect();
+	private updateTabsFixedWith(fixed: boolean): void {
+		this.forEachTab((editor, index, tabContainer) => {
+			if (fixed) {
+				const { width } = tabContainer.getBoundingClientRect();
 
-			// Adjust width so the last tab doesn't wrap onto the next line due to tiny rounding errors
-			// introduced by fixed sizing just overflowing the tab bar's width.
-			const adjustedWidth = tabContainer.classList.contains('last-in-row') ? width - 0.1 : width;
+				// Adjust width so the last tab doesn't wrap onto the next line due to tiny rounding errors
+				// introduced by fixed sizing just overflowing the tab bar's width.
+				const adjustedWidth = tabContainer.classList.contains('last-in-row') ? width - 0.1 : width;
 
-			tabContainer.style.setProperty('--tab-sizing-current-width', `${adjustedWidth}px`);
+				tabContainer.style.setProperty('--tab-sizing-current-width', `${adjustedWidth}px`);
+			} else {
+				tabContainer.style.removeProperty('--tab-sizing-current-width');
+			}
 		});
 	}
-
-	private resetTabsWidthFixed() {
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			tabContainer.style.removeProperty('--tab-sizing-current-width');
-		});
-	}
-
 
 	private getTabsScrollbarSizing(): number {
 		if (this.accessor.partOptions.titleScrollbarSizing !== 'large') {
@@ -563,6 +575,11 @@ export class TabsTitleControl extends TitleControl {
 		// There are tabs to show
 		if (this.group.activeEditor) {
 
+			// Fix tabs width if we are mouse over tabs and the tab sizing is 'fixed'
+			if (this.isMouseOverTabs && this.accessor.partOptions.tabSizing === 'fixed') {
+				this.updateTabsFixedWith(true);
+			}
+
 			// Remove tabs that got closed
 			const tabsContainer = assertIsDefined(this.tabsContainer);
 			while (tabsContainer.children.length > this.group.count) {
@@ -704,7 +721,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.tabSizingFixedMaxWidth !== newOptions.tabSizingFixedMaxWidth ||
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
-			this.updateTabSizing();
+			this.updateTabSizing(true);
 		}
 
 		// Redraw tabs when other options change

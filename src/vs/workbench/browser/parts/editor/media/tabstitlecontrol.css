@@ -130,7 +130,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fixed.last-in-row:not(:last-child) {
-	flex-grow: 0; /* prevent last tab in a row from moving to next row when tab widths are fixed for tabSizing:fixed */
+	flex-grow: 0; /* prevent last tab in a row from moving to next row when tab widths are fixed */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit.last-in-row:not(:last-child) {
@@ -151,11 +151,11 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.sticky-shrink {
 
-	/** Sticky compact/shrink tabs do not scroll in case of overflow and are always above unsticky tabs which scroll under */
+	/** Sticky compact/shrink/fixed tabs do not scroll in case of overflow and are always above unsticky tabs which scroll under */
 	position: sticky;
 	z-index: 8;
 
-	/** Sticky compact/shrink tabs are even and never grow */
+	/** Sticky compact/shrink/fixed tabs are even and never grow */
 	flex-basis: 0;
 	flex-grow: 0;
 }
@@ -186,7 +186,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fit.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-shrink.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fixed.sticky-shrink {
-	position: static; /** disable sticky positions for sticky compact/shrink tabs if the available space is too little */
+	position: static; /** disable sticky positions for sticky compact/shrink/fixed tabs if the available space is too little */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left::after,
@@ -202,7 +202,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-left {
 	min-width: 80px; /* make more room for close button when it shows to the left */
-	padding-right: 5px; /* we need less room when sizing is shrink */
+	padding-right: 5px; /* we need less room when sizing is shrink/fixed */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged {
@@ -291,7 +291,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label.tab-label-has-badge::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-fixed > .tab-label.tab-label-has-badge::after {
-	padding-right: 5px; /* with tab sizing shrink and badges, we want a right-padding because the close button is hidden */
+	padding-right: 5px; /* with tab sizing shrink/fixed and badges, we want a right-padding because the close button is hidden */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky-compact:not(.has-icon) .monaco-icon-label {
@@ -331,7 +331,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-right.sizing-shrink > .tab-actions,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-right.sizing-fixed > .tab-actions {
 	flex: 0;
-	overflow: hidden; /* let the tab actions be pushed out of view when sizing is set to shrink to make more room */
+	overflow: hidden; /* let the tab actions be pushed out of view when sizing is set to shrink/fixed to make more room */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.tab-actions-right.sizing-shrink > .tab-actions,
@@ -401,7 +401,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-off:not(.sticky-compact),
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-off:not(.sticky-compact) {
-	padding-right: 5px; /* we need less room when sizing is shrink (unless tab is sticky-compact) */
+	padding-right: 5px; /* we need less room when sizing is shrink/fixed (unless tab is sticky-compact) */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off.dirty-border-top > .tab-actions {
