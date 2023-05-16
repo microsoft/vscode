@@ -36,7 +36,7 @@ export function getAccessibilityHelpText(keybindingService: IKeybindingService, 
 				break;
 		}
 	}
-	content.push(localize('interactiveSession.exit', "Use Escape to exit the session."));
+	content.push(localize('interactiveSession.exit', "Use Escape outside of this help menu to exit the session."));
 	return content.join('\n');
 }
 

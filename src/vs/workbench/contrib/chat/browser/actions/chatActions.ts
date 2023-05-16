@@ -134,7 +134,7 @@ export function registerChatActions() {
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
 				kbOpts: {
 					primary: KeyMod.Alt | KeyCode.F1,
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.EditorContrib + 10
 				}
 			});
 		}
