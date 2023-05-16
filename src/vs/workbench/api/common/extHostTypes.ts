@@ -487,6 +487,14 @@ const validateConnectionToken = (connectionToken: string) => {
 
 
 export class ResolvedAuthority {
+	public static isResolvedAuthority(resolvedAuthority: any): resolvedAuthority is ResolvedAuthority {
+		return resolvedAuthority
+			&& typeof resolvedAuthority === 'object'
+			&& typeof resolvedAuthority.host === 'string'
+			&& typeof resolvedAuthority.port === 'number'
+			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
+	}
+
 	readonly host: string;
 	readonly port: number;
 	readonly connectionToken: string | undefined;
@@ -507,7 +515,16 @@ export class ResolvedAuthority {
 	}
 }
 
+
 export class ManagedResolvedAuthority {
+
+	public static isManagedResolvedAuthority(resolvedAuthority: any): resolvedAuthority is ManagedResolvedAuthority {
+		return resolvedAuthority
+			&& typeof resolvedAuthority === 'object'
+			&& typeof resolvedAuthority.makeConnection === 'function'
+			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
+	}
+
 	constructor(public readonly makeConnection: () => Thenable<vscode.ManagedMessagePassing>, public readonly connectionToken?: string) {
 		if (typeof connectionToken !== 'undefined') {
 			validateConnectionToken(connectionToken);
