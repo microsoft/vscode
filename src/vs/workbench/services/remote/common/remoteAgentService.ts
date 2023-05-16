@@ -10,6 +10,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { Event } from 'vs/base/common/event';
 import { PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { timeout } from 'vs/base/common/async';
 
 export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteAgentService');
 
@@ -58,4 +59,22 @@ export interface IRemoteAgentConnection {
 	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R>;
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void;
 	getInitialConnectionTimeMs(): Promise<number>;
+}
+
+const ROUNDTRIP_LATENCY_SAMPLES = 5;
+const ROUNDTRIP_LATENCY_DELAY = 2_000;
+
+export async function measureRoundTripTime(remoteAgentService: IRemoteAgentService, samples = ROUNDTRIP_LATENCY_SAMPLES, interval = ROUNDTRIP_LATENCY_DELAY): Promise<number | undefined> {
+	let bestLatency = Infinity;
+	for (let i = 0; i < samples; i++) {
+		const rtt = await remoteAgentService.getRoundTripTime();
+		if (rtt === undefined) {
+			return undefined;
+		}
+
+		bestLatency = Math.min(bestLatency, rtt / 2);
+		await timeout(interval);
+	}
+
+	return bestLatency;
 }

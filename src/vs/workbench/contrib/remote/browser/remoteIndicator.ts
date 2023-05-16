@@ -6,7 +6,8 @@
 import * as nls from 'vs/nls';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService, measureRoundTripTime } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { MenuId, IMenuService, MenuItemAction, MenuRegistry, registerAction2, Action2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -53,6 +54,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
 
+	private static readonly REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD = 500;
+	private static readonly REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY = 1000;
+
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
 	private readonly legacyIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService)); // to be removed once migration completed
@@ -64,8 +68,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private virtualWorkspaceLocation: { scheme: string; authority: string } | undefined = undefined;
 
-	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
+	private connectionState: 'initializing' | 'connected' | 'connected-slow' | 'reconnecting' | 'disconnected' | undefined = undefined;
 	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
+	private readonly measureRemoteConnectionLatencyScheduler = this._register(new RunOnceScheduler(() => this.measureRemoteConnectionLatency(), RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY));
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 
@@ -102,6 +107,33 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		this.updateWhenInstalledExtensionsRegistered();
 		this.updateRemoteStatusIndicator();
+
+		this.measureRemoteConnectionLatencyScheduler.schedule();
+	}
+
+	private async measureRemoteConnectionLatency() {
+		if (
+			!this.remoteAuthority ||							// only when having a remote connection
+			!!this.environmentService.options?.windowIndicator	// only when we own the indicator to show this state
+		) {
+			return;
+		}
+
+		// Measure round trip if we are connected or connected-slow
+		// but only when the window has focus to prevent constantly
+		// waking up the connection to the remote
+
+		if (this.hostService.hasFocus && (this.connectionState === 'connected' || this.connectionState === 'connected-slow')) {
+			const connectionLatency = await measureRoundTripTime(this.remoteAgentService);
+
+			if (typeof connectionLatency === 'number' && connectionLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD) {
+				this.setState('connected-slow');
+			} else if (this.connectionState === 'connected-slow') {
+				this.setState('connected');
+			}
+		}
+
+		this.measureRemoteConnectionLatencyScheduler.schedule();
 	}
 
 	private registerActions(): void {
@@ -249,15 +281,20 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		this.updateRemoteStatusIndicator();
 	}
 
-	private setState(newState: 'disconnected' | 'connected' | 'reconnecting'): void {
+	private setState(newState: 'disconnected' | 'connected' | 'reconnecting' | 'connected-slow'): void {
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
 
-			// simplify context key which doesn't support `connecting`
-			if (this.connectionState === 'reconnecting') {
-				this.connectionStateContextKey.set('disconnected');
-			} else {
-				this.connectionStateContextKey.set(this.connectionState);
+			// simplify context key which doesn't support some of the states
+			switch (this.connectionState) {
+				case 'reconnecting':
+					this.connectionStateContextKey.set('disconnected');
+					break;
+				case 'connected-slow':
+					this.connectionStateContextKey.set('connected');
+					break;
+				default:
+					this.connectionStateContextKey.set(this.connectionState);
 			}
 
 			this.updateRemoteStatusIndicator();
@@ -312,7 +349,11 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					} else {
 						tooltip.appendText(nls.localize({ key: 'host.tooltip', comment: ['{0} is a remote host name, e.g. Dev Container'] }, "Editing on {0}", hostLabel));
 					}
-					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
+					if (this.connectionState === 'connected-slow') {
+						this.renderRemoteStatusIndicator(`${nls.localize('slowConnection', "$(remote) {0} - $(alert) High Latency", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`);
+					} else {
+						this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
+					}
 				}
 			}
 			return;
