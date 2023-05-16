@@ -485,7 +485,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
 				this.shellLaunchConfig.executable = defaultProfile.path;
 				this.shellLaunchConfig.args = defaultProfile.args;
-				this.shellLaunchConfig.icon = defaultProfile.icon;
+				// Prevent debug icon from being overwritten
+				if (!(this.shellLaunchConfig.icon && 'id' in this.shellLaunchConfig.icon && this.shellLaunchConfig.icon.id === Codicon.debug.id)) {
+					this.shellLaunchConfig.icon = defaultProfile.icon;
+				}
 				this.shellLaunchConfig.color = defaultProfile.color;
 			}
 
