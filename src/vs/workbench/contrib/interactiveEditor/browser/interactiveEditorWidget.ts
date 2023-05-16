@@ -43,6 +43,7 @@ import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -171,7 +172,8 @@ export class InteractiveEditorWidget {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 
 		// input editor logic
@@ -470,6 +472,12 @@ export class InteractiveEditorWidget {
 		this._previewDiffEditor.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
 
 		this._onDidChangeHeight.fire();
+		this._previewDiffEditor.onDidUpdateDiff(() => {
+			if (this._accessibilityService.isScreenReaderOptimized()) {
+				this._previewDiffEditor.diffReviewNext();
+				this._inputEditor.focus();
+			}
+		});
 	}
 
 	hideEditsPreview() {
