@@ -506,7 +506,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			try {
 				this._ignoreModelContentChanged = true;
-				await this._strategy.renderChanges(response, this._activeSession.lastTextModelChanges);
+				await this._strategy.renderChanges(response);
 			} finally {
 				this._ignoreModelContentChanged = false;
 			}
@@ -560,8 +560,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	toggleInlineDiff(): void {
-		this._strategy?.toggleInlineDiff();
+	toggleDiff(): void {
+		this._strategy?.toggleDiff();
 	}
 
 	focus(): void {
