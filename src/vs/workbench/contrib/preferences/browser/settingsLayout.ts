@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 export interface ITOCEntry<T> {
 	id: string;
@@ -208,9 +209,9 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['mergeEditor.*']
 				},
 				{
-					id: 'features/interactiveSession',
+					id: 'features/chat',
 					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['interactiveSession.*', 'interactiveEditor.*']
+					settings: ['chat.*', 'interactiveEditor.*']
 				}
 			]
 		},
@@ -258,7 +259,7 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'security',
 			label: localize('security', "Security"),
-			settings: ['security.*'],
+			settings: isWindows ? ['security.*'] : undefined,
 			children: [
 				{
 					id: 'security/workspace',

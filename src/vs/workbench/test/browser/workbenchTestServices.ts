@@ -156,7 +156,6 @@ import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } f
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ExtensionType, IExtension, IExtensionDescription, IRelaxedExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -167,6 +166,7 @@ import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions,
 import { Codicon } from 'vs/base/common/codicons';
 import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
+import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -325,6 +325,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
+	instantiationService.stub(IRemoteSocketFactoryService, new RemoteSocketFactoryService());
 
 	return instantiationService;
 }
@@ -1937,10 +1938,6 @@ class TestLanguageDetectionService implements ILanguageDetectionService {
 export class TestRemoteAgentService implements IRemoteAgentService {
 
 	declare readonly _serviceBrand: undefined;
-
-	socketFactory: ISocketFactory = {
-		connect() { }
-	};
 
 	getConnection(): IRemoteAgentConnection | null { return null; }
 	async getEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }

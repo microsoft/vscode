@@ -4,60 +4,105 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IReconnectConstants } from 'vs/platform/terminal/common/terminal';
-import { NodePtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
-// import { FileAccess } from 'vs/base/common/network';
-// import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
-// import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
-// import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
+import { IpcMainEvent } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
 
-	// private utilityProcess: UtilityProcess | undefined = undefined;
+	private utilityProcess: UtilityProcess | undefined = undefined;
+
+	private readonly _onBeforeWindowConnection = new Emitter<void>();
+	readonly onBeforeWindowConnection = this._onBeforeWindowConnection.event;
+	private readonly _onWillShutdown = new Emitter<void>();
+	readonly onWillShutdown = this._onWillShutdown.event;
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
-		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService
+		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
+		@ILogService private readonly _logService: ILogService
 	) {
+		this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire());
+		// Listen for new windows to establish connection directly to pty host
+		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
 	}
 
 	start(lastPtyId: number): IPtyHostConnection {
-		return new NodePtyHostStarter(this._reconnectConstants, this._environmentService).start(lastPtyId);
+		this.utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
 
-		// console.log('use utility proc');
+		const inspectParams = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
+		let execArgv: string[] | undefined = undefined;
+		if (inspectParams) {
+			execArgv = ['--nolazy'];
+			if (inspectParams.break) {
+				execArgv.push(`--inspect-brk=${inspectParams.port}`);
+			} else if (!inspectParams.break) {
+				execArgv.push(`--inspect=${inspectParams.port}`);
+			}
+		}
 
-		// // TODO: Convert to use utility process
-		// const opts: IIPCOptions = {
-		// 	serverName: 'Pty Host',
-		// 	args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
-		// 	env: {
-		// 		VSCODE_LAST_PTY_ID: lastPtyId,
-		// 		VSCODE_PTY_REMOTE: this._isRemote,
-		// 		VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
-		// 		VSCODE_PIPE_LOGGING: 'true',
-		// 		VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
-		// 		VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
-		// 		VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
-		// 		VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
-		// 	}
-		// };
+		this.utilityProcess.start({
+			type: 'ptyHost',
+			entryPoint: 'vs/platform/terminal/node/ptyHostMain',
+			payload: this._createPtyHostConfiguration(lastPtyId),
+			execArgv
+		});
 
-		// const ptyHostDebug = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
-		// if (ptyHostDebug) {
-		// 	if (ptyHostDebug.break && ptyHostDebug.port) {
-		// 		opts.debugBrk = ptyHostDebug.port;
-		// 	} else if (!ptyHostDebug.break && ptyHostDebug.port) {
-		// 		opts.debug = ptyHostDebug.port;
-		// 	}
-		// }
+		const port = this.utilityProcess.connect();
+		const client = new MessagePortClient(port, 'ptyHost');
 
-		// const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
+		const store = new DisposableStore();
+		store.add(client);
+		store.add(this.utilityProcess);
+		store.add(toDisposable(() => {
+			validatedIpcMain.removeHandler('vscode:createPtyHostMessageChannel');
+			this.utilityProcess = undefined;
+		}));
 
-		// return {
-		// 	client,
-		// 	dispose: client.dispose,
-		// 	onDidProcessExit: client.onDidProcessExit
-		// };
+		return {
+			client,
+			store,
+			onDidProcessExit: this.utilityProcess.onExit
+		};
+	}
+
+	private _createPtyHostConfiguration(lastPtyId: number) {
+		return {
+			VSCODE_LAST_PTY_ID: lastPtyId,
+			VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
+			VSCODE_PIPE_LOGGING: 'true',
+			VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
+			VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
+			VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
+			VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
+		};
+	}
+
+	private _onWindowConnection(e: IpcMainEvent, nonce: string) {
+		this._onBeforeWindowConnection.fire();
+
+		const port = this.utilityProcess!.connect();
+
+		// Check back if the requesting window meanwhile closed
+		// Since shared process is delayed on startup there is
+		// a chance that the window close before the shared process
+		// was ready for a connection.
+
+		if (e.sender.isDestroyed()) {
+			port.close();
+			return;
+		}
+
+		e.sender.postMessage('vscode:createPtyHostMessageChannelResult', nonce, [port]);
 	}
 }

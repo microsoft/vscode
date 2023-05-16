@@ -21,8 +21,10 @@ import { HeartbeatService } from 'vs/platform/terminal/node/heartbeatService';
 import { PtyService } from 'vs/platform/terminal/node/ptyService';
 import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 
+const _isUtilityProcess = isUtilityProcess(process);
+
 let server: ChildProcessServer<string> | UtilityProcessServer;
-if (isUtilityProcess(process)) {
+if (_isUtilityProcess) {
 	server = new UtilityProcessServer();
 } else {
 	server = new ChildProcessServer(TerminalIpcChannels.PtyHost);
@@ -53,7 +55,11 @@ delete process.env.VSCODE_RECONNECT_SHORT_GRACE_TIME;
 delete process.env.VSCODE_RECONNECT_SCROLLBACK;
 
 const ptyService = new PtyService(lastPtyId, logService, productService, reconnectConstants);
-server.registerChannel(TerminalIpcChannels.PtyHost, ProxyChannel.fromService(ptyService));
+const ptyServiceChannel = ProxyChannel.fromService(ptyService);
+server.registerChannel(TerminalIpcChannels.PtyHost, ptyServiceChannel);
+if (_isUtilityProcess) {
+	server.registerChannel(TerminalIpcChannels.PtyHostWindow, ptyServiceChannel);
+}
 
 process.once('exit', () => {
 	logService.dispose();
