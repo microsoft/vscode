@@ -810,7 +810,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				caseSensitive: this._query.isCaseSensitive,
 				wordSeparators: wordSeparators ?? undefined,
 				includeMarkupInput: this._query.notebookInfo?.isInNotebookMarkdownInput,
-				includeMarkupPreview: !this._query.notebookInfo?.isInNotebookMarkdownInput,
+				includeMarkupPreview: this._query.notebookInfo?.isInNotebookMarkdownPreview,
 				includeCodeInput: this._query.notebookInfo?.isInNotebookCellInput,
 				includeOutput: this._query.notebookInfo?.isInNotebookCellOutput,
 			}, CancellationToken.None, false, true);
@@ -1977,7 +1977,7 @@ export class SearchModel extends Disposable {
 						wholeWord: query.contentPattern.isWordMatch,
 						caseSensitive: query.contentPattern.isCaseSensitive,
 						includeMarkupInput: query.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
-						includeMarkupPreview: !query.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
+						includeMarkupPreview: query.contentPattern.notebookInfo?.isInNotebookMarkdownPreview,
 						includeCodeInput: query.contentPattern.notebookInfo?.isInNotebookCellInput,
 						includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput,
 					}, token, false, true);
