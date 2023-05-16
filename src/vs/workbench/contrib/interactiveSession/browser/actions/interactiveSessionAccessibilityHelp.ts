@@ -21,14 +21,24 @@ export function getAccessibilityHelpText(keybindingService: IKeybindingService, 
 		content.push(descriptionForCommand('interactiveSession.action.focus', localize('interactiveSession.action.focus', 'The Focus Interactive Session ({0}) command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow.',), localize('interactiveSession.action.focusNoKb', 'The Focus Interactive Session command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow and is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.interactiveSession.focusInput', localize('workbench.action.interactiveSession.focusInput', 'The Focus Interactive Session Input ({0}) command focuses the input box for chat requests.'), localize('workbench.action.interactiveSession.focusInputNoKb', 'Focus Interactive Session Input command focuses the input box for chat requests and is currently not triggerable by a keybinding.'), keybindingService));
 	} else {
-		//TODO: different instructions based on whether this was /fix or /explain initiated bc for the latter, we need to
-		// provide the command to focus the chat view
 		content.push(localize('interactiveSessionEditor.accessibilityHelp', "Interactive Session Editor Accessibility Help"));
 		content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the interactive editor input via the Escape key."));
-		content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will run the request."));
-		content.push(localize('interactiveSession.diff', "From the make request button, tabbing again will emter the original editor and tabbing again will enter the modified editor with the proposed change."));
-		content.push(localize('interactiveSession.acceptReject', "Tabbing out of the diff view will enter the accept/reject buttons, which will accept or reject the change."));
+		content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request."));
+		const regex = /^(\/fix|\/explain)/;
+		const match = currentInput?.match(regex);
+		const command = match && match.length ? match[0].substring(1) : undefined;
+		switch (command) {
+			case 'fix':
+				// TODO: check that config value is preview before suggesting this, add instructions for other setting values
+				content.push(localize('interactiveSession.diff', "Tab again to enter the DiffReview editor with the changes. Use Up/DownArrow to navigate lines with the proposed changes."));
+				content.push(localize('interactiveSession.acceptReject', "Tab again to reach the accept/reject buttons, which will accept or reject the change."));
+				break;
+			case 'explain':
+				// TODO once we've decided on an approach
+				break;
+		}
 	}
+	content.push(localize('interactiveSession.exit', "Use Escape to exit the session."));
 	return content.join('\n');
 }
 
