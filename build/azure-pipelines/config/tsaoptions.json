@@ -12,6 +12,7 @@
 	"projectName": "DevDiv",
 	"areaPath": "DevDiv\\VS Code (compliance tracking only)\\Visual Studio Code Client",
 	"notifyAlways": true,
+	"template": "TFSDEVDIV",
 	"tools": [
 			"BinSkim",
 			"CredScan",
