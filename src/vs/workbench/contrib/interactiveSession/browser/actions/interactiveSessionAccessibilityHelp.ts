@@ -34,7 +34,11 @@ export function getAccessibilityHelpText(keybindingService: IKeybindingService, 
 				content.push(localize('interactiveSession.acceptReject', "Tab again to reach the accept/reject buttons, which will accept or reject the change."));
 				break;
 			case 'explain':
-				// TODO once we've decided on an approach
+				// TODO: once we've decided on an approach
+				break;
+			default:
+				content.push(localize('interactiveSession.toolbar', "Tab again to reach the toolbar."));
+				content.push(localize('interactiveSession.toolbarButtons', "Tab again to focus the response."));
 				break;
 		}
 	}
