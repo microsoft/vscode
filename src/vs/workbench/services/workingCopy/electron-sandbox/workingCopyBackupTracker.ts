@@ -68,21 +68,21 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		try {
 
 			// Dirty working copies need treatment on shutdown
-			const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
-			if (dirtyWorkingCopies.length) {
-				return await this.onBeforeShutdownWithDirty(reason, dirtyWorkingCopies);
+			const modifiedWorkingCopies = this.workingCopyService.modifiedWorkingCopies;
+			if (modifiedWorkingCopies.length) {
+				return await this.onBeforeShutdownWithModified(reason, modifiedWorkingCopies);
 			}
 
 			// No dirty working copies
 			else {
-				return await this.onBeforeShutdownWithoutDirty();
+				return await this.onBeforeShutdownWithoutModified();
 			}
 		} finally {
 			resume();
 		}
 	}
 
-	protected async onBeforeShutdownWithDirty(reason: ShutdownReason, dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<boolean> {
+	protected async onBeforeShutdownWithModified(reason: ShutdownReason, modifiedWorkingCopies: readonly IWorkingCopy[]): Promise<boolean> {
 
 		// If auto save is enabled, save all non-untitled working copies
 		// and then check again for dirty copies
@@ -97,19 +97,19 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			}
 
 			// If we still have dirty working copies, we either have untitled ones or working copies that cannot be saved
-			const remainingDirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
-			if (remainingDirtyWorkingCopies.length) {
-				return this.handleDirtyBeforeShutdown(remainingDirtyWorkingCopies, reason);
+			const remainingModifiedWorkingCopies = this.workingCopyService.modifiedWorkingCopies;
+			if (remainingModifiedWorkingCopies.length) {
+				return this.handleModifiedBeforeShutdown(remainingModifiedWorkingCopies, reason);
 			}
 
-			return this.noVeto([...dirtyWorkingCopies]); // no veto (dirty auto-saved)
+			return this.noVeto([...modifiedWorkingCopies]); // no veto (dirty auto-saved)
 		}
 
 		// Auto save is not enabled
-		return this.handleDirtyBeforeShutdown(dirtyWorkingCopies, reason);
+		return this.handleModifiedBeforeShutdown(modifiedWorkingCopies, reason);
 	}
 
-	private async handleDirtyBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
+	private async handleModifiedBeforeShutdown(modifiedWorkingCopies: readonly IWorkingCopy[], reason: ShutdownReason): Promise<boolean> {
 
 		// Trigger backup if configured and enabled for shutdown reason
 		let backups: IWorkingCopy[] = [];
@@ -117,19 +117,17 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		const backup = await this.shouldBackupBeforeShutdown(reason);
 		if (backup) {
 			try {
-				const backupResult = await this.backupBeforeShutdown(dirtyWorkingCopies);
+				const backupResult = await this.backupBeforeShutdown(modifiedWorkingCopies);
 				backups = backupResult.backups;
 				backupError = backupResult.error;
 
-				if (backups.length === dirtyWorkingCopies.length) {
+				if (backups.length === modifiedWorkingCopies.length) {
 					return false; // no veto (backup was successful for all working copies)
 				}
 			} catch (error) {
 				backupError = error;
 			}
 		}
-
-		const remainingDirtyWorkingCopies = dirtyWorkingCopies.filter(workingCopy => !backups.includes(workingCopy));
 
 		// We ran a backup but received an error that we show to the user
 		if (backupError) {
@@ -139,7 +137,8 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 				return false; // do not block shutdown during extension development (https://github.com/microsoft/vscode/issues/115028)
 			}
 
-			this.showErrorDialog(localize('backupTrackerBackupFailed', "The following editors with unsaved changes could not be saved to the back up location."), remainingDirtyWorkingCopies, backupError);
+			const remainingModifiedWorkingCopies = modifiedWorkingCopies.filter(workingCopy => !backups.includes(workingCopy));
+			this.showErrorDialog(localize('backupTrackerBackupFailed', "The following editors with unsaved changes could not be saved to the back up location."), remainingModifiedWorkingCopies, backupError);
 
 			return true; // veto (the backup failed)
 		}
@@ -147,6 +146,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// Since a backup did not happen, we have to confirm for
 		// the working copies that did not successfully backup
 
+		const remainingDirtyWorkingCopies = modifiedWorkingCopies.filter(workingCopy => !backups.includes(workingCopy) && workingCopy.isDirty());
 		try {
 			return await this.confirmBeforeShutdown(remainingDirtyWorkingCopies);
 		} catch (error) {
@@ -208,11 +208,9 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 	}
 
 	private showErrorDialog(msg: string, workingCopies: readonly IWorkingCopy[], error?: Error): void {
-		const dirtyWorkingCopies = workingCopies.filter(workingCopy => workingCopy.isDirty());
-
 		const advice = localize('backupErrorDetails', "Try saving or reverting the editors with unsaved changes first and then try again.");
-		const detail = dirtyWorkingCopies.length
-			? getFileNamesMessage(dirtyWorkingCopies.map(x => x.name)) + '\n' + advice
+		const detail = workingCopies.length
+			? getFileNamesMessage(workingCopies.map(x => x.name)) + '\n' + advice
 			: advice;
 
 		this.dialogService.error(msg, detail);
@@ -220,7 +218,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
 
-	private async backupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<{ backups: IWorkingCopy[]; error?: Error }> {
+	private async backupBeforeShutdown(modifiedWorkingCopies: readonly IWorkingCopy[]): Promise<{ backups: IWorkingCopy[]; error?: Error }> {
 		const backups: IWorkingCopy[] = [];
 		let error: Error | undefined = undefined;
 
@@ -228,7 +226,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 			// Perform a backup of all dirty working copies unless a backup already exists
 			try {
-				await Promises.settled(dirtyWorkingCopies.map(async workingCopy => {
+				await Promises.settled(modifiedWorkingCopies.map(async workingCopy => {
 
 					// Backup exists
 					const contentVersion = this.getContentVersion(workingCopy);
@@ -346,7 +344,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		}, localize('revertBeforeShutdown', "Reverting editors with unsaved changes is taking a bit longer..."));
 	}
 
-	private onBeforeShutdownWithoutDirty(): Promise<boolean> {
+	private onBeforeShutdownWithoutModified(): Promise<boolean> {
 
 		// We are about to shutdown without dirty editors
 		// and will discard any backups that are still

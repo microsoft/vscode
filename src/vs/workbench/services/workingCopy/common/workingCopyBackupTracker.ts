@@ -159,12 +159,15 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			return;
 		}
 
-		// Schedule backup if dirty or a scratchpad
-		if (workingCopy.isDirty() || (workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad)) {
+		// Schedule backup for unsaved content
+		if (workingCopy.isModified()) {
 			// this listener will make sure that the backup is
 			// pushed out for as long as the user is still changing
 			// the content of the working copy.
 			this.scheduleBackup(workingCopy);
+		}
+		else {
+			this.discardBackup(workingCopy);
 		}
 	}
 
@@ -183,8 +186,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				return;
 			}
 
-			// Backup if dirty
-			if (workingCopy.isDirty()) {
+			// Backup if modified
+			if (workingCopy.isModified()) {
 				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString(), workingCopy.typeId);
 
 				try {
@@ -193,7 +196,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 						return;
 					}
 
-					if (workingCopy.isDirty()) {
+					if (workingCopy.isModified()) {
 						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString(), workingCopy.typeId);
 
 						await this.workingCopyBackupService.backup(workingCopy, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);

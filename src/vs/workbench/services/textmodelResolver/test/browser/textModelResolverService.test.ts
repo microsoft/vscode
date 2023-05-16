@@ -157,6 +157,7 @@ suite('Workbench - TextModelResolverService', () => {
 	test('resolve untitled', async () => {
 		const service = accessor.untitledTextEditorService;
 		const untitledModel = service.create();
+		untitledModel.isModified = untitledModel.isDirty;
 		const input = instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
 
 		await input.resolve();

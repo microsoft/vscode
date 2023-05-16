@@ -176,7 +176,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	private readonly _onDidSave = this._register(new Emitter<IStoredFileWorkingCopySaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
-	readonly capabilities = WorkingCopyCapabilities.None;
+	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.None;
 
 	readonly name = basename(this.resource);
 
@@ -200,6 +200,10 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	}
 
 	isDirty(): boolean {
+		return this.dirty;
+	}
+
+	isModified(): boolean {
 		return this.dirty;
 	}
 

@@ -163,7 +163,18 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 
 	//#region Dirty Tracking
 
+	/**
+	 * Indicates that the file has unsaved changes
+	 * and should confirm before closing.
+	 */
 	isDirty(): boolean;
+
+	/**
+	 * Indicates that the file has unsaved changes.
+	 * Used for backup tracking and accounts for
+	 * working copies that are never dirty e.g. scratchpads
+	 */
+	isModified(): boolean;
 
 	//#endregion
 

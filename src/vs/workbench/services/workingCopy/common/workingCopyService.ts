@@ -69,6 +69,12 @@ export interface IWorkingCopyService {
 	readonly dirtyWorkingCopies: readonly IWorkingCopy[];
 
 	/**
+	 * All working copies with unsaved changes,
+	 * including scratchpads, which are never dirty
+	 */
+	readonly modifiedWorkingCopies: readonly IWorkingCopy[];
+
+	/**
 	 * Whether there is any registered working copy that is dirty.
 	 */
 	readonly hasDirty: boolean;
@@ -263,6 +269,10 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	get dirtyWorkingCopies(): IWorkingCopy[] {
 		return this.workingCopies.filter(workingCopy => workingCopy.isDirty());
+	}
+
+	get modifiedWorkingCopies(): IWorkingCopy[] {
+		return this.workingCopies.filter(workingCopy => workingCopy.isModified);
 	}
 
 	isDirty(resource: URI, typeId?: string): boolean {

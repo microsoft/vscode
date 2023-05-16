@@ -89,20 +89,24 @@ suite('UntitledFileWorkingCopyManager', () => {
 		for (const workingCopy of [workingCopy1, workingCopy2]) {
 			assert.strictEqual(workingCopy.capabilities, WorkingCopyCapabilities.Untitled);
 			assert.strictEqual(workingCopy.isDirty(), false);
+			assert.strictEqual(workingCopy.isModified(), false);
 			assert.ok(workingCopy.model);
 		}
 
 		workingCopy1.model?.updateContents('Hello World');
 
 		assert.strictEqual(workingCopy1.isDirty(), true);
+		assert.strictEqual(workingCopy1.isModified(), true);
 		assert.strictEqual(dirtyCounter, 1);
 
-		workingCopy1.model?.updateContents(''); // change to empty clears dirty flag
+		workingCopy1.model?.updateContents(''); // change to empty clears dirty/modified flags
 		assert.strictEqual(workingCopy1.isDirty(), false);
+		assert.strictEqual(workingCopy1.isModified(), false);
 		assert.strictEqual(dirtyCounter, 2);
 
 		workingCopy2.model?.fireContentChangeEvent({ isInitial: false });
 		assert.strictEqual(workingCopy2.isDirty(), true);
+		assert.strictEqual(workingCopy2.isModified(), true);
 		assert.strictEqual(dirtyCounter, 3);
 
 		workingCopy1.dispose();
@@ -134,9 +138,11 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 		workingCopy1.model?.updateContents('contents');
 		assert.strictEqual(workingCopy1.isDirty(), false);
+		assert.strictEqual(workingCopy1.isModified(), true);
 
-		workingCopy1.model?.fireContentChangeEvent({ isInitial: false });
+		workingCopy1.model?.fireContentChangeEvent({ isInitial: true });
 		assert.strictEqual(workingCopy1.isDirty(), false);
+		assert.strictEqual(workingCopy1.isModified(), false);
 
 		assert.strictEqual(dirtyCounter, 0);
 

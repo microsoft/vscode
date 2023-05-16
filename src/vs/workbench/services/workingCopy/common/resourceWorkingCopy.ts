@@ -143,6 +143,15 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 
 	//#endregion
 
+	//#region Modified Tracking
+
+	// Overridden when the Working Copies need to differentiate between
+	// dirty and modified e.g. scratchpads
+	isModified(): boolean {
+		return this.isDirty();
+	}
+
+	//#endregion
 
 	//#region Abstract
 
@@ -161,4 +170,5 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 	abstract revert(options?: IRevertOptions): Promise<void>;
 
 	//#endregion
+
 }
