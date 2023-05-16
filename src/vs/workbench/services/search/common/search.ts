@@ -409,9 +409,6 @@ export interface ISearchConfigurationProperties {
 		badges: boolean;
 	};
 	defaultViewMode: ViewMode;
-	experimental: {
-		notebookSearch: boolean;
-	};
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

@@ -208,6 +208,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
+			quality: this._productService.quality,
 			parentPid: remoteInitData.pid,
 			environment: {
 				isExtensionDevelopmentDebug,

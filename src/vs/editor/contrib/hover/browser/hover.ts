@@ -206,7 +206,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
 		// If the beginning of a multi-chord keybinding is pressed, or the command aims to focus the hover, set the variable to true, otherwise false
-		const mightTriggerFocus = (resolvedKeyboardEvent?.kind === ResultKind.MoreChordsNeeded || (resolvedKeyboardEvent && resolvedKeyboardEvent.kind === ResultKind.KbFound && resolvedKeyboardEvent.commandId === 'editor.action.showHover' && this._contentWidget?.isVisible()));
+		const mightTriggerFocus = (resolvedKeyboardEvent.kind === ResultKind.MoreChordsNeeded || (resolvedKeyboardEvent.kind === ResultKind.KbFound && resolvedKeyboardEvent.commandId === 'editor.action.showHover' && this._contentWidget?.isVisible()));
 
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
 			&& !mightTriggerFocus) {

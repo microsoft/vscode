@@ -260,7 +260,7 @@ class ToggleScreencastModeAction extends Action2 {
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
 			// Hide the single arrow key pressed
-			if (shortcut && shortcut.kind === ResultKind.KbFound && shortcut.commandId && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
+			if (shortcut.kind === ResultKind.KbFound && shortcut.commandId && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
 				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commandId))
 			) {
 				return;
@@ -324,8 +324,8 @@ class ToggleScreencastModeAction extends Action2 {
 		ToggleScreencastModeAction.disposable = disposables;
 	}
 
-	private _isKbFound(resolutionResult: ResolutionResult | null): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
-		return resolutionResult !== null && resolutionResult.kind === ResultKind.KbFound;
+	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
+		return resolutionResult.kind === ResultKind.KbFound;
 	}
 }
 

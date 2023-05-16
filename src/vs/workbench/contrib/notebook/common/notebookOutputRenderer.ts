@@ -124,15 +124,18 @@ export class NotebookStaticPreloadInfo implements INotebookStaticPreloadInfo {
 	readonly type: string;
 	readonly entrypoint: URI;
 	readonly extensionLocation: URI;
+	readonly localResourceRoots: readonly URI[];
 
 	constructor(descriptor: {
 		readonly type: string;
 		readonly entrypoint: string;
+		readonly localResourceRoots: readonly string[];
 		readonly extension: IExtensionDescription;
 	}) {
 		this.type = descriptor.type;
 
 		this.entrypoint = joinPath(descriptor.extension.extensionLocation, descriptor.entrypoint);
 		this.extensionLocation = descriptor.extension.extensionLocation;
+		this.localResourceRoots = descriptor.localResourceRoots.map(root => joinPath(descriptor.extension.extensionLocation, root));
 	}
 }

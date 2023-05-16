@@ -73,7 +73,7 @@ import './mainThreadNotebookRenderers';
 import './mainThreadNotebookSaveParticipant';
 import './mainThreadInteractive';
 import './mainThreadInteractiveEditor';
-import './mainThreadInteractiveSession';
+import './mainThreadChat';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';

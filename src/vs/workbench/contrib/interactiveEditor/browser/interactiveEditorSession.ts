@@ -37,6 +37,7 @@ type TelemetryData = {
 	rounds: string;
 	undos: string;
 	edits: boolean;
+	finishedByEdit: boolean;
 	startTime: string;
 	endTime: string;
 	editMode: string;
@@ -49,6 +50,7 @@ type TelemetryDataClassification = {
 	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of request that were made' };
 	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Requests that have been undone' };
 	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits happen while the session was active' };
+	finishedByEdit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits cause the session to terminate' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
 	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
@@ -139,8 +141,9 @@ export class Session {
 		return this.textModelN.getValueInRange(new Range(startLine, 1, endLine, Number.MAX_VALUE));
 	}
 
-	recordExternalEditOccurred() {
+	recordExternalEditOccurred(didFinish: boolean) {
 		this._teldata.edits = true;
+		this._teldata.finishedByEdit = didFinish;
 	}
 
 	asTelemetryData(): TelemetryData {
