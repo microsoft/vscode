@@ -668,7 +668,7 @@ const SETTINGS_BOOL_OBJECT_TEMPLATE_ID = 'settings.boolObject.template';
 const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
 const SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID = 'settings.newExtensions.template';
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.group.template';
-const SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID = 'settings.boolWithEnable.template';
+const SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID = 'settings.extensionToggle.template';
 
 export interface ISettingChangeEvent {
 	key: string;
@@ -1895,7 +1895,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 type ExtensionToggleSettingTelemetryClassification = {
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of action performed by the setting button' };
 	owner: 'rzhao271';
-	comment: 'Event used to gain insights into when users are using the experimental service enable setting';
+	comment: 'Event used to gain insights into when users are using an experimental extension toggle setting';
 };
 
 export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExtensionToggleItemTemplate> {
