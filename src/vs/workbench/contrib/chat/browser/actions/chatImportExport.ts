@@ -14,7 +14,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { isSerializableSessionData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { isExportableSessionData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -60,7 +60,7 @@ export function registerChatExportActions() {
 			}
 
 			// Using toJSON on the model
-			const content = VSBuffer.fromString(JSON.stringify(model, undefined, 2));
+			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
 			await fileService.writeFile(result, content);
 		}
 	});
@@ -95,7 +95,7 @@ export function registerChatExportActions() {
 			const content = await fileService.readFile(result[0]);
 			try {
 				const data = JSON.parse(content.value.toString());
-				if (!isSerializableSessionData(data)) {
+				if (!isExportableSessionData(data)) {
 					throw new Error('Invalid chat session data');
 				}
 

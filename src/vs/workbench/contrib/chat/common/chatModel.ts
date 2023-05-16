@@ -180,6 +180,8 @@ export interface IChatModel {
 	readonly inputPlaceholder?: string;
 	getRequests(): IInteractiveRequestModel[];
 	waitForInitialization(): Promise<void>;
+	toExport(): IExportableChatData;
+	toJSON(): ISerializableChatData;
 }
 
 export interface ISerializableChatsData {
@@ -196,10 +198,8 @@ export interface ISerializableChatRequestData {
 	vote: InteractiveSessionVoteDirection | undefined;
 }
 
-export interface ISerializableChatData {
-	sessionId: string;
+export interface IExportableChatData {
 	providerId: string;
-	creationDate: number;
 	welcomeMessage: (string | IChatReplyFollowup[])[] | undefined;
 	requests: ISerializableChatRequestData[];
 	requesterUsername: string;
@@ -209,13 +209,24 @@ export interface ISerializableChatData {
 	providerState: any;
 }
 
-export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
-	const data = obj as ISerializableChatData;
+export interface ISerializableChatData extends IExportableChatData {
+	sessionId: string;
+	creationDate: number;
+}
+
+export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
+	const data = obj as IExportableChatData;
 	return typeof data === 'object' &&
 		typeof data.providerId === 'string' &&
-		typeof data.sessionId === 'string' &&
 		typeof data.requesterUsername === 'string' &&
 		typeof data.responderUsername === 'string';
+}
+
+export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
+	const data = obj as ISerializableChatData;
+	return isExportableSessionData(obj) &&
+		typeof data.creationDate === 'number' &&
+		typeof data.sessionId === 'string';
 }
 
 export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent;
@@ -308,7 +319,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
-		this._sessionId = initialData ? initialData.sessionId : generateUuid();
+		this._sessionId = initialData?.sessionId ?? generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._providerState = initialData ? initialData.providerState : undefined;
 		this._creationDate = initialData?.creationDate ?? Date.now();
@@ -439,10 +450,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'addResponse', response });
 	}
 
-	toJSON(): ISerializableChatData {
+	toExport(): IExportableChatData {
 		return {
-			sessionId: this.sessionId,
-			creationDate: this._creationDate,
 			requesterUsername: this._session!.requesterUsername,
 			requesterAvatarIconUri: this._session!.requesterAvatarIconUri,
 			responderUsername: this._session!.responderUsername,
@@ -467,6 +476,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			}),
 			providerId: this.providerId,
 			providerState: this._providerState
+		};
+	}
+
+	toJSON(): ISerializableChatData {
+		return {
+			...this.toExport(),
+			sessionId: this.sessionId,
+			creationDate: this._creationDate,
 		};
 	}
 
