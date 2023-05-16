@@ -155,6 +155,7 @@ export namespace ChatUri {
 
 interface ISerializedChatEditorInput {
 	options: IChatEditorOptions;
+	sessionId: string;
 	resource: URI;
 }
 
@@ -174,6 +175,7 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 
 		const obj: ISerializedChatEditorInput = {
 			options: input.options,
+			sessionId: input.sessionId,
 			resource: input.resource
 		};
 		return JSON.stringify(obj);
@@ -183,7 +185,7 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 		try {
 			const parsed: ISerializedChatEditorInput = JSON.parse(serializedEditor);
 			const resource = URI.revive(parsed.resource);
-			return instantiationService.createInstance(ChatEditorInput, resource, parsed.options as IChatEditorOptions);
+			return instantiationService.createInstance(ChatEditorInput, resource, { ...parsed.options, target: { sessionId: parsed.sessionId } });
 		} catch (err) {
 			return undefined;
 		}

@@ -19,7 +19,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
@@ -52,7 +52,7 @@ export function registerChatCodeBlockActions() {
 					original: 'Copy'
 				},
 				f1: false,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.copy,
 				menu: {
 					id: MenuId.ChatCodeBlock,
@@ -144,7 +144,7 @@ export function registerChatCodeBlockActions() {
 					original: 'Insert at Cursor'
 				},
 				f1: true,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
 				menu: {
 					id: MenuId.ChatCodeBlock,
@@ -252,7 +252,7 @@ export function registerChatCodeBlockActions() {
 					original: 'Insert Into New File'
 				},
 				f1: true,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.newFile,
 				menu: {
 					id: MenuId.ChatCodeBlock,
@@ -297,7 +297,7 @@ export function registerChatCodeBlockActions() {
 					original: 'Run in Terminal'
 				},
 				f1: true,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
 				menu: {
 					id: MenuId.ChatCodeBlock,
@@ -400,7 +400,7 @@ export function registerChatCodeBlockActions() {
 					when: CONTEXT_IN_INTERACTIVE_SESSION,
 				},
 				f1: true,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 			});
 		}
 
@@ -423,7 +423,7 @@ export function registerChatCodeBlockActions() {
 					when: CONTEXT_IN_INTERACTIVE_SESSION,
 				},
 				f1: true,
-				category: INTERACTIVE_SESSION_CATEGORY,
+				category: CHAT_CATEGORY,
 			});
 		}
 
