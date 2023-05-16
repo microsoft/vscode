@@ -21,10 +21,10 @@ export class CanonicalUriService implements ICanonicalUriService {
 		};
 	}
 
-	async provideCanonicalUri(uri: URI, token: CancellationToken): Promise<URI | undefined> {
+	async provideCanonicalUri(uri: URI, targetScheme: string, token: CancellationToken): Promise<URI | undefined> {
 		const provider = this._providers.get(uri.scheme);
 		if (provider) {
-			return provider.provideCanonicalUri(uri, token);
+			return provider.provideCanonicalUri(uri, targetScheme, token);
 		}
 		return undefined;
 	}

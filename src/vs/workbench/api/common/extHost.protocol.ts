@@ -1551,7 +1551,7 @@ export interface ExtHostWorkspaceShape {
 	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
 	$provideEditSessionIdentityMatch(folder: UriComponents, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
 	$onWillCreateEditSessionIdentity(folder: UriComponents, token: CancellationToken, timeout: number): Promise<void>;
-	$provideCanonicalUri(uri: UriComponents, token: CancellationToken): Promise<UriComponents | undefined>;
+	$provideCanonicalUri(uri: UriComponents, targetScheme: string, token: CancellationToken): Promise<UriComponents | undefined>;
 }
 
 export interface ExtHostFileSystemInfoShape {

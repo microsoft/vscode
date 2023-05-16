@@ -278,8 +278,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	$registerCanonicalUriProvider(handle: number, scheme: string) {
 		const disposable = this._canonicalUriService.registerCanonicalUriProvider({
 			scheme: scheme,
-			provideCanonicalUri: async (uri: UriComponents, token: CancellationToken) => {
-				const result = await this._proxy.$provideCanonicalUri(uri, token);
+			provideCanonicalUri: async (uri: UriComponents, targetScheme: string, token: CancellationToken) => {
+				const result = await this._proxy.$provideCanonicalUri(uri, targetScheme, token);
 				if (result) {
 					return URI.revive(result);
 				}

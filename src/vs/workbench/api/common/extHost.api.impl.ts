@@ -1101,9 +1101,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'canonicalUriProvider');
 				return extHostWorkspace.registerCanonicalUriProvider(scheme, provider);
 			},
-			provideCanonicalUri: (uri: vscode.Uri, token: vscode.CancellationToken) => {
+			getCanonicalUri: (uri: vscode.Uri, options: vscode.CanonicalUriRequestOptions, token: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'canonicalUriProvider');
-				return extHostWorkspace.provideCanonicalUri(uri, token);
+				return extHostWorkspace.provideCanonicalUri(uri, options, token);
 			}
 		};
 

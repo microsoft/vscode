@@ -718,13 +718,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		});
 	}
 
-	async provideCanonicalUri(uri: URI, cancellationToken: CancellationToken): Promise<URI | undefined> {
+	async provideCanonicalUri(uri: URI, options: vscode.CanonicalUriRequestOptions, cancellationToken: CancellationToken): Promise<URI | undefined> {
 		const provider = this._canonicalUriProviders.get(uri.scheme);
 		if (!provider) {
 			return undefined;
 		}
 
-		const result = await provider.provideCanonicalUri?.(URI.revive(uri), cancellationToken);
+		const result = await provider.provideCanonicalUri?.(URI.revive(uri), options, cancellationToken);
 		if (!result) {
 			return undefined;
 		}
@@ -733,8 +733,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	// called by main thread
-	async $provideCanonicalUri(uri: UriComponents, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
-		return this.provideCanonicalUri(URI.revive(uri), cancellationToken);
+	async $provideCanonicalUri(uri: UriComponents, targetScheme: string, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
+		return this.provideCanonicalUri(URI.revive(uri), { targetScheme }, cancellationToken);
 	}
 }
 
