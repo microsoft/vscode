@@ -10,8 +10,8 @@ import { addStandardDisposableListener } from 'vs/base/browser/dom';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 
 export function getAccessibilityHelpText(keybindingService: IKeybindingService, type: 'chat' | 'editor', currentInput?: string): string {
 	const content = [];
@@ -55,7 +55,7 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 }
 
 export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor, type: 'chat' | 'editor'): Promise<void> {
-	const widgetService = accessor.get(IInteractiveSessionWidgetService);
+	const widgetService = accessor.get(IChatWidgetService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const inputEditor: ICodeEditor | undefined = type === 'chat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
 	const editorUri = editor.getModel()?.uri;
