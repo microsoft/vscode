@@ -3834,15 +3834,16 @@ export class LinkedEditingRanges {
 
 //#region ports
 export class PortAttributes {
-	private _port: number;
 	private _autoForwardAction: PortAutoForwardAction;
-	constructor(port: number, autoForwardAction: PortAutoForwardAction) {
-		this._port = port;
-		this._autoForwardAction = autoForwardAction;
-	}
 
-	get port(): number {
-		return this._port;
+	constructor(autoForwardAction: PortAutoForwardAction);
+	constructor(port: number, autoForwardAction: PortAutoForwardAction);
+	constructor(portOrAction: number | PortAutoForwardAction, autoForwardAction?: PortAutoForwardAction) {
+		if (typeof portOrAction === 'number') {
+			this._autoForwardAction = autoForwardAction!;
+		} else {
+			this._autoForwardAction = portOrAction;
+		}
 	}
 
 	get autoForwardAction(): PortAutoForwardAction {
