@@ -212,6 +212,7 @@ export interface IExportableChatData {
 export interface ISerializableChatData extends IExportableChatData {
 	sessionId: string;
 	creationDate: number;
+	isImported: boolean;
 }
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
@@ -313,22 +314,29 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._isInitializedDeferred.isSettled;
 	}
 
+	private _isImported = false;
+	get isImported(): boolean {
+		return this._isImported;
+	}
+
 	constructor(
 		public readonly providerId: string,
-		private readonly initialData: ISerializableChatData | undefined,
+		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
-		this._sessionId = initialData?.sessionId ?? generateUuid();
+
+		this._isImported = (!!initialData && !isSerializableSessionData(initialData)) || (initialData?.isImported ?? false);
+		this._sessionId = (isSerializableSessionData(initialData) && initialData.sessionId) || generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._providerState = initialData ? initialData.providerState : undefined;
-		this._creationDate = initialData?.creationDate ?? Date.now();
+		this._creationDate = (isSerializableSessionData(initialData) && initialData.creationDate) || Date.now();
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = initialData?.responderAvatarIconUri && URI.revive(initialData.responderAvatarIconUri);
 	}
 
-	private _deserialize(obj: ISerializableChatData): InteractiveRequestModel[] {
+	private _deserialize(obj: IExportableChatData): InteractiveRequestModel[] {
 		const requests = obj.requests;
 		if (!Array.isArray(requests)) {
 			this.logService.error(`Ignoring malformed session data: ${obj}`);
@@ -484,6 +492,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			...this.toExport(),
 			sessionId: this.sessionId,
 			creationDate: this._creationDate,
+			isImported: this._isImported
 		};
 	}
 
