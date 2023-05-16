@@ -19,7 +19,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ISerializableChatData, ISerializableChatsData, ChatModel, ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ISerializableChatData, ISerializableChatsData, ChatModel, ChatWelcomeMessageModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatProgress, IChatProvider, IChatProviderInfo, IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatReplyFollowup, IChatService, IChatUserActionEvent, ISlashCommand, ISlashCommandProvider, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -286,6 +286,10 @@ export class ChatService extends Disposable implements IChatService {
 		return model;
 	}
 
+	getSession(sessionId: string): IChatModel | undefined {
+		return this._sessionModels.get(sessionId);
+	}
+
 	getOrRestoreSession(sessionId: string): ChatModel | undefined {
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
@@ -299,6 +303,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		delete this._persistedSessions[sessionId];
 		return this._startSession(sessionData.providerId, sessionData, CancellationToken.None);
+	}
+
+	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined {
+		return this._startSession(data.providerId, data, CancellationToken.None);
 	}
 
 	async sendRequest(sessionId: string, request: string | IChatReplyFollowup): Promise<boolean> {

@@ -69,9 +69,14 @@ export class ChatEditorInput extends EditorInput {
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
-		const model = typeof this.sessionId === 'string' ?
-			this.chatService.getOrRestoreSession(this.sessionId) :
-			this.chatService.startSession(this.providerId!, CancellationToken.None);
+		let model: IChatModel | undefined;
+		if (typeof this.sessionId === 'string') {
+			model = this.chatService.getOrRestoreSession(this.sessionId);
+		} else if (typeof this.providerId === 'string') {
+			model = this.chatService.startSession(this.providerId, CancellationToken.None);
+		} else if ('data' in this.options.target) {
+			model = this.chatService.loadSessionFromContent(this.options.target.data);
+		}
 
 		if (!model) {
 			return null;
