@@ -170,7 +170,7 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
-import 'vs/workbench/contrib/interactiveSession/browser/interactiveSession.contribution';
+import 'vs/workbench/contrib/chat/browser/chat.contribution';
 import 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditor.contribution';
 
 // Interactive

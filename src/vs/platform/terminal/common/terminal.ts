@@ -209,6 +209,10 @@ export enum TerminalIpcChannels {
 	 */
 	PtyHost = 'ptyHost',
 	/**
+	 * Communicates between the renderer process and the pty host process.
+	 */
+	PtyHostWindow = 'ptyHostWindow',
+	/**
 	 * Deals with logging from the pty host process.
 	 */
 	Logger = 'logger',
@@ -270,7 +274,7 @@ export interface IPtyHostController {
 	readonly onPtyHostResponsive?: Event<void>;
 	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
 
-	restartPtyHost?(): Promise<void>;
+	restartPtyHost?(): void;
 	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
 }
 
