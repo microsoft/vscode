@@ -145,7 +145,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (this._accessibilityService.isScreenReaderOptimized() && editModeValue === editMode.defaultValue) {
 			// By default, use preview mode for screen reader users
 			editModeValue = EditMode.Preview;
-			this._configurationService.updateValue('interactiveEditor.editMode', EditMode.Preview);
 		}
 		return editModeValue!;
 	}
