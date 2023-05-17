@@ -189,6 +189,7 @@ export interface INotebookStaticPreloadInfo {
 	readonly type: string;
 	readonly entrypoint: URI;
 	readonly extensionLocation: URI;
+	readonly localResourceRoots: readonly URI[];
 }
 
 export interface IOrderedMimeType {

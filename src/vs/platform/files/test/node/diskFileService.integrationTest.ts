@@ -489,23 +489,27 @@ flakySuite('Disk File Service', function () {
 		assert.ok(result.ctime! > 0);
 	});
 
-	test('deleteFile', async () => {
-		return testDeleteFile(false);
+	test('deleteFile (non recursive)', async () => {
+		return testDeleteFile(false, false);
+	});
+
+	test('deleteFile (recursive)', async () => {
+		return testDeleteFile(false, true);
 	});
 
 	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFile (useTrash)', async () => {
-		return testDeleteFile(true);
+		return testDeleteFile(true, false);
 	});
 
-	async function testDeleteFile(useTrash: boolean): Promise<void> {
+	async function testDeleteFile(useTrash: boolean, recursive: boolean): Promise<void> {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
 		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
 		const source = await service.resolve(resource);
 
-		assert.strictEqual(await service.canDelete(source.resource, { useTrash }), true);
-		await service.del(source.resource, { useTrash });
+		assert.strictEqual(await service.canDelete(source.resource, { useTrash, recursive }), true);
+		await service.del(source.resource, { useTrash, recursive });
 
 		assert.strictEqual(existsSync(source.resource.fsPath), false);
 
@@ -515,7 +519,7 @@ flakySuite('Disk File Service', function () {
 
 		let error: Error | undefined = undefined;
 		try {
-			await service.del(source.resource, { useTrash });
+			await service.del(source.resource, { useTrash, recursive });
 		} catch (e) {
 			error = e;
 		}
@@ -603,6 +607,22 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(error);
 	});
+
+	test('deleteFolder empty folder (recursive)', () => {
+		return testDeleteEmptyFolder(true);
+	});
+
+	test('deleteFolder empty folder (non recursive)', () => {
+		return testDeleteEmptyFolder(false);
+	});
+
+	async function testDeleteEmptyFolder(recursive: boolean): Promise<void> {
+		const { resource } = await service.createFolder(URI.file(join(testDir, 'deep', 'empty')));
+
+		await service.del(resource, { recursive });
+
+		assert.strictEqual(await service.exists(resource), false);
+	}
 
 	test('move', async () => {
 		let event: FileOperationEvent;
@@ -2175,10 +2195,14 @@ flakySuite('Disk File Service', function () {
 	async function testLockedFiles(expectError: boolean) {
 		const lockedFile = URI.file(join(testDir, 'my-locked-file'));
 
-		await service.writeFile(lockedFile, VSBuffer.fromString('Locked File'));
+		const content = await service.writeFile(lockedFile, VSBuffer.fromString('Locked File'));
+		assert.strictEqual(content.locked, false);
 
 		const stats = await Promises.stat(lockedFile.fsPath);
 		await Promises.chmod(lockedFile.fsPath, stats.mode & ~0o200);
+
+		let stat = await service.stat(lockedFile);
+		assert.strictEqual(stat.locked, true);
 
 		let error;
 		const newContent = 'Updates to locked file';
@@ -2202,6 +2226,9 @@ flakySuite('Disk File Service', function () {
 		} else {
 			await service.writeFile(lockedFile, VSBuffer.fromString(newContent), { unlock: true });
 			assert.strictEqual(readFileSync(lockedFile.fsPath).toString(), newContent);
+
+			stat = await service.stat(lockedFile);
+			assert.strictEqual(stat.locked, false);
 		}
 	}
 

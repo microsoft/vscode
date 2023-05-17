@@ -304,6 +304,7 @@ export interface ITerminalConfiguration {
 		enabled: boolean;
 		decorationsEnabled: boolean;
 	};
+	experimentalImageSupport: boolean;
 	smoothScrolling: boolean;
 }
 
@@ -397,9 +398,9 @@ export interface ITerminalProcessManager extends IDisposable {
 
 	getLatency(): Promise<number>;
 	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
-	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
+	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): Promise<void>;
 	getBackendOS(): Promise<OperatingSystem>;
-	freePortKillProcess(port: string): void;
+	freePortKillProcess(port: string): Promise<void>;
 }
 
 export const enum ProcessState {

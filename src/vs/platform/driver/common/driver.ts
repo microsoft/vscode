@@ -28,7 +28,7 @@ export interface ILocalizedStrings {
 }
 
 export interface ILogFile {
-	readonly name: string;
+	readonly relativePath: string;
 	readonly contents: string;
 }
 

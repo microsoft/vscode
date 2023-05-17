@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 use std::{
+	path::Path,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
@@ -20,11 +21,15 @@ use crate::{
 	json_rpc::{new_json_rpc, start_json_rpc, JsonRpcSerializer},
 	log,
 	rpc::RpcCaller,
+	singleton::connect_as_client,
 	tunnels::{code_server::print_listening, protocol::EmptyObject},
-	util::sync::Barrier,
+	util::{errors::CodeError, sync::Barrier},
 };
 
-use super::{protocol, shutdown_signal::ShutdownSignal};
+use super::{
+	protocol,
+	shutdown_signal::{ShutdownRequest, ShutdownSignal},
+};
 
 pub struct SingletonClientArgs {
 	pub log: log::Logger,
@@ -143,4 +148,44 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 	let _ = start_json_rpc(rpc.build(args.log), read, write, msg_rx, args.shutdown).await;
 
 	exit_entirely.load(Ordering::SeqCst)
+}
+
+pub async fn do_single_rpc_call<
+	P: serde::Serialize + 'static,
+	R: serde::de::DeserializeOwned + Send + 'static,
+>(
+	lock_file: &Path,
+	log: log::Logger,
+	method: &'static str,
+	params: P,
+) -> Result<R, CodeError> {
+	let client = match connect_as_client(lock_file).await {
+		Ok(p) => p,
+		Err(CodeError::SingletonLockfileOpenFailed(_))
+		| Err(CodeError::SingletonLockedProcessExited(_)) => {
+			return Err(CodeError::NoRunningTunnel);
+		}
+		Err(e) => return Err(e),
+	};
+
+	let (msg_tx, msg_rx) = mpsc::unbounded_channel();
+	let mut rpc = new_json_rpc();
+	let caller = rpc.get_caller(msg_tx);
+	let (read, write) = socket_stream_split(client);
+
+	let rpc = tokio::spawn(async move {
+		start_json_rpc(
+			rpc.methods(()).build(log),
+			read,
+			write,
+			msg_rx,
+			ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+		)
+		.await
+		.unwrap();
+	});
+
+	let r = caller.call(method, params).await.unwrap();
+	rpc.abort();
+	r.map_err(CodeError::TunnelRpcCallFailed)
 }
