@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorAction2 } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InteractiveEditorController, InteractiveEditorRunOptions } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
@@ -549,20 +549,19 @@ export class ContractMessageAction extends AbstractInteractiveEditorAction {
 	}
 }
 
-export class AccessibilityHelpEditorAction extends EditorAction {
+export class AccessibilityHelpEditorAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'interactiveSession.action.accessibilityHelpEditor',
-			label: localize('actions.interactiveSession.accessibiltyHelpEditor', "Interactive Session Editor Accessibility Help"),
-			alias: 'Interactive Session Editor Accessibility Help',
+			title: localize('actions.interactiveSession.accessibiltyHelpEditor', "Interactive Session Editor Accessibility Help"),
 			precondition: ContextKeyExpr.has('interactiveEditorFocused'),
-			kbOpts: {
+			keybinding: {
 				primary: KeyMod.Alt | KeyCode.F1,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		runAccessibilityHelpAction(accessor, editor, 'editor');
 	}
 }
