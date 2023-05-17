@@ -16,7 +16,7 @@ import { ResourceMap } from '../utils/resourceMap';
 import { API } from './api';
 import type * as Proto from './protocol/protocol';
 
-const enum BufferKind {
+const enum BufferLanguage {
 	TypeScript = 1,
 	JavaScript = 2,
 }
@@ -27,7 +27,9 @@ const enum BufferState {
 	Closed = 2,
 }
 
-function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
+type ScriptKind = 'TS' | 'TSX' | 'JS' | 'JSX';
+
+function mode2ScriptKind(mode: string): ScriptKind | undefined {
 	switch (mode) {
 		case languageModeIds.typescript: return 'TS';
 		case languageModeIds.typescriptreact: return 'TSX';
@@ -42,14 +44,16 @@ const enum BufferOperationType { Close, Open, Change }
 class CloseOperation {
 	readonly type = BufferOperationType.Close;
 	constructor(
-		public readonly args: string
+		public readonly args: string,
+		public readonly scriptKind: ScriptKind | undefined,
 	) { }
 }
 
 class OpenOperation {
 	readonly type = BufferOperationType.Open;
 	constructor(
-		public readonly args: Proto.OpenRequestArgs
+		public readonly args: Proto.OpenRequestArgs,
+		public readonly scriptKind: ScriptKind | undefined,
 	) { }
 }
 
@@ -83,7 +87,7 @@ class BufferSynchronizer {
 
 	public open(resource: vscode.Uri, args: Proto.OpenRequestArgs) {
 		if (this.supportsBatching) {
-			this.updatePending(resource, new OpenOperation(args));
+			this.updatePending(resource, new OpenOperation(args, args.scriptKindName));
 		} else {
 			this.client.executeWithoutWaitingForResponse('open', args);
 		}
@@ -92,9 +96,9 @@ class BufferSynchronizer {
 	/**
 	 * @return Was the buffer open?
 	 */
-	public close(resource: vscode.Uri, filepath: string): boolean {
+	public close(resource: vscode.Uri, filepath: string, scriptKind: ScriptKind | undefined): boolean {
 		if (this.supportsBatching) {
-			return this.updatePending(resource, new CloseOperation(filepath));
+			return this.updatePending(resource, new CloseOperation(filepath, scriptKind));
 		} else {
 			const args: Proto.FileRequestArgs = { file: filepath };
 			this.client.executeWithoutWaitingForResponse('close', args);
@@ -172,8 +176,10 @@ class BufferSynchronizer {
 				const existing = this._pending.get(resource);
 				switch (existing?.type) {
 					case BufferOperationType.Open:
-						this._pending.delete(resource);
-						return false; // Open then close. No need to do anything
+						if (existing.scriptKind === op.scriptKind) {
+							this._pending.delete(resource);
+							return false; // Open then close. No need to do anything
+						}
 				}
 				break;
 			}
@@ -230,16 +236,16 @@ class SyncedBuffer {
 		return this.document.lineCount;
 	}
 
-	public get kind(): BufferKind {
+	public get language(): BufferLanguage {
 		switch (this.document.languageId) {
 			case languageModeIds.javascript:
 			case languageModeIds.javascriptreact:
-				return BufferKind.JavaScript;
+				return BufferLanguage.JavaScript;
 
 			case languageModeIds.typescript:
 			case languageModeIds.typescriptreact:
 			default:
-				return BufferKind.TypeScript;
+				return BufferLanguage.TypeScript;
 		}
 	}
 
@@ -252,7 +258,7 @@ class SyncedBuffer {
 			return false;
 		}
 		this.state = BufferState.Closed;
-		return this.synchronizer.close(this.resource, this.filepath);
+		return this.synchronizer.close(this.resource, this.filepath, mode2ScriptKind(this.document.languageId));
 	}
 
 	public onContentChanged(events: readonly vscode.TextDocumentContentChangeEvent[]): void {
@@ -749,11 +755,11 @@ export default class BufferSyncSupport extends Disposable {
 			return false;
 		}
 
-		switch (buffer.kind) {
-			case BufferKind.JavaScript:
+		switch (buffer.language) {
+			case BufferLanguage.JavaScript:
 				return this._validateJavaScript;
 
-			case BufferKind.TypeScript:
+			case BufferLanguage.TypeScript:
 			default:
 				return this._validateTypeScript;
 		}

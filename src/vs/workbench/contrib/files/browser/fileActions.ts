@@ -866,6 +866,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
 	const configService = accessor.get(IConfigurationService);
+	const filesConfigService = accessor.get(IFilesConfigurationService);
 	const editorService = accessor.get(IEditorService);
 	const viewsService = accessor.get(IViewsService);
 	const notificationService = accessor.get(INotificationService);
@@ -902,7 +903,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		throw new Error('Parent folder is readonly.');
 	}
 
-	const newStat = new NewExplorerItem(fileService, configService, folder, isFolder);
+	const newStat = new NewExplorerItem(fileService, configService, filesConfigService, folder, isFolder);
 	folder.addChild(newStat);
 
 	const onSuccess = async (value: string): Promise<void> => {

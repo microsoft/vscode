@@ -31,9 +31,12 @@
 			}
 		});
 
+		const urlParams = new URLSearchParams(window.location.search);
+		const isCI = urlParams.get('ci');
+
 		mocha.setup({
 			ui: 'tdd',
-			timeout: 5000
+			timeout: isCI ? 30000 : 5000
 		});
 	</script>
 
@@ -42,7 +45,6 @@
 	<script src="../../../out-build/vs/loader.js"></script>
 
 	<script>
-		const urlParams = new URLSearchParams(window.location.search);
 		const isBuild = urlParams.get('build');
 
 		// configure loader

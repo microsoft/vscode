@@ -20,7 +20,11 @@ registerEditorContribution(INTERACTIVE_EDITOR_ID, InteractiveEditorController, E
 registerAction2(interactiveEditorActions.StartSessionAction);
 registerAction2(interactiveEditorActions.MakeRequestAction);
 registerAction2(interactiveEditorActions.StopRequestAction);
+registerAction2(interactiveEditorActions.DicardAction);
+registerAction2(interactiveEditorActions.DiscardToClipboardAction);
+registerAction2(interactiveEditorActions.DiscardUndoToNewFileAction);
 registerAction2(interactiveEditorActions.CancelSessionAction);
+
 registerAction2(interactiveEditorActions.ArrowOutUpAction);
 registerAction2(interactiveEditorActions.ArrowOutDownAction);
 registerAction2(interactiveEditorActions.FocusInteractiveEditor);
@@ -30,9 +34,6 @@ registerAction2(interactiveEditorActions.ViewInChatAction);
 registerAction2(interactiveEditorActions.ExpandMessageAction);
 registerAction2(interactiveEditorActions.ContractMessageAction);
 
-registerAction2(interactiveEditorActions.UndoToClipboard);
-registerAction2(interactiveEditorActions.UndoToNewFile);
-registerAction2(interactiveEditorActions.UndoCommand);
 registerAction2(interactiveEditorActions.ToggleInlineDiff);
 registerAction2(interactiveEditorActions.FeebackHelpfulCommand);
 registerAction2(interactiveEditorActions.FeebackUnhelpfulCommand);

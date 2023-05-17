@@ -66,6 +66,7 @@ export interface ICachedInset<K extends ICommonCellInfo> {
 	cellInfo: K;
 	renderer?: INotebookRendererInfo;
 	cachedCreation: ICreationRequestMessage;
+	initialized?: boolean;
 }
 
 export interface IResolvedBackLayerWebview {
@@ -94,6 +95,7 @@ export interface INotebookDelegateForWebview {
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
 	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void;
+	didFocusOutputInputChange(inputFocused: boolean): void;
 }
 
 interface BacklayerWebviewOptions {
@@ -611,6 +613,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 								this.reversedPendingWebviewIdleInsetMapping.delete(update.id);
 							}
+
+							{
+								if (!update.init) {
+									return;
+								}
+
+								const output = this.reversedInsetMapping.get(update.id);
+
+								if (!output) {
+									return;
+								}
+
+								const inset = this.insetMapping.get(output)!;
+								inset.initialized = true;
+							}
 						} else {
 							this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
 						}
@@ -877,6 +894,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
 					break;
 				}
+				case 'outputInputFocus': {
+					this.notebookEditor.didFocusOutputInputChange(data.inputFocused);
+				}
 			}
 		}));
 
@@ -1064,7 +1084,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return [
 			this.notebookService.getNotebookProviderResourceRoots(),
 			this.notebookService.getRenderers().map(x => dirname(x.entrypoint.path)),
-			Array.from(this.notebookService.getStaticPreloads(this.notebookViewType), x => dirname(x.entrypoint)),
+			...Array.from(this.notebookService.getStaticPreloads(this.notebookViewType), x => [
+				dirname(x.entrypoint),
+				...x.localResourceRoots,
+			]),
 			workspaceFolders,
 			notebookDir,
 			this.getBuiltinLocalResourceRoots()

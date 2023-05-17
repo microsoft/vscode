@@ -54,8 +54,8 @@ import { TestingObjectTree } from 'vs/workbench/contrib/testing/browser/explorer
 import { ISerializedTestTreeCollapseState } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
-import { TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
+import { CountSummary, ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
+import { TestingConfigKeys, TestingCountBadge, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
@@ -70,6 +70,7 @@ import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingP
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 
 const enum LastFocusState {
 	Input,
@@ -81,8 +82,10 @@ export class TestingExplorerView extends ViewPane {
 	private filterActionBar = this._register(new MutableDisposable());
 	private container!: HTMLElement;
 	private treeHeader!: HTMLElement;
+	private countSummary: CountSummary | undefined;
 	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());
+	private readonly badgeDisposable = this._register(new MutableDisposable<IDisposable>());
 	private readonly filterFocusListener = this._register(new MutableDisposable());
 	private readonly dimensions = { width: 0, height: 0 };
 	private lastFocusState = LastFocusState.Input;
@@ -93,6 +96,7 @@ export class TestingExplorerView extends ViewPane {
 
 	constructor(
 		options: IViewletViewOptions,
+		@IActivityService private readonly activityService: IActivityService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -121,6 +125,8 @@ export class TestingExplorerView extends ViewPane {
 		}));
 
 		this._register(testProfileService.onDidChange(() => this.updateActions()));
+		const onDidChangeTestingCountBadge = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('testing.countBadge'));
+		this._register(onDidChangeTestingCountBadge(this.renderActivityCount, this));
 	}
 
 	public override shouldShowWelcome() {
@@ -269,6 +275,10 @@ export class TestingExplorerView extends ViewPane {
 				this.layoutBody();
 			}
 		}));
+		this._register(this.testProgressService.onCountChange((text: CountSummary) => {
+			this.countSummary = text;
+			this.renderActivityCount();
+		}));
 
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility);
@@ -414,6 +424,27 @@ export class TestingExplorerView extends ViewPane {
 			this.discoveryProgress.clear();
 		} else if (busy && !this.discoveryProgress.value) {
 			this.discoveryProgress.value = this.instantiationService.createInstance(UnmanagedProgress, { location: this.getProgressLocation() });
+		}
+	}
+
+	private renderActivityCount() {
+		const countBadgeType = this.configurationService.getValue<TestingCountBadge>(TestingConfigKeys.CountBadge);
+		if (!this.countSummary || countBadgeType === TestingCountBadge.Off || this.countSummary[countBadgeType] === 0) {
+			this.badgeDisposable.value = undefined;
+		} else {
+			const badge = new NumberBadge(this.countSummary[countBadgeType], num => this.getLocalizedBadgeString(countBadgeType, num));
+			this.badgeDisposable.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
+		}
+	}
+
+	private getLocalizedBadgeString(countBadgeType: TestingCountBadge, count: number): string {
+		switch (countBadgeType) {
+			case TestingCountBadge.Passed:
+				return localize('testingCountBadgePassed', '{0} passed tests', count);
+			case TestingCountBadge.Skipped:
+				return localize('testingCountBadgeSkipped', '{0} skipped tests', count);
+			default:
+				return localize('testingCountBadgeFailed', '{0} failed tests', count);
 		}
 	}
 
