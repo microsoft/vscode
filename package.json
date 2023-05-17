@@ -67,7 +67,7 @@
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",
     "@vscode/proxy-agent": "^0.13.2",
-    "@vscode/ripgrep": "^1.15.2",
+    "@vscode/ripgrep": "^1.15.3",
     "@vscode/spdlog": "^0.13.10",
     "@vscode/sqlite3": "5.1.4-vscode",
     "@vscode/sudo-prompt": "9.3.1",

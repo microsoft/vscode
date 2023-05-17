@@ -143,7 +143,7 @@ export class InteractiveEditorWidget {
 	private readonly _store = new DisposableStore();
 	private readonly _slashCommands = this._store.add(new DisposableStore());
 
-	readonly _inputEditor: IActiveCodeEditor;
+	private readonly _inputEditor: IActiveCodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
 	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
@@ -660,17 +660,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super.show(where, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
-	}
-
-	updatePosition(where: IPosition) {
-		// todo@jrieken
-		// UGYLY: we need to restore focus because showing the zone removes and adds it and that
-		// means we loose focus for a bit
-		const hasFocusNow = this.widget._inputEditor.hasWidgetFocus();
-		super.show(where, this._computeHeightInLines());
-		if (hasFocusNow) {
-			this.widget._inputEditor.focus();
-		}
 	}
 
 	protected override revealRange(_range: Range, _isLastLine: boolean) {

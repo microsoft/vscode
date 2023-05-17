@@ -109,10 +109,19 @@
 			return host;
 		}
 
+		function disableUNCAccessRestrictions() {
+			if (process.platform !== 'win32') {
+				return;
+			}
+
+			process.enableUNCAccessChecks = false;
+		}
+
 		return {
 			getUNCHostAllowlist,
 			addUNCHostToAllowlist,
-			getUNCHost
+			getUNCHost,
+			disableUNCAccessRestrictions
 		};
 	}
 

@@ -49,7 +49,7 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { localize } from 'vs/nls';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 
 class CliMain extends Disposable {
 
@@ -72,7 +72,11 @@ class CliMain extends Disposable {
 
 			// On Windows, configure the UNC allow list based on settings
 			if (isWindows) {
-				addUNCHostToAllowlist(configurationService.getValue('security.allowedUNCHosts'));
+				if (configurationService.getValue('security.restrictUNCAccess') === false) {
+					disableUNCAccessRestrictions();
+				} else {
+					addUNCHostToAllowlist(configurationService.getValue('security.allowedUNCHosts'));
+				}
 			}
 
 			try {
