@@ -1201,9 +1201,9 @@ export class SettingsEditor2 extends EditorPane {
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
 		const toggleData = await getExperimentalExtensionToggleData(this.workbenchAssignmentService, this.productService);
 		if (toggleData) {
-			const toggleSettings: ISetting[] = Object.keys(toggleData.configuration.properties).map(key => {
+			for (const key in toggleData.configuration.properties) {
 				const props = toggleData.configuration.properties[key];
-				return {
+				const toggleSetting: ISetting = {
 					range: nullRange,
 					key,
 					keyRange: nullRange,
@@ -1218,9 +1218,9 @@ export class SettingsEditor2 extends EditorPane {
 					nightlyExtensionName: props.nightlyExtensionName || props.extensionName,
 					requiresReloadOnDisable: props.requiresReloadOnDisable
 				};
-			});
-			// TODO: Fix hardcoded find
-			groups.find(group => group.id === 'workbench')?.sections[0].settings.push(...toggleSettings);
+				const groupId = key.split('.')[0];
+				groups.find(group => group.id === groupId)?.sections[0].settings.push(toggleSetting);
+			}
 		}
 
 		const dividedGroups = collections.groupBy(groups, g => g.extensionInfo ? 'extension' : 'core');
