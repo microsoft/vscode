@@ -264,6 +264,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			timer.cancelAndSet(runProgressiveRender, 50);
 			runProgressiveRender(true);
 		} else if (isResponseVM(element)) {
+			alert(element.response.value);
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else if (isRequestVM(element)) {
 			this.basicRenderElement(element.messageText, element, index, templateData);
@@ -348,6 +349,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			const renderValue = this.getWordsForProgressiveRender(element);
 			isFullyRendered = !!element.renderData?.isFullyRendered;
 			if (isFullyRendered) {
+				alert(element.response.value);
 				// We've reached the end of the available content, so do a normal render
 				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
 				if (element.isComplete) {
