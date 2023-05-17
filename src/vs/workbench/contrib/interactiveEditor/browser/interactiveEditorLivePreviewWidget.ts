@@ -128,10 +128,6 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 	}
 
 	override show(): void {
-		throw new Error('not supported like this, use showDiff');
-	}
-
-	showDiff(): void {
 		assertType(this.editor.hasModel());
 		this._updateFromChanges(this._session.wholeRange, this._session.lastTextModelChanges);
 		this._isVisible = true;
