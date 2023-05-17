@@ -63,9 +63,10 @@
 			if (allowlist) {
 				if (typeof allowedHost === 'string') {
 					allowlist.add(allowedHost);
+					allowlist.add(allowedHost.toLowerCase()); // UNC hosts are case-insensitive
 				} else {
 					for (const host of toSafeStringArray(allowedHost)) {
-						allowlist.add(host);
+						addUNCHostToAllowlist(host);
 					}
 				}
 			}
