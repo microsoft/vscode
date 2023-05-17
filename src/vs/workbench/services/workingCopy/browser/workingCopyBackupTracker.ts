@@ -41,8 +41,8 @@ export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker im
 			return false; // nothing modified: no veto
 		}
 
-		if (this.workingCopyService.hasDirty && !this.filesConfigurationService.isHotExitEnabled) {
-			return true; // dirty without backup: veto
+		if (!this.filesConfigurationService.isHotExitEnabled) {
+			return true; // modified without backup: veto
 		}
 
 		for (const modifiedWorkingCopy of modifiedWorkingCopies) {
