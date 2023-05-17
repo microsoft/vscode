@@ -9,7 +9,7 @@ import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto } from
 import { localize } from 'vs/nls';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNumber } from 'vs/base/common/types';
 
@@ -27,7 +27,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	#proxy: MainThreadStatusBarShape;
 	#commands: CommandsConverter;
 
-	private _entryId: number;
+	private readonly _entryId: string;
 
 	private _extension?: IExtensionDescription;
 
@@ -59,8 +59,9 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this.#proxy = proxy;
 		this.#commands = commands;
 
-		this._entryId = ExtHostStatusBarEntry.ID_GEN++;
-
+		this._entryId = id && extension
+			? `${ExtensionIdentifier.toKey(extension.identifier)}.${id}`
+			: String(ExtHostStatusBarEntry.ID_GEN++);
 		this._extension = extension;
 
 		this._id = id;
