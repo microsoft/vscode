@@ -5,6 +5,7 @@
 
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -597,7 +598,7 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
+						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
 					),
 					group: 'navigation/execute'
 				}
@@ -640,7 +641,7 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 					id: MenuId.InteractiveToolbar,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_RUNNING_CELL,
-						ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
+						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
 					),
 					group: 'navigation',
 					order: 10

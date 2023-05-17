@@ -10,7 +10,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
-import { extname } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -41,7 +40,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
 	private readonly _workingCopyListeners = this._register(new DisposableStore());
-	private readonly scratchPad: boolean;
 
 	constructor(
 		readonly resource: URI,
@@ -53,7 +51,16 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	) {
 		super();
 
-		this.scratchPad = viewType === 'interactive';
+		if (this.viewType === 'interactive') {
+			lifecycleService.onBeforeShutdown(async e => e.veto(this.onBeforeShutdown(), 'veto.InteractiveWindow'));
+		}
+	}
+
+	private async onBeforeShutdown() {
+		if (this._workingCopy?.isDirty()) {
+			await this._workingCopy.save();
+		}
+		return false;
 	}
 
 	override dispose(): void {
@@ -119,7 +126,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				if (this._hasAssociatedFilePath) {
 					this._workingCopy = await this._workingCopyManager.resolve({ associatedResource: this.resource });
 				} else {
-					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource, isScratchpad: this.scratchPad });
+					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
 				}
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, options?.forceReadFromFile ? { reload: { async: false, force: true } } : undefined);
@@ -284,7 +291,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 			metadata: {},
 			cells: []
 		};
-		if (extname(resource) !== '.interactive') {
+		if (resource.scheme !== Schemas.vscodeInteractive) {
 			const bytes = await streamToBuffer(stream);
 			data = await info.serializer.dataToNotebook(bytes);
 		}

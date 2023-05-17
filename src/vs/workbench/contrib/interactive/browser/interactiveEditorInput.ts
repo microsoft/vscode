@@ -11,7 +11,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
@@ -113,10 +113,8 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		this._register(this.primary.onDidChangeCapabilities(() => this._onDidChangeCapabilities.fire()));
 	}
 
-	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Untitled
-			| EditorInputCapabilities.Readonly
-			| EditorInputCapabilities.Scratchpad;
+	override isDirty() {
+		return false;
 	}
 
 	private async _resolveEditorModel() {
