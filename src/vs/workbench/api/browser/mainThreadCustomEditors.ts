@@ -20,7 +20,6 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
@@ -66,7 +65,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		private readonly mainThreadWebview: MainThreadWebviews,
 		private readonly mainThreadWebviewPanels: MainThreadWebviewPanels,
 		@IExtensionService extensionService: IExtensionService,
-		@INotificationService _notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
@@ -121,14 +119,12 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				for (const dirtyCustomEditor of dirtyCustomEditors) {
 					const didSave = await dirtyCustomEditor.save();
 					if (!didSave) {
-						_notificationService.error(localize('vetoExtHostRestart', "'{0}' was not saved which prevented restarting the extension host. Please save or revert this file to restart the extension host.", dirtyCustomEditor.name));
-
 						// Veto
 						return true;
 					}
 				}
 				return false; // Don't veto
-			})(), 'mainThreadCustomEditors');
+			})(), localize('vetoExtHostRestart', "One or more custom editors could not be saved."));
 		}));
 	}
 
