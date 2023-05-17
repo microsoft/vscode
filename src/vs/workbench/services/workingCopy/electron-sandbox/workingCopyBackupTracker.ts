@@ -208,9 +208,11 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 	}
 
 	private showErrorDialog(msg: string, workingCopies: readonly IWorkingCopy[], error?: Error): void {
+		const modifiedWorkingCopies = workingCopies.filter(workingCopy => workingCopy.isModified());
+
 		const advice = localize('backupErrorDetails', "Try saving or reverting the editors with unsaved changes first and then try again.");
-		const detail = workingCopies.length
-			? getFileNamesMessage(workingCopies.map(x => x.name)) + '\n' + advice
+		const detail = modifiedWorkingCopies.length
+			? getFileNamesMessage(modifiedWorkingCopies.map(x => x.name)) + '\n' + advice
 			: advice;
 
 		this.dialogService.error(msg, detail);

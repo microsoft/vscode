@@ -69,13 +69,14 @@ export interface IWorkingCopyService {
 	readonly dirtyWorkingCopies: readonly IWorkingCopy[];
 
 	/**
-	 * The number of dirty working copies that are registered.
+	 * The number of modified working copies that are registered,
+	 * including scratchpads, which are never dirty.
 	 */
 	readonly modifiedCount: number;
 
 	/**
 	 * All working copies with unsaved changes,
-	 * including scratchpads, which are never dirty
+	 * including scratchpads, which are never dirty.
 	 */
 	readonly modifiedWorkingCopies: readonly IWorkingCopy[];
 
