@@ -938,7 +938,7 @@ export const NotebookSetting = {
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	formatOnSave: 'notebook.formatOnSave.enabled',
-	codeActionsOnSave: 'notebook.experimental.codeActionsOnSave',
+	codeActionsOnSave: 'notebook.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',
 	outputLineHeightDeprecated: 'notebook.outputLineHeight',
 	outputLineHeight: 'notebook.output.lineHeight',
