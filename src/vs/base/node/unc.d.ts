@@ -17,3 +17,9 @@ export function getUNCHostAllowlist(): string[];
  * Adds one to many UNC host(s) to the allowed list in node.js.
  */
 export function addUNCHostToAllowlist(allowedHost: string | string[]): void;
+
+/**
+ * Disables UNC Host allow list in node.js and thus disables UNC
+ * path validation.
+ */
+export function disableUNCAccessRestrictions(): void;
