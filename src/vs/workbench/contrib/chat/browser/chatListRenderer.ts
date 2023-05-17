@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { AriaRole, alert } from 'vs/base/browser/ui/aria/aria';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -264,7 +264,6 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			timer.cancelAndSet(runProgressiveRender, 50);
 			runProgressiveRender(true);
 		} else if (isResponseVM(element)) {
-			alert(element.response.value);
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else if (isRequestVM(element)) {
 			this.basicRenderElement(element.messageText, element, index, templateData);
