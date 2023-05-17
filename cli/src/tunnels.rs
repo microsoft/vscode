@@ -12,6 +12,7 @@ pub mod singleton_client;
 pub mod singleton_server;
 pub mod protocol;
 
+mod challenge;
 mod control_server;
 mod nosleep;
 #[cfg(target_os = "linux")]

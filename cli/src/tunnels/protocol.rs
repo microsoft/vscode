@@ -18,7 +18,7 @@ pub enum ClientRequestMethod<'a> {
 	servermsg(RefServerMessageParams<'a>),
 	serverlog(ServerLog<'a>),
 	makehttpreq(HttpRequestParams<'a>),
-	version(VersionParams),
+	version(VersionResponse),
 }
 
 #[derive(Deserialize, Debug)]
@@ -165,12 +165,12 @@ pub struct CallServerHttpResult {
 }
 
 #[derive(Serialize, Debug)]
-pub struct VersionParams {
+pub struct VersionResponse {
 	pub version: &'static str,
 	pub protocol_version: u32,
 }
 
-impl Default for VersionParams {
+impl Default for VersionResponse {
 	fn default() -> Self {
 		Self {
 			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
@@ -187,6 +187,8 @@ pub struct SpawnParams {
 	pub cwd: Option<String>,
 	#[serde(default)]
 	pub env: HashMap<String, String>,
+	#[serde(default)]
+	pub do_child_authentication: bool,
 }
 
 #[derive(Deserialize)]
@@ -202,6 +204,19 @@ pub struct AcquireCliParams {
 pub struct SpawnResult {
 	pub message: String,
 	pub exit_code: i32,
+}
+
+pub const METHOD_CHALLENGE_ISSUE: &str = "challenge_issue";
+pub const METHOD_CHALLENGE_VERIFY: &str = "challenge_verify";
+
+#[derive(Serialize, Deserialize)]
+pub struct ChallengeIssueResponse {
+	pub challenge: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ChallengeVerifyParams {
+	pub response: String,
 }
 
 pub mod singleton {

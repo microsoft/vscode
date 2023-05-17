@@ -24,7 +24,7 @@ use crate::{
 
 use super::{
 	code_server::{AnyCodeServer, CodeServerArgs, ResolvedServerParams},
-	protocol::{EmptyObject, InstallFromLocalFolderParams, ServerMessageParams, VersionParams},
+	protocol::{EmptyObject, InstallFromLocalFolderParams, ServerMessageParams, VersionResponse},
 	server_bridge::ServerBridge,
 	server_multiplexer::ServerMultiplexer,
 	shutdown_signal::ShutdownSignal,
@@ -79,7 +79,7 @@ pub async fn serve_wsl(
 	let caller = rpc.get_caller(caller_tx);
 
 	// notify the incoming client about the server version
-	caller.notify("version", VersionParams::default());
+	caller.notify("version", VersionResponse::default());
 
 	let log = log.with_sink(RpcLogSink(caller.clone()));
 	let mut rpc = rpc.methods(HandlerContext {

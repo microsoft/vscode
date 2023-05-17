@@ -5,11 +5,14 @@
 use crate::async_pipe::get_socket_rw_stream;
 use crate::constants::{CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
-use crate::msgpack_rpc::U32PrefixedCodec;
-use crate::rpc::{MaybeSync, RpcBuilder, RpcDispatcher, Serialization};
+use crate::msgpack_rpc::{
+	new_length_prefixed_msgpack_rpc, start_msgpack_rpc, LengthPrefixedMsgPackSerializer,
+	U32PrefixedCodec,
+};
+use crate::rpc::{MaybeSync, RpcBuilder, RpcCaller, RpcDispatcher, Serialization};
 use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
-use crate::tunnels::protocol::HttpRequestParams;
+use crate::tunnels::protocol::{HttpRequestParams, METHOD_CHALLENGE_ISSUE};
 use crate::tunnels::socket_signal::CloseReason;
 use crate::update_service::{Platform, Release, TargetKind, UpdateService};
 use crate::util::errors::{
@@ -22,7 +25,7 @@ use crate::util::http::{
 use crate::util::io::SilentCopyProgress;
 use crate::util::is_integrated_cli;
 use crate::util::os::os_release;
-use crate::util::sync::{new_barrier, Barrier};
+use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 
 use futures::stream::FuturesUnordered;
 use futures::FutureExt;
@@ -31,6 +34,7 @@ use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use std::process::Stdio;
 use tokio::pin;
+use tokio::process::{ChildStdin, ChildStdout};
 use tokio_util::codec::Decoder;
 
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
@@ -39,6 +43,7 @@ use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
+use super::challenge::{create_challenge, sign_challenge, verify_challenge};
 use super::code_server::{
 	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
 	SocketCodeServer,
@@ -47,11 +52,12 @@ use super::dev_tunnels::ActiveTunnel;
 use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
-	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ClientRequestMethod, EmptyObject,
-	ForwardParams, ForwardResult, FsStatRequest, FsStatResponse, GetEnvResponse,
-	GetHostnameResponse, HttpBodyParams, HttpHeadersParams, ServeParams, ServerLog,
-	ServerMessageParams, SpawnParams, SpawnResult, ToClientRequest, UnforwardParams, UpdateParams,
-	UpdateResult, VersionParams,
+	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ChallengeIssueResponse,
+	ChallengeVerifyParams, ClientRequestMethod, EmptyObject, ForwardParams, ForwardResult,
+	FsStatRequest, FsStatResponse, GetEnvResponse, GetHostnameResponse, HttpBodyParams,
+	HttpHeadersParams, ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult,
+	ToClientRequest, UnforwardParams, UpdateParams, UpdateResult, VersionResponse,
+	METHOD_CHALLENGE_VERIFY,
 };
 use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
@@ -68,6 +74,8 @@ struct HandlerContext {
 	log: log::Logger,
 	/// Whether the server update during the handler session.
 	did_update: Arc<AtomicBool>,
+	/// Whether authentication is still required on the socket.
+	auth_state: Arc<std::sync::Mutex<AuthState>>,
 	/// A loopback channel to talk to the socket server task.
 	socket_tx: mpsc::Sender<SocketSignal>,
 	/// Configured launcher paths.
@@ -79,13 +87,23 @@ struct HandlerContext {
 	// the cli arguments used to start the code server
 	code_server_args: CodeServerArgs,
 	/// port forwarding functionality
-	port_forwarding: PortForwarding,
+	port_forwarding: Option<PortForwarding>,
 	/// install platform for the VS Code server
 	platform: Platform,
 	/// http client to make download/update requests
 	http: Arc<FallbackSimpleHttp>,
 	/// requests being served by the client
 	http_requests: HttpRequestsMap,
+}
+
+/// Handler auth state.
+enum AuthState {
+	/// Auth is required, we're waiting for the client to send its challenge.
+	WaitingForChallenge,
+	/// A challenge has been issued. Waiting for a verification.
+	ChallengeIssued(String),
+	/// Auth is no longer required.
+	Authenticated,
 }
 
 static MESSAGE_ID_COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -195,7 +213,14 @@ pub async fn serve(
 					debug!(own_log, "Serving new connection");
 
 					let (writehalf, readhalf) = socket.into_split();
-					let stats = process_socket(own_exit, readhalf, writehalf, own_log, own_tx, own_paths, own_code_server_args, own_forwarding, platform).with_context(cx.clone()).await;
+					let stats = process_socket(readhalf, writehalf, own_tx, Some(own_forwarding), ServeStreamParams {
+						log: own_log,
+						launcher_paths: own_paths,
+						code_server_args: own_code_server_args,
+						platform: platform,
+						exit_barrier: own_exit,
+						requires_auth: false
+					}).with_context(cx.clone()).await;
 
 					cx.span().add_event(
 						"socket.bandwidth",
@@ -206,13 +231,35 @@ pub async fn serve(
 						],
 					);
 					cx.span().end();
-				   });
+				});
 			}
 		}
 	}
 }
 
-struct SocketStats {
+pub struct ServeStreamParams {
+	log: log::Logger,
+	launcher_paths: LauncherPaths,
+	code_server_args: CodeServerArgs,
+	platform: Platform,
+	requires_auth: bool,
+	exit_barrier: Barrier<()>,
+}
+
+pub async fn serve_stream(
+	readhalf: impl AsyncRead + Send + Unpin + 'static,
+	writehalf: impl AsyncWrite + Unpin,
+	params: ServeStreamParams,
+) -> SocketStats {
+	// Currently the only server signal is respawn, that doesn't have much meaning
+	// when serving a stream, so make an ignored channel.
+	let (server_rx, server_tx) = mpsc::channel(1);
+	drop(server_tx);
+
+	process_socket(readhalf, writehalf, server_rx, None, params).await
+}
+
+pub struct SocketStats {
 	rx: usize,
 	tx: usize,
 }
@@ -230,26 +277,25 @@ impl Serialization for MsgPackSerializer {
 	}
 }
 
-#[allow(clippy::too_many_arguments)] // necessary here
-async fn process_socket(
-	mut exit_barrier: Barrier<()>,
-	readhalf: impl AsyncRead + Send + Unpin + 'static,
-	mut writehalf: impl AsyncWrite + Unpin,
+fn make_socket_rpc(
 	log: log::Logger,
-	server_tx: mpsc::Sender<ServerSignal>,
+	socket_tx: mpsc::Sender<SocketSignal>,
+	http_delegated: DelegatedSimpleHttp,
 	launcher_paths: LauncherPaths,
 	code_server_args: CodeServerArgs,
-	port_forwarding: PortForwarding,
+	port_forwarding: Option<PortForwarding>,
+	requires_auth: bool,
 	platform: Platform,
-) -> SocketStats {
-	let (socket_tx, mut socket_rx) = mpsc::channel(4);
-	let rx_counter = Arc::new(AtomicUsize::new(0));
+) -> RpcDispatcher<MsgPackSerializer, HandlerContext> {
 	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
 	let server_bridges = ServerMultiplexer::new();
-	let (http_delegated, mut http_rx) = DelegatedSimpleHttp::new(log.clone());
 	let mut rpc = RpcBuilder::new(MsgPackSerializer {}).methods(HandlerContext {
 		did_update: Arc::new(AtomicBool::new(false)),
-		socket_tx: socket_tx.clone(),
+		auth_state: Arc::new(std::sync::Mutex::new(match requires_auth {
+			true => AuthState::WaitingForChallenge,
+			false => AuthState::Authenticated,
+		})),
+		socket_tx,
 		log: log.clone(),
 		launcher_paths,
 		code_server_args,
@@ -266,9 +312,22 @@ async fn process_socket(
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
 	rpc.register_sync("gethostname", |_: EmptyObject, _| handle_get_hostname());
-	rpc.register_sync("fs_stat", |p: FsStatRequest, _| handle_stat(p.path));
-	rpc.register_sync("get_env", |_: EmptyObject, _| handle_get_env());
+	rpc.register_sync("fs_stat", |p: FsStatRequest, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_stat(p.path)
+	});
+	rpc.register_sync("get_env", |_: EmptyObject, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_get_env()
+	});
+	rpc.register_sync(METHOD_CHALLENGE_ISSUE, |_: EmptyObject, c| {
+		handle_challenge_issue(&c.auth_state)
+	});
+	rpc.register_sync(METHOD_CHALLENGE_VERIFY, |p: ChallengeVerifyParams, c| {
+		handle_challenge_verify(p.response, &c.auth_state)
+	});
 	rpc.register_async("serve", move |params: ServeParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		handle_serve(c, params).await
 	});
 	rpc.register_async("update", |p: UpdateParams, c| async move {
@@ -286,15 +345,19 @@ async fn process_socket(
 		handle_call_server_http(code_server, p).await
 	});
 	rpc.register_async("forward", |p: ForwardParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		handle_forward(&c.log, &c.port_forwarding, p).await
 	});
 	rpc.register_async("unforward", |p: UnforwardParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		handle_unforward(&c.log, &c.port_forwarding, p).await
 	});
 	rpc.register_async("acquire_cli", |p: AcquireCliParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		handle_acquire_cli(&c.launcher_paths, &c.http, &c.log, p).await
 	});
 	rpc.register_duplex("spawn", 3, |mut streams, p: SpawnParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		handle_spawn(
 			&c.log,
 			p,
@@ -310,7 +373,7 @@ async fn process_socket(
 		}
 		Ok(EmptyObject {})
 	});
-	rpc.register_sync("unforward", move |p: HttpBodyParams, c| {
+	rpc.register_sync("httpbody", move |p: HttpBodyParams, c| {
 		let mut reqs = c.http_requests.lock().unwrap();
 		if let Some(req) = reqs.get(&p.req_id) {
 			if !p.segment.is_empty() {
@@ -322,15 +385,64 @@ async fn process_socket(
 		}
 		Ok(EmptyObject {})
 	});
+	rpc.register_sync(
+		"version",
+		|_: EmptyObject, _| Ok(VersionResponse::default()),
+	);
+
+	rpc.build(log)
+}
+
+fn ensure_auth(is_authed: &Arc<std::sync::Mutex<AuthState>>) -> Result<(), AnyError> {
+	if let AuthState::Authenticated = &*is_authed.lock().unwrap() {
+		Ok(())
+	} else {
+		Err(CodeError::ServerAuthRequired.into())
+	}
+}
+
+#[allow(clippy::too_many_arguments)] // necessary here
+async fn process_socket(
+	readhalf: impl AsyncRead + Send + Unpin + 'static,
+	mut writehalf: impl AsyncWrite + Unpin,
+	server_tx: mpsc::Sender<ServerSignal>,
+	port_forwarding: Option<PortForwarding>,
+	params: ServeStreamParams,
+) -> SocketStats {
+	let ServeStreamParams {
+		mut exit_barrier,
+		log,
+		launcher_paths,
+		code_server_args,
+		platform,
+		requires_auth,
+	} = params;
+
+	let (http_delegated, mut http_rx) = DelegatedSimpleHttp::new(log.clone());
+	let (socket_tx, mut socket_rx) = mpsc::channel(4);
+	let rx_counter = Arc::new(AtomicUsize::new(0));
+	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
+
+	let rpc = make_socket_rpc(
+		log.clone(),
+		socket_tx.clone(),
+		http_delegated,
+		launcher_paths,
+		code_server_args,
+		port_forwarding,
+		requires_auth,
+		platform,
+	);
 
 	{
 		let log = log.clone();
 		let rx_counter = rx_counter.clone();
 		let socket_tx = socket_tx.clone();
 		let exit_barrier = exit_barrier.clone();
-		let rpc = rpc.build(log.clone());
 		tokio::spawn(async move {
-			send_version(&socket_tx).await;
+			if !requires_auth {
+				send_version(&socket_tx).await;
+			}
 
 			if let Err(e) =
 				handle_socket_read(&log, readhalf, exit_barrier, &socket_tx, rx_counter, &rpc).await
@@ -408,7 +520,7 @@ async fn process_socket(
 async fn send_version(tx: &mpsc::Sender<SocketSignal>) {
 	tx.send(SocketSignal::from_message(&ToClientRequest {
 		id: None,
-		params: ClientRequestMethod::version(VersionParams::default()),
+		params: ClientRequestMethod::version(VersionResponse::default()),
 	}))
 	.await
 	.ok();
@@ -704,11 +816,44 @@ fn handle_get_env() -> Result<GetEnvResponse, AnyError> {
 	})
 }
 
+fn handle_challenge_issue(
+	auth_state: &Arc<std::sync::Mutex<AuthState>>,
+) -> Result<ChallengeIssueResponse, AnyError> {
+	let challenge = create_challenge();
+
+	let mut auth_state = auth_state.lock().unwrap();
+	*auth_state = AuthState::ChallengeIssued(challenge.clone());
+
+	Ok(ChallengeIssueResponse { challenge })
+}
+
+fn handle_challenge_verify(
+	response: String,
+	auth_state: &Arc<std::sync::Mutex<AuthState>>,
+) -> Result<EmptyObject, AnyError> {
+	let mut auth_state = auth_state.lock().unwrap();
+
+	match &*auth_state {
+		AuthState::Authenticated => Ok(EmptyObject {}),
+		AuthState::WaitingForChallenge => Err(CodeError::AuthChallengeNotIssued.into()),
+		AuthState::ChallengeIssued(c) => match verify_challenge(c, &response) {
+			false => Err(CodeError::AuthChallengeNotIssued.into()),
+			true => {
+				*auth_state = AuthState::Authenticated;
+				Ok(EmptyObject {})
+			}
+		},
+	}
+}
+
 async fn handle_forward(
 	log: &log::Logger,
-	port_forwarding: &PortForwarding,
+	port_forwarding: &Option<PortForwarding>,
 	params: ForwardParams,
 ) -> Result<ForwardResult, AnyError> {
+	let port_forwarding = port_forwarding
+		.as_ref()
+		.ok_or(CodeError::PortForwardingNotAvailable)?;
 	info!(log, "Forwarding port {}", params.port);
 	let uri = port_forwarding.forward(params.port).await?;
 	Ok(ForwardResult { uri })
@@ -716,9 +861,12 @@ async fn handle_forward(
 
 async fn handle_unforward(
 	log: &log::Logger,
-	port_forwarding: &PortForwarding,
+	port_forwarding: &Option<PortForwarding>,
 	params: UnforwardParams,
 ) -> Result<EmptyObject, AnyError> {
+	let port_forwarding = port_forwarding
+		.as_ref()
+		.ok_or(CodeError::PortForwardingNotAvailable)?;
 	info!(log, "Unforwarding port {}", params.port);
 	port_forwarding.unforward(params.port).await?;
 	Ok(EmptyObject {})
@@ -826,9 +974,9 @@ where
 		"requested to spawn {} with args {:?}", params.command, params.args
 	);
 
-	macro_rules! pipe_if_some {
+	macro_rules! pipe_if {
 		($e: expr) => {
-			if $e.is_some() {
+			if $e {
 				Stdio::piped()
 			} else {
 				Stdio::null()
@@ -839,14 +987,25 @@ where
 	let mut p = tokio::process::Command::new(&params.command);
 	p.args(&params.args);
 	p.envs(&params.env);
-	p.stdin(pipe_if_some!(stdin));
-	p.stdout(pipe_if_some!(stdout));
-	p.stderr(pipe_if_some!(stderr));
+	p.stdin(pipe_if!(params.do_child_authentication || stdin.is_some()));
+	p.stdout(pipe_if!(params.do_child_authentication || stdin.is_some()));
+	p.stderr(pipe_if!(stderr.is_some()));
 	if let Some(cwd) = &params.cwd {
 		p.current_dir(cwd);
 	}
 
 	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
+
+	if params.do_child_authentication {
+		if let (Some(stdin), Some(stdout)) = (p.stdin.take(), p.stdout.take()) {
+			// note: intentionally do not wrap stdin in a bufreader, since we don't
+			// want to read anything other than our handshake messages.
+			let (stdin, stdout) = spawn_do_child_authentication(log, stdin, stdout).await?;
+			// just replace them for ease of later logic:
+			p.stdin = Some(stdin);
+			p.stdout = Some(stdout);
+		}
+	}
 
 	let futs = FuturesUnordered::new();
 	if let (Some(mut a), Some(mut b)) = (p.stdout.take(), stdout) {
@@ -884,4 +1043,65 @@ where
 	);
 
 	Ok(r)
+}
+
+async fn spawn_do_child_authentication(
+	log: &log::Logger,
+	stdin: ChildStdin,
+	stdout: ChildStdout,
+) -> Result<(ChildStdin, ChildStdout), CodeError> {
+	let (msg_tx, msg_rx) = mpsc::unbounded_channel();
+	let (shutdown_rx, shutdown) = new_barrier();
+	let mut rpc = new_length_prefixed_msgpack_rpc();
+	let caller = rpc.get_caller(msg_tx);
+
+	let challenge_response = do_challenge_response_flow(caller, shutdown);
+	let rpc = start_msgpack_rpc(
+		rpc.methods(()).build(log.prefixed("client-auth")),
+		stdout,
+		stdin,
+		msg_rx,
+		shutdown_rx,
+	);
+	pin!(rpc);
+
+	tokio::select! {
+		r = &mut rpc => {
+			match r {
+				// means shutdown happened cleanly already, we're good
+				Ok((_, o, i)) => Ok((i, o)),
+				Err(e) => Err(CodeError::ProcessSpawnHandshakeFailed(e))
+			}
+		},
+		r = challenge_response => {
+			r?;
+			rpc.await.map(|(_, o, i)| (i, o)).map_err(CodeError::ProcessSpawnFailed)
+		}
+	}
+}
+
+async fn do_challenge_response_flow(
+	caller: RpcCaller<LengthPrefixedMsgPackSerializer>,
+	shutdown: BarrierOpener<()>,
+) -> Result<(), CodeError> {
+	let challenge: ChallengeIssueResponse = caller
+		.call(METHOD_CHALLENGE_ISSUE, EmptyObject {})
+		.await
+		.unwrap()
+		.map_err(CodeError::TunnelRpcCallFailed)?;
+
+	let _: EmptyObject = caller
+		.call(
+			METHOD_CHALLENGE_VERIFY,
+			ChallengeVerifyParams {
+				response: sign_challenge(&challenge.challenge),
+			},
+		)
+		.await
+		.unwrap()
+		.map_err(CodeError::TunnelRpcCallFailed)?;
+
+	shutdown.open(());
+
+	Ok(())
 }

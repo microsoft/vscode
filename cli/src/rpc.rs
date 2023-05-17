@@ -104,6 +104,10 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 		R: Serialize,
 		F: Fn(P, &C) -> Result<R, AnyError> + Send + Sync + 'static,
 	{
+		if self.methods.contains_key(method_name) {
+			panic!("Method already registered: {}", method_name);
+		}
+
 		let serial = self.serializer.clone();
 		let context = self.context.clone();
 		self.methods.insert(

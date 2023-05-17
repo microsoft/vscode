@@ -33,22 +33,52 @@ impl Serialization for MsgPackSerializer {
 	}
 }
 
+#[derive(Copy, Clone)]
+pub struct LengthPrefixedMsgPackSerializer {}
+
+impl Serialization for LengthPrefixedMsgPackSerializer {
+	fn serialize(&self, value: impl serde::Serialize) -> Vec<u8> {
+		let vec = rmp_serde::to_vec_named(&value).expect("expected to serialize");
+
+		let mut vec2 = Vec::with_capacity(vec.len() + U32_SIZE);
+		vec2.extend_from_slice(&u32::to_be_bytes(vec.len() as u32));
+		vec2.extend_from_slice(&vec);
+		vec2
+	}
+
+	fn deserialize<P: serde::de::DeserializeOwned>(&self, b: &[u8]) -> Result<P, AnyError> {
+		rmp_serde::from_slice(b).map_err(|e| InvalidRpcDataError(e.to_string()).into())
+	}
+}
+
 pub type MsgPackCaller = rpc::RpcCaller<MsgPackSerializer>;
 
-/// Creates a new RPC Builder that serializes to JSON.
+/// Creates a new RPC Builder that serializes to msgpack.
 pub fn new_msgpack_rpc() -> rpc::RpcBuilder<MsgPackSerializer> {
 	rpc::RpcBuilder::new(MsgPackSerializer {})
 }
 
-pub async fn start_msgpack_rpc<C: Send + Sync + 'static, S: Clone>(
-	dispatcher: rpc::RpcDispatcher<MsgPackSerializer, C>,
-	read: impl AsyncRead + Unpin,
-	mut write: impl AsyncWrite + Unpin,
+/// Creates a new RPC Builder that serializes to length-prefixed msgpack (for the CLI talking to itself).
+pub fn new_length_prefixed_msgpack_rpc() -> rpc::RpcBuilder<LengthPrefixedMsgPackSerializer> {
+	rpc::RpcBuilder::new(LengthPrefixedMsgPackSerializer {})
+}
+
+/// Starting processing msgpack rpc over the given i/o. It's recommended that
+/// the reader be passed in as a BufReader for efficiency.
+pub async fn start_msgpack_rpc<
+	C: Send + Sync + 'static,
+	X: Clone,
+	S: Send + Sync + Serialization,
+	Read: AsyncRead + Unpin,
+	Write: AsyncWrite + Unpin,
+>(
+	dispatcher: rpc::RpcDispatcher<S, C>,
+	mut read: Read,
+	mut write: Write,
 	mut msg_rx: impl Receivable<Vec<u8>>,
-	mut shutdown_rx: Barrier<S>,
-) -> io::Result<Option<S>> {
+	mut shutdown_rx: Barrier<X>,
+) -> io::Result<(Option<X>, Read, Write)> {
 	let (write_tx, mut write_rx) = mpsc::channel::<Vec<u8>>(8);
-	let mut read = BufReader::new(read);
 	let mut decoder = U32PrefixedCodec {};
 	let mut decoder_buf = bytes::BytesMut::new();
 
@@ -94,7 +124,7 @@ pub async fn start_msgpack_rpc<C: Send + Sync + 'static, S: Clone>(
 			Some(m) = msg_rx.recv_msg() => {
 				write.write_all(&m).await?;
 			},
-			r = &mut shutdown_fut => return Ok(r.ok()),
+			r = &mut shutdown_fut => return Ok((r.ok(), read, write)),
 		}
 
 		write.flush().await?;
