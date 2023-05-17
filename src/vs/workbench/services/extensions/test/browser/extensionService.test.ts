@@ -9,6 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { ExtensionKind, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier, IExtension, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -176,7 +177,8 @@ suite('ExtensionService', () => {
 				remoteAgentService,
 				remoteExtensionsScannerService,
 				lifecycleService,
-				remoteAuthorityResolverService
+				remoteAuthorityResolverService,
+				new TestDialogService()
 			);
 		}
 
