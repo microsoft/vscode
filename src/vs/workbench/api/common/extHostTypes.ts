@@ -3735,6 +3735,8 @@ export enum NotebookEditorRevealType {
 }
 
 export class NotebookCellStatusBarItem {
+	readonly color?: ThemeColor;
+
 	constructor(
 		public text: string,
 		public alignment: NotebookCellStatusBarAlignment) { }

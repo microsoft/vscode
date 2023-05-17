@@ -1746,7 +1746,7 @@ export namespace NotebookExclusiveDocumentPattern {
 }
 
 export namespace NotebookStatusBarItem {
-	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
+	export function from(item: vscode.NotebookCellStatusBarItem2, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
 		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
 		return {
 			alignment: item.alignment === types.NotebookCellStatusBarAlignment.Left ? notebooks.CellStatusbarAlignment.Left : notebooks.CellStatusbarAlignment.Right,
@@ -1754,7 +1754,8 @@ export namespace NotebookStatusBarItem {
 			text: item.text,
 			tooltip: item.tooltip,
 			accessibilityInformation: item.accessibilityInformation,
-			priority: item.priority
+			priority: item.priority,
+			color: <string | types.ThemeColor | undefined>item.color,
 		};
 	}
 }
