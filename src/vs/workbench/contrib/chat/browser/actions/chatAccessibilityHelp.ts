@@ -35,8 +35,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 				content.push(keybinding ? localize('interactiveSession.diff', "Tab again to enter the Diff editor with the changes and enter review mode with ({0}). Use Up/DownArrow to navigate lines with the proposed changes.", keybinding) : localize('interactiveSession.diffNoKb', "Tab again to enter the Diff editor with the changes and enter review mode with the Go to Next Difference Command. Use Up/DownArrow to navigate lines with the proposed changes."));
 				content.push(localize('interactiveSession.acceptReject', "Tab again to reach the action bar, which can be navigated with Left/RightArrow."));
 			}
-		}
-		else if (command === 'explain') {
+		} else if (command === 'explain') {
 			content.push(localize('interactiveSession.explain', "/explain commands will be run in the chat view."));
 			content.push(localize('interactiveSession.chatViewFocus', "To focus the chat view, run the GitHub Copilot: Focus on GitHub Copilot View command, which will focus the input box."));
 		} else {
