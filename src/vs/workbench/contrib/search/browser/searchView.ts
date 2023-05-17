@@ -349,8 +349,7 @@ export class SearchView extends ViewPane {
 		}));
 
 		// folder includes list
-		const folderIncludesList = dom.append(this.queryDetails,
-			$('.file-types.includes'));
+		const folderIncludesList = dom.append(this.queryDetails, $('.file-types.includes'));
 		const filesToIncludeTitle = nls.localize('searchScope.includes', "files to include");
 		dom.append(folderIncludesList, $('h4', undefined, filesToIncludeTitle));
 
@@ -1996,6 +1995,11 @@ export class SearchView extends ViewPane {
 	}
 
 	public override saveState(): void {
+		// This can be called before renderBody() method gets called for the first time
+		// if we move the searchView inside another viewPaneContainer
+		if (!this.searchWidget) {
+			return;
+		}
 
 		const patternExcludes = this.inputPatternExcludes?.getValue().trim() ?? '';
 		const patternIncludes = this.inputPatternIncludes?.getValue().trim() ?? '';
