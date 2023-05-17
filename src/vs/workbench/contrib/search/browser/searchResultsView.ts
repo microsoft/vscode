@@ -36,7 +36,8 @@ interface IFolderMatchTemplate {
 	badge: CountBadge;
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
-	disposableActions: DisposableStore;
+	elementDisposables: DisposableStore;
+	contextKeyService: IContextKeyService;
 }
 
 interface IFileMatchTemplate {
@@ -45,6 +46,8 @@ interface IFileMatchTemplate {
 	badge: CountBadge;
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
+	elementDisposables: DisposableStore;
+	contextKeyService: IContextKeyService;
 }
 
 interface IMatchTemplate {
@@ -123,11 +126,15 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')), {}, defaultCountBadgeStyles);
 		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
 
-		const disposableElements = new DisposableStore();
-		disposables.add(disposableElements);
+		const elementDisposables = new DisposableStore();
+		disposables.add(elementDisposables);
 
-		const contextKeyService = this.contextKeyService.createOverlay([[FolderFocusKey.key, true], [FileFocusKey.key, false], [MatchFocusKey.key, false]]);
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
+		MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
+		FileFocusKey.bindTo(contextKeyServiceMain).set(false);
+		FolderFocusKey.bindTo(contextKeyServiceMain).set(true);
+
+		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -143,7 +150,8 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			badge,
 			actions,
 			disposables,
-			disposableActions: disposableElements
+			elementDisposables,
+			contextKeyService: contextKeyServiceMain
 		};
 	}
 
@@ -159,15 +167,22 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
+
+		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
+
+		templateData.elementDisposables.add(folderMatch.onChange(() => {
+			IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
+		}));
+
 		this.renderFolderDetails(folderMatch, templateData);
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
-		templateData.disposableActions.clear();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<FolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
-		templateData.disposableActions.clear();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IFolderMatchTemplate): void {
@@ -205,14 +220,20 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 
 	renderTemplate(container: HTMLElement): IFileMatchTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
+		disposables.add(elementDisposables);
 		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
 		const label = this.labels.create(fileMatchElement);
 		disposables.add(label);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')), {}, defaultCountBadgeStyles);
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 
-		const contextKeyService = this.contextKeyService.createOverlay([[FileFocusKey.key, true], [FolderFocusKey.key, false], [MatchFocusKey.key, false]]);
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
+		MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
+		FileFocusKey.bindTo(contextKeyServiceMain).set(true);
+		FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
+
+		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -229,6 +250,8 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 			badge,
 			actions,
 			disposables,
+			elementDisposables,
+			contextKeyService: contextKeyServiceMain
 		};
 	}
 
@@ -244,6 +267,12 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 
 		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
 
+		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
+
+		templateData.elementDisposables.add(fileMatch.onChange(() => {
+			IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
+		}));
+
 		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
 		// be hard to tell whether the node is collapsed or expanded.
 		const twistieContainer = templateData.el.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
@@ -251,6 +280,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFileMatchTemplate): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IFileMatchTemplate): void {
@@ -401,10 +431,10 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 			const range = match.range();
 			const matchText = match.text().substr(0, range.endColumn + 150);
 			if (replace) {
-				return nls.localize('replacePreviewResultAria', "'{0}' at column {1} replace {2} with {3}", matchText, range.startColumn + 1, matchString, match.replaceString);
+				return nls.localize('replacePreviewResultAria', "'{0}' at column {1} replace {2} with {3}", matchText, range.startColumn, matchString, match.replaceString);
 			}
 
-			return nls.localize('searchResultAria', "'{0}' at column {1} found {2}", matchText, range.startColumn + 1, matchString);
+			return nls.localize('searchResultAria', "'{0}' at column {1} found {2}", matchText, range.startColumn, matchString);
 		}
 		return null;
 	}

@@ -209,24 +209,6 @@ export class ConfigurationManager implements IConfigurationManager {
 				pick: async () => {
 					// Do a late 'onDebugDynamicConfigurationsName' activation so extensions are not activated too early #108578
 					await this.adapterManager.activateDebuggers(onDebugDynamicConfigurationsName, type);
-					const disposables = new DisposableStore();
-					const input = disposables.add(this.quickInputService.createQuickPick<IDynamicPickItem>());
-					input.busy = true;
-					input.placeholder = nls.localize('selectConfiguration', "Select Launch Configuration");
-					input.show();
-
-					const chosenPromise = new Promise<IDynamicPickItem | undefined>(resolve => {
-						disposables.add(input.onDidAccept(() => resolve(input.activeItems[0])));
-						disposables.add(input.onDidTriggerItemButton(async (context) => {
-							resolve(undefined);
-							const { launch, config } = context.item;
-							await launch.openConfigFile({ preserveFocus: false, type: config.type, suppressInitialConfigs: true });
-							// Only Launch have a pin trigger button
-							await (launch as Launch).writeConfiguration(config);
-							await this.selectConfiguration(launch, config.name);
-							this.removeRecentDynamicConfigurations(config.name, config.type);
-						}));
-					});
 
 					const token = new CancellationTokenSource();
 					const picks: Promise<IDynamicPickItem[]>[] = [];
@@ -246,11 +228,30 @@ export class ConfigurationManager implements IConfigurationManager {
 						}
 					});
 
+					const disposables = new DisposableStore();
+					const input = disposables.add(this.quickInputService.createQuickPick<IDynamicPickItem>());
+					input.busy = true;
+					input.placeholder = nls.localize('selectConfiguration', "Select Launch Configuration");
+
+					const chosenPromise = new Promise<IDynamicPickItem | undefined>(resolve => {
+						disposables.add(input.onDidAccept(() => resolve(input.activeItems[0])));
+						disposables.add(input.onDidTriggerItemButton(async (context) => {
+							resolve(undefined);
+							const { launch, config } = context.item;
+							await launch.openConfigFile({ preserveFocus: false, type: config.type, suppressInitialConfigs: true });
+							// Only Launch have a pin trigger button
+							await (launch as Launch).writeConfiguration(config);
+							await this.selectConfiguration(launch, config.name);
+							this.removeRecentDynamicConfigurations(config.name, config.type);
+						}));
+					});
+
 					const nestedPicks = await Promise.all(picks);
 					const items = flatten(nestedPicks);
 
 					input.items = items;
 					input.busy = false;
+					input.show();
 					const chosen = await chosenPromise;
 
 					disposables.dispose();

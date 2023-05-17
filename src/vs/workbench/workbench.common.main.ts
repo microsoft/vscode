@@ -55,6 +55,7 @@ import 'vs/workbench/browser/parts/views/viewsService';
 import 'vs/platform/actions/common/actions.contribution';
 import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/workbench/services/workspaces/common/editSessionIdentityService';
+import 'vs/workbench/services/workspaces/common/canonicalUriIdentityService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
@@ -105,6 +106,8 @@ import 'vs/editor/common/services/languageFeaturesService';
 import 'vs/editor/common/services/semanticTokensStylingService';
 import 'vs/editor/common/services/treeViewsDndService';
 import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contribution';
+import 'vs/workbench/services/userActivity/common/userActivityService';
+import 'vs/workbench/services/userActivity/browser/userActivityBrowser';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -169,7 +172,7 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
-import 'vs/workbench/contrib/interactiveSession/browser/interactiveSession.contribution';
+import 'vs/workbench/contrib/chat/browser/chat.contribution';
 import 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditor.contribution';
 
 // Interactive

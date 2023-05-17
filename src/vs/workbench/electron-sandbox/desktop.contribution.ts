@@ -26,7 +26,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
-import product from 'vs/platform/product/common/product';
 import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 // Actions
@@ -257,14 +256,6 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
-			},
-			'window.experimental.useSandbox': { // TODO@bpasero remove me once sandbox is final
-				type: 'boolean',
-				description: localize('experimentalUseSandbox', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: product.quality !== 'stable', // disabled by default in stable for now
-				tags: product.quality === 'stable' ? ['experimental'] : undefined,
-				'scope': ConfigurationScope.APPLICATION,
-				ignoreSync: true
 			}
 		}
 	});
