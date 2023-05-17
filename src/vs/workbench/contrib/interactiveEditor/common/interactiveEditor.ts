@@ -110,7 +110,7 @@ export const CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST = new RawContextKey<boolea
 export const CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE = new RawContextKey<'cropped' | 'not_cropped' | 'expanded'>('interactiveEditorMarkdownMessageCropState', 'not_cropped', localize('interactiveEditorMarkdownMessageCropState', "Whether the interactive editor message is cropped, not cropped or expanded"));
 export const CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION = new RawContextKey<'above' | 'below' | ''>('interactiveEditorOuterCursorPosition', '', localize('interactiveEditorOuterCursorPosition', "Whether the cursor of the outer editor is above or below the interactive editor input"));
 export const CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('interactiveEditorHasActiveRequest', false, localize('interactiveEditorHasActiveRequest', "Whether interactive editor has an active request"));
-export const CTX_INTERACTIVE_EDITOR_INLNE_DIFF = new RawContextKey<boolean>('interactiveEditorInlineDiff', false, localize('interactiveEditorInlineDiff', "Whether interactive editor show inline diffs for changes"));
+export const CTX_INTERACTIVE_EDITOR_SHOWING_DIFF = new RawContextKey<boolean>('interactiveEditorDiff', false, localize('interactiveEditorDiff', "Whether interactive editor show diffs for changes"));
 export const CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE = new RawContextKey<InteractiveEditorResponseType | undefined>('interactiveEditorLastResponseType', undefined, localize('interactiveEditorResponseType', "What type was the last response of the current interactive editor session"));
 export const CTX_INTERACTIVE_EDITOR_DID_EDIT = new RawContextKey<boolean>('interactiveEditorDidEdit', false, localize('interactiveEditorDidEdit', "Whether interactive editor did change any code"));
 export const CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('interactiveEditorLastFeedbackKind', '', localize('interactiveEditorLastFeedbackKind', "The last kind of feedback that was provided"));
@@ -158,10 +158,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	id: 'editor',
 	properties: {
 		'interactiveEditor.editMode': {
-			description: localize('editMode', "Configure if changes crafted in the interactive editor are applied directly or previewed first"),
+			description: localize('editMode', "Configure if changes crafted in the interactive editor are applied directly to the document or are previewed first."),
 			default: EditMode.LivePreview,
 			type: 'string',
-			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live]
+			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live],
+			markdownEnumDescriptions: [
+				localize('editMode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
+				localize('editMode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
+				localize('editMode.live', "Changes are applied directly to the document but can be highlighted via inline diffs. Ending a session will keep the changes."),
+			]
 		}
 	}
 });

@@ -8,11 +8,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./interactiveEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, IValidEditOperation } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -24,7 +24,7 @@ import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewW
 import { EditResponse, Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { InteractiveEditorWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
 import { getValueFromSnapshot } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
-import { CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
@@ -39,9 +39,9 @@ export abstract class EditModeStrategy {
 
 	abstract makeChanges(response: EditResponse, edits: ISingleEditOperation[]): Promise<void>;
 
-	abstract renderChanges(response: EditResponse, changes: LineRangeMapping[]): Promise<void>;
+	abstract renderChanges(response: EditResponse): Promise<void>;
 
-	abstract toggleInlineDiff(): void;
+	abstract toggleDiff(): void;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -111,10 +111,10 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async renderChanges(response: EditResponse, changes: LineRangeMapping[]): Promise<void> {
+	override async renderChanges(response: EditResponse): Promise<void> {
 		if (response.localEdits.length > 0) {
 			const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-			this._widget.showEditsPreview(this._session.textModel0, edits, changes);
+			this._widget.showEditsPreview(this._session.textModel0, edits, this._session.lastTextModelChanges);
 		} else {
 			this._widget.hideEditsPreview();
 		}
@@ -126,7 +126,9 @@ export class PreviewStrategy extends EditModeStrategy {
 		}
 	}
 
-	toggleInlineDiff(): void { }
+	toggleDiff(): void {
+		// nothing to do
+	}
 }
 
 class InlineDiffDecorations {
@@ -202,7 +204,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private _inlineDiffEnabled: boolean = false;
 
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
-	private readonly _ctxInlineDiff: IContextKey<boolean>;
+	protected readonly _ctxShowingDiff: IContextKey<boolean>;
 	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
 
@@ -218,10 +220,10 @@ export class LiveStrategy extends EditModeStrategy {
 	) {
 		super();
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
-		this._ctxInlineDiff = CTX_INTERACTIVE_EDITOR_INLNE_DIFF.bindTo(contextKeyService);
+		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
 
 		this._inlineDiffEnabled = _storageService.getBoolean(LiveStrategy._inlineDiffStorageKey, StorageScope.PROFILE, false);
-		this._ctxInlineDiff.set(this._inlineDiffEnabled);
+		this._ctxShowingDiff.set(this._inlineDiffEnabled);
 		this._inlineDiffDecorations.visible = this._inlineDiffEnabled;
 	}
 
@@ -229,14 +231,14 @@ export class LiveStrategy extends EditModeStrategy {
 		this._inlineDiffEnabled = this._inlineDiffDecorations.visible;
 		this._storageService.store(LiveStrategy._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
 		this._inlineDiffDecorations.clear();
-		this._ctxInlineDiff.reset();
+		this._ctxShowingDiff.reset();
 
 		super.dispose();
 	}
 
-	toggleInlineDiff(): void {
+	toggleDiff(): void {
 		this._inlineDiffEnabled = !this._inlineDiffEnabled;
-		this._ctxInlineDiff.set(this._inlineDiffEnabled);
+		this._ctxShowingDiff.set(this._inlineDiffEnabled);
 		this._inlineDiffDecorations.visible = this._inlineDiffEnabled;
 		this._storageService.store(LiveStrategy._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
 	}
@@ -298,10 +300,10 @@ export class LiveStrategy extends EditModeStrategy {
 		this._editor.executeEdits('interactive-editor-live', edits, ignoreInlineDiff ? undefined : cursorStateComputerAndInlineDiffCollection);
 	}
 
-	override async renderChanges(response: EditResponse, textModel0Changes: LineRangeMapping[]) {
+	override async renderChanges(response: EditResponse) {
 
 		this._inlineDiffDecorations.update();
-		this._updateSummaryMessage(textModel0Changes);
+		this._updateSummaryMessage();
 
 		if (response.singleCreateFileEdit) {
 			this._widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
@@ -310,12 +312,10 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	protected _updateSummaryMessage(textModel0Changes: LineRangeMapping[]) {
+	protected _updateSummaryMessage() {
 		let linesChanged = 0;
-		if (textModel0Changes) {
-			for (const change of textModel0Changes) {
-				linesChanged += change.changedLineCount;
-			}
+		for (const change of this._session.lastTextModelChanges) {
+			linesChanged += change.changedLineCount;
 		}
 		let message: string;
 		if (linesChanged === 0) {
@@ -346,7 +346,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 	) {
 		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, instaService);
 
-		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session.textModel0);
+		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session);
 		this._previewZone = instaService.createInstance(InteractiveEditorFileCreatePreviewWidget, editor);
 	}
 
@@ -362,16 +362,30 @@ export class LivePreviewStrategy extends LiveStrategy {
 		super.makeChanges(_response, edits, true);
 	}
 
-	override async renderChanges(response: EditResponse, changes: LineRangeMapping[]) {
+	override async renderChanges(response: EditResponse) {
 
-		this._diffZone.showDiff(() => this._session.wholeRange, changes);
-		this._updateSummaryMessage(changes);
+		this._diffZone.show();
+		this._updateSummaryMessage();
+		this._ctxShowingDiff.set(true);
 
 		if (response.singleCreateFileEdit) {
 			this._previewZone.showCreation(this._session.wholeRange, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.hide();
 		}
+	}
+
+	override toggleDiff(): void {
+		// TODO@jrieken should this be persisted like we do in live-mode?
+		const scrollState = StableEditorScrollState.capture(this._editor);
+		if (this._diffZone.isVisible) {
+			this._diffZone.hide();
+			this._ctxShowingDiff.set(false);
+		} else {
+			this._diffZone.show();
+			this._ctxShowingDiff.set(true);
+		}
+		scrollState.restore(this._editor);
 	}
 }
 

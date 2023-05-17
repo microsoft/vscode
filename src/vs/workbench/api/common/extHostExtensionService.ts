@@ -25,7 +25,7 @@ import type * as vscode from 'vscode';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ResolvedAuthority as ExtHostResolvedAuthority } from 'vs/workbench/api/common/extHostTypes';
+import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime, ManagedResolvedAuthority as ExtHostManagedResolvedAuthority } from 'vs/workbench/api/common/extHostTypes';
 import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix, TunnelInformation, ManagedRemoteConnection, WebSocketRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -838,16 +838,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				authenticationSession: result.authenticationSessionForInitializingExtensions ? { id: result.authenticationSessionForInitializingExtensions.id, providerId: result.authenticationSessionForInitializingExtensions.providerId } : undefined
 			};
 
-			logInfo(`returned ${result instanceof ExtHostResolvedAuthority ? `${result.host}:${result.port}` : 'managed authority'}`);
+			// extension are not required to return an instance of ResolvedAuthority or ManagedResolvedAuthority, so don't use `instanceof`
+			logInfo(`returned ${ExtHostManagedResolvedAuthority.isManagedResolvedAuthority(result) ? 'managed authority' : `${result.host}:${result.port}`}`);
 
 			let authority: ResolvedAuthority;
-			if (result instanceof ExtHostResolvedAuthority) {
-				authority = {
-					authority: remoteAuthority,
-					connectTo: new WebSocketRemoteConnection(result.host, result.port),
-					connectionToken: result.connectionToken
-				};
-			} else {
+			if (ExtHostManagedResolvedAuthority.isManagedResolvedAuthority(result)) {
 				// The socket factory is identified by the `resolveAttempt`, since that is a number which
 				// always increments and is unique over all resolve() calls in a workbench session.
 				const socketFactoryId = resolveAttempt;
@@ -858,6 +853,12 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				authority = {
 					authority: remoteAuthority,
 					connectTo: new ManagedRemoteConnection(socketFactoryId),
+					connectionToken: result.connectionToken
+				};
+			} else {
+				authority = {
+					authority: remoteAuthority,
+					connectTo: new WebSocketRemoteConnection(result.host, result.port),
 					connectionToken: result.connectionToken
 				};
 			}

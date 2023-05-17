@@ -870,6 +870,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
 		this._onDidAttachToElement.fire(this._container);
+		this.xterm?.refresh();
 
 		setTimeout(() => this._initDragAndDrop(container));
 	}
@@ -926,7 +927,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
 			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
 			// terminals generally
-			const isValidChord = resolveResult?.kind === ResultKind.MoreChordsNeeded && this._configHelper.config.allowChords && event.key !== 'Escape';
+			const isValidChord = resolveResult.kind === ResultKind.MoreChordsNeeded && this._configHelper.config.allowChords && event.key !== 'Escape';
 			if (this._keybindingService.inChordMode || isValidChord) {
 				event.preventDefault();
 				return false;
@@ -946,7 +947,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
-			if (resolveResult && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
+			if (resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
 				// don't alert when terminal is opened or closed
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
 					this._hasHadInput &&
