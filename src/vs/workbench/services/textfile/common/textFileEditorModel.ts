@@ -675,7 +675,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	isModified(): boolean {
-		return this.dirty;
+		return this.isDirty();
 	}
 
 	setDirty(dirty: boolean): void {

@@ -159,15 +159,12 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			return;
 		}
 
-		// Schedule backup for unsaved content
+		// Schedule backup for modified working copies
 		if (workingCopy.isModified()) {
 			// this listener will make sure that the backup is
 			// pushed out for as long as the user is still changing
 			// the content of the working copy.
 			this.scheduleBackup(workingCopy);
-		}
-		else {
-			this.discardBackup(workingCopy);
 		}
 	}
 

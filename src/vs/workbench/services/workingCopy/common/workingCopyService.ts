@@ -272,7 +272,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	}
 
 	get modifiedWorkingCopies(): IWorkingCopy[] {
-		return this.workingCopies.filter(workingCopy => workingCopy.isModified);
+		return this.workingCopies.filter(workingCopy => workingCopy.isModified());
 	}
 
 	isDirty(resource: URI, typeId?: string): boolean {

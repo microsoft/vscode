@@ -38,7 +38,7 @@ export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker im
 
 		const modifiedWorkingCopies = this.workingCopyService.modifiedWorkingCopies;
 		if (!modifiedWorkingCopies.length) {
-			return false; // no unsaved changes: no veto
+			return false; // nothing modified: no veto
 		}
 
 		if (this.workingCopyService.hasDirty && !this.filesConfigurationService.isHotExitEnabled) {
@@ -49,10 +49,10 @@ export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker im
 			if (!this.workingCopyBackupService.hasBackupSync(modifiedWorkingCopy, this.getContentVersion(modifiedWorkingCopy))) {
 				this.logService.warn('Unload veto: pending backups');
 
-				return true; // unsaved content without backup: veto
+				return true; // modified without backup: veto
 			}
 		}
 
-		return false; // unsaved content backed up: no veto
+		return false; // modified and backed up: no veto
 	}
 }

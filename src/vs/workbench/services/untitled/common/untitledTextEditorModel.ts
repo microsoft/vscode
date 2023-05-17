@@ -67,7 +67,7 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, ILanguageSup
 	resolve(): Promise<void>;
 }
 
-export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel, IWorkingCopy {
+export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
 
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
@@ -244,7 +244,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	isModified(): boolean {
-		return this.dirty;
+		return this.isDirty();
 	}
 
 	private setDirty(dirty: boolean): void {

@@ -227,14 +227,14 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	private onModelContentChanged(e: IUntitledFileWorkingCopyModelContentChangedEvent): void {
 
-		// Mark the untitled file working copy as non-dirty once its
+		// Mark the untitled file working copy as non-modified once its
 		// in case provided by the change event and in case we do not
 		// have an associated path set
 		if (!this.hasAssociatedFilePath && e.isInitial) {
 			this.setModified(false);
 		}
 
-		// Turn dirty otherwise
+		// Turn modified otherwise
 		else {
 			this.setModified(true);
 		}

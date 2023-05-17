@@ -64,7 +64,9 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(copy1.isDirty(), true);
 		assert.strictEqual(service.dirtyCount, 1);
 		assert.strictEqual(service.dirtyWorkingCopies.length, 1);
+		assert.strictEqual(service.modifiedWorkingCopies.length, 1);
 		assert.strictEqual(service.dirtyWorkingCopies[0], copy1);
+		assert.strictEqual(service.modifiedWorkingCopies[0], copy1);
 		assert.strictEqual(service.workingCopies.length, 1);
 		assert.strictEqual(service.workingCopies[0], copy1);
 		assert.strictEqual(service.isDirty(resource1), true);
