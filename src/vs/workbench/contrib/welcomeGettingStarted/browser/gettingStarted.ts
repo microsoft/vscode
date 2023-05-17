@@ -1554,7 +1554,18 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	override focus() {
-		this.container.focus();
+		const active = document.activeElement;
+
+		let parent = this.container.parentElement;
+		while (parent && parent !== active) {
+			parent = parent.parentElement;
+		}
+
+		if (parent) {
+			// Only set focus if there is no other focued element outside this chain.
+			// This prevents us from stealing back focus from quick open due to delayed welcome page load.
+			this.container.focus();
+		}
 	}
 }
 
