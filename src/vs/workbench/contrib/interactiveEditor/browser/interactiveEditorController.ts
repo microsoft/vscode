@@ -333,7 +333,12 @@ export class InteractiveEditorController implements IEditorContribution {
 		assertType(this._activeSession);
 
 		this._zone.widget.placeholder = this._getPlaceholderText();
-		this._zone.show(this._activeSession.wholeRange.getEndPosition());
+		if (this._zone.position?.equals(this._activeSession.wholeRange.getEndPosition())) {
+			// the zone is already rendered at the same position
+			this._zone.layout();
+		} else {
+			this._zone.show(this._activeSession.wholeRange.getEndPosition());
+		}
 
 		if (options?.message) {
 			this._zone.widget.value = options?.message;

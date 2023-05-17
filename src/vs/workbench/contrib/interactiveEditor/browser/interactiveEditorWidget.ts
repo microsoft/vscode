@@ -649,6 +649,12 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		return this.widget.getHeight() / lineHeight;
 	}
 
+	layout() {
+		this._relayout();
+		this.widget.focus();
+		this._ctxVisible.set(true);
+	}
+
 	protected override _relayout() {
 		if (this._dimension) {
 			this._doLayout(this._dimension.height);
