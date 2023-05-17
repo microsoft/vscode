@@ -27,6 +27,7 @@ import type * as vscode from 'vscode';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 
 
@@ -37,7 +38,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _notebookDocumentsProxy: MainThreadNotebookDocumentsShape;
 	private readonly _notebookEditorsProxy: MainThreadNotebookEditorsShape;
 
-	private readonly _notebookStatusBarItemProviders = new Map<number, vscode.NotebookCellStatusBarItemProvider>();
+	private readonly _notebookStatusBarItemProviders = new Map<number, {
+		readonly extension: IExtensionDescription;
+		readonly provider: vscode.NotebookCellStatusBarItemProvider;
+	}>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _commandsConverter: CommandsConverter;
@@ -160,7 +164,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
 		const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
 
-		this._notebookStatusBarItemProviders.set(handle, provider);
+		this._notebookStatusBarItemProviders.set(handle, { extension, provider });
 		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, notebookType);
 
 		let subscription: vscode.Disposable | undefined;
@@ -241,7 +245,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			return;
 		}
 
-		const result = await provider.provideCellStatusBarItems(cell.apiCell, token);
+		const result = await provider.provider.provideCellStatusBarItems(cell.apiCell, token);
 		if (!result) {
 			return undefined;
 		}
@@ -249,7 +253,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const disposables = new DisposableStore();
 		const cacheId = this._statusBarCache.add([disposables]);
 		const resultArr = Array.isArray(result) ? result : [result];
-		const items = resultArr.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables));
+		const items = resultArr.map(item => {
+			if ((item as vscode.NotebookCellStatusBarItem2).color) {
+				checkProposedApiEnabled(provider.extension, 'notebookCellStatusBarItemColor');
+			}
+			return typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables);
+		});
 		return {
 			cacheId,
 			items
