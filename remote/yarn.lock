@@ -72,10 +72,10 @@
   optionalDependencies:
     "@vscode/windows-ca-certs" "^0.3.1"
 
-"@vscode/ripgrep@^1.15.2":
-  version "1.15.2"
-  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.15.2.tgz#85b55181353d6d204210e64e03853c5e2ee6edd9"
-  integrity sha512-8zmyoxV6F+CY1Rinaq7LO/bGShaX2+B333X+Nqo984nC6jg2OvfZtQHzU+PKNQte2fjhm9h2ZlZTufnJxHaX9w==
+"@vscode/ripgrep@^1.15.3":
+  version "1.15.3"
+  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.15.3.tgz#bd53c555ed7f2f546edc46a47d72b1914a5ba23d"
+  integrity sha512-fCJP+4MRnhSTWw+GYAH93kSIomWYvdSe5206IqcHofBFcaFKR51XQNU0D5RB26Ps/5zRf5AQS26DIqqbMsB1Cw==
   dependencies:
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
