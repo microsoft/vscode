@@ -178,10 +178,6 @@ export class DiffReview extends Disposable {
 				|| e.equals(KeyCode.Space)
 				|| e.equals(KeyCode.Enter)
 			) {
-				if (this._diffEditor.getContainerDomNode().classList.contains('screen-reader-interactive-editor-widget')) {
-					// We don't want to show the underlying editors when the diff editor is in inline mode
-					return;
-				}
 				e.preventDefault();
 				this.accept();
 			}

@@ -25,11 +25,13 @@ export function getAccessibilityHelpText(keybindingService: IKeybindingService, 
 		const match = currentInput?.match(regex);
 		const command = match && match.length ? match[0].substring(1) : undefined;
 		switch (command) {
-			case 'fix':
+			case 'fix': {
 				// TODO: check that config value is preview before suggesting this, add instructions for other setting values
-				content.push(localize('interactiveSession.diff', "Tab again to enter the DiffReview editor with the changes. Use Up/DownArrow to navigate lines with the proposed changes."));
+				const keybinding = keybindingService.lookupKeybinding('editor.action.diffReview.next')?.getAriaLabel();
+				content.push(keybinding ? localize('interactiveSession.diff', "Tab again to enter the Diff editor with the changes and enter review mode with ({0}). Use Up/DownArrow to navigate lines with the proposed changes.", keybinding) : localize('interactiveSession.diffNoKb', "Tab again to enter the Diff editor with the changes and enter review mode with the Go to Next Difference Command. Use Up/DownArrow to navigate lines with the proposed changes."));
 				content.push(localize('interactiveSession.acceptReject', "Tab again to reach the action bar, which can be navigated with Left/RightArrow."));
 				break;
+			}
 			default:
 				content.push(localize('interactiveSession.toolbar', "Tab again to reach the action bar, which can be navigated with Left/RightArrow."));
 				content.push(localize('interactiveSession.toolbarButtons', "Tab again to focus the response."));
