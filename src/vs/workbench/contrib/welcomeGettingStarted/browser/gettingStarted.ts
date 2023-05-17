@@ -1563,7 +1563,7 @@ export class GettingStartedPage extends EditorPane {
 
 		if (parent) {
 			// Only set focus if there is no other focued element outside this chain.
-			// This prevents us from stealing back focus from quick open due to delayed welcome page load.
+			// This prevents us from stealing back focus from other focused elements such as quick pick due to delayed load.
 			this.container.focus();
 		}
 	}
