@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Stream } from 'stream';
-import got from 'got';
+import fetch from 'node-fetch';
 import { remote } from './gulpRemoteSource';
 import * as through2 from 'through2';
 
@@ -30,14 +30,18 @@ export function assetFromGithub(repo: string, version: string, assetFilter: (nam
 	return remote(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${version}`, {
 		base: 'https://api.github.com',
 		fetchOptions: { headers: ghApiHeaders }
-	}).pipe(through2.obj(function (file, _enc, callback) {
+	}).pipe(through2.obj(async function (file, _enc, callback) {
 		const asset = JSON.parse(file.contents.toString()).assets.find((a: { name: string }) => assetFilter(a.name));
 		if (!asset) {
 			return callback(new Error(`Could not find asset in release of ${repo} @ ${version}`));
 		}
+		const response = await fetch(asset.url, { headers: ghDownloadHeaders });
+		if (response.ok) {
+			file.contents = response.body.pipe(through2());
+			callback(null, file);
+		} else {
+			return callback(new Error(`Request ${response.url} failed with status code: ${response.status}`));
+		}
 
-		const res = got.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
-		file.contents = res.pipe(through2());
-		callback(null, file);
 	}));
 }

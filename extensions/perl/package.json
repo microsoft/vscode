@@ -50,7 +50,10 @@
       {
         "language": "perl",
         "scopeName": "source.perl",
-        "path": "./syntaxes/perl.tmLanguage.json"
+        "path": "./syntaxes/perl.tmLanguage.json",
+        "unbalancedBracketScopes": [
+          "variable.other.predefined.perl"
+        ]
       },
       {
         "language": "perl6",

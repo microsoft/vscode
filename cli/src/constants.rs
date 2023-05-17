@@ -75,6 +75,12 @@ pub const TUNNEL_ACTIVITY_NAME: &str = concatcp!(PRODUCT_NAME_LONG, " Tunnel");
 
 const NONINTERACTIVE_VAR: &str = "VSCODE_CLI_NONINTERACTIVE";
 
+/// Default data CLI data directory.
+pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DEFAULT_PARENT_DATA_DIR") {
+	Some(n) => n,
+	None => ".vscode-oss",
+};
+
 pub fn get_default_user_agent() -> String {
 	format!(
 		"vscode-server-launcher/{}",

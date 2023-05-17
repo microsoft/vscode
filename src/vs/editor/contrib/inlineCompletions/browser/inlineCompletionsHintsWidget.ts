@@ -61,9 +61,9 @@ export class InlineCompletionsHintsWidget extends Disposable {
 		this.editor,
 		true,
 		this.position,
-		this.model.currentInlineCompletionIndex,
+		this.model.selectedInlineCompletionIndex,
 		this.model.inlineCompletionsCount,
-		this.model.currentInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+		this.model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),
 	));
 
 	constructor(

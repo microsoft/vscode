@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -36,7 +36,8 @@ export class BrowserWindow extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -129,7 +130,7 @@ export class BrowserWindow extends Disposable {
 
 	private setupDriver(): void {
 		if (this.environmentService.enableSmokeTestDriver) {
-			registerWindowDriver();
+			registerWindowDriver(this.instantiationService);
 		}
 	}
 

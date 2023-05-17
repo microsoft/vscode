@@ -34,6 +34,7 @@ import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testin
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -838,9 +839,31 @@ export class ShowMostRecentOutputAction extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor) {
+	public async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const terminalOutputService = accessor.get(ITestingOutputTerminalService);
 		const result = accessor.get(ITestResultService).results[0];
-		accessor.get(ITestingOutputTerminalService).open(result);
+
+		if (!result.tasks.length) {
+			return;
+		}
+
+		let index = 0;
+		if (result.tasks.length > 1) {
+			const picked = await quickInputService.pick(
+				result.tasks.map((t, i) => ({ label: t.name || localize('testing.pickTaskUnnamed', "Run #{0}", i), index: i })),
+				{ placeHolder: localize('testing.pickTask', "Pick a run to show output for") }
+			);
+
+			if (!picked) {
+				return;
+			}
+
+			index = picked.index;
+		}
+
+
+		terminalOutputService.open(result, index);
 	}
 }
 
@@ -996,7 +1019,10 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				const irange = Range.lift(test.item.range);
 				if (irange.containsPosition(position)) {
 					if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
-						bestNodes.push(test);
+						// check that a parent isn't already included (#180760)
+						if (!bestNodes.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
+							bestNodes.push(test);
+						}
 					} else {
 						bestRange = irange;
 						bestNodes = [test];
@@ -1005,7 +1031,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 					if (!bestRangeBefore || bestRangeBefore.getStartPosition().isBefore(irange.getStartPosition())) {
 						bestRangeBefore = irange;
 						bestNodesBefore = [test];
-					} else if (irange.equalsRange(bestRangeBefore)) {
+					} else if (irange.equalsRange(bestRangeBefore) && !bestNodesBefore.some(b => TestId.isChild(b.item.extId, test.item.extId))) {
 						bestNodesBefore.push(test);
 					}
 				}

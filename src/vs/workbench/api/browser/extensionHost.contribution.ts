@@ -43,6 +43,7 @@ import './mainThreadLanguageFeatures';
 import './mainThreadLanguages';
 import './mainThreadLogService';
 import './mainThreadMessageService';
+import './mainThreadManagedSockets';
 import './mainThreadOutputService';
 import './mainThreadProgress';
 import './mainThreadQuickDiff';
@@ -72,7 +73,7 @@ import './mainThreadNotebookRenderers';
 import './mainThreadNotebookSaveParticipant';
 import './mainThreadInteractive';
 import './mainThreadInteractiveEditor';
-import './mainThreadInteractiveSession';
+import './mainThreadChat';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';
@@ -82,6 +83,7 @@ import './mainThreadTesting';
 import './mainThreadSecretState';
 import './mainThreadProfilContentHandlers';
 import './mainThreadSemanticSimilarity';
+import './mainThreadIssueReporter';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

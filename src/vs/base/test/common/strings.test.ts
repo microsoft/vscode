@@ -511,6 +511,10 @@ suite('Strings', () => {
 			`${CSI}48;5;128m`, // 256 indexed color alt
 			`${CSI}38:2:0:255:255:255m`, // truecolor
 			`${CSI}38;2;255;255;255m`, // truecolor alt
+
+			// Custom sequences:
+			'\x1b]633;SetMark;\x07',
+			'\x1b]633;P;Cwd=/foo\x07',
 		];
 
 		for (const sequence of sequences) {

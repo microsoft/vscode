@@ -134,6 +134,9 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 			// you escape single quotes inside of a single quoted string.
 			command = `& '${process.execPath}' ${extraArgs} -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
 			shellArgs = ['-Login', '-Command'];
+		} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
+			command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+			shellArgs = ['-i', '-l', '-c'];
 		} else {
 			command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 

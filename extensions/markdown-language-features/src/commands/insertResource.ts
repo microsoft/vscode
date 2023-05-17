@@ -6,8 +6,9 @@
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { Command } from '../commandManager';
-import { createUriListSnippet, getParentDocumentUri, imageFileExtensions } from '../languageFeatures/copyFiles/dropIntoEditor';
+import { createUriListSnippet, mediaFileExtensions } from '../languageFeatures/copyFiles/shared';
 import { coalesce } from '../util/arrays';
+import { getParentDocumentUri } from '../util/document';
 import { Schemes } from '../util/schemes';
 
 
@@ -47,7 +48,7 @@ export class InsertImageFromWorkspace implements Command {
 			canSelectFolders: false,
 			canSelectMany: true,
 			filters: {
-				[vscode.l10n.t("Images")]: Array.from(imageFileExtensions)
+				[vscode.l10n.t("Media")]: Array.from(mediaFileExtensions.keys())
 			},
 			openLabel: vscode.l10n.t("Insert image"),
 			title: vscode.l10n.t("Insert image"),
@@ -75,14 +76,14 @@ async function insertLink(activeEditor: vscode.TextEditor, selectedFiles: vscode
 	await vscode.workspace.applyEdit(edit);
 }
 
-function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsImage: boolean) {
+function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsMedia: boolean) {
 	const snippetEdits = coalesce(activeEditor.selections.map((selection, i): vscode.SnippetTextEdit | undefined => {
 		const selectionText = activeEditor.document.getText(selection);
 		const snippet = createUriListSnippet(activeEditor.document, selectedFiles, {
-			insertAsImage: insertAsImage,
+			insertAsMedia,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,
-			separator: insertAsImage ? '\n' : ' ',
+			separator: insertAsMedia ? '\n' : ' ',
 		});
 
 		return snippet ? new vscode.SnippetTextEdit(selection, snippet.snippet) : undefined;

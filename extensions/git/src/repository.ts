@@ -605,6 +605,11 @@ class ResourceCommandResolver {
 	}
 }
 
+interface BranchProtectionMatcher {
+	include?: picomatch.Matcher;
+	exclude?: picomatch.Matcher;
+}
+
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -744,7 +749,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
-	private branchProtection = new Map<string, picomatch.Matcher | undefined>();
+	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
@@ -764,7 +769,7 @@ export class Repository implements Disposable {
 		this.disposables.push(repositoryWatcher);
 
 		const onRepositoryFileChange = anyEvent(repositoryWatcher.onDidChange, repositoryWatcher.onDidCreate, repositoryWatcher.onDidDelete);
-		const onRepositoryWorkingTreeFileChange = filterEvent(onRepositoryFileChange, uri => !/\.git($|\/)/.test(relativePath(repository.root, uri.fsPath)));
+		const onRepositoryWorkingTreeFileChange = filterEvent(onRepositoryFileChange, uri => !/\.git($|\\|\/)/.test(relativePath(repository.root, uri.fsPath)));
 
 		let onRepositoryDotGitFileChange: Event<Uri>;
 
@@ -775,7 +780,7 @@ export class Repository implements Disposable {
 		} catch (err) {
 			logger.error(`Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 
-			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\/)/.test(uri.path));
+			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\\|\/)/.test(uri.path));
 		}
 
 		// FS changes should trigger `git status`:
@@ -2051,9 +2056,10 @@ export class Repository implements Disposable {
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
 
 		const start = new Date().getTime();
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken });
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, similarityThreshold, untrackedChanges, cancellationToken });
 		const totalTime = new Date().getTime() - start;
 
 		this.isRepositoryHuge = didHitLimit ? { limit } : false;
@@ -2367,8 +2373,21 @@ export class Repository implements Disposable {
 		this.branchProtection.clear();
 
 		for (const provider of this.branchProtectionProviderRegistry.getBranchProtectionProviders(root)) {
-			for (const { remote, branches } of provider.provideBranchProtection()) {
-				this.branchProtection.set(remote, branches.length !== 0 ? picomatch(branches) : undefined);
+			for (const { remote, rules } of provider.provideBranchProtection()) {
+				const matchers: BranchProtectionMatcher[] = [];
+
+				for (const rule of rules) {
+					const include = rule.include && rule.include.length !== 0 ? picomatch(rule.include) : undefined;
+					const exclude = rule.exclude && rule.exclude.length !== 0 ? picomatch(rule.exclude) : undefined;
+
+					if (include || exclude) {
+						matchers.push({ include, exclude });
+					}
+				}
+
+				if (matchers.length !== 0) {
+					this.branchProtection.set(remote, matchers);
+				}
 			}
 		}
 
@@ -2416,14 +2435,23 @@ export class Repository implements Disposable {
 		if (branch?.name) {
 			// Default branch protection (settings)
 			const defaultBranchProtectionMatcher = this.branchProtection.get('');
-			if (defaultBranchProtectionMatcher && defaultBranchProtectionMatcher(branch.name)) {
+			if (defaultBranchProtectionMatcher?.length === 1 &&
+				defaultBranchProtectionMatcher[0].include &&
+				defaultBranchProtectionMatcher[0].include(branch.name)) {
 				return true;
 			}
 
 			if (branch.upstream?.remote) {
 				// Branch protection (contributed)
 				const remoteBranchProtectionMatcher = this.branchProtection.get(branch.upstream.remote);
-				return remoteBranchProtectionMatcher ? remoteBranchProtectionMatcher(branch.name) : false;
+				if (remoteBranchProtectionMatcher && remoteBranchProtectionMatcher?.length !== 0) {
+					return remoteBranchProtectionMatcher.some(matcher => {
+						const include = matcher.include ? matcher.include(branch.name!) : true;
+						const exclude = matcher.exclude ? matcher.exclude(branch.name!) : false;
+
+						return include && !exclude;
+					});
+				}
 			}
 		}
 

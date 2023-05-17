@@ -31,7 +31,7 @@ export class InlineCompletionContextKeys extends Disposable {
 
 		this._register(autorun('update context key: inlineCompletionVisible, suppressSuggestions', (reader) => {
 			const model = this.model.read(reader);
-			const suggestion = model?.currentInlineCompletion.read(reader);
+			const suggestion = model?.selectedInlineCompletion.read(reader);
 			const ghostText = model?.ghostText.read(reader);
 			const selectedSuggestItem = model?.selectedSuggestItem.read(reader);
 			this.inlineCompletionVisible.set(selectedSuggestItem === undefined && ghostText !== undefined);

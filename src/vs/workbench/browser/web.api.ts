@@ -173,6 +173,15 @@ export interface IWorkbenchConstructionOptions {
 	 */
 	readonly editSessionId?: string;
 
+	/**
+	 * Resource delegation handler that allows for loading of resources when
+	 * using remote resolvers.
+	 *
+	 * This is exclusive with {@link resourceUriProvider}. `resourceUriProvider`
+	 * should be used if a {@link webSocketFactory} is used, and will be preferred.
+	 */
+	readonly remoteResourceProvider?: IRemoteResourceProvider;
+
 	//#endregion
 
 
@@ -759,4 +768,39 @@ export interface IDevelopmentOptions {
 	 * Whether to enable the smoke test driver.
 	 */
 	readonly enableSmokeTestDriver?: boolean;
+}
+
+/**
+ * Utility provided in the {@link WorkbenchOptions} which allows loading resources
+ * when remote resolvers are used in the web.
+ */
+export interface IRemoteResourceProvider {
+	/**
+	 * Path the workbench should delegate requests to. The embedder should
+	 * install a service worker on this path and emit {@link onDidReceiveRequest}
+	 * events when requests come in for that path.
+	 */
+	readonly path: string;
+
+	/**
+	 * Event that should fire when requests are made on the {@link pathPrefix}.
+	 */
+	readonly onDidReceiveRequest: Event<IRemoteResourceRequest>;
+}
+
+/**
+ * todo@connor4312: this may eventually gain more properties like method and
+ * headers, but for now we only deal with GET requests.
+ */
+export interface IRemoteResourceRequest {
+	/**
+	 * Request URI. Generally will begin with the current
+	 * origin and {@link IRemoteResourceProvider.pathPrefix}.
+	 */
+	uri: URI;
+
+	/**
+	 * A method called by the editor to issue a response to the request.
+	 */
+	respondWith(statusCode: number, body: Uint8Array): void;
 }

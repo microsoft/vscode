@@ -66,6 +66,7 @@ export interface ICachedInset<K extends ICommonCellInfo> {
 	cellInfo: K;
 	renderer?: INotebookRendererInfo;
 	cachedCreation: ICreationRequestMessage;
+	initialized?: boolean;
 }
 
 export interface IResolvedBackLayerWebview {
@@ -94,6 +95,7 @@ export interface INotebookDelegateForWebview {
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
 	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void;
+	didFocusOutputInputChange(inputFocused: boolean): void;
 }
 
 interface BacklayerWebviewOptions {
@@ -337,7 +339,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						padding-left: var(--notebook-output-node-left-padding);
 						box-sizing: border-box;
 						border-top: none;
-						border: 1px solid var(--theme-notebook-output-border);
 					}
 
 					/* markdown */
@@ -612,6 +613,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 								this.reversedPendingWebviewIdleInsetMapping.delete(update.id);
 							}
+
+							{
+								if (!update.init) {
+									return;
+								}
+
+								const output = this.reversedInsetMapping.get(update.id);
+
+								if (!output) {
+									return;
+								}
+
+								const inset = this.insetMapping.get(output)!;
+								inset.initialized = true;
+							}
 						} else {
 							this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
 						}
@@ -878,6 +894,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
 					break;
 				}
+				case 'outputInputFocus': {
+					this.notebookEditor.didFocusOutputInputChange(data.inputFocused);
+				}
 			}
 		}));
 
@@ -1065,7 +1084,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return [
 			this.notebookService.getNotebookProviderResourceRoots(),
 			this.notebookService.getRenderers().map(x => dirname(x.entrypoint.path)),
-			Array.from(this.notebookService.getStaticPreloads(this.notebookViewType), x => dirname(x.entrypoint)),
+			...Array.from(this.notebookService.getStaticPreloads(this.notebookViewType), x => [
+				dirname(x.entrypoint),
+				...x.localResourceRoots,
+			]),
 			workspaceFolders,
 			notebookDir,
 			this.getBuiltinLocalResourceRoots()
@@ -1421,11 +1443,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			renderer = content.renderer;
 			const first = output.outputs.find(op => op.mime === content.mimeType)!;
 
-
-			// Copy the underlying buffer so we only send over the data we need
-			const valueBytes = new Uint8Array(first.data.buffer);
-			transfer.push(valueBytes.buffer);
-
+			const valueBytes = copyBufferIfNeeded(first.data.buffer, transfer);
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -1436,7 +1454,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					metadata: output.metadata,
 					output: {
 						mime: first.mime,
-						valueBytes: valueBytes,
+						valueBytes,
 					},
 					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
 				},
@@ -1474,16 +1492,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const outputCache = this.insetMapping.get(content.source)!;
 		this.hiddenInsetMapping.delete(content.source);
 		let updatedContent: ICreationContent | undefined = undefined;
+
+		const transfer: ArrayBuffer[] = [];
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!;
+
+			const valueBytes = copyBufferIfNeeded(firstBuffer.data.buffer, transfer);
 			updatedContent = {
 				type: RenderOutputType.Extension,
 				outputId: outputCache.outputId,
 				metadata: output.metadata,
 				output: {
 					mime: content.mimeType,
-					valueBytes: firstBuffer.data.buffer,
+					valueBytes,
 				},
 				allOutputs: output.outputs.map(output => ({ mime: output.mime }))
 			};
@@ -1496,7 +1518,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			cellTop: cellTop,
 			outputOffset: offset,
 			content: updatedContent
-		});
+		}, transfer);
 
 		outputCache.versionId = content.source.model.versionId;
 		return;
@@ -1727,6 +1749,19 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.insetMapping.clear();
 		this.pendingWebviewIdleCreationRequest.clear();
 		super.dispose();
+	}
+}
+
+function copyBufferIfNeeded(buffer: Uint8Array, transfer: ArrayBuffer[]): Uint8Array {
+	if (buffer.byteLength === buffer.buffer.byteLength) {
+		// No copy needed but we can't transfer either
+		return buffer;
+	} else {
+		// The buffer is smaller than its backing array buffer.
+		// Create a copy to avoid sending the entire array buffer.
+		const valueBytes = new Uint8Array(buffer);
+		transfer.push(valueBytes.buffer);
+		return valueBytes;
 	}
 }
 

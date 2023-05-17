@@ -1261,7 +1261,7 @@
 	},
 	{
 		"c": "   :module: mod",
-		"t": "source.rst comment.block",
+		"t": "source.rst comment.block comment.block",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",

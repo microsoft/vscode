@@ -42,7 +42,7 @@ export class GitBranchProtectionProvider implements BranchProtectionProvider {
 			.map(bp => typeof bp === 'string' ? bp.trim() : '')
 			.filter(bp => bp !== '');
 
-		this.branchProtection = { remote: '', branches };
+		this.branchProtection = { remote: '', rules: [{ include: branches }] };
 		this._onDidChangeBranchProtection.fire(this.repositoryRoot);
 	}
 
