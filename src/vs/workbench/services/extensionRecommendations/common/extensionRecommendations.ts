@@ -7,13 +7,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 
-export type DynamicRecommendation = 'dynamic';
-export type ConfigRecommendation = 'config';
-export type ExecutableRecommendation = 'executable';
-export type CachedRecommendation = 'cached';
-export type ApplicationRecommendation = 'application';
-export type ExperimentalRecommendation = 'experimental';
-
 export const enum ExtensionRecommendationReason {
 	Workspace,
 	File,
@@ -45,6 +38,7 @@ export interface IExtensionRecommendationsService {
 	getWorkspaceRecommendations(): Promise<string[]>;
 	getKeymapRecommendations(): string[];
 	getLanguageRecommendations(): string[];
+	getRemoteRecommendations(): string[];
 }
 
 export type IgnoredRecommendationChangeNotification = {

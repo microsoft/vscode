@@ -98,6 +98,7 @@
 }
 
 .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	border: 1px solid var(--vscode-button-border, transparent);
 	border-left-width: 0 !important;
 	border-radius: 0 2px 2px 0;
 }

@@ -29,7 +29,7 @@ export async function activate(context: vscode.ExtensionContext) {
 function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promise<MdLanguageClient> {
 	const clientMain = vscode.extensions.getExtension('vscode.markdown-language-features')?.packageJSON?.main || '';
 
-	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/main`;
+	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/workerMain`;
 	const serverModule = context.asAbsolutePath(serverMain);
 
 	// The debug options for the server
@@ -41,6 +41,10 @@ function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promi
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
+
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = vscode.l10n.uri?.toString() ?? '';
+
 	return startClient((id, name, clientOptions) => {
 		return new LanguageClient(id, name, serverOptions, clientOptions);
 	}, parser);

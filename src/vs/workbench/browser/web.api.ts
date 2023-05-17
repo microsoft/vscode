@@ -174,10 +174,13 @@ export interface IWorkbenchConstructionOptions {
 	readonly editSessionId?: string;
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Endpoints to be used for proxying repository tarball download calls in the browser.
+	 * Resource delegation handler that allows for loading of resources when
+	 * using remote resolvers.
+	 *
+	 * This is exclusive with {@link resourceUriProvider}. `resourceUriProvider`
+	 * should be used if a {@link webSocketFactory} is used, and will be preferred.
 	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string };
+	readonly remoteResourceProvider?: IRemoteResourceProvider;
 
 	//#endregion
 
@@ -266,6 +269,11 @@ export interface IWorkbenchConstructionOptions {
 	//#region Profile options
 
 	/**
+	 * Profile to use for the workbench.
+	 */
+	readonly profile?: { readonly name: string; readonly contents?: string | UriComponents };
+
+	/**
 	 * URI of the profile to preview.
 	 */
 	readonly profileToPreview?: UriComponents;
@@ -319,6 +327,11 @@ export interface IWorkbenchConstructionOptions {
 	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
+
+	/**
+	 *  Welcome view dialog on first launch. Can be dismissed by the user.
+	 */
+	readonly welcomeDialog?: IWelcomeDialog;
 
 	//#endregion
 
@@ -516,10 +529,10 @@ export interface IWelcomeBanner {
 	/**
 	 * Optional actions to appear as links after the welcome banner message.
 	 */
-	actions?: IWelcomeBannerAction[];
+	actions?: IWelcomeLinkAction[];
 }
 
-export interface IWelcomeBannerAction {
+export interface IWelcomeLinkAction {
 
 	/**
 	 * The link to open when clicking. Supports command invocation when
@@ -582,6 +595,35 @@ export interface IInitialColorTheme {
 	 * A list of workbench colors to apply initially.
 	 */
 	readonly colors?: { [colorId: string]: string };
+}
+
+export interface IWelcomeDialog {
+
+	/**
+	 * Unique identifier of the welcome dialog. The identifier will be used to determine
+	 * if the dialog has been previously displayed.
+	 */
+	id: string;
+
+	/**
+	 * Title of the welcome dialog.
+	 */
+	title: string;
+
+	/**
+	 * Button text of the welcome dialog.
+	 */
+	buttonText: string;
+
+	/**
+	 * Message text and icon for the welcome dialog.
+	 */
+	messages: { message: string; icon: string }[];
+
+	/**
+	 * Optional action to appear as links at the bottom of the welcome dialog.
+	 */
+	action?: IWelcomeLinkAction;
 }
 
 export interface IDefaultView {
@@ -681,7 +723,23 @@ export interface ISettingsSyncOptions {
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
-	enablementHandler?(enablement: boolean): void;
+	enablementHandler?(enablement: boolean, authenticationProvider: string): void;
+
+	/**
+	 * Authentication provider
+	 */
+	readonly authenticationProvider?: {
+		/**
+		 * Unique identifier of the authentication provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * Called when the user wants to signin to Settings Sync using the given authentication provider.
+		 * The returned promise should resolve to the authentication session id.
+		 */
+		signIn(): Promise<string>;
+	};
 }
 
 export interface IDevelopmentOptions {
@@ -710,4 +768,39 @@ export interface IDevelopmentOptions {
 	 * Whether to enable the smoke test driver.
 	 */
 	readonly enableSmokeTestDriver?: boolean;
+}
+
+/**
+ * Utility provided in the {@link WorkbenchOptions} which allows loading resources
+ * when remote resolvers are used in the web.
+ */
+export interface IRemoteResourceProvider {
+	/**
+	 * Path the workbench should delegate requests to. The embedder should
+	 * install a service worker on this path and emit {@link onDidReceiveRequest}
+	 * events when requests come in for that path.
+	 */
+	readonly path: string;
+
+	/**
+	 * Event that should fire when requests are made on the {@link pathPrefix}.
+	 */
+	readonly onDidReceiveRequest: Event<IRemoteResourceRequest>;
+}
+
+/**
+ * todo@connor4312: this may eventually gain more properties like method and
+ * headers, but for now we only deal with GET requests.
+ */
+export interface IRemoteResourceRequest {
+	/**
+	 * Request URI. Generally will begin with the current
+	 * origin and {@link IRemoteResourceProvider.pathPrefix}.
+	 */
+	uri: URI;
+
+	/**
+	 * A method called by the editor to issue a response to the request.
+	 */
+	respondWith(statusCode: number, body: Uint8Array): void;
 }

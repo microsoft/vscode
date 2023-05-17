@@ -20,6 +20,13 @@ export const enum TestResultState {
 	Errored = 6
 }
 
+/** note: keep in sync with TestRunProfileKind in vscode.d.ts */
+export const enum ExtTestRunProfileKind {
+	Run = 1,
+	Debug = 2,
+	Coverage = 3,
+}
+
 export const enum TestRunProfileBitset {
 	Run = 1 << 1,
 	Debug = 1 << 2,
@@ -101,7 +108,7 @@ export interface ICallProfileRunHandler {
 	testIds: string[];
 }
 
-export const isStartControllerTests = (t: ICallProfileRunHandler | IStartControllerTests): t is IStartControllerTests => 'runIn' in t;
+export const isStartControllerTests = (t: ICallProfileRunHandler | IStartControllerTests): t is IStartControllerTests => ('runId' as keyof IStartControllerTests) in t;
 
 /**
  * Request from the main thread to run tests for a single controller.

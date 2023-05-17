@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
@@ -38,6 +38,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { getSnippetSuggestSupport, setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 
 
 function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFeaturesService): ITestCodeEditor {
@@ -141,7 +142,7 @@ suite('SuggestModel - Context', function () {
 
 		assertAutoTrigger(model, 3, true, 'end of word, Das|');
 		assertAutoTrigger(model, 4, false, 'no word Das |');
-		assertAutoTrigger(model, 1, false, 'middle of word D|as');
+		assertAutoTrigger(model, 1, true, 'typing a single character before a word: D|as');
 		assertAutoTrigger(model, 55, false, 'number, 1861|');
 		model.dispose();
 	});
@@ -156,7 +157,7 @@ suite('SuggestModel - Context', function () {
 
 		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
 		assertAutoTrigger(model, 2, false, 'a<|x — should NOT trigger at start of word');
-		assertAutoTrigger(model, 3, false, 'a<x|x —  should NOT trigger in middle of word');
+		assertAutoTrigger(model, 3, true, 'a<x|x —  should trigger after typing a single character before a word');
 		assertAutoTrigger(model, 4, true, 'a<xx|> — should trigger at boundary between languages');
 		assertAutoTrigger(model, 5, false, 'a<xx>|a — should NOT trigger at start of word');
 		assertAutoTrigger(model, 6, true, 'a<xx>a|< — should trigger at end of word');
@@ -705,7 +706,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				override _insertSuggestion(item: ISelectedSuggestion, flags: number = 0) {
+				_insertSuggestion_publicForTest(item: ISelectedSuggestion, flags: number = 0) {
 					super._insertSuggestion(item, flags);
 				}
 			}
@@ -721,7 +722,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.strictEqual(first.completion.label, 'bar');
 
-				ctrl._insertSuggestion({ item: first, index: 0, model: event.completionModel });
+				ctrl._insertSuggestion_publicForTest({ item: first, index: 0, model: event.completionModel });
 			});
 
 			assert.strictEqual(
@@ -1086,8 +1087,6 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async function (model, editor) {
 
-			// editor.updateOptions({ suggest: { selectQuickSuggestions: 'whenQuickSuggestion' } });
-
 			await assertEvent(model.onDidSuggest, () => {
 				editor.setValue('foo');
 				editor.setSelection(new Selection(1, 4, 1, 4));
@@ -1122,6 +1121,74 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.strictEqual(event.triggerOptions.triggerKind, CompletionTriggerKind.TriggerCharacter);
 				assert.strictEqual(event.completionModel.items.length, 1);
 			});
+		});
+	});
+
+	test('Snippets gone from IntelliSense #173244', function () {
+
+		const snippetProvider: CompletionItemProvider = {
+			provideCompletionItems(doc, pos, ctx) {
+				return {
+					suggestions: [{
+						label: 'log',
+						kind: CompletionItemKind.Snippet,
+						insertText: 'log',
+						range: getDefaultSuggestRange(doc, pos)
+					}]
+				};
+			}
+		};
+		const old = setSnippetSuggestSupport(snippetProvider);
+
+		disposables.add(toDisposable(() => {
+			if (getSnippetSuggestSupport() === snippetProvider) {
+				setSnippetSuggestSupport(old);
+			}
+		}));
+
+		disposables.add(registry.register({ scheme: 'test' }, {
+			triggerCharacters: ['.'],
+			provideCompletionItems(doc, pos, ctx) {
+				return {
+					suggestions: [{
+						label: 'locals',
+						kind: CompletionItemKind.Property,
+						insertText: 'locals',
+						range: getDefaultSuggestRange(doc, pos)
+					}],
+					incomplete: true
+				};
+			},
+		}));
+
+		return withOracle(async function (model, editor) {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: 'l' });
+
+
+			}, event => {
+				assert.strictEqual(event.triggerOptions.auto, true);
+				assert.strictEqual(event.triggerOptions.triggerCharacter, undefined);
+				assert.strictEqual(event.triggerOptions.triggerKind, undefined);
+				assert.strictEqual(event.completionModel.items.length, 2);
+				assert.strictEqual(event.completionModel.items[0].textLabel, 'locals');
+				assert.strictEqual(event.completionModel.items[1].textLabel, 'log');
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.trigger('keyboard', Handler.Type, { text: 'o' });
+
+			}, event => {
+				assert.strictEqual(event.triggerOptions.triggerKind, CompletionTriggerKind.TriggerForIncompleteCompletions);
+				assert.strictEqual(event.triggerOptions.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 2);
+				assert.strictEqual(event.completionModel.items[0].textLabel, 'locals');
+				assert.strictEqual(event.completionModel.items[1].textLabel, 'log');
+			});
+
 		});
 	});
 });

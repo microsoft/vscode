@@ -13,8 +13,8 @@ suite('UserDataProfilesManifestMerge', () => {
 
 	test('merge returns local profiles if remote does not exist', () => {
 		const localProfiles: IUserDataProfile[] = [
-			toUserDataProfile('1', '1', URI.file('1')),
-			toUserDataProfile('2', '2', URI.file('2')),
+			toUserDataProfile('1', '1', URI.file('1'), URI.file('cache')),
+			toUserDataProfile('2', '2', URI.file('2'), URI.file('cache')),
 		];
 
 		const actual = merge(localProfiles, null, null, []);
@@ -29,8 +29,8 @@ suite('UserDataProfilesManifestMerge', () => {
 
 	test('merge returns local profiles if remote does not exist with ignored profiles', () => {
 		const localProfiles: IUserDataProfile[] = [
-			toUserDataProfile('1', '1', URI.file('1')),
-			toUserDataProfile('2', '2', URI.file('2')),
+			toUserDataProfile('1', '1', URI.file('1'), URI.file('cache')),
+			toUserDataProfile('2', '2', URI.file('2'), URI.file('cache')),
 		];
 
 		const actual = merge(localProfiles, null, null, ['2']);
@@ -45,8 +45,8 @@ suite('UserDataProfilesManifestMerge', () => {
 
 	test('merge local and remote profiles when there is no base', () => {
 		const localProfiles: IUserDataProfile[] = [
-			toUserDataProfile('1', '1', URI.file('1')),
-			toUserDataProfile('2', '2', URI.file('2')),
+			toUserDataProfile('1', '1', URI.file('1'), URI.file('cache')),
+			toUserDataProfile('2', '2', URI.file('2'), URI.file('cache')),
 		];
 		const remoteProfiles: ISyncUserDataProfile[] = [
 			{ id: '1', name: 'changed', collection: '1' },
@@ -65,12 +65,12 @@ suite('UserDataProfilesManifestMerge', () => {
 
 	test('merge local and remote profiles when there is base', () => {
 		const localProfiles: IUserDataProfile[] = [
-			toUserDataProfile('1', 'changed 1', URI.file('1')),
-			toUserDataProfile('3', '3', URI.file('3')),
-			toUserDataProfile('4', 'changed local', URI.file('4')),
-			toUserDataProfile('5', '5', URI.file('5')),
-			toUserDataProfile('6', '6', URI.file('6')),
-			toUserDataProfile('8', '8', URI.file('8')),
+			toUserDataProfile('1', 'changed 1', URI.file('1'), URI.file('cache')),
+			toUserDataProfile('3', '3', URI.file('3'), URI.file('cache')),
+			toUserDataProfile('4', 'changed local', URI.file('4'), URI.file('cache')),
+			toUserDataProfile('5', '5', URI.file('5'), URI.file('cache')),
+			toUserDataProfile('6', '6', URI.file('6'), URI.file('cache')),
+			toUserDataProfile('8', '8', URI.file('8'), URI.file('cache')),
 		];
 		const base: ISyncUserDataProfile[] = [
 			{ id: '1', name: '1', collection: '1' },
@@ -101,12 +101,12 @@ suite('UserDataProfilesManifestMerge', () => {
 
 	test('merge local and remote profiles when there is base with ignored profiles', () => {
 		const localProfiles: IUserDataProfile[] = [
-			toUserDataProfile('1', 'changed 1', URI.file('1')),
-			toUserDataProfile('3', '3', URI.file('3')),
-			toUserDataProfile('4', 'changed local', URI.file('4')),
-			toUserDataProfile('5', '5', URI.file('5')),
-			toUserDataProfile('6', '6', URI.file('6')),
-			toUserDataProfile('8', '8', URI.file('8')),
+			toUserDataProfile('1', 'changed 1', URI.file('1'), URI.file('cache')),
+			toUserDataProfile('3', '3', URI.file('3'), URI.file('cache')),
+			toUserDataProfile('4', 'changed local', URI.file('4'), URI.file('cache')),
+			toUserDataProfile('5', '5', URI.file('5'), URI.file('cache')),
+			toUserDataProfile('6', '6', URI.file('6'), URI.file('cache')),
+			toUserDataProfile('8', '8', URI.file('8'), URI.file('cache')),
 		];
 		const base: ISyncUserDataProfile[] = [
 			{ id: '1', name: '1', collection: '1' },
@@ -137,7 +137,7 @@ suite('UserDataProfilesManifestMerge', () => {
 
 	test('merge when there are no remote changes', () => {
 		const localProfiles: IUserDataProfile[] = [
-			toUserDataProfile('1', '1', URI.file('1')),
+			toUserDataProfile('1', '1', URI.file('1'), URI.file('cache')),
 		];
 		const base: ISyncUserDataProfile[] = [
 			{ id: '1', name: '1', collection: '1' },
@@ -156,7 +156,7 @@ suite('UserDataProfilesManifestMerge', () => {
 
 	test('merge when there are no local and remote changes', () => {
 		const localProfiles: IUserDataProfile[] = [
-			toUserDataProfile('1', '1', URI.file('1')),
+			toUserDataProfile('1', '1', URI.file('1'), URI.file('cache')),
 		];
 		const base: ISyncUserDataProfile[] = [
 			{ id: '1', name: '1', collection: '1' },
@@ -175,7 +175,7 @@ suite('UserDataProfilesManifestMerge', () => {
 
 	test('merge when profile is removed locally, but not exists in remote', () => {
 		const localProfiles: IUserDataProfile[] = [
-			toUserDataProfile('1', '1', URI.file('1')),
+			toUserDataProfile('1', '1', URI.file('1'), URI.file('cache')),
 		];
 		const base: ISyncUserDataProfile[] = [
 			{ id: '1', name: '1', collection: '1' },

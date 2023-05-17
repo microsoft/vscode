@@ -17,20 +17,24 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	static instanceCount = 0;
 
-	private readonly _encounteredLanguages: Set<string>;
-	protected readonly _registry: LanguagesRegistry;
-	public readonly languageIdCodec: ILanguageIdCodec;
+	private readonly _onDidRequestBasicLanguageFeatures = this._register(new Emitter<string>());
+	public readonly onDidRequestBasicLanguageFeatures = this._onDidRequestBasicLanguageFeatures.event;
 
-	private readonly _onDidEncounterLanguage = this._register(new Emitter<string>());
-	public readonly onDidEncounterLanguage: Event<string> = this._onDidEncounterLanguage.event;
+	private readonly _onDidRequestRichLanguageFeatures = this._register(new Emitter<string>());
+	public readonly onDidRequestRichLanguageFeatures = this._onDidRequestRichLanguageFeatures.event;
 
 	protected readonly _onDidChange = this._register(new Emitter<void>({ leakWarningThreshold: 200 /* https://github.com/microsoft/vscode/issues/119968 */ }));
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private readonly _requestedBasicLanguages = new Set<string>();
+	private readonly _requestedRichLanguages = new Set<string>();
+
+	protected readonly _registry: LanguagesRegistry;
+	public readonly languageIdCodec: ILanguageIdCodec;
+
 	constructor(warnOnOverwrite = false) {
 		super();
 		LanguageService.instanceCount++;
-		this._encounteredLanguages = new Set<string>();
 		this._registry = this._register(new LanguagesRegistry(true, warnOnOverwrite));
 		this.languageIdCodec = this._registry.languageIdCodec;
 		this._register(this._registry.onDidChange(() => this._onDidChange.fire()));
@@ -120,17 +124,28 @@ export class LanguageService extends Disposable implements ILanguageService {
 			languageId = PLAINTEXT_LANGUAGE_ID;
 		}
 
-		if (!this._encounteredLanguages.has(languageId)) {
-			this._encounteredLanguages.add(languageId);
+		return languageId;
+	}
+
+	public requestBasicLanguageFeatures(languageId: string): void {
+		if (!this._requestedBasicLanguages.has(languageId)) {
+			this._requestedBasicLanguages.add(languageId);
+			this._onDidRequestBasicLanguageFeatures.fire(languageId);
+		}
+	}
+
+	public requestRichLanguageFeatures(languageId: string): void {
+		if (!this._requestedRichLanguages.has(languageId)) {
+			this._requestedRichLanguages.add(languageId);
+
+			// Ensure basic features are requested
+			this.requestBasicLanguageFeatures(languageId);
 
 			// Ensure tokenizers are created
 			TokenizationRegistry.getOrCreate(languageId);
 
-			// Fire event
-			this._onDidEncounterLanguage.fire(languageId);
+			this._onDidRequestRichLanguageFeatures.fire(languageId);
 		}
-
-		return languageId;
 	}
 }
 

@@ -8,7 +8,6 @@ import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
@@ -34,15 +33,14 @@ export class PartsSplash {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ISplashStorageService private readonly _partSplashService: ISplashStorageService
 	) {
-		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
+		Event.once(_layoutService.onDidLayout)(() => {
 			this._removePartsSplash();
 			perf.mark('code/didRemovePartsSplash');
-		});
+		}, undefined, this._disposables);
 
 		let lastIdleSchedule: IDisposable | undefined;
 		Event.any(onDidChangeFullscreen, editorGroupsService.onDidLayout, _themeService.onDidColorThemeChange)(() => {

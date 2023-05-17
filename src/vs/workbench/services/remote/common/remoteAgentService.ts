@@ -8,19 +8,13 @@ import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platfo
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { Event } from 'vs/base/common/event';
-import { PersistentConnectionEvent, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-
-export const RemoteExtensionLogFileName = 'remoteagent';
 
 export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteAgentService');
 
 export interface IRemoteAgentService {
 	readonly _serviceBrand: undefined;
-
-	readonly socketFactory: ISocketFactory;
 
 	getConnection(): IRemoteAgentConnection | null;
 	/**
@@ -42,15 +36,6 @@ export interface IRemoteAgentService {
 	 */
 	getRoundTripTime(): Promise<number | undefined>;
 
-	whenExtensionsReady(): Promise<void>;
-	/**
-	 * Scan remote extensions.
-	 */
-	scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]>;
-	/**
-	 * Scan a single remote extension.
-	 */
-	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null>;
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined>;
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>;
 	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void>;

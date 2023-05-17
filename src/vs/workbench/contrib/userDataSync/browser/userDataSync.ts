@@ -504,6 +504,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						});
 						return;
 					case UserDataSyncErrorCode.Unauthorized:
+					case UserDataSyncErrorCode.Forbidden:
 						this.notificationService.error(localize('auth failed', "Error while turning on Settings Sync: Authentication failed."));
 						return;
 				}
@@ -622,7 +623,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async turnOff(): Promise<void> {
 		const result = await this.dialogService.confirm({
-			type: 'info',
 			message: localize('turn off sync confirmation', "Do you want to turn off sync?"),
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions, snippets and UI State will no longer be synced."),
 			primaryButton: localize({ key: 'turn off', comment: ['&& denotes a mnemonic'] }, "&&Turn off"),
@@ -831,7 +831,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private getShowConflictsTitle(): ILocalizedString {
-		return { value: localize('resolveConflicts_global', "Show Conflicts ({1})", this.getConflictsCount()), original: `Show Conflicts (${this.getConflictsCount()})` };
+		return { value: localize('resolveConflicts_global', "Show Conflicts ({0})", this.getConflictsCount()), original: `Show Conflicts (${this.getConflictsCount()})` };
 	}
 
 	private registerShowConflictsAction(): void {

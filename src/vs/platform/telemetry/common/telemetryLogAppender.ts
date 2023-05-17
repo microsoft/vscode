@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService, ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryAppender, isLoggingOnly, supportsTelemetry, telemetryLogChannelId, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryAppender, isLoggingOnly, supportsTelemetry, telemetryLogId, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class TelemetryLogAppender extends Disposable implements ITelemetryAppender {
 
@@ -23,18 +23,16 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 	) {
 		super();
 
-		const logger = loggerService.getLogger(environmentService.telemetryLogResource);
+		const logger = loggerService.getLogger(telemetryLogId);
 		if (logger) {
 			this.logger = this._register(logger);
 		} else {
 			// Not a perfect check, but a nice way to indicate if we only have logging enabled for debug purposes and nothing is actually being sent
 			const justLoggingAndNotSending = isLoggingOnly(productService, environmentService);
 			const logSuffix = justLoggingAndNotSending ? ' (Not Sent)' : '';
-			const telemetryLogResource = environmentService.telemetryLogResource;
 			const isVisible = () => supportsTelemetry(productService, environmentService) && logService.getLevel() === LogLevel.Trace;
-			this.logger = this._register(loggerService.createLogger(telemetryLogResource, { id: telemetryLogChannelId, name: localize('telemetryLog', "Telemetry{0}", logSuffix), hidden: !isVisible() }));
-			this._register(logService.onDidChangeLogLevel(() => loggerService.setVisibility(telemetryLogResource, isVisible())));
-
+			this.logger = this._register(loggerService.createLogger(telemetryLogId, { name: localize('telemetryLog', "Telemetry{0}", logSuffix), hidden: !isVisible() }));
+			this._register(logService.onDidChangeLogLevel(() => loggerService.setVisibility(telemetryLogId, isVisible())));
 			this.logger.info('Below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 			this.logger.info('===========================================================');
 		}

@@ -10,6 +10,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, EditPresentationTypes, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
@@ -31,6 +32,7 @@ export enum SettingValueType {
 	Boolean = 'boolean',
 	Array = 'array',
 	Exclude = 'exclude',
+	Include = 'include',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
@@ -305,6 +307,11 @@ export interface IKeybindingsEditorPane extends IEditorPane {
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
+}
+
+export const DEFINE_KEYBINDING_EDITOR_CONTRIB_ID = 'editor.contrib.defineKeybinding';
+export interface IDefineKeybindingEditorContribution extends IEditorContribution {
+	showDefineKeybindingWidget(): void;
 }
 
 export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';

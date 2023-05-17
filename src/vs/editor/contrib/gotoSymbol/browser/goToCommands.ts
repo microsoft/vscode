@@ -92,7 +92,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 				}
 			}
 		}
-		return result;
+		return <typeof opts>result;
 	}
 
 	readonly configuration: SymbolNavigationActionConfig;

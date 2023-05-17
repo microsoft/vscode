@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
 
 class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 
@@ -21,7 +21,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 		_context: vscode.FoldingContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.FoldingRange[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}

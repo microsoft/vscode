@@ -294,7 +294,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 	}
 }
 
-function registerEditorGroupsLayoutCommand(): void {
+function registerEditorGroupsLayoutCommands(): void {
 
 	function applyEditorLayout(accessor: ServicesAccessor, layout: EditorGroupLayout): void {
 		if (!layout || typeof layout !== 'object') {
@@ -309,7 +309,7 @@ function registerEditorGroupsLayoutCommand(): void {
 		applyEditorLayout(accessor, args);
 	});
 
-	// API Command
+	// API Commands
 	CommandsRegistry.registerCommand({
 		id: 'vscode.setEditorLayout',
 		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
@@ -333,6 +333,20 @@ function registerEditorGroupsLayoutCommand(): void {
 					}
 				}
 			}]
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: 'vscode.getEditorLayout',
+		handler: (accessor: ServicesAccessor) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			return editorGroupService.getLayout();
+		},
+		description: {
+			description: 'Get Editor Layout',
+			args: [],
+			returns: 'An editor layout object, in the same format as vscode.setEditorLayout'
 		}
 	});
 }
@@ -504,7 +518,7 @@ function registerOpenEditorAPICommands(): void {
 		const pathService = accessor.get(IPathService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const resourceOrString = typeof resourceArg === 'string' ? resourceArg : URI.revive(resourceArg);
+		const resourceOrString = typeof resourceArg === 'string' ? resourceArg : URI.from(resourceArg, true);
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
 		// use editor options or editor view column or resource scheme
@@ -576,8 +590,8 @@ function registerOpenEditorAPICommands(): void {
 		}
 
 		await editorService.openEditor({
-			original: { resource: URI.revive(originalResource) },
-			modified: { resource: URI.revive(modifiedResource) },
+			original: { resource: URI.from(originalResource, true) },
+			modified: { resource: URI.from(modifiedResource, true) },
 			label,
 			description,
 			options
@@ -591,7 +605,7 @@ function registerOpenEditorAPICommands(): void {
 
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
-		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
+		return editorService.openEditor({ resource: URI.from(resource, true), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
 	});
 }
 
@@ -1506,7 +1520,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 export function setup(): void {
 	registerActiveEditorMoveCopyCommand();
-	registerEditorGroupsLayoutCommand();
+	registerEditorGroupsLayoutCommands();
 	registerDiffEditorCommands();
 	registerOpenEditorAPICommands();
 	registerOpenEditorAtIndexCommands();

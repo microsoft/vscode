@@ -22,8 +22,9 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { MarkdownString, ViewBadge, DataTransfer } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ITreeViewsDnDService, TreeViewsDnDService } from 'vs/editor/common/services/treeViewsDnd';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 
 type TreeItemHandle = string;
 
@@ -50,7 +51,7 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
-	private treeDragAndDropService: ITreeViewsService<vscode.DataTransfer, any, any> = new TreeviewsService<vscode.DataTransfer, any, any>();
+	private treeDragAndDropService: ITreeViewsDnDService<vscode.DataTransfer> = new TreeViewsDnDService<vscode.DataTransfer>();
 
 	constructor(
 		private _proxy: MainThreadTreeViewsShape,
@@ -92,7 +93,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		const hasHandleDrag = !!options.dragAndDropController?.handleDrag;
 		const hasHandleDrop = !!options.dragAndDropController?.handleDrop;
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop });
+		const proxyOptions = { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop, manuallyManageCheckboxes: !!options.manuallyManageCheckboxSelection };
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, proxyOptions);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
@@ -191,11 +193,11 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		}
 
 		const treeDataTransfer = await this.addAdditionalTransferItems(new types.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
-		if (!treeDataTransfer) {
+		if (!treeDataTransfer || token.isCancellationRequested) {
 			return;
 		}
 
-		return DataTransfer.toDataTransferDTO(treeDataTransfer);
+		return DataTransfer.from(treeDataTransfer);
 	}
 
 	async $hasResolve(treeViewId: string): Promise<boolean> {
@@ -767,14 +769,15 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 		let checkboxState: TreeItemCheckboxState;
 		let tooltip: string | undefined = undefined;
+		let accessibilityInformation: IAccessibilityInformation | undefined = undefined;
 		if (typeof extensionTreeItem.checkboxState === 'number') {
 			checkboxState = extensionTreeItem.checkboxState;
-		}
-		else {
+		} else {
 			checkboxState = extensionTreeItem.checkboxState.state;
 			tooltip = extensionTreeItem.checkboxState.tooltip;
+			accessibilityInformation = extensionTreeItem.checkboxState.accessibilityInformation;
 		}
-		return { isChecked: checkboxState === TreeItemCheckboxState.Checked, tooltip };
+		return { isChecked: checkboxState === TreeItemCheckboxState.Checked, tooltip, accessibilityInformation };
 	}
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {

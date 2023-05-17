@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from 'vs/workbench/api/common/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError } from 'vs/workbench/common/views';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
+import { DataTransferFileCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
@@ -37,7 +37,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean; hasHandleDrop: boolean }): Promise<void> {
+	async $registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; manuallyManageCheckboxes: boolean }): Promise<void> {
 		this.logService.trace('MainThreadTreeViews#$registerTreeViewDataProvider', treeViewId, options);
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
@@ -49,8 +49,9 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			if (viewer) {
 				// Order is important here. The internal tree isn't created until the dataProvider is set.
 				// Set all other properties first!
-				viewer.showCollapseAllAction = !!options.showCollapseAll;
-				viewer.canSelectMany = !!options.canSelectMany;
+				viewer.showCollapseAllAction = options.showCollapseAll;
+				viewer.canSelectMany = options.canSelectMany;
+				viewer.manuallyManageCheckboxes = options.manuallyManageCheckboxes;
 				viewer.dragAndDropController = dndController;
 				if (dndController) {
 					this._dndControllers.set(treeViewId, dndController);
@@ -154,7 +155,9 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			if (select) {
 				treeView.setSelection([item]);
 			}
-			if (focus) {
+			if (focus === false) {
+				treeView.setFocus();
+			} else if (focus) {
 				treeView.setFocus(item);
 			}
 			let itemsToExpand = [item];
@@ -208,7 +211,7 @@ type TreeItemHandle = string;
 
 class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
-	private readonly dataTransfersCache = new DataTransferCache();
+	private readonly dataTransfersCache = new DataTransferFileCache();
 
 	constructor(private readonly treeViewId: string,
 		readonly dropMimeTypes: string[],
@@ -220,7 +223,11 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
 		const request = this.dataTransfersCache.add(dataTransfer);
 		try {
-			return await this._proxy.$handleDrop(this.treeViewId, request.id, await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer), targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
+			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			return await this._proxy.$handleDrop(this.treeViewId, request.id, dataTransferDto, targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
 		} finally {
 			request.dispose();
 		}
@@ -243,7 +250,7 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 	}
 
 	public resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
-		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemId);
+		return this.dataTransfersCache.resolveFileData(requestId, dataItemId);
 	}
 }
 
@@ -264,7 +271,11 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			.then(
 				children => this.postGetChildren(children),
 				err => {
-					this.notificationService.error(err);
+					// It can happen that a tree view is disposed right as `getChildren` is called. This results in an error because the data provider gets removed.
+					// The tree will shortly get cleaned up in this case. We just need to handle the error here.
+					if (!NoTreeViewError.is(err)) {
+						this.notificationService.error(err);
+					}
 					return [];
 				});
 	}

@@ -10,9 +10,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
-import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TTILE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, IProfileResourceChildTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TITLE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, IProfileResourceChildTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -60,7 +60,6 @@ import { asText, IRequestService } from 'vs/platform/request/common/request';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isUndefined } from 'vs/base/common/types';
 import { Action, ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
-import { showWindowLogActionId } from 'vs/workbench/common/logConstants';
 import { isWeb } from 'vs/base/common/platform';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -70,6 +69,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -107,7 +107,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	private readonly isProfileImportInProgressContextKey: IContextKey<boolean>;
 
 	private readonly viewContainer: ViewContainer;
-	private readonly fileUserDataProfileContentHandler: IUserDataProfileContentHandler;
+	private readonly fileUserDataProfileContentHandler: FileUserDataProfileContentHandler;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -115,7 +115,6 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		@IViewsService private readonly viewsService: IViewsService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -140,7 +139,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		this.viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: 'userDataProfiles',
-				title: PROFILES_TTILE,
+				title: PROFILES_TITLE,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
 					['userDataProfiles', { mergeViewWithContainerWhenSingleView: true }]
@@ -203,7 +202,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const profileTemplate = await this.progressService.withProgress({
 				location: ProgressLocation.Window,
 				command: showWindowLogActionId,
-				title: localize('resolving uri', "{0}: Resolving profile content...", options?.preview ? localize('preview profile', "Preview Profile") : localize('import profile', "Import Profile")),
+				title: localize('resolving uri', "{0}: Resolving profile content...", options?.preview ? localize('preview profile', "Preview Profile") : localize('import profile', "Create Profile")),
 			}, () => this.resolveProfileTemplate(uri));
 			if (!profileTemplate) {
 				return;
@@ -211,7 +210,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (options?.preview) {
 				await this.previewProfile(uri, profileTemplate);
 			} else {
-				await this.doImportProfile(uri, profileTemplate);
+				await this.doImportProfile(profileTemplate);
 			}
 		} finally {
 			disposables.dispose();
@@ -228,17 +227,32 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		try {
 			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile));
 			const barrier = new Barrier();
-			const exportAction = new BarrierAction(barrier, new Action('export', localize('export', "Export"), undefined, true, () => {
+			const exportAction = new BarrierAction(barrier, new Action('export', localize('export', "Export"), undefined, true, async () => {
 				exportAction.enabled = false;
-				return this.doExportProfile(userDataProfilesExportState);
-			}));
-			const closeAction = new BarrierAction(barrier, new Action('close', localize('close', "Close")));
+				try {
+					await this.doExportProfile(userDataProfilesExportState);
+				} catch (error) {
+					this.notificationService.error(error);
+					throw error;
+				}
+			}), this.notificationService);
+			const closeAction = new BarrierAction(barrier, new Action('close', localize('close', "Close")), this.notificationService);
 			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, exportAction, closeAction, true, userDataProfilesExportState);
 			disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(e => barrier.open()));
 			await barrier.wait();
 			await this.hideProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW);
 		} finally {
 			disposables.dispose();
+		}
+	}
+
+	async createFromCurrentProfile(name: string): Promise<void> {
+		const userDataProfilesExportState = this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile);
+		try {
+			const profileTemplate = await userDataProfilesExportState.getProfileTemplate(name, undefined);
+			await this.doImportProfile(profileTemplate);
+		} finally {
+			userDataProfilesExportState.dispose();
 		}
 	}
 
@@ -265,42 +279,41 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				if (!profileContentHandler) {
 					return;
 				}
-				const saveResult = await profileContentHandler.saveProfile(profile.name, JSON.stringify(profile), CancellationToken.None);
+				const saveResult = await profileContentHandler.saveProfile(profile.name.replace('/', '-'), JSON.stringify(profile), CancellationToken.None);
 				if (!saveResult) {
 					return;
 				}
 				const message = localize('export success', "Profile '{0}' was exported successfully.", profile.name);
 				if (profileContentHandler.extensionId) {
-					const actions: string[] = [];
+					const buttons: IPromptButton<void>[] = [];
 					const link = this.productService.webUrl ? `${this.productService.webUrl}/${PROFILE_URL_AUTHORITY}/${id}/${saveResult.id}` : toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString();
-					actions.push(localize('copy', "Copy Link"));
+					buttons.push({
+						label: localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy Link"),
+						run: () => this.clipboardService.writeText(link)
+					});
 					if (this.productService.webUrl) {
-						actions.push(localize('open', "Open Link"));
-					} else {
-						actions.push(localize('open in', "Open in {0}", profileContentHandler.name));
-					}
-					actions.push(localize('close', "Close"));
-					const result = await this.dialogService.show(
-						Severity.Info,
-						message,
-						actions,
-						{ cancelId: 2 }
-					);
-					switch (result.choice) {
-						case 0:
-							await this.clipboardService.writeText(link);
-							break;
-						case 1:
-							if (this.productService.webUrl) {
+						buttons.push({
+							label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open Link"),
+							run: async () => {
 								await this.openerService.open(link);
-							} else {
+							}
+						});
+					} else {
+						buttons.push({
+							label: localize({ key: 'open in', comment: ['&& denotes a mnemonic'] }, "&&Open in {0}", profileContentHandler.name),
+							run: async () => {
 								await this.openerService.open(saveResult.link.toString());
 							}
-							break;
-
+						});
 					}
+					await this.dialogService.prompt({
+						type: Severity.Info,
+						message,
+						buttons,
+						cancelButton: localize('close', "Close")
+					});
 				} else {
-					await this.dialogService.show(Severity.Info, message);
+					await this.dialogService.info(message);
 				}
 			});
 		} finally {
@@ -337,11 +350,14 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 			const barrier = new Barrier();
 			const importAction = this.getImportAction(barrier, userDataProfileImportState);
+			const primaryAction = isWeb
+				? new Action('importInDesktop', localize('import in desktop', "Create Profile in {0}", this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true }))
+				: importAction;
 			const secondaryAction = isWeb
-				? new Action('importInDesktop', localize('import in desktop', "Import Profile in {1}", importedProfile.name, this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true }))
-				: new BarrierAction(barrier, new Action('close', localize('close', "Close")));
+				? importAction
+				: new BarrierAction(barrier, new Action('close', localize('close', "Close")), this.notificationService);
 
-			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, importAction, secondaryAction, false, userDataProfileImportState);
+			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, primaryAction, secondaryAction, false, userDataProfileImportState);
 			const message = new MarkdownString();
 			message.appendMarkdown(localize('preview profile message', "By default, extensions aren't installed when previewing a profile on the web. You can still install them manually before importing the profile. "));
 			message.appendMarkdown(`[${localize('learn more', "Learn more")}](https://aka.ms/vscode-extension-marketplace#_can-i-trust-extensions-from-the-marketplace).`);
@@ -392,9 +408,8 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	private async doImportProfile(uri: URI, profileTemplate: IUserDataProfileTemplate): Promise<void> {
+	private async doImportProfile(profileTemplate: IUserDataProfileTemplate): Promise<void> {
 		const disposables = new DisposableStore();
-
 		try {
 			const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 			const barrier = new Barrier();
@@ -402,7 +417,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (userDataProfileImportState.isEmpty()) {
 				await importAction.run();
 			} else {
-				await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, profileTemplate.name, importAction, new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel"))), false, userDataProfileImportState);
+				await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, profileTemplate.name, importAction, new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel")), this.notificationService), false, userDataProfileImportState);
 			}
 			await barrier.wait();
 			await this.hideProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW);
@@ -412,7 +427,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private getImportAction(barrier: Barrier, userDataProfileImportState: UserDataProfileImportState): IAction {
-		const title = localize('import', "Import Profile", userDataProfileImportState.profile.name);
+		const title = localize('import', "Create Profile", userDataProfileImportState.profile.name);
 		const importAction = new BarrierAction(barrier, new Action('import', title, undefined, true, () => {
 			const importProfileFn = async () => {
 				importAction.enabled = false;
@@ -421,13 +436,6 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				if (!importedProfile) {
 					return;
 				}
-				this.notificationService.notify({
-					severity: Severity.Info,
-					message: localize('imported profile', "Profile '{0}' is imported successfully.", importedProfile.name),
-					actions: {
-						primary: [new Action('profiles.showProfileContents', localize('show profile contents', "Show Profile Contents"), undefined, true, () => this.showProfileContents())]
-					}
-				});
 			};
 			if (userDataProfileImportState.isEmpty()) {
 				return importProfileFn();
@@ -436,7 +444,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					location: IMPORT_PROFILE_PREVIEW_VIEW,
 				}, () => importProfileFn());
 			}
-		}));
+		}), this.notificationService);
 		return importAction;
 	}
 
@@ -483,7 +491,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private async resolveProfileContent(resource: URI): Promise<string | null> {
-		if (await this.fileService.canHandleResource(resource)) {
+		if (await this.fileUserDataProfileContentHandler.canHandle(resource)) {
 			return this.fileUserDataProfileContentHandler.readProfile(resource, CancellationToken.None);
 		}
 
@@ -523,7 +531,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	private async pickProfileContentHandler(name: string): Promise<string | undefined> {
 		await this.extensionService.activateByEvent('onProfile');
 		if (this.profileContentHandlers.size === 1) {
-			return this.profileContentHandlers.values().next().value;
+			return this.profileContentHandlers.keys().next().value;
 		}
 		const options: QuickPickItem[] = [];
 		for (const [id, profileContentHandler] of this.profileContentHandlers) {
@@ -538,28 +546,49 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private async getProfileToImport(profileTemplate: IUserDataProfileTemplate, temp?: boolean): Promise<IUserDataProfile | undefined> {
-		const profile = this.userDataProfilesService.profiles.find(p => p.name === profileTemplate.name);
+		const profileName = temp ? `${profileTemplate.name} (${localize('preview', "Preview")})` : profileTemplate.name;
+		const profile = this.userDataProfilesService.profiles.find(p => p.name === profileName);
 		if (profile) {
 			if (temp) {
-				return this.userDataProfilesService.createNamedProfile(`${profileTemplate.name} ${this.getProfileNameIndex(profileTemplate.name)}`, { shortName: profileTemplate.shortName, transient: temp });
+				return this.userDataProfilesService.createNamedProfile(`${profileName} ${this.getProfileNameIndex(profileName)}`, { shortName: profileTemplate.shortName, transient: temp });
 			}
 
-			const result = await this.dialogService.show(
-				Severity.Info,
-				localize('profile already exists', "Profile with name '{0}' already exists. Do you want to overwrite it?", profileTemplate.name),
-				[localize('overwrite', "Overwrite"), localize('create new', "Create New Profile"), localize('cancel', "Cancel")],
-				{ cancelId: 2 }
-			);
-			switch (result.choice) {
-				case 0: return profile;
-				case 2: return undefined;
+			enum ImportProfileChoice {
+				Overwrite = 0,
+				CreateNew = 1,
+				Cancel = 2
+			}
+			const { result } = await this.dialogService.prompt<ImportProfileChoice>({
+				type: Severity.Info,
+				message: localize('profile already exists', "Profile with name '{0}' already exists. Do you want to overwrite it?", profileName),
+				buttons: [
+					{
+						label: localize({ key: 'overwrite', comment: ['&& denotes a mnemonic'] }, "&&Overwrite"),
+						run: () => ImportProfileChoice.Overwrite
+					},
+					{
+						label: localize({ key: 'create new', comment: ['&& denotes a mnemonic'] }, "&&Create New Profile"),
+						run: () => ImportProfileChoice.CreateNew
+					},
+				],
+				cancelButton: {
+					run: () => ImportProfileChoice.Cancel
+				}
+			});
+
+			if (result === ImportProfileChoice.Overwrite) {
+				return profile;
+			}
+
+			if (result === ImportProfileChoice.Cancel) {
+				return undefined;
 			}
 
 			// Create new profile
 			const name = await this.quickInputService.input({
 				placeHolder: localize('name', "Profile name"),
-				title: localize('create new', "Create New Profile"),
-				value: `${profileTemplate.name} ${this.getProfileNameIndex(profileTemplate.name)}`,
+				title: localize('create new title', "Create New Profile"),
+				value: `${profileName} ${this.getProfileNameIndex(profileName)}`,
 				validateInput: async (value: string) => {
 					if (this.userDataProfilesService.profiles.some(p => p.name === value)) {
 						return localize('profileExists', "Profile with name {0} already exists.", value);
@@ -572,7 +601,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 			return this.userDataProfilesService.createNamedProfile(name);
 		} else {
-			return this.userDataProfilesService.createNamedProfile(profileTemplate.name, { shortName: profileTemplate.shortName, transient: temp });
+			return this.userDataProfilesService.createNamedProfile(profileName, { shortName: profileTemplate.shortName, transient: temp });
 		}
 	}
 
@@ -670,8 +699,12 @@ class FileUserDataProfileContentHandler implements IUserDataProfileContentHandle
 		return { link, id: link.toString() };
 	}
 
+	async canHandle(uri: URI): Promise<boolean> {
+		return uri.scheme !== Schemas.http && uri.scheme !== Schemas.https && await this.fileService.canHandleResource(uri);
+	}
+
 	async readProfile(uri: URI, token: CancellationToken): Promise<string | null> {
-		if (await this.fileService.canHandleResource(uri)) {
+		if (await this.canHandle(uri)) {
 			return (await this.fileService.readFile(uri, undefined, token)).value.toString();
 		}
 		return null;
@@ -854,7 +887,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		}
 	}
 
-	onDidChangeCheckboxState(items: ITreeItem[]): ITreeItem[] {
+	onDidChangeCheckboxState(items: readonly ITreeItem[]): readonly ITreeItem[] {
 		const toRefresh: ITreeItem[] = [];
 		for (const item of items) {
 			if (item.children) {
@@ -893,7 +926,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 				this.roots = await this.fetchRoots();
 				for (const root of this.roots) {
 					if (this.canSelect) {
-						root.checkbox = { isChecked: true };
+						root.checkbox = { isChecked: true, tooltip: localize('select', "Select {0}", root.label.label) };
 					} else {
 						root.checkbox = undefined;
 					}
@@ -912,7 +945,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		return this.roots.some(root => this.isSelected(root));
 	}
 
-	protected async getProfileTemplate(name: string, shortName: string | undefined): Promise<IUserDataProfileTemplate> {
+	async getProfileTemplate(name: string, shortName: string | undefined): Promise<IUserDataProfileTemplate> {
 		const roots = await this.getRoots();
 		let settings: string | undefined;
 		let keybindings: string | undefined;
@@ -1042,6 +1075,7 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			tasksResource: profile.tasksResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			snippetsHome: profile.snippetsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			extensionsResource: profile.extensionsResource,
+			cacheHome: profile.cacheHome,
 			useDefaultFlags: profile.useDefaultFlags,
 			isTransient: profile.isTransient
 		};
@@ -1089,7 +1123,7 @@ class UserDataProfileImportState extends UserDataProfileImportExportState {
 		const inMemoryProvider = this._register(new InMemoryFileSystemProvider());
 		this.disposables.add(this.fileService.registerProvider(USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME, inMemoryProvider));
 		const roots: IProfileResourceTreeItem[] = [];
-		const importPreviewProfle = toUserDataProfile(generateUuid(), this.profile.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME }));
+		const importPreviewProfle = toUserDataProfile(generateUuid(), this.profile.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME }), URI.file('/cache').with({ scheme: USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME }));
 
 		if (this.profile.settings) {
 			const settingsResource = this.instantiationService.createInstance(SettingsResource);
@@ -1159,9 +1193,15 @@ class UserDataProfileImportState extends UserDataProfileImportExportState {
 }
 
 class BarrierAction extends Action {
-	constructor(barrier: Barrier, action: Action) {
+	constructor(barrier: Barrier, action: Action,
+		notificationService: INotificationService) {
 		super(action.id, action.label, action.class, action.enabled, async () => {
-			await action.run();
+			try {
+				await action.run();
+			} catch (error) {
+				notificationService.error(error);
+				throw error;
+			}
 			barrier.open();
 		});
 	}

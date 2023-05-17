@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
@@ -222,29 +222,20 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		// Otherwise inform the user about options
 
-		const buttons = context === 'open' ?
-			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('openFiles', "Open Files...")] :
-			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More")];
-
-		const res = await this.dialogService.show(
-			Severity.Warning,
-			localize('unsupportedBrowserMessage', "Opening Local Folders is Unsupported"),
-			buttons,
+		const buttons: IPromptButton<void>[] = [
 			{
-				detail: localize('unsupportedBrowserDetail', "Your browser doesn't support opening local folders.\nYou can either open single files or open a remote repository."),
-				cancelId: buttons.length // TODO@bpasero leverage new support for `cancelId: null` in the future
+				label: localize({ key: 'openRemote', comment: ['&& denotes a mnemonic'] }, "&&Open Remote..."),
+				run: async () => { await this.commandService.executeCommand('workbench.action.remote.showMenu'); }
+			},
+			{
+				label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+				run: async () => { await this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess'); }
 			}
-		);
-
-		switch (res.choice) {
-			case 0:
-				this.commandService.executeCommand('workbench.action.remote.showMenu');
-				break;
-			case 1:
-				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
-				break;
-			case 2:
-				{
+		];
+		if (context === 'open') {
+			buttons.push({
+				label: localize({ key: 'openFiles', comment: ['&& denotes a mnemonic'] }, "Open &&Files..."),
+				run: async () => {
 					const files = await triggerUpload();
 					if (files) {
 						const filesData = (await this.instantiationService.invokeFunction(accessor => extractFileListData(accessor, files))).filter(fileData => !fileData.isDirectory);
@@ -259,8 +250,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 						}
 					}
 				}
-				break;
+			});
 		}
+
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('unsupportedBrowserMessage', "Opening Local Folders is Unsupported"),
+			detail: localize('unsupportedBrowserDetail', "Your browser doesn't support opening local folders.\nYou can either open single files or open a remote repository."),
+			buttons
+		});
 
 		return undefined;
 	}

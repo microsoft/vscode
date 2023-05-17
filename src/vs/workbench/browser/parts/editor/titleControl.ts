@@ -23,7 +23,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -38,6 +38,8 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { isCancellationError } from 'vs/base/common/errors';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
+import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -114,9 +116,9 @@ export abstract class TitleControl extends Themable {
 		parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
 		protected group: IEditorGroupView,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -402,7 +404,7 @@ export abstract class TitleControl extends Themable {
 		});
 	}
 
-	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
+	protected getKeybinding(action: IAction): ResolvedKeybinding | undefined {
 		return this.keybindingService.lookupKeybinding(action.id, this.getEditorPaneAwareContextKeyService());
 	}
 

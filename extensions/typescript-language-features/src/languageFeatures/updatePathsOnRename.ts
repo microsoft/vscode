@@ -5,17 +5,17 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import * as fileSchemes from '../configuration/fileSchemes';
+import { doesResourceLookLikeATypeScriptFile } from '../configuration/languageDescription';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
-import * as fileSchemes from '../utils/fileSchemes';
-import { doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
-import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
 
 const updateImportsOnFileMoveName = 'updateImportsOnFileMove.enabled';
@@ -57,12 +57,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
 			const [{ newUri, oldUri }] = e.files;
-			const newFilePath = this.client.toPath(newUri);
+			const newFilePath = this.client.toTsFilePath(newUri);
 			if (!newFilePath) {
 				return;
 			}
 
-			const oldFilePath = this.client.toPath(oldUri);
+			const oldFilePath = this.client.toTsFilePath(oldUri);
 			if (!oldFilePath) {
 				return;
 			}
@@ -76,7 +76,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			// Try to get a js/ts file that is being moved
 			// For directory moves, this returns a js/ts file under the directory.
 			const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newUri);
-			if (!jsTsFileThatIsBeingMoved || !this.client.toPath(jsTsFileThatIsBeingMoved)) {
+			if (!jsTsFileThatIsBeingMoved || !this.client.toTsFilePath(jsTsFileThatIsBeingMoved)) {
 				return;
 			}
 

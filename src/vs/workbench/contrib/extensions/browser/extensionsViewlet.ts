@@ -34,7 +34,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -527,7 +527,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => { if (e.viewContainerLocation === ViewContainerLocation.Sidebar) { this.onViewletOpen(e.composite); } }, this));
 		this._register(extensionsWorkbenchService.onReset(() => this.refresh()));
-		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	get searchValue(): string | undefined {
@@ -664,7 +664,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			: '';
 	}
 
-	override saveState(): void {
+	protected override saveState(): void {
 		const value = this.searchBox ? this.searchBox.getValue() : '';
 		if (ExtensionsListView.isLocalExtensionsQuery(value)) {
 			this.searchViewletState['query.value'] = value;
@@ -802,7 +802,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 	) {
 		super();
 		this.onServiceChange();
-		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, this._store)(this.onServiceChange, this));
+		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, undefined, this._store)(this.onServiceChange, this));
 	}
 
 	private onServiceChange(): void {
@@ -864,7 +864,10 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 								label: localize('reloadNow', "Reload Now"),
 								run: () => this.hostService.reload()
 							}],
-							{ sticky: true }
+							{
+								sticky: true,
+								priority: NotificationPriority.URGENT
+							}
 						);
 					})));
 				} else {

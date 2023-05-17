@@ -16,13 +16,12 @@ import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
 import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
-import { JsWalkthroughState, registerJsNodeWalkthrough } from './ui/jsNodeWalkthrough.electron';
-import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import { ElectronServiceConfigurationProvider } from './utils/configuration.electron';
-import { onCaseInsensitiveFileSystem } from './utils/fileSystem.electron';
-import { Logger } from './utils/logger';
+import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
+import { ElectronServiceConfigurationProvider } from './configuration/configuration.electron';
+import { onCaseInsensitiveFileSystem } from './utils/fs.electron';
+import { Logger } from './logging/logger';
 import { getPackageInfo } from './utils/packageInfo';
-import { PluginManager } from './utils/plugins';
+import { PluginManager } from './tsServer/plugins';
 import * as temp from './utils/temp.electron';
 
 export function activate(
@@ -42,9 +41,6 @@ export function activate(
 
 	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
 	context.subscriptions.push(activeJsTsEditorTracker);
-
-	const jsWalkthroughState = new JsWalkthroughState();
-	context.subscriptions.push(jsWalkthroughState);
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -77,7 +73,6 @@ export function activate(
 	});
 
 	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
-	registerJsNodeWalkthrough(commandManager, jsWalkthroughState);
 
 	import('./task/taskProvider').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));

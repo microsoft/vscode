@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -105,7 +105,10 @@ export class IntegrityService implements IIntegrityService {
 						run: () => this._storage.set({ dontShowPrompt: true, commit: this.productService.commit })
 					}
 				],
-				{ sticky: true }
+				{
+					sticky: true,
+					priority: NotificationPriority.URGENT
+				}
 			);
 		} else {
 			this.notificationService.notify({

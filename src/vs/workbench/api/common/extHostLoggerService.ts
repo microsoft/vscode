@@ -19,7 +19,7 @@ export class ExtHostLoggerService extends AbstractLoggerService implements ExtHo
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(initData.logLevel, initData.loggers.map(logger => revive(logger)));
+		super(initData.logLevel, initData.logsLocation, initData.loggers.map(logger => revive(logger)));
 		this._proxy = rpc.getProxy(MainContext.MainThreadLogger);
 	}
 
@@ -72,5 +72,9 @@ class Logger extends AbstractMessageLogger {
 
 	private doLog(messages: [LogLevel, string][]) {
 		this.proxy.$log(this.file, messages);
+	}
+
+	override flush(): void {
+		this.proxy.$flush(this.file);
 	}
 }

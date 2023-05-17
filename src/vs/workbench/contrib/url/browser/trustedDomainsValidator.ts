@@ -74,17 +74,20 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		}
 
 		const originalResource = resource;
+		let resourceUri: URI;
 		if (typeof resource === 'string') {
-			resource = URI.parse(resource);
+			resourceUri = URI.parse(resource);
+		} else {
+			resourceUri = resource;
 		}
-		const { scheme, authority, path, query, fragment } = resource;
+		const { scheme, authority, path, query, fragment } = resourceUri;
 
 		const domainToOpen = `${scheme}://${authority}`;
 		const [workspaceDomains, userDomains] = await Promise.all([this._readWorkspaceTrustedDomainsResult.value, this._readAuthenticationTrustedDomainsResult.value]);
 		const { defaultTrustedDomains, trustedDomains, } = this._instantiationService.invokeFunction(readStaticTrustedDomains);
 		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains];
 
-		if (isURLDomainTrusted(resource, allTrustedDomains)) {
+		if (isURLDomainTrusted(resourceUri, allTrustedDomains)) {
 			return true;
 		} else {
 			let formattedLink = `${scheme}://${authority}${path}`;
@@ -103,56 +106,56 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				formattedLink += linkTail.charAt(0) + '...' + linkTail.substring(linkTail.length - linkTailLengthToKeep + 1);
 			}
 
-			const { choice } = await this._dialogService.show(
-				Severity.Info,
-				localize(
+			const { result } = await this._dialogService.prompt<boolean>({
+				type: Severity.Info,
+				message: localize(
 					'openExternalLinkAt',
 					'Do you want {0} to open the external website?',
 					this._productService.nameShort
 				),
-				[
-					localize('open', 'Open'),
-					localize('copy', 'Copy'),
-					localize('configureTrustedDomains', 'Configure Trusted Domains'),
-					localize('cancel', 'Cancel')
+				detail: typeof originalResource === 'string' ? originalResource : formattedLink,
+				buttons: [
+					{
+						label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, '&&Open'),
+						run: () => true
+					},
+					{
+						label: localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, '&&Copy'),
+						run: () => {
+							this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resourceUri.toString(true));
+							return false;
+						}
+					},
+					{
+						label: localize({ key: 'configureTrustedDomains', comment: ['&& denotes a mnemonic'] }, 'Configure &&Trusted Domains'),
+						run: async () => {
+							const pickedDomains = await configureOpenerTrustedDomainsHandler(
+								trustedDomains,
+								domainToOpen,
+								resourceUri,
+								this._quickInputService,
+								this._storageService,
+								this._editorService,
+								this._telemetryService,
+							);
+							// Trust all domains
+							if (pickedDomains.indexOf('*') !== -1) {
+								return true;
+							}
+							// Trust current domain
+							if (isURLDomainTrusted(resourceUri, pickedDomains)) {
+								return true;
+							}
+							return false;
+						}
+					}
 				],
-				{
-					detail: typeof originalResource === 'string' ? originalResource : formattedLink,
-					cancelId: 3
+				cancelButton: {
+					run: () => false
 				}
-			);
+			});
 
-			// Open Link
-			if (choice === 0) {
-				return true;
-			}
-			// Copy Link
-			else if (choice === 1) {
-				this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resource.toString(true));
-			}
-			// Configure Trusted Domains
-			else if (choice === 2) {
-				const pickedDomains = await configureOpenerTrustedDomainsHandler(
-					trustedDomains,
-					domainToOpen,
-					resource,
-					this._quickInputService,
-					this._storageService,
-					this._editorService,
-					this._telemetryService,
-				);
-				// Trust all domains
-				if (pickedDomains.indexOf('*') !== -1) {
-					return true;
-				}
-				// Trust current domain
-				if (isURLDomainTrusted(resource, pickedDomains)) {
-					return true;
-				}
-				return false;
-			}
-
-			return false;
+			return result;
 		}
 	}
 }

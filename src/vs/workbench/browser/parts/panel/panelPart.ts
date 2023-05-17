@@ -54,7 +54,6 @@ interface ICachedPanel {
 	id: string;
 	name?: string;
 	pinned: boolean;
-	badgeEnabled: boolean;
 	order?: number;
 	visible: boolean;
 	views?: { when?: string }[];
@@ -341,15 +340,16 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
-		let cssClass: string | undefined = undefined;
+		let classNames: string[] | undefined = undefined;
 		let iconUrl: URI | undefined = undefined;
 		if (URI.isUri(icon)) {
 			iconUrl = icon;
 			const cssUrl = asCSSUrl(icon);
 			const hash = new StringSHA1();
 			hash.update(cssUrl);
-			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
-			const iconClass = `.monaco-workbench .basepanel .monaco-action-bar .action-label.${cssClass}`;
+			const iconId = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
+			classNames = [iconId, 'uri-icon'];
+			const iconClass = `.monaco-workbench .basepanel .monaco-action-bar .action-label.${iconId}`;
 			createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
 				mask-size: 16px;
@@ -359,10 +359,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				-webkit-mask-origin: padding;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
-			cssClass = ThemeIcon.asClassName(icon);
+			classNames = ThemeIcon.asClassNameArray(icon);
 		}
 
-		return { id, name, cssClass, iconUrl, keybindingId };
+		return { id, name, classNames, iconUrl, keybindingId };
 	}
 
 	private showOrHideViewContainer(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
@@ -650,7 +650,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	getLastActivePaneCompositeId(): string {
-		return this.getLastActiveCompositetId();
+		return this.getLastActiveCompositeId();
 	}
 
 	hideActivePaneComposite(): void {
@@ -798,7 +798,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 					name: cachedPanel.name,
 					order: cachedPanel.order,
 					pinned: cachedPanel.pinned,
-					badgeEnabled: cachedPanel.badgeEnabled,
 					visible: !!compositeItems.find(({ id }) => id === cachedPanel.id)
 				});
 			}
@@ -823,10 +822,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, badgeEnabled: compositeItem.badgeEnabled, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 				placeholders.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.label });
 			} else {
-				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, badgeEnabled: compositeItem.badgeEnabled, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 			}
 		}
 
@@ -839,7 +838,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 		const storedStates: Array<string | ICachedPanel> = JSON.parse(this.cachedPanelsValue);
 		const cachedPanels = storedStates.map(c => {
-			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, badgeEnabled: true } : c;
+			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true } : c;
 			const registered = registeredPanels.some(p => p.id === serialized.id);
 			serialized.visible = registered ? isUndefinedOrNull(serialized.visible) ? true : serialized.visible : false;
 			return serialized;

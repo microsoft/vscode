@@ -5,6 +5,7 @@
 
 import { RGBA, Color } from './color';
 import { ansiColorIdentifiers } from './colorMap';
+import { ttPolicy } from './htmlHelper';
 import { linkify } from './linkify';
 
 
@@ -378,11 +379,6 @@ export function handleANSIOutput(text: string, trustHtml: boolean): HTMLSpanElem
 		}
 	}
 }
-
-const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-	createHTML: value => value,
-	createScript: value => value,
-});
 
 function appendStylizedStringToContainer(
 	root: HTMLElement,

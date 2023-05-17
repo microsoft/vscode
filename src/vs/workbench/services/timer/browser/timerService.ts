@@ -479,7 +479,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
-	private readonly rndValueShouldSendTelemetry = Math.random() < .3;
+	private readonly _rndValueShouldSendTelemetry = Math.random() < .05; // 5% of users
 
 	private _startupMetrics?: IStartupMetrics;
 
@@ -598,7 +598,7 @@ export abstract class AbstractTimerService implements ITimerService {
 	}
 
 	protected _shouldReportPerfMarks(): boolean {
-		return this.rndValueShouldSendTelemetry;
+		return this._rndValueShouldSendTelemetry;
 	}
 
 	private _reportPerformanceMarks(source: string, marks: perf.PerformanceMark[]) {

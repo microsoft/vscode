@@ -16,8 +16,8 @@ const product = require('../product.json');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
-const _ = require('underscore');
 const { getProductionDependencies } = require('./lib/dependencies');
+const { assetFromGithub } = require('./lib/github');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -155,7 +155,7 @@ if (defaultNodeTask) {
 }
 
 function nodejs(platform, arch) {
-	const remote = require('gulp-remote-retry-src');
+	const { remote } = require('./lib/gulpRemoteSource');
 	const untar = require('gulp-untar');
 
 	if (arch === 'ia32') {
@@ -163,6 +163,11 @@ function nodejs(platform, arch) {
 	}
 
 	if (platform === 'win32') {
+		if (product.nodejsRepository) {
+			return assetFromGithub(product.nodejsRepository, nodeVersion, name => name === `win-${arch}-node.exe`)
+				.pipe(rename('node.exe'));
+		}
+
 		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' })
 			.pipe(rename('node.exe'));
 	}
@@ -257,7 +262,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 
 		const productionDependencies = getProductionDependencies(REMOTE_FOLDER);
-		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
 		const deps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
@@ -358,7 +363,7 @@ function tweakProductForServerWeb(product) {
 				out: `out-vscode-${type}`,
 				amd: {
 					src: 'out-build',
-					entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
+					entryPoints: (type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints).flat(),
 					otherSources: [],
 					resources: type === 'reh' ? serverResources : serverWithWebResources,
 					loaderConfig: optimize.loaderConfig(),

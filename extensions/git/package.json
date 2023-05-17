@@ -13,8 +13,10 @@
     "diffCommand",
     "contribEditorContentMenu",
     "contribEditSessions",
+    "canonicalUriIdentityProvider",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
+    "quickDiffProvider",
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
@@ -1680,17 +1682,17 @@
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "isInDiffRightEditor && !isEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "isInDiffRightEditor && !isEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "isInDiffRightEditor && !isEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
       "editor/content": [
@@ -2071,6 +2073,12 @@
           "scope": "resource",
           "markdownDescription": "%config.autofetchPeriod%",
           "default": 180
+        },
+        "git.defaultBranchName": {
+          "type": "string",
+          "description": "%config.defaultBranchName%",
+          "default": "main",
+          "scope": "resource"
         },
         "git.branchPrefix": {
           "type": "string",
@@ -2699,6 +2707,14 @@
           "default": "prompt",
           "markdownDescription": "%config.openRepositoryInParentFolders%",
           "scope": "resource"
+        },
+        "git.similarityThreshold": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "%config.similarityThreshold%",
+          "scope": "resource"
         }
       }
     },
@@ -2913,7 +2929,7 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.1.0",
-    "@vscode/extension-telemetry": "0.7.4-preview",
+    "@vscode/extension-telemetry": "0.7.5",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",

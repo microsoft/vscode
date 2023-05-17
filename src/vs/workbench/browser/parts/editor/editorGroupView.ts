@@ -1544,8 +1544,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// No auto-save on focus change or custom confirmation handler: ask user
 		if (!autoSave) {
 
-			// Switch to editor that we want to handle for confirmation
-			await this.doOpenEditor(editor);
+			// Switch to editor that we want to handle for confirmation unless showing already
+			if (!this.activeEditor || !this.activeEditor.matches(editor)) {
+				await this.doOpenEditor(editor);
+			}
 
 			// Let editor handle confirmation if implemented
 			if (typeof editor.closeHandler?.confirm === 'function') {

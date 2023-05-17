@@ -277,7 +277,6 @@ export class RunToCursorAction extends EditorAction {
 			// otherwise set it at the precise column #102199
 			column = position.column;
 		}
-
 		await debugService.runTo(uri, position.lineNumber, column);
 	}
 }
@@ -332,7 +331,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 			id: SelectionToWatchExpressionsAction.ID,
 			label: SelectionToWatchExpressionsAction.LABEL,
 			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 1

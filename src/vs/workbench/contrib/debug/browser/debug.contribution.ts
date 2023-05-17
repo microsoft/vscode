@@ -120,7 +120,7 @@ registerDebugCommandPaletteItem(CONTINUE_ID, CONTINUE_LABEL, CONTEXT_IN_DEBUG_MO
 registerDebugCommandPaletteItem(FOCUS_REPL_ID, { value: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, "Focus on Debug Console View"), original: 'Focus on Debug Console View' });
 registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, { value: nls.localize('jumpToCursor', "Jump to Cursor"), original: 'Jump to Cursor' }, CONTEXT_JUMP_TO_CURSOR_SUPPORTED);
 registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, { value: nls.localize('SetNextStatement', "Set Next Statement"), original: 'Set Next Statement' }, CONTEXT_JUMP_TO_CURSOR_SUPPORTED);
-registerDebugCommandPaletteItem(RunToCursorAction.ID, { value: RunToCursorAction.LABEL, original: 'Run to Cursor' }, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')));
+registerDebugCommandPaletteItem(RunToCursorAction.ID, { value: RunToCursorAction.LABEL, original: 'Run to Cursor' }, CONTEXT_DEBUGGERS_AVAILABLE);
 registerDebugCommandPaletteItem(SelectionToReplAction.ID, { value: SelectionToReplAction.LABEL, original: 'Evaluate in Debug Console' }, CONTEXT_IN_DEBUG_MODE);
 registerDebugCommandPaletteItem(SelectionToWatchExpressionsAction.ID, { value: SelectionToWatchExpressionsAction.LABEL, original: 'Add to Watch' });
 registerDebugCommandPaletteItem(TOGGLE_INLINE_BREAKPOINT_ID, { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Inline Breakpoint' });

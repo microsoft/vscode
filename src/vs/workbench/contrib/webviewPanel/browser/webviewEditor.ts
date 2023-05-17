@@ -10,7 +10,7 @@ import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/
 import { isWeb } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -50,7 +50,7 @@ export class WebviewEditor extends EditorPane {
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public override get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -65,7 +65,12 @@ export class WebviewEditor extends EditorPane {
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 
-		this._register(editorGroupsService.onDidScroll(() => {
+		this._register(Event.any(
+			editorGroupsService.onDidScroll,
+			editorGroupsService.onDidAddGroup,
+			editorGroupsService.onDidRemoveGroup,
+			editorGroupsService.onDidMoveGroup,
+		)(() => {
 			if (this.webview && this._visible) {
 				this.synchronizeWebviewContainerDimensions(this.webview);
 			}
@@ -192,7 +197,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
-		if (!this._element) {
+		if (!this._element?.isConnected) {
 			return;
 		}
 		const rootContainer = this._workbenchLayoutService.getContainer(Parts.EDITOR_PART);

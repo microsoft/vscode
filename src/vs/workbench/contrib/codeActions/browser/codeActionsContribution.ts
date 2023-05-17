@@ -108,6 +108,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		const conditionalSchema = (command: string, actions: readonly ContributedCodeAction[]): IJSONSchema => {
 			return {
 				if: {
+					required: ['command'],
 					properties: {
 						'command': { const: command }
 					}

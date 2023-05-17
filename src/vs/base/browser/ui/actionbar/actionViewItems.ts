@@ -289,15 +289,8 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 
 		if (this.label) {
-			if (this._action.id === Separator.ID) {
-				this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
-			} else {
-				if (this.options.isMenu) {
-					this.label.setAttribute('role', 'menuitem');
-				} else {
-					this.label.setAttribute('role', 'button');
-				}
-			}
+			this.label.setAttribute('role', this.getDefaultAriaRole());
+
 		}
 
 		if (this.options.label && this.options.keybinding && this.element) {
@@ -309,6 +302,18 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.updateTooltip();
 		this.updateEnabled();
 		this.updateChecked();
+	}
+
+	private getDefaultAriaRole(): 'presentation' | 'menuitem' | 'button' {
+		if (this._action.id === Separator.ID) {
+			return 'presentation'; // A separator is a presentation item
+		} else {
+			if (this.options.isMenu) {
+				return 'menuitem';
+			} else {
+				return 'button';
+			}
+		}
 	}
 
 	// Only set the tabIndex on the element once it is about to get focused
@@ -406,16 +411,20 @@ export class ActionViewItem extends BaseActionViewItem {
 
 	protected override updateChecked(): void {
 		if (this.label) {
-			if (this.action.checked) {
-				this.label.classList.add('checked');
+			if (this.action.checked !== undefined) {
+				this.label.classList.toggle('checked', this.action.checked);
+				this.label.setAttribute('aria-checked', this.action.checked ? 'true' : 'false');
+				this.label.setAttribute('role', 'checkbox');
 			} else {
 				this.label.classList.remove('checked');
+				this.label.setAttribute('aria-checked', '');
+				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}
 	}
 }
 
-export class SelectActionViewItem extends BaseActionViewItem {
+export class SelectActionViewItem<T = string> extends BaseActionViewItem {
 	protected selectBox: SelectBox;
 
 	constructor(ctx: unknown, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
@@ -444,7 +453,7 @@ export class SelectActionViewItem extends BaseActionViewItem {
 		this.actionRunner.run(this._action, this.getActionContext(option, index));
 	}
 
-	protected getActionContext(option: string, index: number) {
+	protected getActionContext(option: string, index: number): T | string {
 		return option;
 	}
 

@@ -22,7 +22,7 @@ import { findFreePort } from 'vs/base/node/ports';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
-import { INativeOpenDialogOptions, massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -30,7 +30,6 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
@@ -42,7 +41,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
 import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -53,7 +51,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -61,7 +58,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
 	) {
 		super();
@@ -287,17 +283,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				throw error;
 			}
 
-			const { options, buttonIndeces } = massageMessageBoxOptions({
+			const { response } = await this.showMessageBox(windowId, {
 				type: 'info',
 				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
 				buttons: [
 					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					localize('cancel', "Cancel")
 				]
-			}, this.productService);
+			});
 
-			const { response } = await this.showMessageBox(windowId, options);
-			if (buttonIndeces[response] === 0 /* OK */) {
+			if (response === 0 /* OK */) {
 				try {
 					const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
 					await promisify(exec)(command);
@@ -316,17 +311,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		} catch (error) {
 			switch (error.code) {
 				case 'EACCES': {
-					const { options, buttonIndeces } = massageMessageBoxOptions({
+					const { response } = await this.showMessageBox(windowId, {
 						type: 'info',
 						message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
 						buttons: [
 							localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-							localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"),
+							localize('cancel', "Cancel")
 						]
-					}, this.productService);
+					});
 
-					const { response } = await this.showMessageBox(windowId, options);
-					if (buttonIndeces[response] === 0 /* OK */) {
+					if (response === 0 /* OK */) {
 						try {
 							const command = `osascript -e "do shell script \\"rm \'${source}\'\\" with administrator privileges"`;
 							await promisify(exec)(command);
@@ -453,14 +447,29 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Remove some environment variables before opening to avoid issues...
 		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
 		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
+		const gtkIMModuleFile = process.env['GTK_IM_MODULE_FILE'];
+		const gdkBackend = process.env['GDK_BACKEND'];
+		const gioModuleDir = process.env['GIO_MODULE_DIR'];
+		const gtkExePrefix = process.env['GTK_EXE_PREFIX'];
+		const gsettingsSchemaDir = process.env['GSETTINGS_SCHEMA_DIR'];
 		delete process.env['GDK_PIXBUF_MODULE_FILE'];
 		delete process.env['GDK_PIXBUF_MODULEDIR'];
+		delete process.env['GTK_IM_MODULE_FILE'];
+		delete process.env['GDK_BACKEND'];
+		delete process.env['GIO_MODULE_DIR'];
+		delete process.env['GTK_EXE_PREFIX'];
+		delete process.env['GSETTINGS_SCHEMA_DIR'];
 
 		shell.openExternal(url);
 
 		// ...but restore them after
 		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
 		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
+		process.env['GTK_IM_MODULE_FILE'] = gtkIMModuleFile;
+		process.env['GDK_BACKEND'] = gdkBackend;
+		process.env['GIO_MODULE_DIR'] = gioModuleDir;
+		process.env['GTK_EXE_PREFIX'] = gtkExePrefix;
+		process.env['GSETTINGS_SCHEMA_DIR'] = gsettingsSchemaDir;
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
@@ -732,11 +741,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
 		const window = this.windowById(windowId);
 		const session = window?.win?.webContents?.session;
-		if (session) {
-			return session.resolveProxy(url);
-		} else {
-			return undefined;
-		}
+
+		return session?.resolveProxy(url);
 	}
 
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
@@ -768,18 +774,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
 			window.win.webContents.sendInputEvent(event);
 		}
-	}
-
-	async enableSandbox(windowId: number | undefined, enabled: boolean): Promise<void> {
-		if (enabled) {
-			this.stateMainService.setItem('window.experimental.useSandbox', true);
-		} else {
-			this.stateMainService.removeItem('window.experimental.useSandbox');
-		}
-	}
-
-	async toggleSharedProcessWindow(): Promise<void> {
-		return this.sharedProcess.toggle();
 	}
 
 	//#endregion

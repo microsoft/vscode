@@ -26,6 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { WebRecommendations } from 'vs/workbench/contrib/extensions/browser/webRecommendations';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { RemoteRecommendations } from 'vs/workbench/contrib/extensions/browser/remoteRecommendations';
 
 type IgnoreRecommendationClassification = {
 	owner: 'sandy081';
@@ -47,6 +48,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	private readonly keymapRecommendations: KeymapRecommendations;
 	private readonly webRecommendations: WebRecommendations;
 	private readonly languageRecommendations: LanguageRecommendations;
+	private readonly remoteRecommendations: RemoteRecommendations;
 
 	public readonly activationPromise: Promise<void>;
 	private sessionSeed: number;
@@ -75,6 +77,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations);
 		this.webRecommendations = instantiationService.createInstance(WebRecommendations);
 		this.languageRecommendations = instantiationService.createInstance(LanguageRecommendations);
+		this.remoteRecommendations = instantiationService.createInstance(RemoteRecommendations);
 
 		if (!this.isEnabled()) {
 			this.sessionSeed = 0;
@@ -101,7 +104,8 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			this.experimentalRecommendations.activate(),
 			this.keymapRecommendations.activate(),
 			this.languageRecommendations.activate(),
-			this.webRecommendations.activate()
+			this.webRecommendations.activate(),
+			this.remoteRecommendations.activate()
 		]);
 
 		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations, this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations)(() => this._onDidChangeRecommendations.fire()));
@@ -201,6 +205,10 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 	getLanguageRecommendations(): string[] {
 		return this.toExtensionRecommendations(this.languageRecommendations.recommendations);
+	}
+
+	getRemoteRecommendations(): string[] {
+		return this.toExtensionRecommendations(this.remoteRecommendations.recommendations);
 	}
 
 	async getWorkspaceRecommendations(): Promise<string[]> {

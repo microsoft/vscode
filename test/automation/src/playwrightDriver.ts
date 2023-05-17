@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from '@playwright/test';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { promises } from 'fs';
 import { IWindowDriver } from './driver';
 import { PageFunction } from 'playwright-core/types/structs';
 import { measureAndLog } from './logger';
@@ -36,6 +37,7 @@ export class PlaywrightDriver {
 		private readonly context: playwright.BrowserContext,
 		private readonly page: playwright.Page,
 		private readonly serverProcess: ChildProcess | undefined,
+		private readonly whenLoaded: Promise<unknown>,
 		private readonly options: LaunchOptions
 	) {
 	}
@@ -78,17 +80,7 @@ export class PlaywrightDriver {
 	}
 
 	async didFinishLoad(): Promise<void> {
-
-		// Web: via `load` state
-		if (this.options.web) {
-			return this.page.waitForLoadState('load');
-		}
-
-		// Desktop: via `window` event
-		return new Promise<void>(resolve => {
-			// https://playwright.dev/docs/api/class-electronapplication#electron-application-event-window
-			(this.application as playwright.ElectronApplication).on('window', () => resolve());
-		});
+		await this.whenLoaded;
 	}
 
 	private async takeScreenshot(name: string): Promise<void> {
@@ -116,6 +108,15 @@ export class PlaywrightDriver {
 			// Ignore
 		}
 
+		// Web: Extract client logs
+		if (this.options.web) {
+			try {
+				await measureAndLog(() => this.saveWebClientLogs(), 'saveWebClientLogs()', this.options.logger);
+			} catch (error) {
+				this.options.logger.log(`Error saving web client logs (${error})`);
+			}
+		}
+
 		// Web: exit via `close` method
 		if (this.options.web) {
 			try {
@@ -137,6 +138,17 @@ export class PlaywrightDriver {
 		// Server: via `teardown`
 		if (this.serverProcess) {
 			await measureAndLog(() => teardown(this.serverProcess!, this.options.logger), 'teardown server process', this.options.logger);
+		}
+	}
+
+	private async saveWebClientLogs(): Promise<void> {
+		const logs = await this.getLogs();
+
+		for (const log of logs) {
+			const absoluteLogsPath = join(this.options.logsPath, log.relativePath);
+
+			await promises.mkdir(dirname(absoluteLogsPath), { recursive: true });
+			await promises.writeFile(absoluteLogsPath, log.contents);
 		}
 	}
 
@@ -180,7 +192,7 @@ export class PlaywrightDriver {
 	}
 
 	async getTitle() {
-		return this.evaluateWithDriver(([driver]) => driver.getTitle());
+		return this.page.title();
 	}
 
 	async isActiveElement(selector: string) {
@@ -213,6 +225,10 @@ export class PlaywrightDriver {
 
 	async getLocalizedStrings() {
 		return this.evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
+	}
+
+	async getLogs() {
+		return this.page.evaluate(([driver]) => driver.getLogs(), [await this.getDriverHandle()] as const);
 	}
 
 	private async evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
