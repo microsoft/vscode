@@ -507,7 +507,7 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 	if (tocData.children) {
 		children = tocData.children
 			.map(child => _resolveSettingsTree(child, allSettings, logService))
-			.filter(child => (child.children && child.children.length) || (child.settings && child.settings.length));
+			.filter(child => child.children?.length || child.settings?.length);
 	}
 
 	let settings: ISetting[] | undefined;
@@ -1898,6 +1898,12 @@ type ExtensionToggleSettingTelemetryClassification = {
 	comment: 'Event used to gain insights into when users are using an experimental extension toggle setting';
 };
 
+interface ExtensionEnablementState {
+	extension: IExtension | undefined;
+	installed: boolean;
+	enabled: boolean;
+}
+
 export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExtensionToggleItemTemplate> {
 	templateId = SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID;
 
@@ -1924,7 +1930,7 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	private getExtensionEnablementState(extensionName: string, insidersExtensionName: string): { extension: IExtension | undefined; installed: boolean; enabled: boolean } {
+	private getExtensionEnablementState(extensionName: string, insidersExtensionName: string): ExtensionEnablementState {
 		const isStable = this._productService.quality === 'stable';
 		let extensionQuery = isStable ? extensionName : insidersExtensionName;
 		let extension: IExtension | undefined = this._extensionsWorkbenchService.installed.find(e => e.identifier.id === extensionQuery);
@@ -1937,64 +1943,62 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 		return { extension, installed, enabled };
 	}
 
-	private renderControls(actionButton: Button, installed: boolean, enabled: boolean, installButtonText: string, enableButtonText: string, disableButtonText: string): void {
-		if (!installed) {
-			actionButton.element.textContent = installButtonText;
-		} else if (!enabled) {
-			actionButton.element.textContent = enableButtonText;
+	private renderControls(actionButton: Button, enablementState: ExtensionEnablementState, requiresReloadOnDisable: boolean): void {
+		const extensionId = enablementState.extension?.identifier.id ?? '';
+		if (!enablementState.installed) {
+			actionButton.element.textContent = localize('installButtonText', "Install {0}", extensionId);
+		} else if (!enablementState.enabled) {
+			actionButton.element.textContent = localize('enableButtonText', "Enable {0}", extensionId);
 		} else {
-			actionButton.element.textContent = disableButtonText;
+			actionButton.element.textContent = requiresReloadOnDisable ?
+				localize('disableAndReloadButtonText', "Disable {0} and reload", extensionId) :
+				localize('disableButtonText', "Disable {0}", extensionId);
 		}
 		actionButton.element.title = actionButton.element.textContent;
 		actionButton.label = actionButton.element.textContent;
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExtensionToggleItemTemplate, onChange: (value: boolean) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExtensionToggleItemTemplate, onChange: (_: undefined) => void): void {
 		template.elementDisposables.clear();
-		const extensionName = dataElement.setting?.extensionName ?? '';
-		const nightlyExtensionName = dataElement.setting?.nightlyExtensionName ?? '';
-		const installButtonText = dataElement.setting?.installButtonText ?? '';
-		const enableButtonText = dataElement.setting?.enableButtonText ?? '';
-		const disableButtonText = dataElement.setting?.disableButtonText ?? '';
+		const extensionId = dataElement.setting?.extensionName ?? '';
+		const nightlyExtensionId = dataElement.setting?.nightlyExtensionName ?? '';
+		const requiresReloadOnDisable = dataElement.setting?.requiresReloadOnDisable ?? false;
 
-		// Hide the button if and only if the extension has been installed.
 		template.elementDisposables.add(this._extensionsWorkbenchService.onChange((e) => {
-			if ([extensionName, nightlyExtensionName].includes(e?.identifier.id ?? '')) {
-				const { installed, enabled } = this.getExtensionEnablementState(extensionName, nightlyExtensionName);
-				this.renderControls(template.actionButton, installed, enabled, installButtonText, enableButtonText, disableButtonText);
+			const changedId = e?.identifier.id ?? '';
+			if (changedId && [extensionId, nightlyExtensionId].includes(changedId)) {
+				const enablementState = this.getExtensionEnablementState(extensionId, nightlyExtensionId);
+				this.renderControls(template.actionButton, enablementState, requiresReloadOnDisable);
 			}
 		}));
 
 		template.elementDisposables.add(template.actionButton.onDidClick(async () => {
-			let enablementState = this.getExtensionEnablementState(extensionName, nightlyExtensionName);
+			let enablementState = this.getExtensionEnablementState(extensionId, nightlyExtensionId);
 			let action = '';
 			if (!enablementState.installed) {
 				action = 'install';
 				await this._commandService.executeCommand('workbench.extensions.installExtension',
-					this._productService.quality !== 'stable' ? nightlyExtensionName : extensionName);
+					this._productService.quality !== 'stable' ? nightlyExtensionId : extensionId);
 			} else if (!enablementState.extension) {
 				action = 'error';
 			} else if (!enablementState.enabled) {
 				action = 'enable';
 				await this._extensionsWorkbenchService.setEnablement(enablementState.extension, EnablementState.EnabledGlobally);
-				if (dataElement.setting?.requiresReloadOnEnable) {
-					await this._commandService.executeCommand('workbench.action.reloadWindow');
-				}
 			} else {
 				action = 'disable';
 				await this._extensionsWorkbenchService.setEnablement(enablementState.extension, EnablementState.DisabledGlobally);
-				if (dataElement.setting?.requiresReloadOnDisable) {
+				if (requiresReloadOnDisable) {
 					await this._commandService.executeCommand('workbench.action.reloadWindow');
 				}
 			}
 			this._telemetryService.publicLog2<{ action: string }, ExtensionToggleSettingTelemetryClassification>('ExtensionToggleClick', { action });
 
-			enablementState = this.getExtensionEnablementState(extensionName, nightlyExtensionName);
-			this.renderControls(template.actionButton, enablementState.installed, enablementState.enabled, installButtonText, enableButtonText, disableButtonText);
+			enablementState = this.getExtensionEnablementState(extensionId, nightlyExtensionId);
+			this.renderControls(template.actionButton, enablementState, requiresReloadOnDisable);
 		}));
 
-		const enablementState = this.getExtensionEnablementState(extensionName, nightlyExtensionName);
-		this.renderControls(template.actionButton, enablementState.installed, enablementState.enabled, installButtonText, enableButtonText, disableButtonText);
+		const enablementState = this.getExtensionEnablementState(extensionId, nightlyExtensionId);
+		this.renderControls(template.actionButton, enablementState, requiresReloadOnDisable);
 	}
 }
 
@@ -2044,6 +2048,7 @@ export class SettingTreeRenderers {
 		];
 
 		const actionFactory = (setting: ISetting) => this.getActionsForSetting(setting);
+		const emptyActionFactory = (_: ISetting) => [];
 		const settingRenderers = [
 			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions, actionFactory),
@@ -2056,7 +2061,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingObjectRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingBoolObjectRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingsExtensionToggleRenderer, this.settingActions, actionFactory)
+			this._instantiationService.createInstance(SettingsExtensionToggleRenderer, [], emptyActionFactory)
 		];
 
 		this.onDidClickOverrideElement = Event.any(...settingRenderers.map(r => r.onDidClickOverrideElement));

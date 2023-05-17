@@ -7,6 +7,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ExtensionToggleConfiguration } from 'vs/base/common/product';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -88,3 +91,25 @@ export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
 export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';
 
 export const ENABLE_LANGUAGE_FILTER = true;
+
+export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
+
+type ExtensionToggleData = {
+	configuration: ExtensionToggleConfiguration;
+	commonlyUsed: string[];
+};
+
+export async function getExperimentalExtensionToggleData(workbenchAssignmentService: IWorkbenchAssignmentService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
+	if (!ENABLE_EXTENSION_TOGGLE_SETTINGS) {
+		return undefined;
+	}
+
+	const isTreatment = await workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings');
+	if ((isTreatment || !productService.quality) && productService.extensionToggleConfiguration && productService.commonlyUsedSettings) {
+		return {
+			configuration: productService.extensionToggleConfiguration,
+			commonlyUsed: productService.commonlyUsedSettings
+		};
+	}
+	return undefined;
+}

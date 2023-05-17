@@ -752,14 +752,7 @@ export class DefaultSettings extends Disposable {
 					nonLanguageSpecificDefaultValueSource: defaultValueSource,
 					isLanguageTagSetting,
 					categoryLabel,
-					categoryOrder,
-					extensionName: prop.extensionName,
-					nightlyExtensionName: prop.nightlyExtensionName,
-					installButtonText: prop.installButtonText,
-					enableButtonText: prop.enableButtonText,
-					disableButtonText: prop.disableButtonText,
-					requiresReloadOnDisable: prop.requiresReloadOnDisable,
-					requiresReloadOnEnable: prop.requiresReloadOnEnable
+					categoryOrder
 				});
 			}
 		}

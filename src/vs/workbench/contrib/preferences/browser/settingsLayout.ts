@@ -6,6 +6,7 @@
 import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { getExperimentalExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 export interface ITOCEntry<T> {
 	id: string;
@@ -30,12 +31,12 @@ const defaultCommonlyUsedSettings: string[] = [
 	'workbench.editor.enablePreview'
 ];
 
-export async function getCommonlyUsedData(productService: IProductService, workbenchAssignmentService: IWorkbenchAssignmentService): Promise<ITOCEntry<string>> {
-	const isTreatment = await workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings');
+export async function getCommonlyUsedData(workbenchAssignmentService: IWorkbenchAssignmentService, productService: IProductService): Promise<ITOCEntry<string>> {
+	const toggleData = await getExperimentalExtensionToggleData(workbenchAssignmentService, productService);
 	return {
 		id: 'commonlyUsed',
 		label: localize('commonlyUsed', "Commonly Used"),
-		settings: ((isTreatment || !productService.quality) && productService?.commonlyUsedSettings) || defaultCommonlyUsedSettings
+		settings: toggleData ? toggleData.commonlyUsed : defaultCommonlyUsedSettings
 	};
 }
 
