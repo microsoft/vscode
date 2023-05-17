@@ -37,14 +37,14 @@ const errorReporter: ErrorReporter = {
 const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
 
 const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), product.serverDataFolderName || '.vscode-remote');
-const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
+const USER_DATA_PATH = args['user-data-dir'] || join(REMOTE_DATA_FOLDER, 'data');
 const APP_SETTINGS_HOME = join(USER_DATA_PATH, 'User');
 const GLOBAL_STORAGE_HOME = join(APP_SETTINGS_HOME, 'globalStorage');
 const LOCAL_HISTORY_HOME = join(APP_SETTINGS_HOME, 'History');
 const MACHINE_SETTINGS_HOME = join(USER_DATA_PATH, 'Machine');
-args['user-data-dir'] = USER_DATA_PATH;
 const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 const BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, 'extensions');
+args['user-data-dir'] = USER_DATA_PATH;
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
 args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'extensions');
 
