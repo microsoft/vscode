@@ -12,7 +12,7 @@ declare module 'vscode' {
 		/**
 		 * The foreground color for this entry.
 		 */
-		color: string | ThemeColor | undefined;
+		color?: string | ThemeColor;
 	}
 
 }
