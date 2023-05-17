@@ -310,8 +310,8 @@ export class InteractiveEditorWidget {
 		}
 		let label = defaultAriaLabel;
 		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InteractiveEditor)) {
-			const kbLabel = this._keybindingService.lookupKeybinding('interactiveSession.accessibilityHelpEditor')?.getLabel();
-			label = kbLabel ? localize('interactiveSession.accessibilityHelpEditor', "Interactive Editor Input, Use {0} for Interactive Editor Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Interactive Editor Input, Run the Interactive Editor Accessibility Help command for more information.");
+			const kbLabel = this._keybindingService.lookupKeybinding('interactiveEditor.accessibilityHelp')?.getLabel();
+			label = kbLabel ? localize('interactiveEditor.accessibilityHelp', "Interactive Editor Input, Use {0} for Interactive Editor Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Interactive Editor Input, Run the Interactive Editor Accessibility Help command for more information.");
 		}
 		_inputEditorOptions.ariaLabel = label;
 		this._inputEditor.updateOptions({ ariaLabel: label });

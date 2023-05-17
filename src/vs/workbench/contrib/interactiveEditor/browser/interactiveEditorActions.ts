@@ -552,10 +552,11 @@ export class ContractMessageAction extends AbstractInteractiveEditorAction {
 export class AccessibilityHelpEditorAction extends EditorAction2 {
 	constructor() {
 		super({
-			id: 'interactiveSession.accessibilityHelpEditor',
+			id: 'interactiveEditor.accessibilityHelp',
 			title: localize('actions.interactiveSession.accessibiltyHelpEditor', "Interactive Session Editor Accessibility Help"),
-			precondition: ContextKeyExpr.has('interactiveEditorFocused'),
+			category: AbstractInteractiveEditorAction.category,
 			keybinding: {
+				when: CTX_INTERACTIVE_EDITOR_FOCUSED,
 				primary: KeyMod.Alt | KeyCode.F1,
 				weight: KeybindingWeight.EditorContrib
 			}
