@@ -364,7 +364,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override async renderChanges(response: EditResponse) {
 
-		this._diffZone.showDiff();
+		this._diffZone.show();
 		this._updateSummaryMessage();
 		this._ctxShowingDiff.set(true);
 
@@ -382,7 +382,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 			this._diffZone.hide();
 			this._ctxShowingDiff.set(false);
 		} else {
-			this._diffZone.showDiff();
+			this._diffZone.show();
 			this._ctxShowingDiff.set(true);
 		}
 		scrollState.restore(this._editor);
