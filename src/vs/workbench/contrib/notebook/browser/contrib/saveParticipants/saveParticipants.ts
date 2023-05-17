@@ -22,13 +22,13 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IStoredFileWorkingCopySaveParticipant, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-// import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/languages';
+import { CodeActionTriggerType, CodeActionProvider, IWorkspaceTextEdit } from 'vs/editor/common/languages';
 import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { isEqual } from 'vs/base/common/resources';
 
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
@@ -118,7 +118,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			return undefined;
 		}
 
-		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('notebook.experimental.codeActionsOnSave');
+		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>(NotebookSetting.codeActionsOnSave);
 		if (!setting) {
 			return undefined;
 		}
@@ -166,7 +166,6 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		progress.report({ message: localize('notebookFormatSave.formatting', "Formatting") });
 		const disposable = new DisposableStore();
 		try {
-			// const allCellEdits =
 			await Promise.all(notebookModel.cells.map(async cell => {
 				const ref = await this.textModelService.createModelReference(cell.uri);
 				disposable.add(ref);
@@ -223,6 +222,21 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 			try {
 				for (const action of actionsToRun.validActions) {
+					const codeActionEdits = action.action.edit?.edits;
+					let breakFlag = false;
+					for (const edit of codeActionEdits ?? []) {
+						const workspaceTextEdit = edit as IWorkspaceTextEdit;
+						if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
+							continue;
+						} else {
+							// error
+							breakFlag = true;
+						}
+					}
+					if (breakFlag) {
+						this.logService.warn('Failed to apply code action on save, applied to multiple resources.');
+						continue;
+					}
 					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 					await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
 					if (token.isCancellationRequested) {
