@@ -30,7 +30,6 @@ export function activate(context: ExtensionContext): void {
 
 	disposables.push(initializeGitBaseExtension());
 	disposables.push(initializeGitExtension(context, logger));
-	disposables.push(new GitHubCanonicalUriProvider());
 }
 
 function initializeGitBaseExtension(): Disposable {
@@ -95,6 +94,7 @@ function initializeGitExtension(context: ExtensionContext, logger: LogOutputChan
 						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState, logger));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
+						disposables.add(new GitHubCanonicalUriProvider(gitAPI));
 						setGitHubContext(gitAPI, disposables);
 
 						commands.executeCommand('setContext', 'git-base.gitEnabled', true);
