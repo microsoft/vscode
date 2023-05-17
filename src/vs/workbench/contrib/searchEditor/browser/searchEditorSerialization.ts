@@ -129,9 +129,9 @@ const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: stri
 		onlyOpenEditors: !!pattern.onlyOpenEditors,
 		notebookSearchConfig: {
 			includeMarkupInput: !!pattern.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
-			includeMarkupPreview: !pattern.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
-			includeCodeInput: !pattern.contentPattern.notebookInfo?.isInNotebookCellInput,
-			includeOutput: !pattern.contentPattern.notebookInfo?.isInNotebookCellOutput,
+			includeMarkupPreview: !!pattern.contentPattern.notebookInfo?.isInNotebookMarkdownPreview,
+			includeCodeInput: !!pattern.contentPattern.notebookInfo?.isInNotebookCellInput,
+			includeOutput: !!pattern.contentPattern.notebookInfo?.isInNotebookCellOutput,
 		}
 	};
 };
