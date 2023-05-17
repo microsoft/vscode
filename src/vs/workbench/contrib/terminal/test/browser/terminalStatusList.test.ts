@@ -130,6 +130,19 @@ suite('Workbench - TerminalStatusList', () => {
 		strictEqual(list.statuses[1].icon!.id, Codicon.zap.id, 'zap~spin should have animation removed only');
 	});
 
+	test('add should fire onDidRemoveStatus if same status id with a different object reference was added', () => {
+		const eventCalls: string[] = [];
+		list.onDidAddStatus(() => eventCalls.push('add'));
+		list.onDidRemoveStatus(() => eventCalls.push('remove'));
+		list.add({ id: 'test', severity: Severity.Info });
+		list.add({ id: 'test', severity: Severity.Info });
+		deepStrictEqual(eventCalls, [
+			'add',
+			'remove',
+			'add'
+		]);
+	});
+
 	test('remove', () => {
 		list.add({ id: 'info', severity: Severity.Info });
 		list.add({ id: 'warning', severity: Severity.Warning });

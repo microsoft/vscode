@@ -174,13 +174,14 @@ declare namespace monaco {
 		 * @param path A file system path (see `Uri#fsPath`)
 		 */
 		static file(path: string): Uri;
-		static from(components: {
-			scheme: string;
-			authority?: string;
-			path?: string;
-			query?: string;
-			fragment?: string;
-		}): Uri;
+		/**
+		 * Creates new Uri from uri components.
+		 *
+		 * Unless `strict` is `true` the scheme is defaults to be `file`. This function performs
+		 * validation and should be used for untrusted uri components retrieved from storage,
+		 * user input, command arguments etc
+		 */
+		static from(components: UriComponents, strict?: boolean): Uri;
 		/**
 		 * Join a Uri path with path fragments and normalizes the resulting path.
 		 *
@@ -202,6 +203,16 @@ declare namespace monaco {
 		 */
 		toString(skipEncoding?: boolean): string;
 		toJSON(): UriComponents;
+		/**
+		 * A helper function to revive URIs.
+		 *
+		 * **Note** that this function should only be used when receiving Uri#toJSON generated data
+		 * and that it doesn't do any validation. Use {@link Uri.from} when received "untrusted"
+		 * uri components such as command arguments or data from storage.
+		 *
+		 * @param data The Uri components or Uri to revive.
+		 * @returns The revived Uri or undefined or null.
+		 */
 		static revive(data: UriComponents | Uri): Uri;
 		static revive(data: UriComponents | Uri | undefined): Uri | undefined;
 		static revive(data: UriComponents | Uri | null): Uri | null;
@@ -210,10 +221,10 @@ declare namespace monaco {
 
 	export interface UriComponents {
 		scheme: string;
-		authority: string;
-		path: string;
-		query: string;
-		fragment: string;
+		authority?: string;
+		path?: string;
+		query?: string;
+		fragment?: string;
 	}
 	/**
 	 * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -3855,6 +3866,11 @@ declare namespace monaco.editor {
 	 * Configuration options for the diff editor.
 	 */
 	export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
+		/**
+		 * Is the diff editor inside another editor
+		 * Defaults to false
+		 */
+		isInEmbeddedEditor?: boolean;
 	}
 
 	/**
@@ -5491,11 +5507,6 @@ declare namespace monaco.editor {
 		 * Aria label for modified editor.
 		 */
 		modifiedAriaLabel?: string;
-		/**
-		 * Is the diff editor inside another editor
-		 * Defaults to false
-		 */
-		isInEmbeddedEditor?: boolean;
 	}
 
 	/**
