@@ -28,7 +28,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { DropdownWithDefaultActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
@@ -43,6 +43,7 @@ import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -264,7 +265,14 @@ export class InteractiveEditorWidget {
 				primaryGroup: () => true,
 				useSeparatorsInPrimaryActions: true
 			},
-			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => createActionViewItem(this._instantiationService, action, options)
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+
+				if (action instanceof SubmenuItemAction) {
+					return this._instantiationService.createInstance(DropdownWithDefaultActionViewItem, action, { ...options, renderKeybindingWithDefaultActionLabel: true, persistLastActionId: false });
+				}
+
+				return createActionViewItem(this._instantiationService, action, options);
+			}
 		};
 		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, workbenchToolbarOptions);
 		this._store.add(statusToolbar);
@@ -322,21 +330,6 @@ export class InteractiveEditorWidget {
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
 		return base + editorHeight + markdownMessageHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
-	}
-
-	saveViewState(): InteractiveEditorWidgetViewState {
-		const editorViewState = this._inputEditor.saveViewState();
-		return {
-			editorViewState,
-			input: this.value,
-			placeholder: this.placeholder
-		};
-	}
-
-	restoreViewState(state: InteractiveEditorWidgetViewState) {
-		this.value = state.input;
-		this.placeholder = state.placeholder;
-		this._inputEditor.restoreViewState(state.editorViewState);
 	}
 
 	updateProgress(show: boolean) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, h } from 'vs/base/browser/dom';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -30,6 +30,7 @@ import { TextEdit } from 'vs/editor/common/languages';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 
 export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
@@ -39,12 +40,12 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 	private readonly _diffEditor: IDiffEditor;
 	private readonly _inlineDiffDecorations: IEditorDecorationsCollection;
-	private readonly _sessionStore = this._disposables.add(new DisposableStore());
 	private _dim: Dimension | undefined;
+	private _isVisible: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
-		private readonly _textModelv0: ITextModel,
+		private readonly _session: Session,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
@@ -80,7 +81,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 			modifiedEditor: { contributions: diffContributions }
 		}, editor);
 		this._disposables.add(this._diffEditor);
-		this._diffEditor.setModel({ original: this._textModelv0, modified: editor.getModel() });
+		this._diffEditor.setModel({ original: this._session.textModel0, modified: editor.getModel() });
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
@@ -115,41 +116,32 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 	// --- show / hide --------------------
 
+	get isVisible(): boolean {
+		return this._isVisible;
+	}
+
 	override hide(): void {
 		this._cleanupFullDiff();
 		this._cleanupInlineDiff();
-		this._sessionStore.clear();
 		super.hide();
+		this._isVisible = false;
 	}
 
 	override show(): void {
 		throw new Error('not supported like this, use showDiff');
 	}
 
-	showDiff(range: () => Range, changes: LineRangeMapping[]): void {
+	showDiff(): void {
 		assertType(this.editor.hasModel());
-		this._sessionStore.clear();
-
-		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
-			const result = this._diffEditor.getDiffComputationResult();
-			const hasFocus = this._diffEditor.hasTextFocus();
-			this._updateFromChanges(range(), result?.changes2 ?? []);
-			// TODO@jrieken find a better fix for this. this is the challenge:
-			// the _doShowForChanges method invokes show of the zone widget which removes and adds the
-			// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
-			// focus
-			if (hasFocus) {
-				this._diffEditor.focus();
-			}
-		}));
-		this._updateFromChanges(range(), changes);
+		this._updateFromChanges(this._session.wholeRange, this._session.lastTextModelChanges);
+		this._isVisible = true;
 	}
 
 	private _updateFromChanges(range: Range, changes: LineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
 
-		if (changes.length === 0) {
-			// no change
+		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
+			// no change or changes to an empty file
 			this._logService.debug('[IE] livePreview-mode: no diff');
 			this.hide();
 
@@ -170,7 +162,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 	// --- inline diff
 
 	private _renderChangesWithInlineDiff(changes: LineRangeMapping[]) {
-		const original = this._textModelv0;
+		const original = this._session.textModel0;
 
 		const decorations: IModelDeltaDecoration[] = [];
 
@@ -267,7 +259,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 			originalLineRange = new LineRange(originalLineRange.startLineNumber, originalLineRange.endLineNumberExclusive + endDelta);
 		}
 
-		const originalDiffHidden = invertLineRange(originalLineRange, this._textModelv0);
+		const originalDiffHidden = invertLineRange(originalLineRange, this._session.textModel0);
 		const modifiedDiffHidden = invertLineRange(modifiedLineRange, model);
 
 		return {

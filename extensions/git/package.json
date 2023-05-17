@@ -13,6 +13,7 @@
     "diffCommand",
     "contribEditorContentMenu",
     "contribEditSessions",
+    "canonicalUriIdentityProvider",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
     "quickDiffProvider",
@@ -2705,6 +2706,14 @@
           ],
           "default": "prompt",
           "markdownDescription": "%config.openRepositoryInParentFolders%",
+          "scope": "resource"
+        },
+        "git.similarityThreshold": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "%config.similarityThreshold%",
           "scope": "resource"
         }
       }

@@ -63,6 +63,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize
+	get expectsResolverExtension() { return !!this.configuration.remoteAuthority?.includes('+'); }
+
+	@memoize
 	get execPath() { return this.configuration.execPath; }
 
 	@memoize
