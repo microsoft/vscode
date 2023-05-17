@@ -44,6 +44,7 @@ import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interact
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -173,6 +174,7 @@ export class InteractiveEditorWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 
 		// input editor logic
@@ -484,6 +486,27 @@ export class InteractiveEditorWidget {
 		this._previewCreateModel.value = model;
 		this._previewCreateEditor.setModel(model);
 		this._onDidChangeHeight.fire();
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			this._previewDiffEditor.onDidUpdateDiff(() => {
+				const modified = this._previewDiffEditor.getModifiedEditor().getDomNode();
+				const original = this._previewDiffEditor.getOriginalEditor().getDomNode();
+				const container = this._previewDiffEditor.getContainerDomNode();
+				if (!modified || !original) {
+					return;
+				}
+				// prevent escape from focusing the underlying editors
+				this._previewDiffEditor.getContainerDomNode().classList.add('screen-reader-interactive-editor-widget');
+				// prevent the user from having to tab through the underlying editors
+				modified.querySelector('.previewDiff textarea.inputarea')?.setAttribute('disabled', '');
+				original.querySelector('.previewDiff textarea.inputarea')?.setAttribute('disabled', '');
+				// open the diff review
+				this._previewDiffEditor.diffReviewNext();
+				// remove the X button because going back to the underlying editors is not an accessible experience
+				container.querySelector('div > div.diff-review-actions > div > ul > li > a')?.remove();
+				// go back to the input so the placeholder text is read
+				this._inputEditor.focus();
+			});
+		}
 	}
 
 	hideCreatePreview() {
