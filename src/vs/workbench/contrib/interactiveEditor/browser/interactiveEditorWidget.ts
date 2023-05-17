@@ -487,6 +487,7 @@ export class InteractiveEditorWidget {
 		this._previewDiffEditor.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lineRangeAsRange), 'diff-hidden');
 		this._previewDiffEditor.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');
 		this._previewDiffEditor.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
+
 		this._onDidChangeHeight.fire();
 	}
 

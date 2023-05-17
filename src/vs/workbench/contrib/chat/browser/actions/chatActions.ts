@@ -154,7 +154,7 @@ export function registerChatActions() {
 				f1: false,
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-					weight: KeybindingWeight.WorkbenchContrib + 10,
+					weight: KeybindingWeight.WorkbenchContrib,
 					when: ContextKeyExpr.and(CONTEXT_IN_INTERACTIVE_SESSION, ContextKeyExpr.not(EditorContextKeys.focus.key))
 				}
 			});
