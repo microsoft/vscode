@@ -346,7 +346,7 @@ export class EditorsObserver extends Disposable {
 		if (this.editorGroupsService.partOptions.limit?.excludeDirty) {
 			mostRecentEditorsCountingForLimit = mostRecentEditors.filter(({ editor }) => {
 				if ((editor.isDirty() && !editor.isSaving()) || editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
-					return false;
+					return false; // not dirty editors (unless in the process of saving) or scratchpads
 				}
 
 				return true;
@@ -362,7 +362,7 @@ export class EditorsObserver extends Disposable {
 		// Extract least recently used editors that can be closed
 		const leastRecentlyClosableEditors = mostRecentEditorsCountingForLimit.reverse().filter(({ editor, groupId }) => {
 			if ((editor.isDirty() && !editor.isSaving()) || editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
-				return false; // not dirty editors (unless in the process of saving)
+				return false; // not dirty editors (unless in the process of saving) or scratchpads
 			}
 
 			if (exclude && editor === exclude.editor && groupId === exclude.groupId) {

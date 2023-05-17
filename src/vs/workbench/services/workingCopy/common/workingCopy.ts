@@ -28,7 +28,7 @@ export const enum WorkingCopyCapabilities {
 	 * it is dirty and unsaved content will be
 	 * discarded without prompting if closed.
 	 */
-	Scratchpad = 1 << 2,
+	Scratchpad = 1 << 2
 }
 
 /**
@@ -172,7 +172,8 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	/**
 	 * Indicates that the file has unsaved changes.
 	 * Used for backup tracking and accounts for
-	 * working copies that are never dirty e.g. scratchpads
+	 * working copies that are never dirty e.g.
+	 * scratchpads.
 	 */
 	isModified(): boolean;
 
