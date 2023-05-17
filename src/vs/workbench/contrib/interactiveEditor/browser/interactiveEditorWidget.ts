@@ -47,6 +47,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -199,7 +200,7 @@ export class InteractiveEditorWidget {
 		this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('accessibility.verbosity.interactiveEditor')) {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InteractiveEditor)) {
 				this._updateAriaLabel();
 			}
 		}));
@@ -307,7 +308,7 @@ export class InteractiveEditorWidget {
 		if (!this._accessibilityService.isScreenReaderOptimized()) {
 			return;
 		}
-		if (this._configurationService.getValue<boolean>('accessibility.verbosity.interactiveEditor')) {
+		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InteractiveEditor)) {
 			const kbLabel = this._keybindingService.lookupKeybinding('interactiveSession.action.accessibilityHelpEditor')?.getLabel();
 			_inputEditorOptions.ariaLabel = kbLabel ? localize('interactiveSession.action.accessibilityHelpEditor', "Interactive Editor Input, Use {0} for Interactive Editor Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Interactive Editor Input, Run the Interactive Editor Accessibility Help command for more information.");
 		} else {
