@@ -229,8 +229,9 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 						if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
 							continue;
 						} else {
-							// error
+							// error -> applied to multiple resources
 							breakFlag = true;
+							break;
 						}
 					}
 					if (breakFlag) {
