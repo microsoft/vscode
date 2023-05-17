@@ -50,7 +50,6 @@ if [ -n "$VSCODE_ENV_REPLACE" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		# Use -e to encoded expand colons and other sequences
 		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
 		export $VARNAME="$VALUE"
 	done
@@ -60,7 +59,6 @@ if [ -n "$VSCODE_ENV_PREPEND" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		# Use -e to encoded expand colons and other sequences
 		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
 		export $VARNAME="$VALUE${!VARNAME}"
 	done
@@ -70,7 +68,6 @@ if [ -n "$VSCODE_ENV_APPEND" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
-		# Use -e to encoded expand colons and other sequences
 		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
 		export $VARNAME="${!VARNAME}$VALUE"
 	done
