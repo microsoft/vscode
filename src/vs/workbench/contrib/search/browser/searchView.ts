@@ -2010,6 +2010,7 @@ export class SearchView extends ViewPane {
 			const isInNotebookCellInput = this.searchWidget.getNotebookFilters().codeInput;
 			const isInNotebookCellOutput = this.searchWidget.getNotebookFilters().codeOutput;
 			const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
+			const isInNotebookMarkdownPreview = this.searchWidget.getNotebookFilters().markupPreview;
 
 			this.viewletState['query.contentPattern'] = contentPattern;
 			this.viewletState['query.regex'] = isRegex;
@@ -2017,6 +2018,7 @@ export class SearchView extends ViewPane {
 			this.viewletState['query.caseSensitive'] = isCaseSensitive;
 
 			this.viewletState['query.isInNotebookMarkdownInput'] = isInNotebookMarkdownInput;
+			this.viewletState['query.isInNotebookMarkdownPreview'] = isInNotebookMarkdownPreview;
 			this.viewletState['query.isInNotebookCellInput'] = isInNotebookCellInput;
 			this.viewletState['query.isInNotebookCellOutput'] = isInNotebookCellOutput;
 		}
