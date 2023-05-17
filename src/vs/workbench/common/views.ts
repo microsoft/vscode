@@ -756,6 +756,7 @@ export type TreeCommand = Command & { originalId?: string };
 export interface ITreeItemCheckboxState {
 	isChecked: boolean;
 	tooltip?: string;
+	accessibilityInformation?: IAccessibilityInformation;
 }
 
 export interface ITreeItem {

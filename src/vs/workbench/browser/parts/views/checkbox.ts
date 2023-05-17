@@ -56,7 +56,7 @@ export class TreeItemCheckbox extends Disposable {
 				icon: node.checkbox.isChecked ? Codicon.check : undefined,
 				...defaultToggleStyles
 			});
-
+			this.setAccessibilityInformation(node.checkbox);
 			this.toggle.domNode.classList.add(TreeItemCheckbox.checkboxClass);
 			DOM.append(this.checkboxContainer, this.toggle.domNode);
 			this.registerListener(node);
@@ -78,6 +78,7 @@ export class TreeItemCheckbox extends Disposable {
 			node.checkbox.isChecked = this.toggle.checked;
 			this.toggle.setIcon(this.toggle.checked ? Codicon.check : undefined);
 			this.toggle.setTitle(this.createCheckboxTitle(node.checkbox));
+			this.setAccessibilityInformation(node.checkbox);
 			this.checkboxStateHandler.setCheckboxState(node);
 		}
 	}
@@ -85,6 +86,15 @@ export class TreeItemCheckbox extends Disposable {
 	private createCheckboxTitle(checkbox: ITreeItemCheckboxState) {
 		return checkbox.tooltip ? checkbox.tooltip :
 			checkbox.isChecked ? localize('checked', 'Checked') : localize('unchecked', 'Unchecked');
+	}
+
+	private setAccessibilityInformation(checkbox: ITreeItemCheckboxState) {
+		if (this.toggle && checkbox.accessibilityInformation) {
+			this.toggle.domNode.ariaLabel = checkbox.accessibilityInformation.label;
+			if (checkbox.accessibilityInformation.role) {
+				this.toggle.domNode.role = checkbox.accessibilityInformation.role;
+			}
+		}
 	}
 
 	private removeCheckbox() {
