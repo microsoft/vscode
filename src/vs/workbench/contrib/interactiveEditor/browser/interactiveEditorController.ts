@@ -37,6 +37,7 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -106,7 +107,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INTERACTIVE_EDITOR_DID_EDIT.bindTo(contextKeyService);
@@ -248,7 +250,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
 
 		this._zone.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
-		this._zone.widget.placeholder = this._activeSession.session.placeholder ?? '';
+		this._zone.widget.placeholder = this._getPlaceholderText();
 		this._zone.widget.updateStatus(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.show(this._activeSession.wholeRange.getEndPosition());
 
@@ -281,6 +283,22 @@ export class InteractiveEditorController implements IEditorContribution {
 		return this._activeSession.lastExchange
 			? State.SHOW_RESPONSE
 			: State.WAIT_FOR_INPUT;
+	}
+
+	private _getPlaceholderText(): string {
+		if (!this._activeSession) {
+			return '';
+		}
+		let result = this._activeSession.session.placeholder ?? localize('default.placeholder', "Ask a question");
+		if (InteractiveEditorController._promptHistory.length > 0) {
+			const kb1 = this._keybindingService.lookupKeybinding('interactiveEditor.previousFromHistory')?.getLabel();
+			const kb2 = this._keybindingService.lookupKeybinding('interactiveEditor.nextFromHistory')?.getLabel();
+
+			if (kb1 && kb2) {
+				result = localize('default.placeholder.history', "{0} ({1}, {2} for history)", result, kb1, kb2);
+			}
+		}
+		return result;
 	}
 
 	private _cancelNotebookSiblingEditors(): void {
@@ -316,6 +334,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private async [State.WAIT_FOR_INPUT](options: InteractiveEditorRunOptions | undefined): Promise<State.DONE | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
 		assertType(this._activeSession);
 
+		this._zone.widget.placeholder = this._getPlaceholderText();
 		this._zone.show(this._activeSession.wholeRange.getEndPosition());
 
 		if (options?.message) {
