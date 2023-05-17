@@ -83,6 +83,11 @@ export class UserDataSyncInitializer implements IUserDataInitializer {
 						return;
 					}
 
+					if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider && !this.environmentService.options.settingsSyncOptions.enabled) {
+						this.logService.trace(`Skipping initializing user data as settings sync is disabled`);
+						return;
+					}
+
 					let authenticationSession;
 					try {
 						authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);

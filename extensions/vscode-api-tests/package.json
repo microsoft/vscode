@@ -10,6 +10,7 @@
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentPaste",
     "editorInsets",
     "extensionRuntime",
     "extensionsAny",
@@ -25,6 +26,7 @@
     "portsAttributes",
     "quickPickSortByLabel",
     "resolvers",
+    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
@@ -42,7 +44,8 @@
     "treeItemCheckbox",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],

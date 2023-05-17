@@ -1275,7 +1275,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jeff-hykin/better-shell-syntax 1.5.0 - MIT
+jeff-hykin/better-shell-syntax 1.5.4 - MIT
 https://github.com/jeff-hykin/better-shell-syntax
 
 MIT License
@@ -2278,7 +2278,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-microsoft/vscode-mssql 1.17.0 - MIT
+microsoft/vscode-mssql 1.19.0 - MIT
 https://github.com/microsoft/vscode-mssql
 
 ------------------------------------------ START OF LICENSE -----------------------------------------

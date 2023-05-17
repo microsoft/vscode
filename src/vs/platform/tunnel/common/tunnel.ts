@@ -349,6 +349,9 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			if (tunnel.tunnelRemoteHost !== remoteHost || tunnel.tunnelRemotePort !== remotePort) {
 				this.logService.warn('ForwardedPorts: (TunnelService) Created tunnel does not match requirements of requested tunnel. Host or port mismatch.');
 			}
+			if (privacy && tunnel.privacy !== privacy) {
+				this.logService.warn('ForwardedPorts: (TunnelService) Created tunnel does not match requirements of requested tunnel. Privacy mismatch.');
+			}
 			this._onTunnelOpened.fire(newTunnel);
 			return newTunnel;
 		});

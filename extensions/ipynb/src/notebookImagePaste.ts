@@ -18,6 +18,16 @@ enum MimeType {
 	uriList = 'text/uri-list',
 }
 
+const imageMimeTypes: ReadonlySet<string> = new Set<string>([
+	MimeType.bmp,
+	MimeType.gif,
+	MimeType.ico,
+	MimeType.jpeg,
+	MimeType.png,
+	MimeType.tiff,
+	MimeType.webp,
+]);
+
 const imageExtToMime: ReadonlyMap<string, string> = new Map<string, string>([
 	['.bmp', MimeType.bmp],
 	['.gif', MimeType.gif],
@@ -35,7 +45,11 @@ function getImageMimeType(uri: vscode.Uri): string | undefined {
 	return imageExtToMime.get(extname(uri.fsPath).toLowerCase());
 }
 
-class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
+class DropOrPasteEditProvider implements vscode.DocumentPasteEditProvider, vscode.DocumentDropEditProvider {
+
+	private readonly id = 'insertAttachment';
+
+	private readonly defaultPriority = 5;
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
@@ -43,23 +57,21 @@ class CopyPasteEditProvider implements vscode.DocumentPasteEditProvider {
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('pasteImagesAsAttachments.enabled', false);
+		const enabled = vscode.workspace.getConfiguration('ipynb', document).get('pasteImagesAsAttachments.enabled', true);
 		if (!enabled) {
 			return;
 		}
 
-		const insert = await createInsertImageAttachmentEdit(document, dataTransfer, token);
+		const insert = await this.createInsertImageAttachmentEdit(document, dataTransfer, token);
 		if (!insert) {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText);
+		const pasteEdit = new vscode.DocumentPasteEdit(insert.insertText, this.id, vscode.l10n.t('Insert Image as Attachment'));
+		pasteEdit.priority = this.getPastePriority(dataTransfer);
 		pasteEdit.additionalEdit = insert.additionalEdit;
 		return pasteEdit;
 	}
-}
-
-class DropEditProvider implements vscode.DocumentDropEditProvider {
 
 	async provideDocumentDropEdits(
 		document: vscode.TextDocument,
@@ -67,57 +79,69 @@ class DropEditProvider implements vscode.DocumentDropEditProvider {
 		dataTransfer: vscode.DataTransfer,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentDropEdit | undefined> {
-		const insert = await createInsertImageAttachmentEdit(document, dataTransfer, token);
+		const insert = await this.createInsertImageAttachmentEdit(document, dataTransfer, token);
 		if (!insert) {
 			return;
 		}
 
 		const dropEdit = new vscode.DocumentDropEdit(insert.insertText);
+		dropEdit.id = this.id;
+		dropEdit.priority = this.defaultPriority;
 		dropEdit.additionalEdit = insert.additionalEdit;
-		dropEdit.label = vscode.l10n.t('Insert image as attachment');
+		dropEdit.label = vscode.l10n.t('Insert Image as Attachment');
 		return dropEdit;
 	}
-}
 
-async function createInsertImageAttachmentEdit(
-	document: vscode.TextDocument,
-	dataTransfer: vscode.DataTransfer,
-	token: vscode.CancellationToken,
-): Promise<{ insertText: vscode.SnippetString; additionalEdit: vscode.WorkspaceEdit } | undefined> {
-	const imageData = await getDroppedImageData(dataTransfer, token);
-	if (!imageData.length || token.isCancellationRequested) {
-		return;
-	}
-
-	const currentCell = getCellFromCellDocument(document);
-	if (!currentCell) {
-		return undefined;
-	}
-
-	// create updated metadata for cell (prep for WorkspaceEdit)
-	const newAttachment = buildAttachment(currentCell, imageData);
-	if (!newAttachment) {
-		return;
-	}
-
-	// build edits
-	const additionalEdit = new vscode.WorkspaceEdit();
-	const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newAttachment.metadata);
-	const notebookUri = currentCell.notebook.uri;
-	additionalEdit.set(notebookUri, [nbEdit]);
-
-	// create a snippet for paste
-	const insertText = new vscode.SnippetString();
-	newAttachment.filenames.forEach((filename, i) => {
-		insertText.appendText('![');
-		insertText.appendPlaceholder(`${filename}`);
-		insertText.appendText(`](${/\s/.test(filename) ? `<attachment:${filename}>` : `attachment:${filename}`})`);
-		if (i !== newAttachment.filenames.length - 1) {
-			insertText.appendText(' ');
+	private getPastePriority(dataTransfer: vscode.DataTransfer): number {
+		if (dataTransfer.get('text/plain')) {
+			// Deprioritize in favor of normal text content
+			return -5;
 		}
-	});
 
-	return { insertText, additionalEdit };
+		// Otherwise boost priority so attachments are preferred
+		return this.defaultPriority;
+	}
+
+	private async createInsertImageAttachmentEdit(
+		document: vscode.TextDocument,
+		dataTransfer: vscode.DataTransfer,
+		token: vscode.CancellationToken,
+	): Promise<{ insertText: vscode.SnippetString; additionalEdit: vscode.WorkspaceEdit } | undefined> {
+		const imageData = await getDroppedImageData(dataTransfer, token);
+		if (!imageData.length || token.isCancellationRequested) {
+			return;
+		}
+
+		const currentCell = getCellFromCellDocument(document);
+		if (!currentCell) {
+			return undefined;
+		}
+
+		// create updated metadata for cell (prep for WorkspaceEdit)
+		const newAttachment = buildAttachment(currentCell, imageData);
+		if (!newAttachment) {
+			return;
+		}
+
+		// build edits
+		const additionalEdit = new vscode.WorkspaceEdit();
+		const nbEdit = vscode.NotebookEdit.updateCellMetadata(currentCell.index, newAttachment.metadata);
+		const notebookUri = currentCell.notebook.uri;
+		additionalEdit.set(notebookUri, [nbEdit]);
+
+		// create a snippet for paste
+		const insertText = new vscode.SnippetString();
+		newAttachment.filenames.forEach((filename, i) => {
+			insertText.appendText('![');
+			insertText.appendPlaceholder(`${filename}`);
+			insertText.appendText(`](${/\s/.test(filename) ? `<attachment:${filename}>` : `attachment:${filename}`})`);
+			if (i !== newAttachment.filenames.length - 1) {
+				insertText.appendText(' ');
+			}
+		});
+
+		return { insertText, additionalEdit };
+	}
 }
 
 async function getDroppedImageData(
@@ -126,16 +150,21 @@ async function getDroppedImageData(
 ): Promise<readonly ImageAttachmentData[]> {
 
 	// Prefer using image data in the clipboard
-	// TODO: dataTransfer.get() limits to one image pasted. Should we support multiple?
-	const pngDataItem = dataTransfer.get(MimeType.png);
-	if (pngDataItem) {
-		const fileItem = pngDataItem.asFile();
-		if (!fileItem) {
-			return [];
+	const files = coalesce(await Promise.all(Array.from(dataTransfer, async ([mimeType, item]): Promise<ImageAttachmentData | undefined> => {
+		if (!imageMimeTypes.has(mimeType)) {
+			return;
 		}
 
-		const data = await fileItem.data();
-		return [{ fileName: fileItem.name, mimeType: MimeType.png, data }];
+		const file = item.asFile();
+		if (!file) {
+			return;
+		}
+
+		const data = await file.data();
+		return { fileName: file.name, mimeType, data };
+	})));
+	if (files.length) {
+		return files;
 	}
 
 	// Then fallback to image files in the uri-list
@@ -279,15 +308,15 @@ function buildAttachment(
 }
 
 export function notebookImagePasteSetup(): vscode.Disposable {
+	const provider = new DropOrPasteEditProvider();
 	return vscode.Disposable.from(
-		vscode.languages.registerDocumentPasteEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, new CopyPasteEditProvider(), {
+		vscode.languages.registerDocumentPasteEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, provider, {
 			pasteMimeTypes: [
 				MimeType.png,
 				MimeType.uriList,
 			],
 		}),
-		vscode.languages.registerDocumentDropEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, new DropEditProvider(), {
-			id: 'imageAttachment',
+		vscode.languages.registerDocumentDropEditProvider(JUPYTER_NOTEBOOK_MARKDOWN_SELECTOR, provider, {
 			dropMimeTypes: [
 				...Object.values(imageExtToMime),
 				MimeType.uriList,

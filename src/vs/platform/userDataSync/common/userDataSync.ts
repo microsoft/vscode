@@ -142,6 +142,7 @@ export const enum SyncResource {
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
 	Profiles = 'profiles',
+	WorkspaceState = 'workspaceState',
 }
 export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState, SyncResource.Profiles];
 
@@ -173,7 +174,7 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export type ServerResource = SyncResource | 'machines' | 'editSessions';
+export type ServerResource = SyncResource | 'machines' | 'editSessions' | 'workspaceState';
 export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
@@ -191,7 +192,7 @@ export interface IUserDataSyncStoreService {
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
-	readonly onTokenFailed: Event<void>;
+	readonly onTokenFailed: Event<UserDataSyncErrorCode>;
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
 
@@ -357,6 +358,16 @@ export interface IStorageValue {
 
 export interface IGlobalState {
 	storage: IStringDictionary<IStorageValue>;
+}
+
+export interface IWorkspaceState {
+	folders: IWorkspaceStateFolder[];
+	storage: IStringDictionary<string>;
+}
+
+export interface IWorkspaceStateFolder {
+	resourceUri: string;
+	workspaceFolderIdentity: string;
 }
 
 export const enum SyncStatus {

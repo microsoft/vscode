@@ -74,8 +74,7 @@ interface StandardTsServerRequests {
 	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
 	'encodedSemanticClassifications-full': [Proto.EncodedSemanticClassificationsRequestArgs, Proto.EncodedSemanticClassificationsResponse];
 	'findSourceDefinition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
-	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestionsResponse];
-	'getEditsForMoveToFileRefactor': [Proto.GetEditsForMoveToFileRefactorRequestArgs, Proto.GetEditsForMoveToFileRefactorResponse];
+	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestions];
 	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
 }
 
