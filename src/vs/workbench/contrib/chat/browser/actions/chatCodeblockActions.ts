@@ -234,12 +234,15 @@ export function registerChatCodeBlockActions() {
 		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, context: IChatCodeBlockActionContext) {
 			this.notifyUserAction(accessor, context);
 			const bulkEditService = accessor.get(IBulkEditService);
+			const codeEditorService = accessor.get(ICodeEditorService);
 
 			const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
 			await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
 				range: activeSelection,
 				text: context.code,
 			})]);
+
+			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 		}
 
 		private notifyUserAction(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
