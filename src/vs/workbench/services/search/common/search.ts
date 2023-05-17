@@ -150,6 +150,7 @@ export interface IPatternInfo {
 
 export interface INotebookPatternInfo {
 	isInNotebookMarkdownInput?: boolean;
+	isInNotebookMarkdownPreview?: boolean;
 	isInNotebookCellInput?: boolean;
 	isInNotebookCellOutput?: boolean;
 }
