@@ -64,6 +64,7 @@ export interface ISearchWidgetOptions {
 
 interface NotebookToggleState {
 	isInNotebookMarkdownInput: boolean;
+	isInNotebookMarkdownPreview: boolean;
 	isInNotebookCellInput: boolean;
 	isInNotebookCellOutput: boolean;
 }
@@ -187,11 +188,17 @@ export class SearchWidget extends Widget {
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 
-		const notebookOptions = options.notebookOptions ?? { isInNotebookMarkdownInput: true, isInNotebookCellInput: true, isInNotebookCellOutput: true };
+		const notebookOptions = options.notebookOptions ??
+		{
+			isInNotebookMarkdownInput: true,
+			isInNotebookMarkdownPreview: true,
+			isInNotebookCellInput: true,
+			isInNotebookCellOutput: true
+		};
 		this._notebookFilters = this._register(
 			new NotebookFindFilters(
 				notebookOptions.isInNotebookMarkdownInput,
-				!notebookOptions.isInNotebookMarkdownInput,
+				notebookOptions.isInNotebookMarkdownPreview,
 				notebookOptions.isInNotebookCellInput,
 				notebookOptions.isInNotebookCellOutput
 			));
