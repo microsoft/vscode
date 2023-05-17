@@ -28,7 +28,13 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void {
 		const dispo = this.statusbarService.setOrUpdateEntry(entryId, id, extensionId, name, text, tooltip, command, color, backgroundColor, alignLeft, priority, accessibilityInformation);
-		this.entries.set(entryId, dispo);
+		if (!this.entries.has(entryId)) {
+			this.entries.set(entryId, dispo);
+		}
+	}
+
+	async $hasEntry(entryId: string): Promise<boolean> {
+		return this.statusbarService.hasEntry(entryId);
 	}
 
 	$dispose(entryId: string) {

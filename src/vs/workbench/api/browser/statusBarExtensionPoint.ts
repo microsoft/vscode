@@ -29,6 +29,8 @@ export interface IExtensionStatusBarItemService {
 	readonly _serviceBrand: undefined;
 
 	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): IDisposable;
+
+	hasEntry(id: string): boolean;
 }
 
 
@@ -36,11 +38,9 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly entries: Map<string, { accessor: IStatusbarEntryAccessor; alignment: MainThreadStatusBarAlignment; priority: number }> = new Map();
+	private readonly _entries: Map<string, { accessor: IStatusbarEntryAccessor; alignment: MainThreadStatusBarAlignment; priority: number }> = new Map();
 
-	constructor(
-		@IStatusbarService private readonly _statusbarService: IStatusbarService
-	) { }
+	constructor(@IStatusbarService private readonly _statusbarService: IStatusbarService) { }
 
 	setOrUpdateEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): IDisposable {
 		// if there are icons in the text use the tooltip for the aria label
@@ -65,7 +65,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 		let alignment = alignLeft ? StatusbarAlignment.LEFT : StatusbarAlignment.RIGHT;
 
 		// alignment and priority can only be set once (at creation time)
-		const existingEntry = this.entries.get(entryId);
+		const existingEntry = this._entries.get(entryId);
 		if (existingEntry) {
 			alignment = existingEntry.alignment;
 			priority = existingEntry.priority;
@@ -85,7 +85,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 				entryPriority = priority;
 			}
 
-			this.entries.set(entryId, {
+			this._entries.set(entryId, {
 				accessor: this._statusbarService.addEntry(entry, id, alignment, entryPriority),
 				alignment,
 				priority
@@ -97,12 +97,16 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 		}
 
 		return toDisposable(() => {
-			const entry = this.entries.get(entryId);
+			const entry = this._entries.get(entryId);
 			if (entry) {
 				entry.accessor.dispose();
-				this.entries.delete(entryId);
+				this._entries.delete(entryId);
 			}
 		});
+	}
+
+	hasEntry(id: string): boolean {
+		return this._entries.has(id);
 	}
 }
 
