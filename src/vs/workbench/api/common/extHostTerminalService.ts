@@ -50,9 +50,9 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
-	getEnvironmentVariableCollection(extension: IExtensionDescription): IDefaultEnvironmentVariableCollection;
+	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 }
-type IDefaultEnvironmentVariableCollection = vscode.EnvironmentVariableCollection | { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection };
+type IEnvironmentVariableCollection = vscode.EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection };
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
@@ -823,7 +823,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return index;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription): IDefaultEnvironmentVariableCollection {
+	public getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection {
 		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 		if (!collection) {
 			collection = new EnvironmentVariableCollection();
@@ -888,7 +888,7 @@ class EnvironmentVariableCollection {
 		this.map = new Map(serialized);
 	}
 
-	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): IDefaultEnvironmentVariableCollection {
+	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): IEnvironmentVariableCollection {
 		const scopedCollectionKey = this.getScopeKey(scope);
 		let scopedCollection = this.scopedCollections.get(scopedCollectionKey);
 		if (!scopedCollection) {
@@ -1004,7 +1004,7 @@ class EnvironmentVariableCollection {
 	}
 }
 
-class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection, IDefaultEnvironmentVariableCollection {
+class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection, IEnvironmentVariableCollection {
 	public get persistent(): boolean { return this.collection.persistent; }
 	public set persistent(value: boolean) {
 		this.collection.persistent = value;
