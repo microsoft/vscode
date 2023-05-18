@@ -157,7 +157,7 @@ async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: st
 * @returns Returns undefined in case of lack of result while trying to resolve from node_modules
 */
 async function getTsconfigPath(baseDirUri: vscode.Uri, extendsValue: string): Promise<vscode.Uri | undefined> {
-	async function resolve(absolutePath: vscode.Uri): vscode.Uri {
+	async function resolve(absolutePath: vscode.Uri): Promise<vscode.Uri> {
 		if (absolutePath.path.endsWith('.json') || await exists(absolutePath)) {
 			return absolutePath;
 		}
