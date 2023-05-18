@@ -69,7 +69,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		if (!candidate) {
-			candidate = await this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+			candidate = await this.preferredHome(schemeFilter);
 		}
 
 		return candidate;
@@ -86,10 +86,19 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		if (!candidate) {
-			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+			return this.preferredHome(schemeFilter);
 		}
 
 		return resources.dirname(candidate);
+	}
+
+	private async preferredHome(schemeFilter: string): Promise<URI> {
+		const dialogHomePath = this.configurationService.getValue<string>('workbench.fileDialog.homePath');
+		const userHomePromise = this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
+		if (dialogHomePath) {
+			return (await userHomePromise).with({ path: dialogHomePath });
+		}
+		return userHomePromise;
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {

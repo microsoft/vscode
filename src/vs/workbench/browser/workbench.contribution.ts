@@ -295,6 +295,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
+			'workbench.fileDialog.homePath': {
+				'type': 'string',
+				'description': localize('fileDialogHomePath', "Default path for file dialogs, overriding user's home path."),
+				'scope': ConfigurationScope.MACHINE
+			},
 			'workbench.localHistory.enabled': {
 				'type': 'boolean',
 				'default': true,
