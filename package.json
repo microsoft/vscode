@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.79.0",
-  "distro": "4e88da3231fbd0b33666c0d1b550b1ecdb739449",
+  "distro": "10ec4d08d4a06a1c18addcded03e90c8a0e6ecad",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -67,7 +67,7 @@
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",
     "@vscode/proxy-agent": "^0.13.2",
-    "@vscode/ripgrep": "^1.15.2",
+    "@vscode/ripgrep": "^1.15.3",
     "@vscode/spdlog": "^0.13.10",
     "@vscode/sqlite3": "5.1.4-vscode",
     "@vscode/sudo-prompt": "9.3.1",
@@ -204,7 +204,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.1.4",
-    "typescript": "^5.1.0-dev.20230509",
+    "typescript": "^5.2.0-dev.20230516",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

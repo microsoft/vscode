@@ -23,7 +23,7 @@ import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { findFreePort } from 'vs/base/node/ports';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -719,7 +719,11 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		const configurationService = accessor.get(IConfigurationService);
 
 		if (platform.isWindows) {
-			addUNCHostToAllowlist(configurationService.getValue('security.allowedUNCHosts'));
+			if (configurationService.getValue('security.restrictUNCAccess') === false) {
+				disableUNCAccessRestrictions();
+			} else {
+				addUNCHostToAllowlist(configurationService.getValue('security.allowedUNCHosts'));
+			}
 		}
 	});
 

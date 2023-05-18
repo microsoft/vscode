@@ -260,6 +260,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			[this.renderer],
 			{
 				identityProvider: { getId: (e: InteractiveTreeItem) => e.id },
+				horizontalScrolling: false,
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: new ChatAccessibilityProvider(),

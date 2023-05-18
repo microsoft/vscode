@@ -25,7 +25,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update?: { mode?: string };
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
-	security?: { workspace?: { trust?: { enabled?: boolean } } };
+	security?: { workspace?: { trust?: { enabled?: boolean } }; restrictUNCAccess?: boolean };
 	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean } } };
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
@@ -43,7 +43,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
 		'workbench.enableExperiments',
-		'_extensionsGallery.enablePPE'
+		'_extensionsGallery.enablePPE',
+		'security.restrictUNCAccess'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
@@ -56,6 +57,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
 	private readonly experimentsEnabled = new ChangeObserver('boolean');
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
+	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -112,6 +114,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Workspace trust
 			processChanged(this.workspaceTrustEnabled.handleChange(config?.security?.workspace?.trust?.enabled));
+
+			// UNC host access restrictions
+			processChanged(this.restrictUNCAccess.handleChange(config?.security?.restrictUNCAccess));
 		}
 
 		// Experiments
@@ -199,7 +204,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			if (environmentService.remoteAuthority) {
 				hostService.reload(); // TODO@aeschli, workaround
 			} else if (isNative) {
-				const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restart of extensions required because of workspace folder change."));
+				const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restart Extension Host."));
 				if (stopped) {
 					extensionService.startExtensionHosts();
 				}
