@@ -43,7 +43,6 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 			content.push(localize('interactiveSession.toolbarButtons', "Tab again to focus the response."));
 		}
 	}
-	content.push(localize('interactiveSession.exit', "Use Escape outside of this help menu to exit the session."));
 	return content.join('\n');
 }
 
