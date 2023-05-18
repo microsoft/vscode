@@ -163,7 +163,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 				.map(x => new CodeActionKind(x));
 
 
-		progress.report({ message: localize('notebookFormatSave.formatting', "Formatting") });
+		progress.report({ message: localize('notebookSaveParticipants.codeActions', "Running code actions") });
 		const disposable = new DisposableStore();
 		try {
 			await Promise.all(notebookModel.cells.map(async cell => {
