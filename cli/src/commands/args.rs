@@ -146,22 +146,6 @@ impl<'a> From<&'a CliCore> for CodeServerArgs {
 pub enum StandaloneCommands {
 	/// Updates the CLI.
 	Update(StandaloneUpdateArgs),
-
-	/// Internal commands for WSL serving.
-	#[clap(hide = true)]
-	Wsl(WslArgs),
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct WslArgs {
-	#[clap(subcommand)]
-	pub command: WslCommands,
-}
-
-#[derive(Subcommand, Debug, Clone)]
-pub enum WslCommands {
-	/// Runs the WSL server on stdin/out
-	Serve,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -638,6 +622,10 @@ pub enum TunnelSubcommand {
 	/// (Preview) Manages the tunnel when installed as a system service,
 	#[clap(subcommand)]
 	Service(TunnelServiceSubCommands),
+
+	/// Runs the tunnel control server on process stdin/stdout
+	#[clap(hide = true)]
+	Stdio,
 }
 
 #[derive(Subcommand, Debug, Clone)]

@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Note: do not update the signatures of these methods without corresponding updates in distro
-
-#[cfg(not(feature = "vscode-encrypt"))]
+#[cfg(not(feature = "vsda"))]
 pub fn create_challenge() -> String {
 	use rand::distributions::{Alphanumeric, DistString};
 	Alphanumeric.sample_string(&mut rand::thread_rng(), 16)
 }
 
-#[cfg(not(feature = "vscode-encrypt"))]
+#[cfg(not(feature = "vsda"))]
 pub fn sign_challenge(challenge: &str) -> String {
 	use sha2::{Digest, Sha256};
 	let mut hash = Sha256::new();
@@ -20,7 +18,25 @@ pub fn sign_challenge(challenge: &str) -> String {
 	base64::encode_config(result, base64::URL_SAFE_NO_PAD)
 }
 
-#[cfg(not(feature = "vscode-encrypt"))]
+#[cfg(not(feature = "vsda"))]
 pub fn verify_challenge(challenge: &str, response: &str) -> bool {
 	sign_challenge(challenge) == response
+}
+
+#[cfg(feature = "vsda")]
+pub fn create_challenge() -> String {
+	println!("challenging with vsda");
+	use rand::distributions::{Alphanumeric, DistString};
+	let str = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+	vsda::create_new_message(&str)
+}
+
+#[cfg(feature = "vsda")]
+pub fn sign_challenge(challenge: &str) -> String {
+	vsda::sign(challenge)
+}
+
+#[cfg(feature = "vsda")]
+pub fn verify_challenge(challenge: &str, response: &str) -> bool {
+	vsda::validate(challenge, response)
 }

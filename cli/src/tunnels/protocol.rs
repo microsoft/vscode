@@ -58,14 +58,6 @@ pub struct ForwardResult {
 	pub uri: String,
 }
 
-/// The `install_local` method in the wsl control server
-#[derive(Deserialize, Debug)]
-pub struct InstallFromLocalFolderParams {
-	pub archive_path: String,
-	#[serde(flatten)]
-	pub inner: ServeParams,
-}
-
 #[derive(Deserialize, Debug)]
 pub struct ServeParams {
 	pub socket_id: u16,
@@ -187,8 +179,6 @@ pub struct SpawnParams {
 	pub cwd: Option<String>,
 	#[serde(default)]
 	pub env: HashMap<String, String>,
-	#[serde(default)]
-	pub do_child_authentication: bool,
 }
 
 #[derive(Deserialize)]

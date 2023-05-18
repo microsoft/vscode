@@ -5,19 +5,15 @@
 use crate::async_pipe::get_socket_rw_stream;
 use crate::constants::{CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
-use crate::msgpack_rpc::{
-	new_length_prefixed_msgpack_rpc, start_msgpack_rpc, LengthPrefixedMsgPackSerializer,
-	U32PrefixedCodec,
-};
-use crate::rpc::{MaybeSync, RpcBuilder, RpcCaller, RpcDispatcher, Serialization};
+use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
+use crate::rpc::{MaybeSync, RpcBuilder, RpcCaller, RpcDispatcher};
 use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
 use crate::tunnels::protocol::{HttpRequestParams, METHOD_CHALLENGE_ISSUE};
 use crate::tunnels::socket_signal::CloseReason;
 use crate::update_service::{Platform, Release, TargetKind, UpdateService};
 use crate::util::errors::{
-	wrap, AnyError, CodeError, InvalidRpcDataError, MismatchedLaunchModeError,
-	NoAttachedServerError,
+	wrap, AnyError, CodeError, MismatchedLaunchModeError, NoAttachedServerError,
 };
 use crate::util::http::{
 	DelegatedHttpRequest, DelegatedSimpleHttp, FallbackSimpleHttp, ReqwestSimpleHttp,
@@ -34,7 +30,7 @@ use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use std::process::Stdio;
 use tokio::pin;
-use tokio::process::{ChildStdin, ChildStdout};
+use tokio::process::{ChildStderr, ChildStdin};
 use tokio_util::codec::Decoder;
 
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
@@ -217,9 +213,9 @@ pub async fn serve(
 						log: own_log,
 						launcher_paths: own_paths,
 						code_server_args: own_code_server_args,
-						platform: platform,
+						platform,
 						exit_barrier: own_exit,
-						requires_auth: false
+						requires_auth: false,
 					}).with_context(cx.clone()).await;
 
 					cx.span().add_event(
@@ -238,12 +234,12 @@ pub async fn serve(
 }
 
 pub struct ServeStreamParams {
-	log: log::Logger,
-	launcher_paths: LauncherPaths,
-	code_server_args: CodeServerArgs,
-	platform: Platform,
-	requires_auth: bool,
-	exit_barrier: Barrier<()>,
+	pub log: log::Logger,
+	pub launcher_paths: LauncherPaths,
+	pub code_server_args: CodeServerArgs,
+	pub platform: Platform,
+	pub requires_auth: bool,
+	pub exit_barrier: Barrier<ShutdownSignal>,
 }
 
 pub async fn serve_stream(
@@ -264,19 +260,7 @@ pub struct SocketStats {
 	tx: usize,
 }
 
-#[derive(Copy, Clone)]
-struct MsgPackSerializer {}
-
-impl Serialization for MsgPackSerializer {
-	fn serialize(&self, value: impl serde::Serialize) -> Vec<u8> {
-		rmp_serde::to_vec_named(&value).expect("expected to serialize")
-	}
-
-	fn deserialize<P: serde::de::DeserializeOwned>(&self, b: &[u8]) -> Result<P, AnyError> {
-		rmp_serde::from_slice(b).map_err(|e| InvalidRpcDataError(e.to_string()).into())
-	}
-}
-
+#[allow(clippy::too_many_arguments)]
 fn make_socket_rpc(
 	log: log::Logger,
 	socket_tx: mpsc::Sender<SocketSignal>,
@@ -300,14 +284,14 @@ fn make_socket_rpc(
 		launcher_paths,
 		code_server_args,
 		code_server: Arc::new(Mutex::new(None)),
-		server_bridges: server_bridges.clone(),
+		server_bridges,
 		port_forwarding,
 		platform,
 		http: Arc::new(FallbackSimpleHttp::new(
 			ReqwestSimpleHttp::new(),
 			http_delegated,
 		)),
-		http_requests: http_requests.clone(),
+		http_requests,
 	});
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
@@ -367,6 +351,21 @@ fn make_socket_rpc(
 		)
 		.await
 	});
+	rpc.register_duplex(
+		"spawn_cli",
+		3,
+		|mut streams, p: SpawnParams, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_spawn_cli(
+				&c.log,
+				p,
+				streams.remove(0),
+				streams.remove(0),
+				streams.remove(0),
+			)
+			.await
+		},
+	);
 	rpc.register_sync("httpheaders", |p: HttpHeadersParams, c| {
 		if let Some(req) = c.http_requests.lock().unwrap().get(&p.req_id) {
 			req.initial_response(p.status_code, p.headers);
@@ -462,6 +461,10 @@ async fn process_socket(
 			}
 
 			ctx.dispose().await;
+
+			let _ = socket_tx
+				.send(SocketSignal::CloseWith(CloseReason("eof".to_string())))
+				.await;
 		});
 	}
 
@@ -528,13 +531,13 @@ async fn send_version(tx: &mpsc::Sender<SocketSignal>) {
 async fn handle_socket_read(
 	_log: &log::Logger,
 	readhalf: impl AsyncRead + Unpin,
-	mut closer: Barrier<()>,
+	mut closer: Barrier<ShutdownSignal>,
 	socket_tx: &mpsc::Sender<SocketSignal>,
 	rx_counter: Arc<AtomicUsize>,
 	rpc: &RpcDispatcher<MsgPackSerializer, HandlerContext>,
 ) -> Result<(), std::io::Error> {
 	let mut readhalf = BufReader::new(readhalf);
-	let mut decoder = U32PrefixedCodec {};
+	let mut decoder = MsgPackCodec::new();
 	let mut decoder_buf = bytes::BytesMut::new();
 
 	loop {
@@ -543,10 +546,14 @@ async fn handle_socket_read(
 			_ = closer.wait() => Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof")),
 		}?;
 
+		if read_len == 0 {
+			return Ok(());
+		}
+
 		rx_counter.fetch_add(read_len, Ordering::Relaxed);
 
 		while let Some(frame) = decoder.decode(&mut decoder_buf)? {
-			match rpc.dispatch(&frame) {
+			match rpc.dispatch_with_partial(&frame.vec, frame.obj) {
 				MaybeSync::Sync(Some(v)) => {
 					if socket_tx.send(SocketSignal::Send(v)).await.is_err() {
 						return Ok(());
@@ -966,8 +973,8 @@ async fn handle_spawn<Stdin, StdoutAndErr>(
 	stderr: Option<StdoutAndErr>,
 ) -> Result<SpawnResult, AnyError>
 where
-	Stdin: AsyncRead + Unpin + Send,
-	StdoutAndErr: AsyncWrite + Unpin + Send,
+	Stdin: AsyncRead + Unpin + Send + 'static,
+	StdoutAndErr: AsyncWrite + Unpin + Send + 'static,
 {
 	debug!(
 		log,
@@ -987,25 +994,14 @@ where
 	let mut p = tokio::process::Command::new(&params.command);
 	p.args(&params.args);
 	p.envs(&params.env);
-	p.stdin(pipe_if!(params.do_child_authentication || stdin.is_some()));
-	p.stdout(pipe_if!(params.do_child_authentication || stdin.is_some()));
+	p.stdin(pipe_if!(stdin.is_some()));
+	p.stdout(pipe_if!(stdin.is_some()));
 	p.stderr(pipe_if!(stderr.is_some()));
 	if let Some(cwd) = &params.cwd {
 		p.current_dir(cwd);
 	}
 
 	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
-
-	if params.do_child_authentication {
-		if let (Some(stdin), Some(stdout)) = (p.stdin.take(), p.stdout.take()) {
-			// note: intentionally do not wrap stdin in a bufreader, since we don't
-			// want to read anything other than our handshake messages.
-			let (stdin, stdout) = spawn_do_child_authentication(log, stdin, stdout).await?;
-			// just replace them for ease of later logic:
-			p.stdin = Some(stdin);
-			p.stdout = Some(stdout);
-		}
-	}
 
 	let futs = FuturesUnordered::new();
 	if let (Some(mut a), Some(mut b)) = (p.stdout.take(), stdout) {
@@ -1018,7 +1014,72 @@ where
 		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
 	}
 
-	let closed = p.wait();
+	wait_for_process_exit(log, &params.command, p, futs).await
+}
+
+async fn handle_spawn_cli(
+	log: &log::Logger,
+	params: SpawnParams,
+	mut protocol_in: DuplexStream,
+	mut protocol_out: DuplexStream,
+	mut log_out: DuplexStream,
+) -> Result<SpawnResult, AnyError> {
+	debug!(
+		log,
+		"requested to spawn cli {} with args {:?}", params.command, params.args
+	);
+
+	let mut p = tokio::process::Command::new(&params.command);
+	p.args(&params.args);
+
+	// CLI args to spawn a server; contracted with clients that they should _not_ provide these.
+	p.arg("--verbose");
+	p.arg("tunnel");
+	p.arg("stdio");
+
+	p.envs(&params.env);
+	p.stdin(Stdio::piped());
+	p.stdout(Stdio::piped());
+	p.stderr(Stdio::piped());
+	if let Some(cwd) = &params.cwd {
+		p.current_dir(cwd);
+	}
+
+	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
+
+	let mut stdin = p.stdin.take().unwrap();
+	let mut stdout = p.stdout.take().unwrap();
+	let mut stderr = p.stderr.take().unwrap();
+
+	// Start handling logs while doing the handshake in case there's some kind of error
+	let log_pump = tokio::spawn(async move { tokio::io::copy(&mut stdout, &mut log_out).await });
+
+	// note: intentionally do not wrap stdin in a bufreader, since we don't
+	// want to read anything other than our handshake messages.
+	if let Err(e) = spawn_do_child_authentication(log, &mut stdin, &mut stderr).await {
+		warning!(log, "failed to authenticate with child process {}", e);
+		let _ = p.kill().await;
+		return Err(e.into());
+	}
+
+	debug!(log, "cli authenticated, attaching stdio");
+	let futs = FuturesUnordered::new();
+	futs.push(async move { tokio::io::copy(&mut protocol_in, &mut stdin).await }.boxed());
+	futs.push(async move { tokio::io::copy(&mut stderr, &mut protocol_out).await }.boxed());
+	futs.push(async move { log_pump.await.unwrap() }.boxed());
+
+	wait_for_process_exit(log, &params.command, p, futs).await
+}
+
+type TokioCopyFuture = dyn futures::Future<Output = Result<u64, std::io::Error>> + Send;
+
+async fn wait_for_process_exit(
+	log: &log::Logger,
+	command: &str,
+	mut process: tokio::process::Child,
+	futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
+) -> Result<SpawnResult, AnyError> {
+	let closed = process.wait();
 	pin!(closed);
 
 	let r = tokio::select! {
@@ -1039,7 +1100,7 @@ where
 
 	debug!(
 		log,
-		"spawned command {} exited with code {}", params.command, r.exit_code
+		"spawned cli {} exited with code {}", command, r.exit_code
 	);
 
 	Ok(r)
@@ -1047,12 +1108,12 @@ where
 
 async fn spawn_do_child_authentication(
 	log: &log::Logger,
-	stdin: ChildStdin,
-	stdout: ChildStdout,
-) -> Result<(ChildStdin, ChildStdout), CodeError> {
+	stdin: &mut ChildStdin,
+	stdout: &mut ChildStderr,
+) -> Result<(), CodeError> {
 	let (msg_tx, msg_rx) = mpsc::unbounded_channel();
 	let (shutdown_rx, shutdown) = new_barrier();
-	let mut rpc = new_length_prefixed_msgpack_rpc();
+	let mut rpc = new_msgpack_rpc();
 	let caller = rpc.get_caller(msg_tx);
 
 	let challenge_response = do_challenge_response_flow(caller, shutdown);
@@ -1069,19 +1130,19 @@ async fn spawn_do_child_authentication(
 		r = &mut rpc => {
 			match r {
 				// means shutdown happened cleanly already, we're good
-				Ok((_, o, i)) => Ok((i, o)),
+				Ok(_) => Ok(()),
 				Err(e) => Err(CodeError::ProcessSpawnHandshakeFailed(e))
 			}
 		},
 		r = challenge_response => {
 			r?;
-			rpc.await.map(|(_, o, i)| (i, o)).map_err(CodeError::ProcessSpawnFailed)
+			rpc.await.map(|_| ()).map_err(CodeError::ProcessSpawnFailed)
 		}
 	}
 }
 
 async fn do_challenge_response_flow(
-	caller: RpcCaller<LengthPrefixedMsgPackSerializer>,
+	caller: RpcCaller<MsgPackSerializer>,
 	shutdown: BarrierOpener<()>,
 ) -> Result<(), CodeError> {
 	let challenge: ChallengeIssueResponse = caller

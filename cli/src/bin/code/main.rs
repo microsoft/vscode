@@ -8,7 +8,7 @@ use std::process::Command;
 
 use clap::Parser;
 use cli::{
-	commands::{args, internal_wsl, tunnels, update, version, CommandContext},
+	commands::{args, tunnels, update, version, CommandContext},
 	constants::get_default_user_agent,
 	desktop, log,
 	state::LauncherPaths,
@@ -65,9 +65,6 @@ async fn main() -> Result<(), std::convert::Infallible> {
 			..
 		}) => match cmd {
 			args::StandaloneCommands::Update(args) => update::update(context!(), args).await,
-			args::StandaloneCommands::Wsl(args) => match args.command {
-				args::WslCommands::Serve => internal_wsl::serve(context!()).await,
-			},
 		},
 		args::AnyCli::Standalone(args::StandaloneCli { core: c, .. })
 		| args::AnyCli::Integrated(args::IntegratedCli { core: c, .. }) => match c.subcommand {
@@ -113,6 +110,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				Some(args::TunnelSubcommand::Service(service_args)) => {
 					tunnels::service(context_no_logger(), service_args).await
 				}
+				Some(args::TunnelSubcommand::Stdio) => tunnels::stdio(context!()).await,
 				None => tunnels::serve(context_no_logger(), tunnel_args.serve_args).await,
 			},
 		},
