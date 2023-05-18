@@ -945,14 +945,13 @@ class EnvironmentVariableCollection {
 	}
 
 	public getVariableMap(scope: vscode.EnvironmentVariableScope | undefined): Map<string, IEnvironmentVariableMutator> {
-		const scopedMap = new Map<string, IEnvironmentVariableMutator>();
-		const scopeKey = this.getScopeKey(scope);
-		for (const [key, value] of this.map.entries()) {
-			if (key === scopeKey) {
-				scopedMap.set(value.variable, value);
+		const map = new Map<string, IEnvironmentVariableMutator>();
+		for (const [key, value] of this.map) {
+			if (this.getScopeKey(value.scope) === this.getScopeKey(scope)) {
+				map.set(key, value);
 			}
 		}
-		return scopedMap;
+		return map;
 	}
 
 	delete(variable: string, scope: vscode.EnvironmentVariableScope | undefined): void {
