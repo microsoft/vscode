@@ -11319,6 +11319,13 @@ declare module 'vscode' {
 		clear(): void;
 	}
 
+	export type EnvironmentVariableScope = {
+		/**
+		* Any specific workspace folder to get collection for. If unspecified, collection applicable to all workspace folders is returned.
+		*/
+		workspaceFolder?: WorkspaceFolder;
+	};
+
 	/**
 	 * A location in the editor at which progress information can be shown. It depends on the
 	 * location how progress is visually represented.
