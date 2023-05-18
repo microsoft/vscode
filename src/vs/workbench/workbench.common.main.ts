@@ -55,7 +55,7 @@ import 'vs/workbench/browser/parts/views/viewsService';
 import 'vs/platform/actions/common/actions.contribution';
 import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/workbench/services/workspaces/common/editSessionIdentityService';
-import 'vs/workbench/services/workspaces/common/canonicalUriIdentityService';
+import 'vs/workbench/services/workspaces/common/canonicalUriService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
