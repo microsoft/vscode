@@ -407,6 +407,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				map: deserializeEnvironmentVariableCollection(collection),
 				descriptionMap: deserializeEnvironmentDescriptionMap(descriptionMap)
 			};
+			console.log('translatedCollection', translatedCollection);
 			this._environmentVariableService.set(extensionIdentifier, translatedCollection);
 		} else {
 			this._environmentVariableService.delete(extensionIdentifier);

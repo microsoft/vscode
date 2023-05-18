@@ -21,6 +21,10 @@ $Global:__LastHistoryId = -1
 $Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
+Write-Host "REPLACE: " $env:VSCODE_ENV_REPLACE
+Write-Host "PREPEND: " $env:VSCODE_ENV_PREPEND
+Write-Host "APPEND: " $env:VSCODE_ENV_APPEND
+
 if ($env:VSCODE_ENV_REPLACE) {
 	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
 	foreach ($Item in $Split) {

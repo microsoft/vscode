@@ -892,15 +892,18 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	}
 
 	replace(variable: string, value: string, scope?: vscode.EnvironmentVariableScope): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, scope });
+		// TODO: Implement options in API
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, scope, options: {} });
 	}
 
 	append(variable: string, value: string, scope?: vscode.EnvironmentVariableScope): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, scope });
+		// TODO: Implement options in API
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, scope, options: {} });
 	}
 
 	prepend(variable: string, value: string, scope?: vscode.EnvironmentVariableScope): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, scope });
+		// TODO: Implement options in API
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, scope, options: {} });
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator): void {
@@ -920,6 +923,7 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	get(variable: string, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableMutator | undefined {
 		const key = this.getKey(variable, scope);
 		const value = this.map.get(key);
+		// TODO: Set options to defaults if needed
 		return value ? convertMutator(value) : undefined;
 	}
 
@@ -1030,6 +1034,7 @@ function asTerminalColor(color?: vscode.ThemeColor): ThemeColor | undefined {
 function convertMutator(mutator: IEnvironmentVariableMutator): vscode.EnvironmentVariableMutator {
 	const newMutator = { ...mutator };
 	newMutator.scope = newMutator.scope ?? undefined;
+	newMutator.options = newMutator.options ?? undefined;
 	delete (newMutator as any).variable;
 	return newMutator as vscode.EnvironmentVariableMutator;
 }
