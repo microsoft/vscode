@@ -1323,7 +1323,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._logService.trace(`Already reconnected, to ${this._reconnectedTerminals?.length} terminals so returning`);
 			return;
 		}
-		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed);
+		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed && t.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data);
 		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
 		if (!this._reconnectedTerminals?.length) {
 			this._logService.trace(`No terminals to reconnect to so returning`);
