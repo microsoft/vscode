@@ -696,6 +696,46 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			return undefined;
 		}
 	}
+
+	// --- canonical uri identity ---
+
+	private readonly _canonicalUriProviders = new Map<string, vscode.CanonicalUriProvider>();
+
+	// called by ext host
+	registerCanonicalUriProvider(scheme: string, provider: vscode.CanonicalUriProvider) {
+		if (this._canonicalUriProviders.has(scheme)) {
+			throw new Error(`A provider has already been registered for scheme ${scheme}`);
+		}
+
+		this._canonicalUriProviders.set(scheme, provider);
+		const outgoingScheme = this._uriTransformerService.transformOutgoingScheme(scheme);
+		const handle = this._providerHandlePool++;
+		this._proxy.$registerCanonicalUriProvider(handle, outgoingScheme);
+
+		return toDisposable(() => {
+			this._canonicalUriProviders.delete(scheme);
+			this._proxy.$unregisterCanonicalUriProvider(handle);
+		});
+	}
+
+	async provideCanonicalUri(uri: URI, options: vscode.CanonicalUriRequestOptions, cancellationToken: CancellationToken): Promise<URI | undefined> {
+		const provider = this._canonicalUriProviders.get(uri.scheme);
+		if (!provider) {
+			return undefined;
+		}
+
+		const result = await provider.provideCanonicalUri?.(URI.revive(uri), options, cancellationToken);
+		if (!result) {
+			return undefined;
+		}
+
+		return result;
+	}
+
+	// called by main thread
+	async $provideCanonicalUri(uri: UriComponents, targetScheme: string, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
+		return this.provideCanonicalUri(URI.revive(uri), { targetScheme }, cancellationToken);
+	}
 }
 
 export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');

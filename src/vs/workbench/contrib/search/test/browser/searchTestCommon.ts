@@ -43,7 +43,7 @@ export function getRootName(): string {
 export function stubModelService(instantiationService: TestInstantiationService): IModelService {
 	instantiationService.stub(IThemeService, new TestThemeService());
 	const config = new TestConfigurationService();
-	config.setUserConfiguration('search', { searchOnType: true, experimental: { notebookSearch: false } });
+	config.setUserConfiguration('search', { searchOnType: true });
 	instantiationService.stub(IConfigurationService, config);
 	return instantiationService.createInstance(ModelService);
 }
