@@ -7,27 +7,27 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ICanonicalUriIdentityService, ICanonicalUriIdentityProvider } from 'vs/platform/workspace/common/canonicalUriIdentity';
+import { ICanonicalUriService, ICanonicalUriProvider } from 'vs/platform/workspace/common/canonicalUri';
 
-export class CanonicalUriIdentityService implements ICanonicalUriIdentityService {
+export class CanonicalUriService implements ICanonicalUriService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _providers = new Map<string, ICanonicalUriIdentityProvider>();
+	private readonly _providers = new Map<string, ICanonicalUriProvider>();
 
-	registerCanonicalUriIdentityProvider(provider: ICanonicalUriIdentityProvider): IDisposable {
+	registerCanonicalUriProvider(provider: ICanonicalUriProvider): IDisposable {
 		this._providers.set(provider.scheme, provider);
 		return {
 			dispose: () => this._providers.delete(provider.scheme)
 		};
 	}
 
-	async provideCanonicalUriIdentity(uri: URI, token: CancellationToken): Promise<URI | undefined> {
+	async provideCanonicalUri(uri: URI, targetScheme: string, token: CancellationToken): Promise<URI | undefined> {
 		const provider = this._providers.get(uri.scheme);
 		if (provider) {
-			return provider.provideCanonicalUriIdentity(uri, token);
+			return provider.provideCanonicalUri(uri, targetScheme, token);
 		}
 		return undefined;
 	}
 }
 
-registerSingleton(ICanonicalUriIdentityService, CanonicalUriIdentityService, InstantiationType.Delayed);
+registerSingleton(ICanonicalUriService, CanonicalUriService, InstantiationType.Delayed);

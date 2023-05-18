@@ -282,7 +282,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService(connectionToken);
+		const signService = new SignService(productService);
 		serviceCollection.set(ISignService, signService);
 
 
