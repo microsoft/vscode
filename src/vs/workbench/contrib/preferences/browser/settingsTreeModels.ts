@@ -305,9 +305,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.description = this.setting.description.join('\n');
 		}
 
-		if (ENABLE_EXTENSION_TOGGLE_SETTINGS
-			&& this.productService.extensionToggleConfiguration
-			&& this.setting.key in this.productService.extensionToggleConfiguration.properties) {
+		if (ENABLE_EXTENSION_TOGGLE_SETTINGS &&
+			this.productService.extensionToggleConfiguration &&
+			this.setting.key in this.productService.extensionToggleConfiguration.properties) {
 			this.valueType = SettingValueType.ExtensionToggle;
 		} else if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = SettingValueType.Enum;

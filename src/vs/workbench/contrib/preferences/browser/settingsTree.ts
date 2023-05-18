@@ -1944,15 +1944,16 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 	}
 
 	private renderControls(actionButton: Button, enablementState: ExtensionEnablementState, requiresReloadOnDisable: boolean): void {
-		const extensionId = enablementState.extension?.identifier.id ?? '';
+		const extensionName = enablementState.extension?.displayName ??
+			enablementState.extension?.identifier.id ?? '';
 		if (!enablementState.installed) {
-			actionButton.element.textContent = localize('installButtonText', "Install {0}", extensionId);
+			actionButton.element.textContent = localize('installButtonText', "Install {0}", extensionName);
 		} else if (!enablementState.enabled) {
-			actionButton.element.textContent = localize('enableButtonText', "Enable {0}", extensionId);
+			actionButton.element.textContent = localize('enableButtonText', "Enable {0}", extensionName);
 		} else {
 			actionButton.element.textContent = requiresReloadOnDisable ?
-				localize('disableAndReloadButtonText', "Disable {0} and reload", extensionId) :
-				localize('disableButtonText', "Disable {0}", extensionId);
+				localize('disableAndReloadButtonText', "Disable {0} and reload", extensionName) :
+				localize('disableButtonText', "Disable {0}", extensionName);
 		}
 		actionButton.element.title = actionButton.element.textContent;
 		actionButton.label = actionButton.element.textContent;
