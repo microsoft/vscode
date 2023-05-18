@@ -929,6 +929,12 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: {}
 		},
+		[NotebookSetting.formatOnCellExecution]: {
+			markdownDescription: nls.localize('notebook.formatOnRun', "Format a notebook on cell exectuion. A formatter must be available, and the editor must not be shutting down."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
 		[NotebookSetting.confirmDeleteRunningCell]: {
 			markdownDescription: nls.localize('notebook.confirmDeleteRunningCell', "Control whether a confirmation prompt is required to delete a running cell."),
 			type: 'boolean',

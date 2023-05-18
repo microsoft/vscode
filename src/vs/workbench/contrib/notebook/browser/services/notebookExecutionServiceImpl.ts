@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -12,10 +12,17 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { KernelPickerMRUStrategy } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookTextModel, NotebookCellExecutionState, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
 	declare _serviceBrand: undefined;
@@ -28,6 +35,11 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -77,6 +89,8 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 		// request execution
 		if (validCellExecutions.length > 0) {
+			await this.formatNotebookCells(validCellExecutions, notebook);
+
 			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
 			await kernel.executeNotebookCellsRequest(notebook.uri, validCellExecutions.map(c => c.cellHandle));
 			// the connecting state can change before the kernel resolves executeNotebookCellsRequest
@@ -100,6 +114,46 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 	async cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>): Promise<void> {
 		this.cancelNotebookCellHandles(notebook, Array.from(cells, cell => cell.handle));
+	}
+
+	async formatNotebookCells(cellExecutions: INotebookCellExecution[], notebookModel: INotebookTextModel): Promise<void> {
+		const enabled = this.configurationService.getValue<boolean>(NotebookSetting.formatOnCellExecution);
+		if (!enabled) {
+			return;
+		}
+
+		const disposable = new DisposableStore();
+		try {
+			const allCellEdits = await Promise.all(cellExecutions.map(async cellExecution => {
+				const cell = notebookModel.cells[cellExecution.cellHandle];
+				const ref = await this.textModelService.createModelReference(cell.uri);
+				disposable.add(ref);
+
+				const model = ref.object.textEditorModel;
+
+				const formatEdits = await getDocumentFormattingEditsUntilResult(
+					this.editorWorkerService,
+					this.languageFeaturesService,
+					model,
+					model.getOptions(),
+					this._activeProxyKernelExecutionToken?.token ?? CancellationToken.None
+				);
+
+				const edits: ResourceTextEdit[] = [];
+
+				if (formatEdits) {
+					edits.push(...formatEdits.map(edit => new ResourceTextEdit(model.uri, edit, model.getVersionId())));
+					return edits;
+				}
+
+				return [];
+			}));
+
+			await this.bulkEditService.apply(/* edit */allCellEdits.flat(), { label: nls.localize('label', "Format Cells"), code: 'undoredo.formatCells', });
+
+		} finally {
+			disposable.dispose();
+		}
 	}
 
 	dispose() {
