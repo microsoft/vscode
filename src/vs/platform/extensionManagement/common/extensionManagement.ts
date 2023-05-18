@@ -405,8 +405,14 @@ export enum ExtensionManagementErrorCode {
 	Rename = 'Rename',
 	CorruptZip = 'CorruptZip',
 	IncompleteZip = 'IncompleteZip',
+	Signature = 'Signature',
 	Internal = 'Internal',
-	Signature = 'Signature'
+}
+
+export enum ExtensionSignaturetErrorCode {
+	UnknownError = 'UnknownError',
+	PackageIsInvalidZip = 'PackageIsInvalidZip',
+	SignatureArchiveIsInvalidZip = 'SignatureArchiveIsInvalidZip',
 }
 
 export class ExtensionManagementError extends Error {
@@ -419,9 +425,11 @@ export class ExtensionManagementError extends Error {
 export type InstallOptions = {
 	isBuiltin?: boolean;
 	isMachineScoped?: boolean;
+	isApplicationScoped?: boolean;
 	donotIncludePackAndDependencies?: boolean;
 	installGivenVersion?: boolean;
 	installPreReleaseVersion?: boolean;
+	donotVerifySignature?: boolean;
 	operation?: InstallOperation;
 	/**
 	 * Context passed through to InstallExtensionResult
@@ -462,7 +470,7 @@ export interface IExtensionManagementService {
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
 
-	download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
+	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 
 	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
 	getTargetPlatform(): Promise<TargetPlatform>;
@@ -515,8 +523,3 @@ export interface IExtensionTipsService {
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
 export const PreferencesLocalizedLabel = { value: localize('preferences', "Preferences"), original: 'Preferences' };
-
-export interface CLIOutput {
-	log(s: string): void;
-	error(s: string): void;
-}

@@ -49,7 +49,7 @@ export class TestUserDataProfileStorageService extends AbstractUserDataProfileSt
 suite('ProfileStorageService', () => {
 
 	const disposables = new DisposableStore();
-	const profile = toUserDataProfile('test', 'test', URI.file('foo'));
+	const profile = toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache'));
 	let testObject: TestUserDataProfileStorageService;
 	let storage: Storage;
 

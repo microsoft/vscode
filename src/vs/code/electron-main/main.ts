@@ -16,7 +16,7 @@ import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanit
 import { once } from 'vs/base/common/functional';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { basename, join, resolve } from 'vs/base/common/path';
+import { basename, resolve } from 'vs/base/common/path';
 import { mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
@@ -131,7 +131,7 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { id: 'mainLog', name: localize('mainLog', "Main") });
+				bufferLogService.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
 
 				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(evt => {
@@ -162,7 +162,7 @@ class CodeMain {
 		services.set(IEnvironmentMainService, environmentMainService);
 
 		// Logger
-		const loggerService = new LoggerMainService(getLogLevel(environmentMainService));
+		const loggerService = new LoggerMainService(getLogLevel(environmentMainService), environmentMainService.logsHome);
 		services.set(ILoggerMainService, loggerService);
 
 		// Log: We need to buffer the spdlog logs until we are sure
@@ -246,7 +246,7 @@ class CodeMain {
 			Promise.all<string | undefined>([
 				environmentMainService.extensionsPath,
 				environmentMainService.codeCachePath,
-				environmentMainService.logsPath,
+				environmentMainService.logsHome.fsPath,
 				userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath,
 				environmentMainService.workspaceStorageHome.fsPath,
 				environmentMainService.localHistoryHome.fsPath,
@@ -382,7 +382,7 @@ class CodeMain {
 
 		// Print --status usage info
 		if (environmentMainService.args.status) {
-			logService.warn(`Warning: The --status argument can only be used if ${productService.nameShort} is already running. Please run it again after {0} has started.`);
+			logService.warn('Warning: The --status argument can only be used if {0} is already running. Please run it again after {0} has started.', productService.nameShort);
 
 			throw new ExpectedError('Terminating...');
 		}

@@ -58,9 +58,15 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		this.workers.set(workerId, worker);
 
 		const onDidTerminate = new DeferredPromise<IOnDidTerminateUtilityrocessWorkerProcess>();
-		Event.once(worker.onDidTerminate)(e => {
+		Event.once(worker.onDidTerminate)(reason => {
+			if (reason.code === 0) {
+				this.logService.trace(`[UtilityProcessWorker]: terminated normally with code ${reason.code}, signal: ${reason.signal}`);
+			} else {
+				this.logService.error(`[UtilityProcessWorker]: terminated unexpectedly with code ${reason.code}, signal: ${reason.signal}`);
+			}
+
 			this.workers.delete(workerId);
-			onDidTerminate.complete({ reason: e });
+			onDidTerminate.complete({ reason });
 		});
 
 		return onDidTerminate.p;

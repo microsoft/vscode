@@ -100,7 +100,7 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 
 	constructor(
 		@ITestResultService private readonly resultService: ITestResultService,
-		@IInstantiationService private readonly instantiaionService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -126,11 +126,11 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 		}
 
 		if (!this.windowProg.value) {
-			this.windowProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
+			this.windowProg.value = this.instantiationService.createInstance(UnmanagedProgress, {
 				location: ProgressLocation.Window,
 				type: 'loading'
 			});
-			this.testViewProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
+			this.testViewProg.value = this.instantiationService.createInstance(UnmanagedProgress, {
 				location: Testing.ViewletId,
 				total: 1000,
 			});
@@ -143,13 +143,12 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 		this.updateTextEmitter.fire(message);
 		this.windowProg.value.report({ message });
 		const nextProgress = collected.runSoFar / collected.totalWillBeRun;
-		console.log({ increment: nextProgress - this.lastProgress, total: 1 });
 		this.testViewProg.value!.report({ increment: (nextProgress - this.lastProgress) * 1000, total: 1 });
 		this.lastProgress = nextProgress;
 	}
 }
 
-type CountSummary = ReturnType<typeof collectTestStateCounts>;
+export type CountSummary = ReturnType<typeof collectTestStateCounts>;
 
 
 const collectTestStateCounts = (isRunning: boolean, ...counts: ReadonlyArray<TestStateCount>) => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, ChildProcessWithoutNullStreams, spawn, SpawnOptions } from 'child_process';
+import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
@@ -11,7 +11,6 @@ import { Event } from 'vs/base/common/event';
 import { isAbsolute, resolve, join, dirname } from 'vs/base/common/path';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
-import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
@@ -22,9 +21,12 @@ import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener 
 import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { randomPath } from 'vs/base/common/extpath';
+import { isUNC, randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
 import { FileAccess } from 'vs/base/common/network';
+import { cwd } from 'vs/base/common/process';
+import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { URI } from 'vs/base/common/uri';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -54,22 +56,23 @@ export async function main(argv: string[]): Promise<any> {
 			console.error(`'tunnel' command not supported in ${product.applicationName}`);
 			return;
 		}
+		const tunnelArgs = argv.slice(argv.indexOf('tunnel') + 1); // all arguments behind `tunnel`
 		return new Promise((resolve, reject) => {
-			let tunnelProcess: ChildProcessWithoutNullStreams;
+			let tunnelProcess: ChildProcess;
+			const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
 			if (process.env['VSCODE_DEV']) {
-				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...argv.slice(5)], { cwd: join(getAppRoot(), 'cli') });
+				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio });
 			} else {
 				const appPath = process.platform === 'darwin'
 					// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
 					? join(dirname(dirname(process.execPath)), 'Resources', 'app')
 					: dirname(process.execPath);
 				const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
-				const tunnelArgs = argv.slice(3);
-				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs]);
+				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs], { cwd: cwd(), stdio });
 			}
 
-			tunnelProcess.stdout.pipe(process.stdout);
-			tunnelProcess.stderr.pipe(process.stderr);
+			tunnelProcess.stdout!.pipe(process.stdout);
+			tunnelProcess.stderr!.pipe(process.stderr);
 			tunnelProcess.on('exit', resolve);
 			tunnelProcess.on('error', reject);
 		});
@@ -115,6 +118,16 @@ export async function main(argv: string[]): Promise<any> {
 	else if (args['file-write']) {
 		const source = args._[0];
 		const target = args._[1];
+
+		// Windows: set the paths as allowed UNC paths given
+		// they are explicitly provided by the user as arguments
+		if (isWindows) {
+			for (const path of [source, target]) {
+				if (isUNC(path)) {
+					addUNCHostToAllowlist(URI.file(path).authority);
+				}
+			}
+		}
 
 		// Validate
 		if (
@@ -387,14 +400,6 @@ export async function main(argv: string[]): Promise<any> {
 					console.error('Failed to profile startup. Make sure to quit Code first.');
 				}
 			});
-		}
-
-		const jsFlags = args['js-flags'];
-		if (isString(jsFlags)) {
-			const match = /max_old_space_size=(\d+)/g.exec(jsFlags);
-			if (match && !args['max-memory']) {
-				addArg(argv, `--max-memory=${match[1]}`);
-			}
 		}
 
 		const options: SpawnOptions = {

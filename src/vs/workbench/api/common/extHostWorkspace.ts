@@ -557,6 +557,18 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._activeSearchCallbacks[requestId]?.(result);
 	}
 
+	async save(uri: URI): Promise<URI | undefined> {
+		const result = await this._proxy.$save(uri, { saveAs: false });
+
+		return URI.revive(result);
+	}
+
+	async saveAs(uri: URI): Promise<URI | undefined> {
+		const result = await this._proxy.$save(uri, { saveAs: true });
+
+		return URI.revive(result);
+	}
+
 	saveAll(includeUntitled?: boolean): Promise<boolean> {
 		return this._proxy.$saveAll(includeUntitled);
 	}
@@ -683,6 +695,46 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
+	}
+
+	// --- canonical uri identity ---
+
+	private readonly _canonicalUriIdentityProviders = new Map<string, vscode.CanonicalUriIdentityProvider>();
+
+	// called by ext host
+	registerCanonicalUriIdentityProvider(scheme: string, provider: vscode.CanonicalUriIdentityProvider) {
+		if (this._canonicalUriIdentityProviders.has(scheme)) {
+			throw new Error(`A provider has already been registered for scheme ${scheme}`);
+		}
+
+		this._canonicalUriIdentityProviders.set(scheme, provider);
+		const outgoingScheme = this._uriTransformerService.transformOutgoingScheme(scheme);
+		const handle = this._providerHandlePool++;
+		this._proxy.$registerCanonicalUriIdentityProvider(handle, outgoingScheme);
+
+		return toDisposable(() => {
+			this._canonicalUriIdentityProviders.delete(scheme);
+			this._proxy.$unregisterCanonicalUriIdentityProvider(handle);
+		});
+	}
+
+	async provideCanonicalUriIdentity(uri: URI, cancellationToken: CancellationToken): Promise<URI | undefined> {
+		const provider = this._canonicalUriIdentityProviders.get(uri.scheme);
+		if (!provider) {
+			return undefined;
+		}
+
+		const result = await provider.provideCanonicalUriIdentity?.(URI.revive(uri), cancellationToken);
+		if (!result) {
+			return undefined;
+		}
+
+		return result;
+	}
+
+	// called by main thread
+	async $provideCanonicalUriIdentity(uri: UriComponents, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
+		return this.provideCanonicalUriIdentity(URI.revive(uri), cancellationToken);
 	}
 }
 

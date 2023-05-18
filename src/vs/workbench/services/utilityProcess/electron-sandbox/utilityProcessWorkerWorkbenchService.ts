@@ -5,7 +5,7 @@
 
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService, ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IPCClient, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -76,7 +76,7 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 	private _utilityProcessWorkerService: IUtilityProcessWorkerService | undefined = undefined;
 	private get utilityProcessWorkerService(): IUtilityProcessWorkerService {
 		if (!this._utilityProcessWorkerService) {
-			const channel = this.useUtilityProcess ? this.mainProcessService.getChannel(ipcUtilityProcessWorkerChannelName) : this.sharedProcessService.getChannel(ipcUtilityProcessWorkerChannelName);
+			const channel = this.mainProcessService.getChannel(ipcUtilityProcessWorkerChannelName);
 			this._utilityProcessWorkerService = ProxyChannel.toService<IUtilityProcessWorkerService>(channel);
 		}
 
@@ -87,9 +87,7 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 
 	constructor(
 		readonly windowId: number,
-		private readonly useUtilityProcess: boolean,
 		@ILogService private readonly logService: ILogService,
-		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IMainProcessService private readonly mainProcessService: IMainProcessService
 	) {
 		super();
@@ -131,6 +129,14 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 		const port = await portPromise;
 		const client = disposables.add(new MessagePortClient(port, `window:${this.windowId},module:${process.moduleId}`));
 		this.logService.trace('Renderer->UtilityProcess#createWorkerChannel: connection established');
+
+		onDidTerminate.then(({ reason }) => {
+			if (reason?.code === 0) {
+				this.logService.trace(`[UtilityProcessWorker]: terminated normally with code ${reason.code}, signal: ${reason.signal}`);
+			} else {
+				this.logService.error(`[UtilityProcessWorker]: terminated unexpectedly with code ${reason?.code}, signal: ${reason?.signal}`);
+			}
+		});
 
 		return { client, onDidTerminate, dispose: () => disposables.dispose() };
 	}

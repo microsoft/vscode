@@ -109,68 +109,74 @@
 		 * @param {string} userDataPath
 		 * @param {string} metaDataFile
 		 * @param {string} locale
-		 * @param {string | undefined} language
+		 * @param {string} osLocale
+		 * @returns {Promise<import('./languagePacks').NLSConfiguration>}
 		 */
-		function getNLSConfiguration(commit, userDataPath, metaDataFile, locale, language) {
+		function getNLSConfiguration(commit, userDataPath, metaDataFile, locale, osLocale) {
+			const defaultResult = function (locale) {
+				perf.mark('code/didGenerateNls');
+				return Promise.resolve({ locale, osLocale, availableLanguages: {} });
+			};
+
+			perf.mark('code/willGenerateNls');
+
+			if (locale === 'pseudo') {
+				return Promise.resolve({ locale, osLocale, availableLanguages: {}, pseudo: true });
+			}
+
 			if (process.env['VSCODE_DEV']) {
-				return Promise.resolve({ locale, availableLanguages: {} });
+				return Promise.resolve({ locale, osLocale, availableLanguages: {} });
 			}
 
 			// We have a built version so we have extracted nls file. Try to find
 			// the right file to use.
 
-			// If we didn't specify a language, use the default
-			if (!language) {
-				return Promise.resolve({ locale, availableLanguages: {} });
+			// Check if we have an English or English US locale. If so fall to default since that is our
+			// English translation (we don't ship *.nls.en.json files)
+			if (locale && (locale === 'en' || locale === 'en-us')) {
+				return Promise.resolve({ locale, osLocale, availableLanguages: {} });
 			}
 
-			// If we specified English or English US, return that as the available language.
-			if (language === 'en' || language === 'en-us') {
-				return Promise.resolve({ locale, availableLanguages: { '*': 'en' } });
-			}
+			const initialLocale = locale;
 
-			perf.mark('code/willGenerateNls');
-
-			const defaultResult = function (locale) {
-				perf.mark('code/didGenerateNls');
-				return Promise.resolve({ locale, availableLanguages: {} });
-			};
 			try {
 				if (!commit) {
-					return defaultResult(locale);
+					return defaultResult(initialLocale);
 				}
 				return getLanguagePackConfigurations(userDataPath).then(configs => {
 					if (!configs) {
-						return defaultResult(locale);
+						return defaultResult(initialLocale);
 					}
-					language = resolveLanguagePackLocale(configs, language);
-					if (!language) {
-						return defaultResult(locale);
+					const resolvedLocale = resolveLanguagePackLocale(configs, locale);
+					if (!resolvedLocale) {
+						return defaultResult(initialLocale);
 					}
-					const packConfig = configs[language];
+					locale = resolvedLocale;
+					const packConfig = configs[locale];
 					let mainPack;
 					if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
-						return defaultResult(locale);
+						return defaultResult(initialLocale);
 					}
 					return exists(mainPack).then(fileExists => {
 						if (!fileExists) {
-							return defaultResult(locale);
+							return defaultResult(initialLocale);
 						}
-						const _languagePackId = packConfig.hash + '.' + language;
-						const cacheRoot = path.join(userDataPath, 'clp', _languagePackId);
+						const packId = packConfig.hash + '.' + locale;
+						const cacheRoot = path.join(userDataPath, 'clp', packId);
 						const coreLocation = path.join(cacheRoot, commit);
-						const _translationsConfigFile = path.join(cacheRoot, 'tcf.json');
-						const _corruptedFile = path.join(cacheRoot, 'corrupted.info');
+						const translationsConfigFile = path.join(cacheRoot, 'tcf.json');
+						const corruptedFile = path.join(cacheRoot, 'corrupted.info');
 						const result = {
-							locale,
-							availableLanguages: { '*': language },
-							_languagePackId,
-							_translationsConfigFile,
+							locale: initialLocale,
+							osLocale,
+							availableLanguages: { '*': locale },
+							_languagePackId: packId,
+							_translationsConfigFile: translationsConfigFile,
 							_cacheRoot: cacheRoot,
-							_corruptedFile,
-							_resolvedLanguagePackCoreLocation: coreLocation
+							_resolvedLanguagePackCoreLocation: coreLocation,
+							_corruptedFile: corruptedFile
 						};
-						return exists(_corruptedFile).then(corrupted => {
+						return exists(corruptedFile).then(corrupted => {
 							// The nls cache directory is corrupted.
 							let toDelete;
 							if (corrupted) {
@@ -219,7 +225,7 @@
 											}
 											writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
 										}
-										writes.push(writeFile(_translationsConfigFile, JSON.stringify(packConfig.translations)));
+										writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
 										return Promise.all(writes);
 									}).then(() => {
 										perf.mark('code/didGenerateNls');

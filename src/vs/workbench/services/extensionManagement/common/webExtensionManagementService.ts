@@ -164,7 +164,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	}
 
 	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask {
-		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
+		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService, this.userDataProfilesService);
 	}
 
 	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
@@ -226,6 +226,9 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
 
+	private _profileLocation = this.options.profileLocation;
+	get profileLocation() { return this._profileLocation; }
+
 	private _operation = InstallOperation.Install;
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
@@ -234,6 +237,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 		private readonly extension: URI | IGalleryExtension,
 		private readonly options: InstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
+		private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
 		this.identifier = URI.isUri(extension) ? { id: getGalleryExtensionId(manifest.publisher, manifest.name) } : extension.identifier;
@@ -257,6 +261,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
 			metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
 			metadata.updated = !!existingExtension;
+			metadata.isApplicationScoped = this.options.isApplicationScoped || metadata.isApplicationScoped;
 			metadata.preRelease = this.extension.properties.isPreReleaseVersion ||
 				(isBoolean(this.options.installPreReleaseVersion)
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
@@ -264,8 +269,9 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 		}
 		metadata.pinned = this.options.installGivenVersion ? true : undefined;
 
-		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata, this.options.profileLocation)
-			: await this.webExtensionsScannerService.addExtensionFromGallery(this.extension, metadata, this.options.profileLocation);
+		this._profileLocation = metadata.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : this.options.profileLocation;
+		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata, this.profileLocation)
+			: await this.webExtensionsScannerService.addExtensionFromGallery(this.extension, metadata, this.profileLocation);
 		return toLocalExtension(scannedExtension);
 	}
 }

@@ -10,7 +10,7 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
+import { FindReplaceState, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -58,8 +58,9 @@ export abstract class SimpleFindWidget extends Widget {
 	private _foundMatch: boolean = false;
 	private _width: number = 0;
 
+	readonly state: FindReplaceState = new FindReplaceState();
+
 	constructor(
-		state: FindReplaceState = new FindReplaceState(),
 		options: IFindOptions,
 		contextViewService: IContextViewService,
 		contextKeyService: IContextKeyService,
@@ -106,22 +107,22 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		}));
 
-		this._findInput.setRegex(!!state.isRegex);
-		this._findInput.setCaseSensitive(!!state.matchCase);
-		this._findInput.setWholeWords(!!state.wholeWord);
+		this._findInput.setRegex(!!this.state.isRegex);
+		this._findInput.setCaseSensitive(!!this.state.matchCase);
+		this._findInput.setWholeWords(!!this.state.wholeWord);
 
 		this._register(this._findInput.onDidOptionChange(() => {
-			state.change({
+			this.state.change({
 				isRegex: this._findInput.getRegex(),
 				wholeWord: this._findInput.getWholeWords(),
 				matchCase: this._findInput.getCaseSensitive()
 			}, true);
 		}));
 
-		this._register(state.onFindReplaceStateChange(() => {
-			this._findInput.setRegex(state.isRegex);
-			this._findInput.setWholeWords(state.wholeWord);
-			this._findInput.setCaseSensitive(state.matchCase);
+		this._register(this.state.onFindReplaceStateChange(() => {
+			this._findInput.setRegex(this.state.isRegex);
+			this._findInput.setWholeWords(this.state.wholeWord);
+			this._findInput.setCaseSensitive(this.state.matchCase);
 			this.findFirst();
 		}));
 
@@ -186,14 +187,12 @@ export abstract class SimpleFindWidget extends Widget {
 			this._matchesCount = document.createElement('div');
 			this._matchesCount.className = 'matchesCount';
 			this._findInput.domNode.insertAdjacentElement('afterend', this._matchesCount);
-			this._register(this._findInput.onDidChange(() => {
-				this.updateResultCount();
-				this.updateButtons(this._foundMatch);
+			this._register(this._findInput.onDidChange(async () => {
+				await this.updateResultCount();
 			}));
 			this._register(this._findInput.onDidOptionChange(async () => {
 				this._foundMatch = this._onInputChanged();
 				await this.updateResultCount();
-				this.updateButtons(this._foundMatch);
 				this.focusFindBox();
 				this._delayedUpdateHistory();
 			}));
@@ -349,6 +348,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 	async updateResultCount(): Promise<void> {
 		if (!this._matchesCount) {
+			this.updateButtons(this._foundMatch);
 			return;
 		}
 
@@ -367,6 +367,11 @@ export abstract class SimpleFindWidget extends Widget {
 		alertFn(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._foundMatch = !!count && count.resultCount > 0;
+		this.updateButtons(this._foundMatch);
+	}
+
+	changeState(state: INewFindReplaceState) {
+		this.state.change(state, false);
 	}
 
 	private _announceSearchResults(label: string, searchString?: string): string {

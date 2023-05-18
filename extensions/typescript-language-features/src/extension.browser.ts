@@ -11,18 +11,18 @@ import { registerBaseCommands } from './commands/index';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import RemoteRepositories from './remoteRepositories.browser';
+import { API } from './tsServer/api';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { WorkerServerProcessFactory } from './tsServer/serverProcess.browser';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
-import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import API from './utils/api';
-import { TypeScriptServiceConfiguration } from './utils/configuration';
-import { BrowserServiceConfigurationProvider } from './utils/configuration.browser';
-import { Logger } from './utils/logger';
+import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
+import { TypeScriptServiceConfiguration } from './configuration/configuration';
+import { BrowserServiceConfigurationProvider } from './configuration/configuration.browser';
+import { Logger } from './logging/logger';
 import { getPackageInfo } from './utils/packageInfo';
 import { isWebAndHasSharedArrayBuffers } from './utils/platform';
-import { PluginManager } from './utils/plugins';
+import { PluginManager } from './tsServer/plugins';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -59,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('4.9.3')));
+			API.fromSimpleString('5.0.1')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);

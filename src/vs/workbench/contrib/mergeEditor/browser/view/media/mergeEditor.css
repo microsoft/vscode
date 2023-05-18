@@ -31,6 +31,17 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.monaco-workbench .merge-editor .code-view.result > .header > .description {
+	display: inline;
+	flex-shrink: 1;
+}
+.monaco-workbench .merge-editor .code-view.result > .header > .detail {
+	flex-shrink: 0;
+}
+.monaco-workbench .merge-editor .code-view.result > .header > .toolbar {
+	flex-shrink: 0;
+}
+
 .monaco-workbench .merge-editor .code-view > .header > span.description .codicon {
 	font-size: 14px;
 	color: var(--vscode-descriptionForeground);
@@ -84,10 +95,6 @@
 
 /* BEGIN: .merge-editor-block */
 
-.monaco-workbench .merge-editor .merge-editor-block:not(.handled) {
-	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
-}
-
 .monaco-workbench .merge-editor .merge-editor-block:not(.handled):not(.focused) {
 	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 }
@@ -100,16 +107,8 @@
 	border: 1px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
 }
 
-.monaco-workbench .merge-editor .merge-editor-block.handled:not(.focused).conflicting {
-	background-color: var(--vscode-mergeEditor-conflict-handledUnfocused-background);
-}
-
 .monaco-workbench .merge-editor .merge-editor-block.handled.focused {
 	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
-}
-
-.monaco-workbench .merge-editor .merge-editor-block.handled.focused.conflicting {
-	background-color: var(--vscode-mergeEditor-conflict-handledFocused-background);
 }
 
 .monaco-workbench .merge-editor .merge-editor-simplified.input.i1, .merge-editor-block.use-simplified-decorations.input.i1 {

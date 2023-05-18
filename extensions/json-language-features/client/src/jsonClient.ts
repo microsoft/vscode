@@ -45,7 +45,7 @@ interface DocumentSortingParams {
 	 */
 	readonly uri: string;
 	/**
-	 * The format options
+	 * The sort options
 	 */
 	readonly options: SortOptions;
 }
@@ -545,40 +545,58 @@ function getSettings(): Settings {
 		}
 	};
 
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri) => {
-		for (const setting of schemaSettings) {
-			const url = getSchemaId(setting, folderUri);
-			if (url) {
-				const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
-				schemas.push(schemaSetting);
+	/*
+	 * Add schemas from the settings
+	 * folderUri to which folder the setting is scoped to. `undefined` means global (also external files)
+	 * settingsLocation against which path relative schema URLs are resolved
+	 */
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: string | undefined, settingsLocation: Uri | undefined) => {
+		if (schemaSettings) {
+			for (const setting of schemaSettings) {
+				const url = getSchemaId(setting, settingsLocation);
+				if (url) {
+					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri, schema: setting.schema };
+					schemas.push(schemaSetting);
+				}
 			}
 		}
 	};
 
-	const globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
-	if (Array.isArray(globalSettings)) {
-		collectSchemaSettings(globalSettings);
-	}
-	const folders = workspace.workspaceFolders;
-	if (folders) {
-		for (const folder of folders) {
-			const schemaConfigInfo = workspace.getConfiguration('json', folder.uri).inspect<JSONSchemaSettings[]>('schemas');
-			if (schemaConfigInfo && Array.isArray(schemaConfigInfo.workspaceFolderValue)) {
-				collectSchemaSettings(schemaConfigInfo.workspaceFolderValue, folder.uri);
+	const folders = workspace.workspaceFolders ?? [];
+
+	const schemaConfigInfo = workspace.getConfiguration('json', null).inspect<JSONSchemaSettings[]>('schemas');
+	if (schemaConfigInfo) {
+		// settings in user config
+		collectSchemaSettings(schemaConfigInfo.globalValue, undefined, undefined);
+		if (workspace.workspaceFile) {
+			if (schemaConfigInfo.workspaceValue) {
+				const settingsLocation = Uri.joinPath(workspace.workspaceFile, '..');
+				// settings in the workspace configuration file apply to all files (also external files)
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, settingsLocation);
+			}
+			for (const folder of folders) {
+				const folderUri = folder.uri;
+				const folderSchemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
+				collectSchemaSettings(folderSchemaConfigInfo?.workspaceFolderValue, folderUri.toString(false), folderUri);
+			}
+		} else {
+			if (schemaConfigInfo.workspaceValue && folders.length === 1) {
+				// single folder workspace: settings apply to all files (also external files)
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, folders[0].uri);
 			}
 		}
 	}
 	return settings;
 }
 
-function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | undefined {
+function getSchemaId(schema: JSONSchemaSettings, settingsLocation?: Uri): string | undefined {
 	let url = schema.url;
 	if (!url) {
 		if (schema.schema) {
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
-	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = Uri.joinPath(folderUri, url).toString(false);
+	} else if (settingsLocation && (url[0] === '.' || url[0] === '/')) {
+		url = Uri.joinPath(settingsLocation, url).toString(false);
 	}
 	return url;
 }

@@ -14,7 +14,6 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { hash } from 'vs/base/common/hash';
@@ -95,7 +94,6 @@ export class LanguageConfigurationFileHandler extends Disposable {
 	private readonly _done = new Map<string, number>();
 
 	constructor(
-		@ITextMateTokenizationService textMateService: ITextMateTokenizationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -103,7 +101,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 	) {
 		super();
 
-		this._register(this._languageService.onDidEncounterLanguage(async (languageIdentifier) => {
+		this._register(this._languageService.onDidRequestBasicLanguageFeatures(async (languageIdentifier) => {
 			// Modes can be instantiated before the extension points have finished registering
 			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 				this._loadConfigurationsForMode(languageIdentifier);
@@ -114,9 +112,6 @@ export class LanguageConfigurationFileHandler extends Disposable {
 			for (const [languageId] of this._done) {
 				this._loadConfigurationsForMode(languageId);
 			}
-		}));
-		this._register(textMateService.onDidEncounterLanguage((languageId) => {
-			this._loadConfigurationsForMode(languageId);
 		}));
 	}
 

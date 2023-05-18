@@ -56,6 +56,7 @@ export function renderQuickInputDescription(description: string, container: HTML
 			}
 
 			const anchor = dom.$('a', { href: node.href, title, tabIndex: tabIndex++ }, node.label);
+			anchor.style.textDecoration = 'underline';
 			const handleOpen = (e: unknown) => {
 				if (dom.isEventLike(e)) {
 					dom.EventHelper.stop(e, true);

@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import * as errors from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Barrier } from 'vs/base/common/async';
@@ -168,7 +168,7 @@ export class ExtensionsActivator implements IDisposable {
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _globalRegistry: ExtensionDescriptionRegistry;
 	private readonly _host: IExtensionsActivatorHost;
-	private readonly _operations: Map<string, ActivationOperation>;
+	private readonly _operations: ExtensionIdentifierMap<ActivationOperation>;
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
@@ -183,7 +183,7 @@ export class ExtensionsActivator implements IDisposable {
 		this._registry = registry;
 		this._globalRegistry = globalRegistry;
 		this._host = host;
-		this._operations = new Map<string, ActivationOperation>();
+		this._operations = new ExtensionIdentifierMap<ActivationOperation>();
 		this._alreadyActivatedEvents = Object.create(null);
 	}
 
@@ -193,13 +193,21 @@ export class ExtensionsActivator implements IDisposable {
 		}
 	}
 
+	public async waitForActivatingExtensions(): Promise<void> {
+		const res: Promise<boolean>[] = [];
+		for (const [_, op] of this._operations) {
+			res.push(op.wait());
+		}
+		await Promise.all(res);
+	}
+
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
-		const op = this._operations.get(ExtensionIdentifier.toKey(extensionId));
+		const op = this._operations.get(extensionId);
 		return Boolean(op && op.value);
 	}
 
 	public getActivatedExtension(extensionId: ExtensionIdentifier): ActivatedExtension {
-		const op = this._operations.get(ExtensionIdentifier.toKey(extensionId));
+		const op = this._operations.get(extensionId);
 		if (!op || !op.value) {
 			throw new Error(`Extension '${extensionId.value}' is not known or not activated`);
 		}
@@ -240,8 +248,8 @@ export class ExtensionsActivator implements IDisposable {
 	 * We don't need to worry about dependency loops because they are handled by the registry.
 	 */
 	private _handleActivationRequest(currentActivation: ActivationIdAndReason): ActivationOperation {
-		if (this._operations.has(ExtensionIdentifier.toKey(currentActivation.id))) {
-			return this._operations.get(ExtensionIdentifier.toKey(currentActivation.id))!;
+		if (this._operations.has(currentActivation.id)) {
+			return this._operations.get(currentActivation.id)!;
 		}
 
 		if (this._isHostExtension(currentActivation.id)) {
@@ -270,7 +278,7 @@ export class ExtensionsActivator implements IDisposable {
 				continue;
 			}
 
-			const dep = this._operations.get(ExtensionIdentifier.toKey(depId));
+			const dep = this._operations.get(depId);
 			if (dep) {
 				deps.push(dep);
 				continue;
@@ -317,7 +325,7 @@ export class ExtensionsActivator implements IDisposable {
 
 	private _createAndSaveOperation(activation: ActivationIdAndReason, displayName: string | null | undefined, deps: ActivationOperation[], value: ActivatedExtension | null): ActivationOperation {
 		const operation = new ActivationOperation(activation.id, displayName, activation.reason, deps, value, this._host, this._logService);
-		this._operations.set(ExtensionIdentifier.toKey(activation.id), operation);
+		this._operations.set(activation.id, operation);
 		return operation;
 	}
 

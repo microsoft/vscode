@@ -235,6 +235,27 @@ suite('Event', function () {
 		}
 	});
 
+	test('throwingListener (custom handler)', () => {
+
+		const allError: any[] = [];
+
+		const a = new Emitter<undefined>({
+			onListenerError(e) { allError.push(e); }
+		});
+		let hit = false;
+		a.event(function () {
+			// eslint-disable-next-line no-throw-literal
+			throw 9;
+		});
+		a.event(function () {
+			hit = true;
+		});
+		a.fire(undefined);
+		assert.strictEqual(hit, true);
+		assert.deepStrictEqual(allError, [9]);
+
+	});
+
 	test('reusing event function and context', function () {
 		let counter = 0;
 		function listener() {

@@ -70,20 +70,14 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	@memoize
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
 
-	get logsPath(): string {
+	get logsHome(): URI {
 		if (!this.args.logsPath) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
 			this.args.logsPath = join(this.userDataPath, 'logs', key);
 		}
 
-		return this.args.logsPath;
+		return URI.file(this.args.logsPath);
 	}
-
-	@memoize
-	get userDataSyncLogResource(): URI { return URI.file(join(this.logsPath, 'userDataSync.log')); }
-
-	@memoize
-	get editSessionsLogResource(): URI { return URI.file(join(this.logsPath, 'editSessions.log')); }
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
@@ -115,9 +109,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
-
-	@memoize
-	get installSourcePath(): string { return join(this.userDataPath, 'installSource'); }
 
 	@memoize
 	get builtinExtensionsPath(): string {
@@ -240,7 +231,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get crashReporterDirectory(): string | undefined { return this.args['crash-reporter-directory']; }
 
 	@memoize
-	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
 
 	@memoize

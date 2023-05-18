@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, dirname, join } from 'vs/base/common/path';
+import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { Promises } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -29,10 +29,10 @@ export class LogsDataCleaner extends Disposable {
 		this.logService.trace('[logs cleanup]: Starting to clean up old logs.');
 
 		try {
-			const currentLog = basename(this.environmentService.logsPath);
-			const logsRoot = dirname(this.environmentService.logsPath);
+			const currentLog = basename(this.environmentService.logsHome);
+			const logsRoot = dirname(this.environmentService.logsHome);
 
-			const logFiles = await Promises.readdir(logsRoot);
+			const logFiles = await Promises.readdir(logsRoot.fsPath);
 
 			const allSessions = logFiles.filter(logFile => /^\d{8}T\d{6}$/.test(logFile));
 			const oldSessions = allSessions.sort().filter(session => session !== currentLog);
@@ -41,7 +41,7 @@ export class LogsDataCleaner extends Disposable {
 			if (sessionsToDelete.length > 0) {
 				this.logService.trace(`[logs cleanup]: Removing log folders '${sessionsToDelete.join(', ')}'`);
 
-				await Promise.all(sessionsToDelete.map(sessionToDelete => Promises.rm(join(logsRoot, sessionToDelete))));
+				await Promise.all(sessionsToDelete.map(sessionToDelete => Promises.rm(joinPath(logsRoot, sessionToDelete).fsPath)));
 			}
 		} catch (error) {
 			onUnexpectedError(error);

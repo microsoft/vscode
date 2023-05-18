@@ -22,3 +22,4 @@ import './toggleRenderWhitespace';
 import './toggleWordWrap';
 import './untitledTextEditorHint/untitledTextEditorHint';
 import './workbenchReferenceSearch';
+import './editorLineNumberMenu';

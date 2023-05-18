@@ -29,8 +29,7 @@
 	],
 	"ban-worker-calls": [
 		"vs/base/browser/defaultWorkerFactory.ts",
-		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts",
-		"vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService.ts"
+		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
 	],
 	"ban-domparser-parsefromstring": [
 		"vs/base/browser/markdownRenderer.ts",

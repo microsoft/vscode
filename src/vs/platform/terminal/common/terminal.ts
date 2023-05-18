@@ -11,6 +11,10 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITer
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+
+export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -113,11 +117,8 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
+	ExperimentalImageSupport = 'terminal.integrated.experimentalImageSupport',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling'
-}
-
-export const enum TerminalLogConstants {
-	FileName = 'ptyhost'
 }
 
 export const enum PosixShellType {
@@ -174,6 +175,7 @@ export interface IPtyHostAttachTarget {
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
 	hasChildProcesses: boolean;
+	shellIntegrationNonce: string;
 }
 
 export interface IReconnectionProperties {
@@ -206,6 +208,10 @@ export enum TerminalIpcChannels {
 	 * Communicates between the shared process and the pty host process.
 	 */
 	PtyHost = 'ptyHost',
+	/**
+	 * Communicates between the renderer process and the pty host process.
+	 */
+	PtyHostWindow = 'ptyHostWindow',
 	/**
 	 * Deals with logging from the pty host process.
 	 */
@@ -268,7 +274,7 @@ export interface IPtyHostController {
 	readonly onPtyHostResponsive?: Event<void>;
 	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
 
-	restartPtyHost?(): Promise<void>;
+	restartPtyHost?(): void;
 	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
 }
 
@@ -308,7 +314,7 @@ export interface IPtyService extends IPtyHostController {
 	 */
 	listProcesses(): Promise<IProcessDetails[]>;
 
-	start(id: number): Promise<ITerminalLaunchError | undefined>;
+	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
 	resize(id: number, cols: number, rows: number): Promise<void>;
@@ -483,7 +489,23 @@ export interface IShellLaunchConfig {
 	 * This is a terminal that attaches to an already running terminal.
 	 */
 	attachPersistentProcess?: {
-		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionProperties?: IReconnectionProperties; type?: TerminalType; waitOnExit?: WaitOnExitValue; hideFromUser?: boolean; isFeatureTerminal?: boolean;
+		id: number;
+		findRevivedId?: boolean;
+		pid: number;
+		title: string;
+		titleSource: TitleEventSource;
+		cwd: string;
+		icon?: TerminalIcon;
+		color?: string;
+		hasChildProcesses?: boolean;
+		fixedDimensions?: IFixedTerminalDimensions;
+		environmentVariableCollections?: ISerializableEnvironmentVariableCollections;
+		reconnectionProperties?: IReconnectionProperties;
+		type?: TerminalType;
+		waitOnExit?: WaitOnExitValue;
+		hideFromUser?: boolean;
+		isFeatureTerminal?: boolean;
+		shellIntegrationNonce: string;
 	};
 
 	/**
@@ -598,9 +620,11 @@ export interface ITerminalProcessOptions {
 	shellIntegration: {
 		enabled: boolean;
 		suggestEnabled: boolean;
+		nonce: string;
 	};
 	windowsEnableConpty: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	workspaceFolder: IWorkspaceFolder | undefined;
 }
 
 export interface ITerminalEnvironment {
@@ -647,7 +671,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | undefined>;
+	start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 
 	/**
 	 * Detach the process from the UI and await reconnect.
@@ -860,3 +884,55 @@ export enum TerminalExitReason {
 	User = 3,
 	Extension = 4,
 }
+
+export interface ITerminalOutputMatch {
+	regexMatch: RegExpMatchArray;
+	outputLines: string[];
+}
+
+/**
+ * A matcher that runs on a sub-section of a terminal command's output
+ */
+export interface ITerminalOutputMatcher {
+	/**
+	 * A string or regex to match against the unwrapped line. If this is a regex with the multiline
+	 * flag, it will scan an amount of lines equal to `\n` instances in the regex + 1.
+	 */
+	lineMatcher: string | RegExp;
+	/**
+	 * Which side of the output to anchor the {@link offset} and {@link length} against.
+	 */
+	anchor: 'top' | 'bottom';
+	/**
+	 * The number of rows above or below the {@link anchor} to start matching against.
+	 */
+	offset: number;
+	/**
+	 * The number of rows to match against, this should be as small as possible for performance
+	 * reasons. This is capped at 40.
+	 */
+	length: number;
+
+	/**
+	 * If multiple matches are expected - this will result in {@link outputLines} being returned
+	 * when there's a {@link regexMatch} from {@link offset} to {@link length}
+	 */
+	multipleMatches?: boolean;
+}
+
+export interface ITerminalCommandSelector {
+	id: string;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	exitStatus: boolean;
+	commandExitResult: 'success' | 'error';
+}
+
+export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyService');
+
+/**
+ * A service responsible for communicating with the pty host process on Electron.
+ *
+ * **This service should only be used within the terminal component.**
+ */
+export interface ILocalPtyService extends IPtyService { }

@@ -98,7 +98,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 	private async downloadCompatibleAndInstall(extension: IGalleryExtension, installed: ILocalExtension[], installOptions: InstallOptions): Promise<ILocalExtension> {
 		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
 		this.logService.trace('Downloading extension:', compatible.identifier.id);
-		const location = await this.localExtensionManagementServer.extensionManagementService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
+		const location = await this.localExtensionManagementServer.extensionManagementService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install, !!installOptions.donotVerifySignature);
 		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
 		try {
 			const local = await super.install(location, installOptions);

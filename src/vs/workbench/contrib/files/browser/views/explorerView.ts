@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -171,6 +171,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private compressedFocusLastContext: IContextKey<boolean>;
 
 	private viewHasSomeCollapsibleRootItem: IContextKey<boolean>;
+	private viewVisibleContextKey: IContextKey<boolean>;
+
 
 	private horizontalScrolling: boolean | undefined;
 
@@ -219,6 +221,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.compressedFocusFirstContext = ExplorerCompressedFirstFocusContext.bindTo(contextKeyService);
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
 		this.viewHasSomeCollapsibleRootItem = ViewHasSomeCollapsibleRootItemContext.bindTo(contextKeyService);
+		this.viewVisibleContextKey = FoldersViewVisibleContext.bindTo(contextKeyService);
+
 
 		this.explorerService.registerView(this);
 	}
@@ -233,6 +237,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	override set title(_: string) {
 		// noop
+	}
+
+	override setVisible(visible: boolean): void {
+		this.viewVisibleContextKey.set(visible);
+		super.setVisible(visible);
 	}
 
 	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
@@ -600,7 +609,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		});
 	}
 
-	private onFocusChanged(elements: ExplorerItem[]): void {
+	private onFocusChanged(elements: readonly ExplorerItem[]): void {
 		const stat = elements && elements.length ? elements[0] : undefined;
 		this.setContextKeys(stat);
 
@@ -663,7 +672,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 		const roots = this.explorerService.roots;
 		let input: ExplorerItem | ExplorerItem[] = roots[0];
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].isError) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].error) {
 			// Display roots only when multi folder workspace
 			input = roots;
 		}
@@ -682,12 +691,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
 				if (!viewState || previousInput instanceof ExplorerItem) {
-					// There is no view state for this workspace (we transitioned from a folder workspace?), expand all roots.
-					await Promise.all(input.map(async item => {
+					// There is no view state for this workspace (we transitioned from a folder workspace?), expand up to five roots.
+					// If there are many roots in a workspace, expanding them all would can cause performance issues #176226
+					for (let i = 0; i < Math.min(input.length, 5); i++) {
 						try {
-							await this.tree.expand(item);
+							await this.tree.expand(input[i]);
 						} catch (e) { }
-					}));
+					}
 				}
 				// Reloaded or transitioned from an empty workspace, but only have a single folder in the workspace.
 				if (!previousInput && input.length === 1 && this.configurationService.getValue<IFilesConfiguration>().explorer.expandSingleFolderWorkspaces) {
@@ -982,7 +992,10 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const explorerView = viewsService.getViewWithId(VIEW_ID) as ExplorerView;
-		explorerView.collapseAll();
+		const view = viewsService.getViewWithId(VIEW_ID);
+		if (view !== null) {
+			const explorerView = view as ExplorerView;
+			explorerView.collapseAll();
+		}
 	}
 });

@@ -293,12 +293,6 @@ export interface IFileReadLimits {
 	 * `FILE_TOO_LARGE` will be thrown.
 	 */
 	size?: number;
-
-	/**
-	 * If the file exceeds the given size, an error of kind
-	 * `FILE_EXCEEDS_MEMORY_LIMIT` will be thrown.
-	 */
-	memory?: number;
 }
 
 export interface IFileReadStreamOptions {
@@ -400,9 +394,17 @@ export enum FileType {
 export enum FilePermission {
 
 	/**
-	 * File is readonly.
+	 * File is readonly. Components like editors should not
+	 * offer to edit the contents.
 	 */
-	Readonly = 1
+	Readonly = 1,
+
+	/**
+	 * File is locked. Components like editors should offer
+	 * to edit the contents and ask the user upon saving to
+	 * remove the lock.
+	 */
+	Locked = 2
 }
 
 export interface IStat {
@@ -610,7 +612,7 @@ export enum FileSystemProviderErrorCode {
 	FileNotFound = 'EntryNotFound',
 	FileNotADirectory = 'EntryNotADirectory',
 	FileIsADirectory = 'EntryIsADirectory',
-	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
+	FileExceedsStorageQuota = 'EntryExceedsStorageQuota',
 	FileTooLarge = 'EntryTooLarge',
 	FileWriteLocked = 'EntryWriteLocked',
 	NoPermissions = 'NoPermissions',
@@ -679,7 +681,6 @@ export function toFileSystemProviderErrorCode(error: Error | undefined | null): 
 		case FileSystemProviderErrorCode.FileIsADirectory: return FileSystemProviderErrorCode.FileIsADirectory;
 		case FileSystemProviderErrorCode.FileNotADirectory: return FileSystemProviderErrorCode.FileNotADirectory;
 		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit: return FileSystemProviderErrorCode.FileExceedsMemoryLimit;
 		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
 		case FileSystemProviderErrorCode.FileWriteLocked: return FileSystemProviderErrorCode.FileWriteLocked;
 		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
@@ -710,8 +711,6 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
 			return FileOperationResult.FILE_MOVE_CONFLICT;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit:
-			return FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
 		case FileSystemProviderErrorCode.FileTooLarge:
 			return FileOperationResult.FILE_TOO_LARGE;
 		default:
@@ -970,7 +969,7 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	return path.indexOf(candidate) === 0;
 }
 
-interface IBaseFileStat {
+export interface IBaseFileStat {
 
 	/**
 	 * The unified resource identifier of this file or folder.
@@ -1017,9 +1016,17 @@ interface IBaseFileStat {
 	readonly etag?: string;
 
 	/**
-	 * The file is read-only.
+	 * File is readonly. Components like editors should not
+	 * offer to edit the contents.
 	 */
 	readonly readonly?: boolean;
+
+	/**
+	 * File is locked. Components like editors should offer
+	 * to edit the contents and ask the user upon saving to
+	 * remove the lock.
+	 */
+	readonly locked?: boolean;
 }
 
 export interface IBaseFileStatWithMetadata extends Required<IBaseFileStat> { }
@@ -1059,6 +1066,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetad
 	readonly etag: string;
 	readonly size: number;
 	readonly readonly: boolean;
+	readonly locked: boolean;
 	readonly children: IFileStatWithMetadata[] | undefined;
 }
 
@@ -1186,7 +1194,7 @@ export class FileOperationError extends Error {
 export class TooLargeFileOperationError extends FileOperationError {
 	constructor(
 		message: string,
-		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE | FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE,
 		readonly size: number,
 		options?: IReadFileOptions
 	) {
@@ -1215,7 +1223,6 @@ export const enum FileOperationResult {
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
-	FILE_EXCEEDS_MEMORY_LIMIT,
 	FILE_NOT_DIRECTORY,
 	FILE_OTHER_ERROR
 }
@@ -1239,12 +1246,19 @@ export const HotExitConfiguration = {
 
 export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
 export const FILES_EXCLUDE_CONFIG = 'files.exclude';
+export const FILES_READONLY_INCLUDE_CONFIG = 'files.readonlyInclude';
+export const FILES_READONLY_EXCLUDE_CONFIG = 'files.readonlyExclude';
+export const FILES_READONLY_FROM_PERMISSIONS_CONFIG = 'files.readonlyFromPermissions';
+
+export interface IGlobPatterns {
+	[filepattern: string]: boolean;
+}
 
 export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
 		exclude: IExpression;
-		watcherExclude: { [filepattern: string]: boolean };
+		watcherExclude: IGlobPatterns;
 		watcherInclude: string[];
 		encoding: string;
 		autoGuessEncoding: boolean;
@@ -1256,6 +1270,9 @@ export interface IFilesConfiguration {
 		enableTrash: boolean;
 		hotExit: string;
 		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
+		readonlyInclude: IGlobPatterns;
+		readonlyExclude: IGlobPatterns;
+		readonlyFromPermissions: boolean;
 	};
 }
 
@@ -1300,12 +1317,6 @@ export async function whenProviderRegistered(file: URI, fileService: IFileServic
 }
 
 /**
- * Native only: limits for memory sizes
- */
-export const MIN_MAX_MEMORY_SIZE_MB = 2048;
-export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
-
-/**
  * Helper to format a raw byte size into a human readable label.
  */
 export class ByteSize {
@@ -1341,23 +1352,6 @@ export class ByteSize {
 }
 
 // File limits
-
-export interface IFileLimits {
-	readonly maxFileSize: number;
-	readonly maxHeapSize: number;
-}
-
-export const enum Arch {
-	IA32,
-	OTHER
-}
-
-export function getPlatformFileLimits(arch: Arch): IFileLimits {
-	return {
-		maxFileSize: arch === Arch.IA32 ? 300 * ByteSize.MB : 16 * ByteSize.GB,  // https://github.com/microsoft/vscode/issues/30180
-		maxHeapSize: arch === Arch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
-	};
-}
 
 export function getLargeFileConfirmationLimit(remoteAuthority?: string): number;
 export function getLargeFileConfirmationLimit(uri?: URI): number;

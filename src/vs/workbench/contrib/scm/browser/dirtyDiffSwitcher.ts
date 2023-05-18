@@ -11,7 +11,7 @@ import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewIte
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { peekViewTitleBackground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { Color } from 'vs/base/common/color';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IQuickDiffSelectItem extends ISelectOptionItem {
 	provider: string;
@@ -34,7 +34,10 @@ export class SwitchQuickDiffViewItem extends SelectActionViewItem<IQuickDiffSele
 		}
 		const styles = { ...defaultSelectBoxStyles };
 		const theme = themeService.getColorTheme();
-		styles.selectBackground = theme.getColor(peekViewTitleBackground)?.lighten(.7).toString() || Color.transparent.toString();
+		const editorBackgroundColor = theme.getColor(editorBackground);
+		const peekTitleColor = theme.getColor(peekViewTitleBackground);
+		const opaqueTitleColor = peekTitleColor?.makeOpaque(editorBackgroundColor!) ?? editorBackgroundColor!;
+		styles.selectBackground = opaqueTitleColor.lighten(.6).toString();
 		super(null, action, items, startingSelection, contextViewService, styles, { ariaLabel: nls.localize('remotes', 'Switch quick diff base') });
 		this.optionsItems = items;
 	}
@@ -46,6 +49,11 @@ export class SwitchQuickDiffViewItem extends SelectActionViewItem<IQuickDiffSele
 
 	protected override getActionContext(_: string, index: number): IQuickDiffSelectItem {
 		return this.optionsItems[index];
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this.setFocusable(true);
 	}
 }
 

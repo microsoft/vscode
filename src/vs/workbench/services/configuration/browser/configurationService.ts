@@ -45,6 +45,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	return userDataProfile.isDefault
@@ -105,7 +106,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	constructor(
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string; configurationCache: IConfigurationCache },
-		environmentService: IWorkbenchEnvironmentService,
+		environmentService: IBrowserWorkbenchEnvironmentService,
 		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly userDataProfilesService: IUserDataProfilesService,
 		private readonly fileService: IFileService,
@@ -789,8 +790,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private onApplicationConfigurationChanged(applicationConfiguration: ConfigurationModel): void {
 		const previous = { data: this._configuration.toData(), workspace: this.workspace };
 		const change = this._configuration.compareAndUpdateApplicationConfiguration(applicationConfiguration);
-		const configuraitonProperties = this.configurationRegistry.getConfigurationProperties();
-		change.keys = change.keys.filter(key => configuraitonProperties[key]?.scope === ConfigurationScope.APPLICATION);
+		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
+		change.keys = change.keys.filter(key => configurationProperties[key]?.scope === ConfigurationScope.APPLICATION);
 		this.triggerConfigurationChange(change, previous, ConfigurationTarget.USER);
 	}
 

@@ -10,7 +10,7 @@ import { basename, joinPath } from 'vs/base/common/resources';
 import { URI, UriDto } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IAnyWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -46,6 +46,7 @@ export interface IUserDataProfile {
 	readonly tasksResource: URI;
 	readonly snippetsHome: URI;
 	readonly extensionsResource: URI;
+	readonly cacheHome: URI;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly isTransient?: boolean;
 }
@@ -127,13 +128,14 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		keybindingsResource: URI.revive(profile.keybindingsResource).with({ scheme }),
 		tasksResource: URI.revive(profile.tasksResource).with({ scheme }),
 		snippetsHome: URI.revive(profile.snippetsHome).with({ scheme }),
-		extensionsResource: URI.revive(profile.extensionsResource)?.with({ scheme }),
+		extensionsResource: URI.revive(profile.extensionsResource).with({ scheme }),
+		cacheHome: URI.revive(profile.cacheHome).with({ scheme }),
 		useDefaultFlags: profile.useDefaultFlags,
 		isTransient: profile.isTransient,
 	};
 }
 
-export function toUserDataProfile(id: string, name: string, location: URI, options?: IUserDataProfileOptions): IUserDataProfile {
+export function toUserDataProfile(id: string, name: string, location: URI, profilesCacheHome: URI, options?: IUserDataProfileOptions): IUserDataProfile {
 	return {
 		id,
 		name,
@@ -146,6 +148,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, optio
 		tasksResource: joinPath(location, 'tasks.json'),
 		snippetsHome: joinPath(location, 'snippets'),
 		extensionsResource: joinPath(location, 'extensions.json'),
+		cacheHome: joinPath(profilesCacheHome, id),
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient
 	};
@@ -178,6 +181,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	protected enabled: boolean = true;
 	readonly profilesHome: URI;
+	private readonly profilesCacheHome: URI;
 
 	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
 	get profiles(): IUserDataProfile[] { return [...this.profilesObject.profiles, ...this.transientProfilesObject.profiles]; }
@@ -210,6 +214,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	) {
 		super();
 		this.profilesHome = joinPath(this.environmentService.userRoamingDataHome, 'profiles');
+		this.profilesCacheHome = joinPath(this.environmentService.cacheHome, 'CachedProfilesData');
 	}
 
 	init(): void {
@@ -238,7 +243,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 							this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
 							continue;
 						}
-						profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, { shortName: storedProfile.shortName, useDefaultFlags: storedProfile.useDefaultFlags }));
+						profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { shortName: storedProfile.shortName, useDefaultFlags: storedProfile.useDefaultFlags }));
 					}
 				} catch (error) {
 					this.logService.error(error);
@@ -278,7 +283,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	private createDefaultProfile() {
-		return toUserDataProfile('__default__profile__', localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
+		return toUserDataProfile('__default__profile__', localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome, this.profilesCacheHome);
 	}
 
 	async createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
@@ -325,7 +330,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						return existing;
 					}
 
-					const profile = toUserDataProfile(id, name, joinPath(this.profilesHome, id), options);
+					const profile = toUserDataProfile(id, name, joinPath(this.profilesHome, id), this.profilesCacheHome, options);
 					await this.fileService.createFolder(profile.location);
 
 					const joiners: Promise<void>[] = [];
@@ -358,7 +363,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			throw new Error(`Profile '${profileToUpdate.name}' does not exist`);
 		}
 
-		profile = toUserDataProfile(profile.id, options.name ?? profile.name, profile.location, { shortName: options.shortName ?? profile.shortName, transient: options.transient ?? profile.isTransient, useDefaultFlags: options.useDefaultFlags ?? profile.useDefaultFlags });
+		profile = toUserDataProfile(profile.id, options.name ?? profile.name, profile.location, this.profilesCacheHome, { shortName: options.shortName ?? profile.shortName, transient: options.transient ?? profile.isTransient, useDefaultFlags: options.useDefaultFlags ?? profile.useDefaultFlags });
 		this.updateProfiles([], [], [profile]);
 
 		return profile;
@@ -403,6 +408,14 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this.updateStoredProfileAssociations();
 
 		this.updateProfiles([], [profile], []);
+
+		try {
+			await this.fileService.del(profile.cacheHome, { recursive: true });
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
+		}
 
 		try {
 			if (this.profiles.length === 1) {

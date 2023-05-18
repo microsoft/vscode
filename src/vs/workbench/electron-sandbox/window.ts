@@ -32,18 +32,18 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { posix } from 'vs/base/common/path';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -140,14 +140,14 @@ export class NativeWindow extends Disposable {
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
-		// prevent opening a real URL inside the window
+		// Prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
 				EventHelper.stop(e);
 			});
 		}
 
-		// Support runAction event
+		// Support `runAction` event
 		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
 			const args: unknown[] = request.args || [];
 
@@ -277,6 +277,30 @@ export class NativeWindow extends Disposable {
 		// Accessibility support changed event
 		ipcRenderer.on('vscode:accessibilitySupportChanged', (event: unknown, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+		});
+
+		// Allow to update settings around allowed UNC Host
+		ipcRenderer.on('vscode:configureAllowedUNCHost', (event: unknown, host: string) => {
+			if (!isWindows) {
+				return; // only supported on Windows
+			}
+
+			const allowedUncHosts = new Set<string>();
+
+			const configuredAllowedUncHosts = this.configurationService.getValue<string[] | undefined>('security.allowedUNCHosts',) ?? [];
+			if (Array.isArray(configuredAllowedUncHosts)) {
+				for (const configuredAllowedUncHost of configuredAllowedUncHosts) {
+					if (typeof configuredAllowedUncHost === 'string') {
+						allowedUncHosts.add(configuredAllowedUncHost);
+					}
+				}
+			}
+
+			if (!allowedUncHosts.has(host)) {
+				allowedUncHosts.add(host);
+
+				this.configurationService.updateValue('security.allowedUNCHosts', [...allowedUncHosts.values()], ConfigurationTarget.USER);
+			}
 		});
 
 		// Zoom level changes
@@ -697,23 +721,46 @@ export class NativeWindow extends Disposable {
 			}
 		}
 
-		// Windows 7 warning
+		// Windows 7/8/8.1 warning
 		if (isWindows) {
 			const version = this.environmentService.os.release.split('.');
+			const majorVersion = version[0];
+			const minorVersion = version[1];
+			const eolReleases = new Map<string, Map<string, string>>([
+				['6', new Map<string, string>([
+					['1', 'Windows 7 / Windows Server 2008 R2'],
+					['2', 'Windows 8 / Windows Server 2012'],
+					['3', 'Windows 8.1 / Windows Server 2012 R2'],
+				])],
+			]);
 
 			// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
-			if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
-				const message = localize('windows 7 eol', "{0} on Windows 7 will no longer receive any further updates.", this.productService.nameLong);
+			if (eolReleases.get(majorVersion)?.has(minorVersion)) {
+				const message = localize('windowseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your windows version.", this.productService.nameLong, eolReleases.get(majorVersion)?.get(minorVersion));
+				const actions = [{
+					label: localize('windowseolBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-faq-old-windows'
+				}];
+
+				this.bannerService.show({
+					id: 'windowseol.banner',
+					message,
+					ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
+					actions,
+					icon: Codicon.warning
+				});
 
 				this.notificationService.prompt(
 					Severity.Warning,
 					message,
 					[{
 						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-windows'))
 					}],
 					{
-						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+						neverShowAgain: { id: 'windowseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
 					}
 				);
 			}
@@ -750,7 +797,9 @@ export class NativeWindow extends Disposable {
 						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
 					}],
 					{
-						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
 					}
 				);
 			}
@@ -770,7 +819,7 @@ export class NativeWindow extends Disposable {
 		const that = this;
 		let pendingQuit = false;
 
-		registerWindowDriver({
+		registerWindowDriver(this.instantiationService, {
 			async exitApplication(): Promise<void> {
 				if (pendingQuit) {
 					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');

@@ -14,6 +14,7 @@ export const enum TerminalContextKeyStrings {
 	HasFixedWidth = 'terminalHasFixedWidth',
 	ProcessSupported = 'terminalProcessSupported',
 	Focus = 'terminalFocus',
+	AccessibleBufferFocus = 'terminalAccessibleBufferFocus',
 	EditorFocus = 'terminalEditorFocus',
 	TabsFocus = 'terminalTabsFocus',
 	WebExtensionContributedProfile = 'terminalWebExtensionContributedProfile',
@@ -41,6 +42,9 @@ export namespace TerminalContextKeys {
 
 	/** Whether the terminal is focused. */
 	export const focus = new RawContextKey<boolean>(TerminalContextKeyStrings.Focus, false, localize('terminalFocusContextKey', "Whether the terminal is focused."));
+
+	/** Whether the accessible buffer is focused. */
+	export const accessibleBufferFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.AccessibleBufferFocus, false, localize('terminalAccessibleBufferFocusContextKey', "Whether the terminal accessible buffer is focused."));
 
 	/** Whether a terminal in the editor area is focused. */
 	export const editorFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.EditorFocus, false, localize('terminalEditorFocusContextKey', "Whether a terminal in the editor area is focused."));

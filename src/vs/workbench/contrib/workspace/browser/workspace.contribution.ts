@@ -47,6 +47,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { isWeb } from 'vs/base/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -173,7 +174,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
 					]
 				},
-				buttons: buttons.map(button => {
+				buttons: buttons.filter(b => b.type !== 'Cancel').map(button => {
 					return {
 						label: button.label,
 						run: () => button.type
@@ -690,11 +691,7 @@ registerAction2(class extends Action2 {
  */
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		id: 'security',
-		scope: ConfigurationScope.APPLICATION,
-		title: localize('securityConfigurationTitle', "Security"),
-		type: 'object',
-		order: 7,
+		...securityConfigurationNodeBase,
 		properties: {
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',

@@ -442,6 +442,20 @@
 	},
 	{
 		"type": "comment",
+		"name": "extCopilot",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"reason": "not_planned",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the Copilot extension. Please file the issue in the [Copilot Discussion Forum](https://github.com/community/community/discussions/categories/copilot). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
 		"name": "gifPlease",
 		"allowUsers": [
 			"cleidigh",

@@ -83,13 +83,13 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 		@IProductService productService: IProductService
 	) {
 
-		super(() => {
-			return telemetryService.getTelemetryInfo().then(telemetryInfo => {
-				return telemetryInfo.machineId;
-			});
-		}, configurationService, productService,
+		super(
+			telemetryService.machineId,
+			configurationService,
+			productService,
 			new WorkbenchAssignmentServiceTelemetry(telemetryService, productService),
-			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService)));
+			new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService))
+		);
 	}
 
 	protected override get experimentsEnabled(): boolean {

@@ -84,7 +84,7 @@ export class TextMateTokenizationWorker {
 	public acceptNewModel(data: IRawModelData): void {
 		const uri = URI.revive(data.uri);
 		const key = uri.toString();
-		this._models[key] = new TextMateWorkerModel(uri, data.lines, data.EOL, data.versionId, this, data.languageId, data.encodedLanguageId);
+		this._models[key] = new TextMateWorkerModel(uri, data.lines, data.EOL, data.versionId, this, data.languageId, data.encodedLanguageId, data.maxTokenizationLineLength);
 	}
 
 	public acceptModelChanged(strURL: string, e: IModelChangedEvent): void {
@@ -109,6 +109,10 @@ export class TextMateTokenizationWorker {
 	public async acceptTheme(theme: IRawTheme, colorMap: string[]): Promise<void> {
 		const grammarFactory = await this._grammarFactory;
 		grammarFactory?.setTheme(theme, colorMap);
+	}
+
+	public acceptMaxTokenizationLineLength(strURL: string, value: number): void {
+		this._models[strURL].acceptMaxTokenizationLineLength(value);
 	}
 
 	// #endregion
@@ -140,6 +144,7 @@ export interface IRawModelData {
 	EOL: string;
 	languageId: string;
 	encodedLanguageId: LanguageId;
+	maxTokenizationLineLength: number;
 }
 
 export function create(ctx: IWorkerContext<TextMateWorkerHost>, createData: ICreateData): TextMateTokenizationWorker {

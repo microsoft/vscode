@@ -14,10 +14,12 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as lifecycle from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -35,6 +37,12 @@ import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugMod
 import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 const $ = dom.$;
+
+export const enum ShowDebugHoverResult {
+	NOT_CHANGED,
+	NOT_AVAILABLE,
+	CANCELLED,
+}
 
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
@@ -85,6 +93,9 @@ export class DebugHoverWidget implements IContentWidget {
 	private scrollbar!: DomScrollableElement;
 	private debugHoverComputer: DebugHoverComputer;
 
+	private expressionToRender: IExpression | undefined;
+	private isUpdatingTree = false;
+
 	constructor(
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
@@ -101,6 +112,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private create(): void {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
+		this.complexValueContainer.style.visibility = 'hidden';
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
@@ -132,7 +144,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.domNode.style.border = `1px solid ${asCssVariable(editorHoverBorder)}`;
 		this.domNode.style.color = asCssVariable(editorHoverForeground);
 
-		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
+		this.toDispose.push(this.tree.onDidChangeContentHeight(() => {
+			if (!this.isUpdatingTree) {
+				// Don't do a layout in the middle of the async setInput
+				this.layoutTreeAndContainer();
+			}
+		}));
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
@@ -178,30 +195,40 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	async showAt(position: Position, focus: boolean): Promise<void> {
+	async showAt(position: Position, focus: boolean): Promise<void | ShowDebugHoverResult> {
 		this.showCancellationSource?.cancel();
 		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
 			this.hide();
-			return;
+			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
 
 		const result = await this.debugHoverComputer.compute(position, cancellationSource.token);
-		if (this.isVisible() && !result.rangeChanged) {
-			return;
+		if (cancellationSource.token.isCancellationRequested) {
+			this.hide();
+			return ShowDebugHoverResult.CANCELLED;
 		}
 
-		if (!result.range || cancellationSource.token.isCancellationRequested) {
+		if (!result.range) {
 			this.hide();
-			return;
+			return ShowDebugHoverResult.NOT_AVAILABLE;
+		}
+
+		if (this.isVisible() && !result.rangeChanged) {
+			return ShowDebugHoverResult.NOT_CHANGED;
 		}
 
 		const expression = await this.debugHoverComputer.evaluate(session);
-		if (cancellationSource.token.isCancellationRequested || !expression || (expression instanceof Expression && !expression.available)) {
+		if (cancellationSource.token.isCancellationRequested) {
 			this.hide();
-			return;
+			return ShowDebugHoverResult.CANCELLED;
+		}
+
+		if (!expression || (expression instanceof Expression && !expression.available)) {
+			this.hide();
+			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
 
 		this.highlightDecorations.set([{
@@ -245,10 +272,10 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.valueContainer.hidden = true;
 
-		await this.tree.setInput(expression);
+		this.expressionToRender = expression;
 		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
-		this.layoutTreeAndContainer(true);
+		this.editor.layoutContentWidget(this);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
 		this.complexValueContainer.hidden = false;
@@ -259,13 +286,47 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 	}
 
-	private layoutTreeAndContainer(initialLayout: boolean): void {
+	private layoutTreeAndContainer(): void {
+		this.layoutTree();
+		this.editor.layoutContentWidget(this);
+	}
+
+	private layoutTree(): void {
 		const scrollBarHeight = 10;
 		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight);
+
+		// Reset to a smaller width, if it was previously rendered wide
+		this.tree.layout(treeHeight, 400);
+
+		// const titleWidth = this.complexValueTitle.clientWidth;
+		const realTreeWidth = this.tree.getHTMLElement().offsetWidth;
+		// const contentWidth = Math.max(titleWidth, realTreeWidth);
+		const treeWidth = clamp(realTreeWidth, 400, 550);
+		this.tree.layout(treeHeight, treeWidth);
 		this.treeContainer.style.height = `${treeHeight}px`;
-		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
-		this.editor.layoutContentWidget(this);
 		this.scrollbar.scanDomNode();
+	}
+
+	beforeRender(): IDimension | null {
+		// beforeRender will be called each time the hover size changes, and the content widget is layed out again.
+		if (this.expressionToRender) {
+			const expression = this.expressionToRender;
+			this.expressionToRender = undefined;
+
+			// Do this in beforeRender once the content widget is no longer display=none so that its elements' sizes will be measured correctly.
+			this.isUpdatingTree = true;
+			this.tree.setInput(expression).then(() => {
+				this.isUpdatingTree = false;
+				dom.scheduleAtNextAnimationFrame(() => {
+					// Wait for scrollWidth to update after a frame
+					this.layoutTree();
+					this.editor.layoutContentWidget(this);
+					this.complexValueContainer.style.visibility = '';
+				});
+			});
+		}
+
+		return null;
 	}
 
 	afterRender(positionPreference: ContentWidgetPositionPreference | null) {
@@ -277,6 +338,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 
 	hide(): void {
+		this.complexValueContainer.style.visibility = 'hidden';
 		if (this.showCancellationSource) {
 			this.showCancellationSource.cancel();
 			this.showCancellationSource = undefined;
