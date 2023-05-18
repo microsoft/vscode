@@ -41,7 +41,7 @@ interface IFindOptions {
 }
 
 const SIMPLE_FIND_WIDGET_INITIAL_WIDTH = 310;
-const MATCHES_COUNT_WIDTH = 68;
+const MATCHES_COUNT_WIDTH = 73;
 
 export abstract class SimpleFindWidget extends Widget {
 	private readonly _findInput: FindInput;
@@ -208,6 +208,10 @@ export abstract class SimpleFindWidget extends Widget {
 	protected abstract _onFindInputFocusTrackerBlur(): void;
 	protected abstract _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined>;
 
+	protected get _matchesLimit(): number {
+		return Number.MAX_SAFE_INTEGER;
+	}
+
 	protected get inputValue() {
 		return this._findInput.getValue();
 	}
@@ -251,7 +255,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
-		this.updateButtons(this._foundMatch);
+		this.updateResultCount();
 		this.layout();
 
 		setTimeout(() => {
@@ -354,15 +358,21 @@ export abstract class SimpleFindWidget extends Widget {
 
 		const count = await this._getResultCount();
 		this._matchesCount.innerText = '';
+		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0);
+		this._matchesCount.classList.toggle('no-results', showRedOutline);
 		let label = '';
-		this._matchesCount.classList.toggle('no-results', false);
-		if (count?.resultCount !== undefined && count?.resultCount === 0) {
-			label = NLS_NO_RESULTS;
-			if (!!this.inputValue) {
-				this._matchesCount.classList.toggle('no-results', true);
+		if (count?.resultCount) {
+			let matchesCount: string = String(count.resultCount);
+			if (count.resultCount >= this._matchesLimit) {
+				matchesCount += '+';
 			}
-		} else if (count?.resultCount) {
-			label = strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
+			let matchesPosition: string = String(count.resultIndex + 1);
+			if (matchesPosition === '0') {
+				matchesPosition = '?';
+			}
+			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+		} else {
+			label = NLS_NO_RESULTS;
 		}
 		alertFn(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
