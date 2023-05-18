@@ -1327,7 +1327,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return;
 		}
 		this._reconnectedTerminals = [];
-		for (const terminal of this._terminalService.getReconnectedTerminals(ReconnectionType) || []) {
+		for (const terminal of this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed) || []) {
 			const reconnectionData = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
 			if (reconnectionData) {
 				this._reconnectedTerminals.push({ ...terminal, reconnectionData });
