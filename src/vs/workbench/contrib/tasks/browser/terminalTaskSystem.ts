@@ -1340,12 +1340,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._logService.trace(`No terminals to reconnect to so returning`);
 		} else {
 			for (const terminal of this._reconnectedTerminals) {
-				const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-				this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
-				if (!task) {
-					continue;
-				}
-				const terminalData = { lastTask: task.lastTask, group: task.group, terminal };
+				const terminalData = { lastTask: terminal.reconnectionData.lastTask, group: terminal.reconnectionData.group, terminal };
 				this._terminals[terminal.instanceId] = terminalData;
 			}
 		}
