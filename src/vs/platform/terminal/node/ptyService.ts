@@ -482,7 +482,8 @@ export class PtyService extends Disposable implements IPtyService {
 			hideFromUser: persistentProcess.shellLaunchConfig.hideFromUser,
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
 			type: persistentProcess.shellLaunchConfig.type,
-			hasChildProcesses: persistentProcess.hasChildProcesses
+			hasChildProcesses: persistentProcess.hasChildProcesses,
+			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce
 		};
 	}
 
@@ -609,6 +610,7 @@ class PersistentTerminalProcess extends Disposable {
 			reconnectConstants.scrollback,
 			unicodeVersion,
 			reviveBuffer,
+			processLaunchOptions.options.shellIntegration.nonce,
 			shouldPersistTerminal ? rawReviveBuffer : undefined,
 			this._logService
 		);
@@ -882,6 +884,7 @@ class XtermSerializer implements ITerminalSerializer {
 		scrollback: number,
 		unicodeVersion: '6' | '11',
 		reviveBufferWithRestoreMessage: string | undefined,
+		shellIntegrationNonce: string,
 		private _rawReviveBuffer: string | undefined,
 		logService: ILogService
 	) {
@@ -895,7 +898,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(true, undefined, logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, logService);
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 

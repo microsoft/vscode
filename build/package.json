@@ -46,7 +46,6 @@
     "electron-osx-sign": "^0.4.16",
     "esbuild": "0.17.14",
     "extract-zip": "^2.0.1",
-    "got": "11.8.5",
     "gulp-merge-json": "^2.1.1",
     "gulp-shell": "^0.8.0",
     "jsonc-parser": "^2.3.0",

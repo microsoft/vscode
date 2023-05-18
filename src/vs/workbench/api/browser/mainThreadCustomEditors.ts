@@ -35,6 +35,7 @@ import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewE
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -69,8 +70,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
 		super();
 
@@ -104,6 +106,26 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 		// Working copy operations
 		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => this.onWillRunWorkingCopyFileOperation(e)));
+
+		this._register(extensionService.onWillStop(e => {
+			const dirtyCustomEditors = workingCopyService.workingCopies.filter(workingCopy => {
+				return workingCopy instanceof MainThreadCustomEditorModel && workingCopy.isDirty();
+			});
+			if (!dirtyCustomEditors.length) {
+				return;
+			}
+
+			e.veto((async () => {
+				for (const dirtyCustomEditor of dirtyCustomEditors) {
+					const didSave = await dirtyCustomEditor.save();
+					if (!didSave) {
+						// Veto
+						return true;
+					}
+				}
+				return false; // Don't veto
+			})(), localize('vetoExtHostRestart', "One or more custom editors could not be saved."));
+		}));
 	}
 
 	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: extHostProtocol.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void {
@@ -199,6 +221,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						title: webviewInput.getTitle(),
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
+						active: webviewInput === this._editorService.activeEditor,
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
 				} catch (error) {
 					onUnexpectedError(error);

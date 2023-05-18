@@ -36,7 +36,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 		});
 
 	let core = parsed.core();
-	let context_paths = LauncherPaths::new(&core.global_options.cli_data_dir).unwrap();
+	let context_paths = LauncherPaths::migrate(core.global_options.cli_data_dir.clone()).unwrap();
 	let context_args = core.clone();
 
 	// gets a command context without installing the global logger

@@ -786,7 +786,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		}
 
 		let index: number;
-		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
+		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.provider)) {
 			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
 			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value;
@@ -1466,7 +1466,7 @@ export class DirtyDiffModel extends Disposable {
 			const possibleChangesLength = possibleChanges.length;
 
 			if (inclusive) {
-				if ((getModifiedEndLineNumber(change.change) >= lineNumber) && (change.change.modifiedStartLineNumber <= lineNumber)) {
+				if (getModifiedEndLineNumber(change.change) >= lineNumber) {
 					if (preferredProvider && change.label !== preferredProvider) {
 						possibleChanges.push(i);
 					} else {

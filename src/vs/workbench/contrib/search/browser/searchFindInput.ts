@@ -63,7 +63,7 @@ export class SearchFindInput extends ContextScopedFindInput {
 		// filter is checked if it's in a non-default state
 		this._filterChecked =
 			!this.filters.markupInput ||
-			this.filters.markupPreview ||
+			!this.filters.markupPreview ||
 			!this.filters.codeInput ||
 			!this.filters.codeOutput;
 

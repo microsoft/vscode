@@ -137,6 +137,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 			};
 		};
 
+	// check if an input element is focused within the output element
+	const checkOutputInputFocus = () => {
+
+		const activeElement = document.activeElement;
+		if (!activeElement) {
+			return;
+		}
+
+		if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true });
+
+			activeElement.addEventListener('blur', () => {
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false });
+			}, { once: true });
+		}
+	};
+
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
 			return;
@@ -222,6 +239,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	document.body.addEventListener('click', handleInnerClick);
+	document.body.addEventListener('focusin', checkOutputInputFocus);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;
@@ -453,15 +471,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	function focusFirstFocusableInCell(cellId: string) {
+	function focusFirstFocusableOrContainerInOutput(cellId: string) {
 		const cellOutputContainer = document.getElementById(cellId);
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;
 			}
 
-			const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
-			focusableElement?.focus();
+			let focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
+			if (!focusableElement) {
+				focusableElement = cellOutputContainer;
+				focusableElement.tabIndex = -1;
+			}
+
+			focusableElement.focus();
 		}
 	}
 
@@ -1064,6 +1087,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return range.commonAncestorContainer;
 	}
 
+	function getTextContentLength(node: Node): number {
+		let length = 0;
+
+		if (node.nodeType === Node.TEXT_NODE) {
+			length += node.textContent?.length || 0;
+		} else {
+			for (const childNode of node.childNodes) {
+				length += getTextContentLength(childNode);
+			}
+		}
+
+		return length;
+	}
+
 	// modified from https://stackoverflow.com/a/48812529/16253823
 	function getSelectionOffsetRelativeTo(parentElement: Node, currentNode: Node | null): number {
 		if (!currentNode) {
@@ -1079,8 +1116,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		// count the number of chars before the current dom elem and the start of the dom
 		let prevSibling = currentNode.previousSibling;
 		while (prevSibling) {
-			const nodeContent = prevSibling.nodeValue || '';
-			offset += nodeContent.length;
+			offset += getTextContentLength(prevSibling);
 			prevSibling = prevSibling.previousSibling;
 		}
 
@@ -1357,7 +1393,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'focus-output':
-				focusFirstFocusableInCell(event.data.cellId);
+				focusFirstFocusableOrContainerInOutput(event.data.cellId);
 				break;
 			case 'decorations': {
 				let outputContainer = document.getElementById(event.data.cellId);
@@ -2283,6 +2319,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.element = document.createElement('div');
 			this.element.style.position = 'absolute';
+			this.element.style.outline = '0';
 
 			this.element.id = cellId;
 			this.element.classList.add('cell_container');

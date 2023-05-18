@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -29,7 +28,6 @@ export class TerminalInputSerializer implements IEditorSerializer {
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
-		terminalInstance.resource = URI.parse(terminalInstance.resource);
 		return this._terminalEditorService.reviveInput(terminalInstance);
 	}
 
@@ -42,11 +40,11 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			cwd: '',
 			icon: instance.icon,
 			color: instance.color,
-			resource: instance.resource.toString(),
 			hasChildProcesses: instance.hasChildProcesses,
 			isFeatureTerminal: instance.shellLaunchConfig.isFeatureTerminal,
 			hideFromUser: instance.shellLaunchConfig.hideFromUser,
-			reconnectionProperties: instance.shellLaunchConfig.reconnectionProperties
+			reconnectionProperties: instance.shellLaunchConfig.reconnectionProperties,
+			shellIntegrationNonce: instance.shellIntegrationNonce
 		};
 	}
 }

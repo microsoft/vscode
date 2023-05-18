@@ -163,7 +163,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/interactiveSession",
+			"name": "vs/workbench/contrib/chat",
 			"project": "vscode-workbench"
 		},
 		{
@@ -512,6 +512,10 @@
 		},
 		{
 			"name": "vs/workbench/services/localization",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/accessibility",
 			"project": "vscode-workbench"
 		}
 	]

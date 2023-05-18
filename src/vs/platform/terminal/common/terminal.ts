@@ -12,6 +12,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
@@ -116,6 +117,7 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
+	ExperimentalImageSupport = 'terminal.integrated.experimentalImageSupport',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
@@ -173,6 +175,7 @@ export interface IPtyHostAttachTarget {
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
 	hasChildProcesses: boolean;
+	shellIntegrationNonce: string;
 }
 
 export interface IReconnectionProperties {
@@ -205,6 +208,10 @@ export enum TerminalIpcChannels {
 	 * Communicates between the shared process and the pty host process.
 	 */
 	PtyHost = 'ptyHost',
+	/**
+	 * Communicates between the renderer process and the pty host process.
+	 */
+	PtyHostWindow = 'ptyHostWindow',
 	/**
 	 * Deals with logging from the pty host process.
 	 */
@@ -267,7 +274,7 @@ export interface IPtyHostController {
 	readonly onPtyHostResponsive?: Event<void>;
 	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
 
-	restartPtyHost?(): Promise<void>;
+	restartPtyHost?(): void;
 	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
 }
 
@@ -482,7 +489,23 @@ export interface IShellLaunchConfig {
 	 * This is a terminal that attaches to an already running terminal.
 	 */
 	attachPersistentProcess?: {
-		id: number; findRevivedId?: boolean; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions; environmentVariableCollections?: ISerializableEnvironmentVariableCollections; reconnectionProperties?: IReconnectionProperties; type?: TerminalType; waitOnExit?: WaitOnExitValue; hideFromUser?: boolean; isFeatureTerminal?: boolean;
+		id: number;
+		findRevivedId?: boolean;
+		pid: number;
+		title: string;
+		titleSource: TitleEventSource;
+		cwd: string;
+		icon?: TerminalIcon;
+		color?: string;
+		hasChildProcesses?: boolean;
+		fixedDimensions?: IFixedTerminalDimensions;
+		environmentVariableCollections?: ISerializableEnvironmentVariableCollections;
+		reconnectionProperties?: IReconnectionProperties;
+		type?: TerminalType;
+		waitOnExit?: WaitOnExitValue;
+		hideFromUser?: boolean;
+		isFeatureTerminal?: boolean;
+		shellIntegrationNonce: string;
 	};
 
 	/**
@@ -597,9 +620,11 @@ export interface ITerminalProcessOptions {
 	shellIntegration: {
 		enabled: boolean;
 		suggestEnabled: boolean;
+		nonce: string;
 	};
 	windowsEnableConpty: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	workspaceFolder: IWorkspaceFolder | undefined;
 }
 
 export interface ITerminalEnvironment {
@@ -902,3 +927,12 @@ export interface ITerminalCommandSelector {
 	exitStatus: boolean;
 	commandExitResult: 'success' | 'error';
 }
+
+export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyService');
+
+/**
+ * A service responsible for communicating with the pty host process on Electron.
+ *
+ * **This service should only be used within the terminal component.**
+ */
+export interface ILocalPtyService extends IPtyService { }

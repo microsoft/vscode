@@ -7,7 +7,7 @@ import { asPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
@@ -31,7 +31,7 @@ interface ExtHostComments {
 export function createExtHostComments(mainContext: IMainContext, commands: ExtHostCommands, documents: ExtHostDocuments): ExtHostCommentsShape & ExtHostComments {
 	const proxy = mainContext.getProxy(MainContext.MainThreadComments);
 
-	class ExtHostCommentsImpl implements ExtHostCommentsShape, ExtHostComments, IDisposable {
+	class ExtHostCommentsImpl implements ExtHostCommentsShape, ExtHostComments {
 
 		private static handlePool = 0;
 
@@ -243,9 +243,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 				return Promise.resolve(undefined);
 			});
-		}
-		dispose() {
-
 		}
 	}
 	type CommentThreadModification = Partial<{

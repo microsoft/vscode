@@ -733,7 +733,7 @@ declare module 'vscode' {
 		 */
 		OpenOpen = 0,
 		/**
-		 * The decoration's range will not widen when edits occur at the start of end.
+		 * The decoration's range will not widen when edits occur at the start or end.
 		 */
 		ClosedClosed = 1,
 		/**
@@ -11058,7 +11058,7 @@ declare module 'vscode' {
 		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const closeEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
+		 * const closeEmitter = new vscode.EventEmitter<void>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidClose: closeEmitter.event,
@@ -11071,7 +11071,8 @@ declare module 'vscode' {
 		 *     closeEmitter.fire();
 		 *   }
 		 * };
-		 * vscode.window.createTerminal({ name: 'Exit example', pty });
+		 * const terminal = vscode.window.createTerminal({ name: 'Exit example', pty });
+		 * terminal.show(true);
 		 * ```
 		 */
 		onDidClose?: Event<void | number>;
@@ -15647,17 +15648,34 @@ declare module 'vscode' {
 		readonly label: string;
 	}
 
+	/**
+	 * Optional options to be used when calling {@link authentication.getSession} with the flag `forceNewSession`.
+	 */
+	export interface AuthenticationForceNewSessionOptions {
+		/**
+		 * An optional message that will be displayed to the user when we ask to re-authenticate. Providing additional context
+		 * as to why you are asking a user to re-authenticate can help increase the odds that they will accept.
+		 */
+		detail?: string;
+	}
 
 	/**
 	 * Options to be used when getting an {@link AuthenticationSession} from an {@link AuthenticationProvider}.
 	 */
 	export interface AuthenticationGetSessionOptions {
 		/**
-		 * Whether the existing user session preference should be cleared.
+		 * Whether the existing session preference should be cleared.
 		 *
 		 * For authentication providers that support being signed into multiple accounts at once, the user will be
 		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
 		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 *
+		 * Note:
+		 * The preference is extension specific. So if one extension calls {@link authentication.getSession getSession}, it will not
+		 * affect the session preference for another extension calling {@link authentication.getSession getSession}. Additionally,
+		 * the preference is set for the current workspace and also globally. This means that new workspaces will use the "global"
+		 * value at first and then when this flag is provided, a new value can be set for that workspace. This also means
+		 * that pre-existing workspaces will not lose their preference if a new workspace sets this flag.
 		 *
 		 * Defaults to false.
 		 */
@@ -15690,7 +15708,7 @@ declare module 'vscode' {
 		 *
 		 * This defaults to false.
 		 */
-		forceNewSession?: boolean | { detail: string };
+		forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
 
 		/**
 		 * Whether we should show the indication to sign in in the Accounts menu.
@@ -15840,7 +15858,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
