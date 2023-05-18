@@ -78,10 +78,6 @@ interface IReconnectionTaskData {
 	group?: string;
 }
 
-interface IReconnectedTerminal extends ITerminalInstance {
-	reconnectionData: IReconnectionTaskData;
-}
-
 const ReconnectionType = 'Task';
 
 class VariableResolver {
@@ -202,7 +198,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
-	private _reconnectedTerminals: IReconnectedTerminal[] | undefined;
+	private _reconnectedTerminals: ITerminalInstance[] | undefined;
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
 		return (
@@ -1281,7 +1277,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		for (let i = 0; i < this._reconnectedTerminals.length; i++) {
 			const terminal = this._reconnectedTerminals[i];
-			if (terminal.reconnectionData.lastTask === task.getCommonTaskId()) {
+			const data = terminal.shellLaunchConfig?.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData | undefined;
+			if (data?.lastTask === task.getCommonTaskId()) {
 				this._reconnectedTerminals.splice(i, 1);
 				return terminal;
 			}
@@ -1327,21 +1324,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return;
 		}
 		this._reconnectedTerminals = [];
-		for (const terminal of this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed) || []) {
-			const reconnectionData = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-			if (reconnectionData) {
-				this._reconnectedTerminals.push({ ...terminal, reconnectionData });
-			} else {
-				this._logService.trace(`Terminal was owned by tasks but has no reconnection data`, terminal.instanceId, terminal.shellLaunchConfig);
-			}
-		}
+		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed && t.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data) || [];
 		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
 		if (!this._reconnectedTerminals?.length) {
 			this._logService.trace(`No terminals to reconnect to so returning`);
 		} else {
 			for (const terminal of this._reconnectedTerminals) {
-				const terminalData = { lastTask: terminal.reconnectionData.lastTask, group: terminal.reconnectionData.group, terminal };
-				this._terminals[terminal.instanceId] = terminalData;
+				const data = terminal.shellLaunchConfig?.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData | undefined;
+				if (data) {
+					const terminalData = { lastTask: data.lastTask, group: data.group, terminal };
+					this._terminals[terminal.instanceId] = terminalData;
+				}
 			}
 		}
 		this._hasReconnected = true;
