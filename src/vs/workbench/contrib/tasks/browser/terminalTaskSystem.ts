@@ -1332,7 +1332,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (reconnectionData) {
 				this._reconnectedTerminals.push({ ...terminal, reconnectionData });
 			} else {
-				this._logService.trace(`Terminal was owned by tasks but has no reconnection data ${terminal.instanceId}, ${JSON.stringify(terminal.shellLaunchConfig)}`);
+				this._logService.trace(`Terminal was owned by tasks but has no reconnection data`, terminal.instanceId, terminal.shellLaunchConfig);
 			}
 		}
 		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
