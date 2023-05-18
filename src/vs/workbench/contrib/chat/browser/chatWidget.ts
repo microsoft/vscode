@@ -174,6 +174,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				diffIdentityProvider: {
 					getId: (element) => {
 						return ((isResponseVM(element) || isRequestVM(element)) ? element.dataId : element.id) +
+							// TODO? We can give the welcome message a proper VM or get rid of the rest of the VMs
+							((isWelcomeVM(element) && !this.viewModel?.isInitialized) ? '_initializing' : '') +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
 							`${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}` +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
