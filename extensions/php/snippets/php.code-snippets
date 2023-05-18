@@ -68,6 +68,14 @@
 		],
 		"description": "Class definition"
 	},
+	"class __construct": {
+		"prefix": "construct",
+		"body": [
+			"${1|public,private,protected|} function __construct(${2:${3:Type} $${4:var}${5: = ${6:null}}}$7) {",
+			"\t\\$this->${4:var} = $${4:var};$0",
+			"}"
+		]
+	},
 	"class function …": {
 		"prefix": "class_fun",
 		"body": [
@@ -107,6 +115,24 @@
 			"} while (${1:$${2:a} <= ${3:10}});"
 		],
 		"description": "Do-While loop"
+	},
+	"else …": {
+		"prefix": "else",
+		"body": [
+			"else {",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "Else block"
+	},
+	"elseif …": {
+		"prefix": "elseif",
+		"body": [
+			"elseif (${1:condition}) {",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "Elseif block"
 	},
 	"for …": {
 		"prefix": "for",
@@ -275,6 +301,19 @@
 			"}"
 		],
 		"description": "Switch block"
+	},
+	"$this->…": {
+		"prefix": "this",
+		"body": "\\$this->$0;",
+		"description": "$this->..."
+	},
+	"Throw Exception": {
+		"prefix": "throw",
+		"body": [
+			"throw new $1Exception(${2:\"${3:Error Processing Request}\"}${4:, ${5:1}});",
+			"$0"
+		],
+		"description": "Throw exception"
 	},
 	"trait …": {
 		"prefix": "trait",
