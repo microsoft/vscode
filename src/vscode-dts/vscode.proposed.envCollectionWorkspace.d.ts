@@ -7,15 +7,15 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/182069
 
-	export interface ExtensionContext {
-		/**
-		 * Gets the extension's environment variable collection for this workspace, enabling changes
-		 * to be applied to terminal environment variables.
-		 *
-		 * @param scope The scope to which the environment variable collection applies to.
-		 */
-		readonly environmentVariableCollection: EnvironmentVariableCollection | { getScopedEnvironmentVariableCollection(scope: EnvironmentVariableScope): EnvironmentVariableCollection };
-	}
+	// export interface ExtensionContext {
+	// 	/**
+	// 	 * Gets the extension's environment variable collection for this workspace, enabling changes
+	// 	 * to be applied to terminal environment variables.
+	// 	 *
+	// 	 * @param scope The scope to which the environment variable collection applies to.
+	// 	 */
+	// 	readonly environmentVariableCollection: EnvironmentVariableCollection | { getScopedEnvironmentVariableCollection(scope: EnvironmentVariableScope): EnvironmentVariableCollection };
+	// }
 
 	export type EnvironmentVariableScope = {
 		/**

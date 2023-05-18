@@ -522,7 +522,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					checkProposedApiEnabled(extensionDescription, 'extensionRuntime');
 					return that.extensionRuntime;
 				},
-				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); },
+				get environmentVariableCollection() {
+					// TODO: Remove `as` cast once workspace collection proposal is finalized.
+					return (that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription) as vscode.EnvironmentVariableCollection);
+				},
 				get messagePassingProtocol() {
 					if (!messagePassingProtocol) {
 						if (!messagePort) {
