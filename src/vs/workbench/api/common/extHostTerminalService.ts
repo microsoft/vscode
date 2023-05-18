@@ -52,7 +52,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription): IDefaultEnvironmentVariableCollection;
 }
-type IDefaultEnvironmentVariableCollection = vscode.EnvironmentVariableCollection | { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection };
+type IDefaultEnvironmentVariableCollection = vscode.EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection };
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;

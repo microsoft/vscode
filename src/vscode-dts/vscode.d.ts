@@ -7163,7 +7163,7 @@ declare module 'vscode' {
 		 * Gets the extension's environment variable collection for this workspace, enabling changes
 		 * to be applied to terminal environment variables.
 		 */
-		readonly environmentVariableCollection: EnvironmentVariableCollection;
+		readonly environmentVariableCollection: EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: EnvironmentVariableScope): EnvironmentVariableCollection };
 
 		/**
 		 * Get the absolute path of a resource contained in the extension.
