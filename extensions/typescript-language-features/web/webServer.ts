@@ -5,12 +5,12 @@
 /// <reference lib='webworker.importscripts' />
 /// <reference lib='webworker' />
 
-import { ApiClient, FileSystem, FileType, Requests } from '@vscode/sync-api-client';
+import { ApiClient, FileStat, FileSystem, FileType, Requests } from '@vscode/sync-api-client';
 import { ClientConnection } from '@vscode/sync-api-common/browser';
+import { basename } from 'path';
 import * as ts from 'typescript/lib/tsserverlibrary';
 import { URI } from 'vscode-uri';
 import WebTypingsInstaller from './typingsInstaller';
-import { basename } from 'path';
 
 // GLOBALS
 const watchFiles: Map<string, { path: string; callback: ts.FileWatcherCallback; pollingInterval?: number; options?: ts.WatchOptions }> = new Map();
@@ -70,7 +70,7 @@ function updateWatch(event: 'create' | 'change' | 'delete', uri: URI, extensionU
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
-function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient | undefined, args: string[], fsWatcher: MessagePort): ServerHostWithImport {
+function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient | undefined, args: string[], fsWatcher: MessagePort, enabledExperimentalTypeAcquisition: boolean): ServerHostWithImport {
 	const currentDirectory = '/';
 	const fs = apiClient?.vscode.workspace.fileSystem;
 	let watchId = 0;
@@ -110,7 +110,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			const watchIds = [++watchId];
 			const res = toResource(path);
 			fsWatcher.postMessage({ type: 'watchFile', uri: res, id: watchIds[0] });
-			if (looksLikeNodeModules(path)) {
+			if (enabledExperimentalTypeAcquisition && looksLikeNodeModules(path)) {
 				watchIds.push(++watchId);
 				fsWatcher.postMessage({ type: 'watchFile', uri: mapUri(res, 'vscode-node-modules'), id: watchIds[1] });
 			}
@@ -134,7 +134,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			const watchIds = [++watchId];
 			const res = toResource(path);
 			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: res, id: watchIds[0] });
-			if (looksLikeNodeModules(path)) {
+			if (enabledExperimentalTypeAcquisition && looksLikeNodeModules(path)) {
 				watchIds.push(++watchId);
 				fsWatcher.postMessage({ type: 'watchDirectory', uri: mapUri(res, 'vscode-node-modules'), id: watchIds[1] });
 			}
@@ -215,11 +215,15 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			} catch (e) {
 				return undefined;
 			}
-			let contents;
+
+			let contents: Uint8Array | undefined;
 			try {
 				// We need to slice the bytes since we can't pass a shared array to text decoder
 				contents = fs.readFile(uri);
 			} catch (error) {
+				if (!enabledExperimentalTypeAcquisition) {
+					return undefined;
+				}
 				try {
 					contents = fs.readFile(mapUri(uri, 'vscode-node-modules'));
 				} catch (e) {
@@ -240,9 +244,11 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				ret = fs.stat(uri).size;
 			} catch (_error) {
-				try {
-					ret = fs.stat(mapUri(uri, 'vscode-node-modules')).size;
-				} catch (_error) {
+				if (enabledExperimentalTypeAcquisition) {
+					try {
+						ret = fs.stat(mapUri(uri, 'vscode-node-modules')).size;
+					} catch (_error) {
+					}
 				}
 			}
 			return ret;
@@ -303,9 +309,11 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				ret = fs.stat(uri).type === FileType.File;
 			} catch (_error) {
-				try {
-					ret = fs.stat(mapUri(uri, 'vscode-node-modules')).type === FileType.File;
-				} catch (_error) {
+				if (enabledExperimentalTypeAcquisition) {
+					try {
+						ret = fs.stat(mapUri(uri, 'vscode-node-modules')).type === FileType.File;
+					} catch (_error) {
+					}
 				}
 			}
 			return ret;
@@ -324,13 +332,15 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				return false;
 			}
 
-			let stat = undefined;
+			let stat: FileStat | undefined = undefined;
 			try {
 				stat = fs.stat(uri);
 			} catch (_error) {
-				try {
-					stat = fs.stat(mapUri(uri, 'vscode-node-modules'));
-				} catch (_error) {
+				if (enabledExperimentalTypeAcquisition) {
+					try {
+						stat = fs.stat(mapUri(uri, 'vscode-node-modules'));
+					} catch (_error) {
+					}
 				}
 			}
 			if (stat) {
@@ -377,13 +387,15 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 
 			const uri = toResource(path);
-			let s = undefined;
+			let s: FileStat | undefined = undefined;
 			try {
 				s = fs.stat(uri);
 			} catch (_e) {
-				try {
-					s = fs.stat(mapUri(uri, 'vscode-node-modules'));
-				} catch (_e) {
+				if (enabledExperimentalTypeAcquisition) {
+					try {
+						s = fs.stat(mapUri(uri, 'vscode-node-modules'));
+					} catch (_e) {
+					}
 				}
 			}
 			return s && new Date(s.mtime);
@@ -741,17 +753,19 @@ async function initializeSession(args: string[], extensionUri: URI, ports: { tss
 		disableAutomaticTypingAcquisition: hasArgument(args, '--disableAutomaticTypingAcquisition'),
 	};
 
+
 	let sys: ServerHostWithImport;
 	let fs: FileSystem | undefined;
 	if (hasArgument(args, '--enableProjectWideIntelliSenseOnWeb')) {
+		const enabledExperimentalTypeAcquisition = hasArgument(args, '--experimentalTypeAcquisition');
 		const connection = new ClientConnection<Requests>(ports.sync);
 		await connection.serviceReady();
 
 		const apiClient = new ApiClient(connection);
 		fs = apiClient.vscode.workspace.fileSystem;
-		sys = createServerHost(extensionUri, logger, apiClient, args, ports.watcher);
+		sys = createServerHost(extensionUri, logger, apiClient, args, ports.watcher, enabledExperimentalTypeAcquisition);
 	} else {
-		sys = createServerHost(extensionUri, logger, undefined, args, ports.watcher);
+		sys = createServerHost(extensionUri, logger, undefined, args, ports.watcher, false);
 	}
 
 	setSys(sys);

@@ -1253,6 +1253,13 @@
           "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
           "scope": "window"
         },
+        "typescript.experimental.tsserver.web.typeAcquisition.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.experimental.tsserver.web.typeAcquisition.enabled%",
+          "scope": "window",
+          "tags": ["experimental"]
+        },
         "typescript.preferGoToSourceDefinition": {
           "type": "boolean",
           "default": false,
