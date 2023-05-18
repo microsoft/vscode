@@ -829,12 +829,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			collection = new EnvironmentVariableCollection();
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
-		return {
-			...collection.getScopedEnvironmentVariableCollection(undefined),
-			getScopedEnvironmentVariableCollection(scope) {
-				return collection!.getScopedEnvironmentVariableCollection(scope);
-			},
-		};
+		return collection.getScopedEnvironmentVariableCollection(undefined);
 	}
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
@@ -893,7 +888,7 @@ class EnvironmentVariableCollection {
 		this.map = new Map(serialized);
 	}
 
-	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection {
+	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): IDefaultEnvironmentVariableCollection {
 		const scopedCollectionKey = this.getScopeKey(scope);
 		let scopedCollection = this.scopedCollections.get(scopedCollectionKey);
 		if (!scopedCollection) {
@@ -1009,7 +1004,7 @@ class EnvironmentVariableCollection {
 	}
 }
 
-class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
+class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection, IDefaultEnvironmentVariableCollection {
 	public get persistent(): boolean { return this.collection.persistent; }
 	public set persistent(value: boolean) {
 		this.collection.persistent = value;
@@ -1022,6 +1017,10 @@ class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableC
 		private readonly collection: EnvironmentVariableCollection,
 		private readonly scope: vscode.EnvironmentVariableScope | undefined
 	) {
+	}
+
+	getScopedEnvironmentVariableCollection() {
+		return this.collection.getScopedEnvironmentVariableCollection(this.scope);
 	}
 
 	replace(variable: string, value: string): void {
