@@ -40,29 +40,26 @@ fi
 
 # Apply EnvironmentVariableCollections if needed
 if [ -n "$VSCODE_ENV_REPLACE" ]; then
-	echo "VSCODE_ENV_REPLACE: $VSCODE_ENV_REPLACE"
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo ${ITEM%%=*})"
-		export $VARNAME="${ITEM#*=}"
+		export $VARNAME="$(echo -e ${ITEM#*=})"
 	done
 	unset VSCODE_ENV_REPLACE
 fi
 if [ -n "$VSCODE_ENV_PREPEND" ]; then
-	echo "VSCODE_ENV_PREPEND: $VSCODE_ENV_PREPEND"
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo ${ITEM%%=*})"
-		export $VARNAME="${ITEM#*=}${(P)VARNAME}"
+		export $VARNAME="$(echo -e {ITEM#*=})${(P)VARNAME}"
 	done
 	unset VSCODE_ENV_PREPEND
 fi
 if [ -n "$VSCODE_ENV_APPEND" ]; then
-	echo "VSCODE_ENV_APPEND: $VSCODE_ENV_APPEND"
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo ${ITEM%%=*})"
-		export $VARNAME="${(P)VARNAME}${ITEM#*=}"
+		export $VARNAME="${(P)VARNAME}$(echo -e {ITEM#*=})"
 	done
 	unset VSCODE_ENV_APPEND
 fi

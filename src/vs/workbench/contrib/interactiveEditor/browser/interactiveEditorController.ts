@@ -267,14 +267,12 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 			const wholeRange = this._activeSession!.wholeRange;
-			let editIsOutsideOfWholeRange = false;
-			for (const { range } of e.changes) {
-				editIsOutsideOfWholeRange = !Range.areIntersectingOrTouching(range, wholeRange);
-			}
+			const someSelectionInsideOfWholeRange = this._editor.getSelections()!
+				.some(sel => Range.areIntersectingOrTouching(sel, wholeRange));
 
-			this._activeSession!.recordExternalEditOccurred(editIsOutsideOfWholeRange);
+			this._activeSession!.recordExternalEditOccurred(someSelectionInsideOfWholeRange);
 
-			if (editIsOutsideOfWholeRange) {
+			if (!someSelectionInsideOfWholeRange) {
 				this._logService.trace('[IE] text changed outside of whole range, FINISH session');
 				this._finishExistingSession();
 			}

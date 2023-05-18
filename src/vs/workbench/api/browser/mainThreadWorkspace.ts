@@ -28,7 +28,7 @@ import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceD
 import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { ICanonicalUriIdentityService } from 'vs/platform/workspace/common/canonicalUriIdentity';
+import { ICanonicalUriService } from 'vs/platform/workspace/common/canonicalUri';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -43,7 +43,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEditSessionIdentityService private readonly _editSessionIdentityService: IEditSessionIdentityService,
-		@ICanonicalUriIdentityService private readonly _canonicalUriIdentityService: ICanonicalUriIdentityService,
+		@ICanonicalUriService private readonly _canonicalUriService: ICanonicalUriService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -273,13 +273,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	// --- canonical uri identities ---
-	private registeredCanonicalUriIdentityProviders = new Map<number, IDisposable>();
+	private registeredCanonicalUriProviders = new Map<number, IDisposable>();
 
-	$registerCanonicalUriIdentityProvider(handle: number, scheme: string) {
-		const disposable = this._canonicalUriIdentityService.registerCanonicalUriIdentityProvider({
+	$registerCanonicalUriProvider(handle: number, scheme: string) {
+		const disposable = this._canonicalUriService.registerCanonicalUriProvider({
 			scheme: scheme,
-			provideCanonicalUriIdentity: async (uri: UriComponents, token: CancellationToken) => {
-				const result = await this._proxy.$provideCanonicalUriIdentity(uri, token);
+			provideCanonicalUri: async (uri: UriComponents, targetScheme: string, token: CancellationToken) => {
+				const result = await this._proxy.$provideCanonicalUri(uri, targetScheme, token);
 				if (result) {
 					return URI.revive(result);
 				}
@@ -287,13 +287,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 		});
 
-		this.registeredCanonicalUriIdentityProviders.set(handle, disposable);
+		this.registeredCanonicalUriProviders.set(handle, disposable);
 		this._toDispose.add(disposable);
 	}
 
-	$unregisterCanonicalUriIdentityProvider(handle: number) {
-		const disposable = this.registeredCanonicalUriIdentityProviders.get(handle);
+	$unregisterCanonicalUriProvider(handle: number) {
+		const disposable = this.registeredCanonicalUriProviders.get(handle);
 		disposable?.dispose();
-		this.registeredCanonicalUriIdentityProviders.delete(handle);
+		this.registeredCanonicalUriProviders.delete(handle);
 	}
 }

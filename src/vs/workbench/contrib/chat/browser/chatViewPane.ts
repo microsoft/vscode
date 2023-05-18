@@ -134,13 +134,15 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	}
 
 	override saveState(): void {
-		// Since input history is per-provider, this is handled by a separate service and not the memento here.
-		// TODO multiple chat views will overwrite each other
-		this._widget.saveState();
+		if (this._widget) {
+			// Since input history is per-provider, this is handled by a separate service and not the memento here.
+			// TODO multiple chat views will overwrite each other
+			this._widget.saveState();
 
-		const widgetViewState = this._widget.getViewState();
-		this.viewState.inputValue = widgetViewState.inputValue;
-		this.memento.saveMemento();
+			const widgetViewState = this._widget.getViewState();
+			this.viewState.inputValue = widgetViewState.inputValue;
+			this.memento.saveMemento();
+		}
 
 		super.saveState();
 	}
