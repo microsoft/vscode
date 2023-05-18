@@ -68,25 +68,6 @@
 		],
 		"description": "Class definition"
 	},
-	"class __construct": {
-		"prefix": "construct",
-		"body": [
-			"${1|public,private,protected|} function __construct(${2:${3:Type} $${4:var}${5: = ${6:null}}}$7) {",
-			"\t\\$this->${4:var} = $${4:var};$0",
-			"}"
-		]
-	},
-	"class __construct promotion": {
-		"prefix": "construct_promoted",
-		"body": [
-			"${1|public,private,protected|} function __construct(",
-			"\t${2|public ,private ,protected |}${3:readonly }${4:Type} $${5:var}${6: = ${7:null}}$8",
-			") {",
-			"\t$0",
-			"}"
-		],
-		"description": "Promotion style constructor. Chain promotions with the property_promotion snippet"
-	},
 	"class function …": {
 		"prefix": "class_fun",
 		"body": [
@@ -102,16 +83,6 @@
 		"body": "${1|public ,private ,protected |}const ${2:NAME} = $3;",
 		"description": "Constant for classes, traits, enums"
 	},
-	"dynamic property class": {
-		"prefix": "dynamic_class",
-		"body": [
-			"#[\\\\AllowDynamicProperties]",
-			"${1:${2|final ,readonly |}}class ${3:${TM_FILENAME_BASE}}${4: extends ${5:AnotherClass}} ${6:implements ${7:Interface}}",
-			"{",
-			"\t$0",
-			"}"
-		]
-	},
 	"enum": {
 		"prefix": "enum",
 		"body": [
@@ -119,15 +90,6 @@
 			"\tcase $2;$0",
 			"}"
 		]
-	},
-	"enum backed": {
-		"prefix": "enum_backed",
-		"body": [
-			"enum $1: ${2|string,int|} {",
-			"\tcase $3;$0",
-			"}",
-		],
-		"description": "Backed enum"
 	},
 	"define(…, …)": {
 		"prefix": "def",
@@ -145,24 +107,6 @@
 			"} while (${1:$${2:a} <= ${3:10}});"
 		],
 		"description": "Do-While loop"
-	},
-	"else …": {
-		"prefix": "else",
-		"body": [
-			"else {",
-			"\t${0:# code...}",
-			"}"
-		],
-		"description": "Else block"
-	},
-	"elseif …": {
-		"prefix": "elseif",
-		"body": [
-			"elseif (${1:condition}) {",
-			"\t${0:# code...}",
-			"}"
-		],
-		"description": "Elseif block"
 	},
 	"for …": {
 		"prefix": "for",
@@ -182,15 +126,6 @@
 		],
 		"description": "Foreach loop"
 	},
-	"foreach enum": {
-		"prefix": "foreach_enum",
-		"body": [
-			"foreach ($1::cases() as \\$case) {",
-			"\t$0",
-			"}"
-		],
-		"description": "Foreach enum case loop"
-	},
 	"function": {
 		"prefix": "fun",
 		"body": [
@@ -208,17 +143,6 @@
 			"}"
 		],
 		"description": "Anonymous Function"
-	},
-	"arrow function": {
-		"prefix": "fun_arrow",
-		"body": [
-			"fn(${1:$$var}) => $0"
-		],
-		"description": "Anonymous Function"
-	},
-	"goto": {
-		"prefix": "goto",
-		"body": "goto $0;"
 	},
 	"if …": {
 		"prefix": "if",
@@ -260,11 +184,6 @@
 		"prefix": "property",
 		"body": "${1|public ,private ,protected |}${2|static ,readonly |}${3:Type} $${4:var}${5: = ${6:null}};$0",
 		"description": "Property"
-	},
-	"property promotion": {
-		"prefix": "property_promoted",
-		"body": "${1|public ,private ,protected |}${2:readonly }${3:Type} $${4:var}${5: = ${6:null}}$7",
-		"description": "Property promotion"
 	},
 	"PHPDoc class …": {
 		"prefix": "doc_class",
@@ -342,11 +261,6 @@
 		],
 		"description": "Folding Region Start"
 	},
-	"sensitive param": {
-		"prefix": "sensitive_param",
-		"body": "#[\\\\SensitiveParameter] ${1:Type} $${2:var}${3: = ${4:null}}$5",
-		"description": "Parameter definition"
-	},
 	"switch …": {
 		"prefix": "switch",
 		"body": [
@@ -361,19 +275,6 @@
 			"}"
 		],
 		"description": "Switch block"
-	},
-	"$this->…": {
-		"prefix": "this",
-		"body": "\\$this->$0;",
-		"description": "$this->..."
-	},
-	"Throw Exception": {
-		"prefix": "throw",
-		"body": [
-			"throw new $1Exception(${2:\"${3:Error Processing Request}\"}${4:, ${5:1}});",
-			"$0"
-		],
-		"description": "Throw exception"
 	},
 	"trait …": {
 		"prefix": "trait",
