@@ -313,6 +313,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		} else if (isExcludeSetting(this.setting)) {
 			this.valueType = SettingValueType.Exclude;
+		} else if (isIncludeSetting(this.setting)) {
+			this.valueType = SettingValueType.Include;
 		} else if (this.setting.type === 'integer') {
 			this.valueType = SettingValueType.Integer;
 		} else if (this.setting.type === 'number') {
@@ -740,7 +742,12 @@ export function isExcludeSetting(setting: ISetting): boolean {
 		setting.key === 'search.exclude' ||
 		setting.key === 'workbench.localHistory.exclude' ||
 		setting.key === 'explorer.autoRevealExclude' ||
+		setting.key === 'files.readonlyExclude' ||
 		setting.key === 'files.watcherExclude';
+}
+
+export function isIncludeSetting(setting: ISetting): boolean {
+	return setting.key === 'files.readonlyInclude';
 }
 
 function isObjectRenderableSchema({ type }: IJSONSchema): boolean {

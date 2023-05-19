@@ -488,12 +488,6 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	 * Aria label for modified editor.
 	 */
 	modifiedAriaLabel?: string;
-
-	/**
-	 * Is the diff editor inside another editor
-	 * Defaults to false
-	 */
-	isInEmbeddedEditor?: boolean;
 }
 
 /**

@@ -11,7 +11,7 @@ import { AdapterLogger, DEFAULT_LOG_LEVEL, ILogger, LogLevel } from 'vs/platform
 
 export interface IAutomatedWindow {
 	codeAutomationLog(type: string, args: any[]): void;
-	codeAutomationExit(logs: Array<ILogFile>, code: number): void;
+	codeAutomationExit(code: number, logs: Array<ILogFile>): void;
 }
 
 export interface ILogFile {

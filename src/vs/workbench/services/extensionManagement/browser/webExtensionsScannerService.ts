@@ -25,7 +25,7 @@ import { isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService, migratePlatformSpecificExtensionGalleryResourceURL } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -559,11 +559,16 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IWebExtension> {
-		let extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL(galleryExtension, 'extension');
+		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
+			publisher: galleryExtension.publisher,
+			name: galleryExtension.name,
+			version: galleryExtension.version,
+			targetPlatform: galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? TargetPlatform.WEB : undefined
+		}, 'extension');
+
 		if (!extensionLocation) {
 			throw new Error('No extension gallery service configured.');
 		}
-		extensionLocation = galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? extensionLocation.with({ query: `${extensionLocation.query ? `${extensionLocation.query}&` : ''}target=${galleryExtension.properties.targetPlatform}` }) : extensionLocation;
 		const extensionResources = await this.listExtensionResources(extensionLocation);
 		const packageNLSResources = this.getPackageNLSResourceMapFromResources(extensionResources);
 
@@ -828,6 +833,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					update = true;
 					webExtension.defaultManifestTranslations = null;
 				}
+			}
+			const migratedLocation = migratePlatformSpecificExtensionGalleryResourceURL(webExtension.location, TargetPlatform.WEB);
+			if (migratedLocation) {
+				update = true;
+				webExtension.location = migratedLocation;
 			}
 			return webExtension;
 		}));

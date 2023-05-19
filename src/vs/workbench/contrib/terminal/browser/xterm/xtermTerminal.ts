@@ -9,6 +9,7 @@ import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize';
+import type { ImageAddon as ImageAddonType } from 'xterm-addon-image';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -47,6 +48,7 @@ const enum RenderConstants {
 }
 
 let CanvasAddon: typeof CanvasAddonType;
+let ImageAddon: typeof ImageAddonType;
 let SearchAddon: typeof SearchAddonType;
 let SerializeAddon: typeof SerializeAddonType;
 let Unicode11Addon: typeof Unicode11AddonType;
@@ -136,6 +138,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
+	private _imageAddon?: ImageAddonType;
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
@@ -243,6 +246,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 		// Load addons
 		this._updateUnicodeVersion();
+		this._refreshImageAddon();
 		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._markNavigationAddon);
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
@@ -283,8 +287,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	attachToElement(container: HTMLElement): HTMLElement {
-		// Update the theme when attaching as the terminal location could have changed
-		this._updateTheme();
 		if (!this._container) {
 			this.raw.open(container);
 		}
@@ -332,6 +334,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 				this._disposeOfCanvasRenderer();
 			}
 		}
+		this._refreshImageAddon();
 	}
 
 	private _shouldLoadWebgl(): boolean {
@@ -571,6 +574,30 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			CanvasAddon = (await import('xterm-addon-canvas')).CanvasAddon;
 		}
 		return CanvasAddon;
+	}
+
+	private async _refreshImageAddon(): Promise<void> {
+		if (this._configHelper.config.experimentalImageSupport) {
+			if (!this._imageAddon) {
+				const AddonCtor = await this._getImageAddonConstructor();
+				this._imageAddon = new AddonCtor();
+				this.raw.loadAddon(this._imageAddon);
+			}
+		} else {
+			try {
+				this._imageAddon?.dispose();
+			} catch {
+				// ignore
+			}
+			this._imageAddon = undefined;
+		}
+	}
+
+	protected async _getImageAddonConstructor(): Promise<typeof ImageAddonType> {
+		if (!ImageAddon) {
+			ImageAddon = (await import('xterm-addon-image')).ImageAddon;
+		}
+		return ImageAddon;
 	}
 
 	protected async _getSearchAddonConstructor(): Promise<typeof SearchAddonType> {

@@ -2876,7 +2876,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	/**
 	 *
 	 * @param tasks - The tasks which need filtering from defaults and non-defaults
-	 * @param defaultType - If there are globs want globs in the default list, otherwise only tasks with true
 	 * @param taskGlobsInList - This tells splitPerGroupType to filter out globbed tasks (into default), otherwise fall back to boolean
 	 * @returns
 	 */
