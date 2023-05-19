@@ -19,8 +19,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	private _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
 
-	override get _matchesLimit() { return XtermTerminalConstants.SearchHighlightLimit; }
-
 	constructor(
 		private _instance: ITerminalInstance,
 		@IContextViewService _contextViewService: IContextViewService,
@@ -29,7 +27,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super({ showCommonFindToggles: true, checkImeCompletionState: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
+		super({ showCommonFindToggles: true, checkImeCompletionState: true, showResultCount: true, type: 'Terminal', matchesLimit: XtermTerminalConstants.SearchHighlightLimit }, _contextViewService, _contextKeyService, keybindingService);
 
 		this._register(this.state.onFindReplaceStateChange(() => {
 			this.show();

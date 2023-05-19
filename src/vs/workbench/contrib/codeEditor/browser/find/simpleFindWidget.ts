@@ -37,6 +37,7 @@ interface IFindOptions {
 	appendCaseSensitiveLabel?: string;
 	appendRegexLabel?: string;
 	appendWholeWordsLabel?: string;
+	matchesLimit?: number;
 	type?: 'Terminal' | 'Webview';
 }
 
@@ -52,6 +53,7 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly _updateHistoryDelayer: Delayer<void>;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
+	private readonly _matchesLimit: number;
 	private _matchesCount: HTMLElement | undefined;
 
 	private _isVisible: boolean = false;
@@ -67,6 +69,8 @@ export abstract class SimpleFindWidget extends Widget {
 		private readonly _keybindingService: IKeybindingService
 	) {
 		super();
+
+		this._matchesLimit = options.matchesLimit ?? Number.MAX_SAFE_INTEGER;
 
 		this._findInput = this._register(new ContextScopedFindInput(null, contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
@@ -207,10 +211,6 @@ export abstract class SimpleFindWidget extends Widget {
 	protected abstract _onFindInputFocusTrackerFocus(): void;
 	protected abstract _onFindInputFocusTrackerBlur(): void;
 	protected abstract _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined>;
-
-	protected get _matchesLimit(): number {
-		return Number.MAX_SAFE_INTEGER;
-	}
 
 	protected get inputValue() {
 		return this._findInput.getValue();
