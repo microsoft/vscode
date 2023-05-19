@@ -96,13 +96,17 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		let codeLensLineHeightCount = 0;
 
-		// If there is no lineNumbers, check if there are codelens of the first line of editor's visible ranges
+		// If there is no lineNumbers, check if there are codelens for the first line of editor's visible ranges
 		if (!this._lineNumbers.length) {
 			const firstLineNumberOfVisibleRanges = this._editor.getVisibleRanges()[0].startLineNumber;
-			const codeLensChildNode = this._renderCodeLensLine(firstLineNumberOfVisibleRanges);
-			if (codeLensChildNode) {
-				this._rootDomNode.appendChild(codeLensChildNode);
-				codeLensLineHeightCount += codeLensChildNode.clientHeight;
+			const matchedCodelensStartLineNumber = this._getCodeLensStartLineNumber(firstLineNumberOfVisibleRanges);
+
+			if (matchedCodelensStartLineNumber) {
+				const codeLensChildNode = this._renderCodeLensLine(matchedCodelensStartLineNumber);
+				if (codeLensChildNode) {
+					this._rootDomNode.appendChild(codeLensChildNode);
+					codeLensLineHeightCount += codeLensChildNode.clientHeight;
+				}
 			}
 		} else {
 			for (const [index, line] of this._lineNumbers.entries()) {
@@ -203,6 +207,27 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		codeLensCont.append(...children);
 
 		return child;
+	}
+
+	private _getCodeLensStartLineNumber(lineNumber: number) {
+		const codeLensItems = this._groupCodeLensModel(this._codeLensModel);
+		if (!codeLensItems?.length) {
+			return;
+		}
+
+		const matchedCodeLens = codeLensItems.find(cl => {
+			const clRange = cl[0]?.symbol?.range;
+
+			if (clRange) {
+				if (lineNumber >= clRange.startLineNumber && lineNumber <= clRange.endLineNumber) {
+					return true;
+				}
+			}
+
+			return false;
+		});
+
+		return matchedCodeLens?.[0].symbol?.range?.startLineNumber;
 	}
 
 	private _groupCodeLensModel(codeLensModel: CodeLensModel | undefined): CodeLensItem[][] {
