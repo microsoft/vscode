@@ -171,6 +171,10 @@ pub enum Commands {
 
 	/// Changes the version of the editor you're using.
 	Version(VersionArgs),
+
+	/// Runs the control server on process stdin/stdout
+	#[clap(hide = true)]
+	CommandShell,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -622,10 +626,6 @@ pub enum TunnelSubcommand {
 	/// (Preview) Manages the tunnel when installed as a system service,
 	#[clap(subcommand)]
 	Service(TunnelServiceSubCommands),
-
-	/// Runs the tunnel control server on process stdin/stdout
-	#[clap(hide = true)]
-	Stdio,
 }
 
 #[derive(Subcommand, Debug, Clone)]

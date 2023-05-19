@@ -107,7 +107,7 @@ impl ServiceContainer for TunnelServiceContainer {
 	}
 }
 
-pub async fn stdio(ctx: CommandContext) -> Result<i32, AnyError> {
+pub async fn command_shell(ctx: CommandContext) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
 	serve_stream(
 		tokio::io::stdin(),

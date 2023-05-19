@@ -95,6 +95,8 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				args::VersionSubcommand::Show => version::show(context!()).await,
 			},
 
+			Some(args::Commands::CommandShell) => tunnels::command_shell(context!()).await,
+
 			Some(args::Commands::Tunnel(tunnel_args)) => match tunnel_args.subcommand {
 				Some(args::TunnelSubcommand::Prune) => tunnels::prune(context!()).await,
 				Some(args::TunnelSubcommand::Unregister) => tunnels::unregister(context!()).await,
@@ -110,7 +112,6 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				Some(args::TunnelSubcommand::Service(service_args)) => {
 					tunnels::service(context_no_logger(), service_args).await
 				}
-				Some(args::TunnelSubcommand::Stdio) => tunnels::stdio(context!()).await,
 				None => tunnels::serve(context_no_logger(), tunnel_args.serve_args).await,
 			},
 		},
