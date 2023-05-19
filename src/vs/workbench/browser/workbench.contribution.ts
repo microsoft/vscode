@@ -708,7 +708,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'security.restrictUNCAccess': {
 				'type': 'boolean',
 				'default': true,
-				'markdownDescription': localize('security.restrictUNCAccess', 'If enabled, only allowes access to UNC host names that are allowed by the `#security.allowedUNCHosts#` setting or after user confirmation. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
+				'markdownDescription': localize('security.restrictUNCAccess', 'If enabled, only allows access to UNC host names that are allowed by the `#security.allowedUNCHosts#` setting or after user confirmation. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
 				'included': isWeb ? true /* web maybe connected to a windows machine */ : isWindows,
 				'scope': ConfigurationScope.MACHINE
 			}
