@@ -296,7 +296,7 @@
 .interactive-session-followups {
 	display: flex;
 	flex-direction: column;
-	gap: 5px;
+	gap: 8px;
 	align-items: start;
 }
 
@@ -337,13 +337,13 @@
 
 .interactive-session-followups .monaco-button.interactive-followup-reply {
 	padding: 0px;
-	font-size: 11px;
+	font-size: 12px;
 	font-weight: 600;
 	border: none;
 }
 
 .interactive-welcome .value .interactive-session-followups {
-	margin-bottom: 10px;
+	margin-bottom: 16px;
 }
 
 .interactive-item-container .monaco-toolbar .codicon {
