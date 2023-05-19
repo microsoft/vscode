@@ -927,6 +927,9 @@ class EnvironmentVariableCollection {
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator & { scope: vscode.EnvironmentVariableScope | undefined }): void {
+		if (mutator.options && mutator.options.applyAtProcessCreation === false && mutator.options.applyAtShellIntegration) {
+			throw new Error('EnvironmentVariableMutatorOptions must apply at either process creation or shell integration');
+		}
 		if (!mutator.scope) {
 			delete (mutator as any).scope; // Convenient for tests
 		}
