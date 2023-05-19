@@ -33,9 +33,9 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 
 	const image = document.createElement('img');
 	image.src = src;
-	const altText = (outputInfo.metadata as any)?.altText;
-	if (altText) {
-		image.alt = altText;
+	const metadata = outputInfo.metadata;
+	if (typeof metadata === 'object' && metadata && 'altText' in metadata && typeof metadata.altText === 'string') {
+		image.alt = metadata.altText;
 	}
 	const display = document.createElement('div');
 	display.classList.add('display');
