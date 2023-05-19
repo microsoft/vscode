@@ -852,6 +852,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 
 	toJSON(): any {
 		const result = Object.create(null);
+		result.id = this.getId();
 		result.enabled = this.enabled;
 		result.condition = this.condition;
 		result.hitCondition = this.hitCondition;

@@ -5,7 +5,7 @@
 
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 
 export function invertLineRange(range: LineRange, model: ITextModel): LineRange[] {
 	if (range.isEmpty) {
@@ -19,4 +19,16 @@ export function invertLineRange(range: LineRange, model: ITextModel): LineRange[
 
 export function lineRangeAsRange(r: LineRange): Range {
 	return new Range(r.startLineNumber, 1, r.endLineNumberExclusive - 1, 1);
+}
+
+export function getValueFromSnapshot(snapshot: ITextSnapshot): string {
+	let result = '';
+	while (true) {
+		const chunk = snapshot.read();
+		if (chunk === null) {
+			break;
+		}
+		result += chunk;
+	}
+	return result;
 }

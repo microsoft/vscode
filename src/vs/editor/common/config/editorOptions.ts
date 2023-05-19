@@ -800,6 +800,11 @@ export interface IDiffEditorBaseOptions {
  * Configuration options for the diff editor.
  */
 export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
 }
 
 /**
@@ -4830,12 +4835,12 @@ class EditorPasteAs extends BaseEditorOption<EditorOption.pasteAs, IPasteAsOptio
 		super(
 			EditorOption.pasteAs, 'pasteAs', defaults,
 			{
-				'editor.PasteAs.enabled': {
+				'editor.pasteAs.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
 					markdownDescription: nls.localize('pasteAs.enabled', "Controls whether you can paste content in different ways."),
 				},
-				'editor.PasteAs.showPasteSelector': {
+				'editor.pasteAs.showPasteSelector': {
 					type: 'string',
 					markdownDescription: nls.localize('pasteAs.showPasteSelector', "Controls if a widget is shown when pasting content in to the editor. This widget lets you control how the file is pasted."),
 					enum: [

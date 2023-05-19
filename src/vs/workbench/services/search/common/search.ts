@@ -150,6 +150,7 @@ export interface IPatternInfo {
 
 export interface INotebookPatternInfo {
 	isInNotebookMarkdownInput?: boolean;
+	isInNotebookMarkdownPreview?: boolean;
 	isInNotebookCellInput?: boolean;
 	isInNotebookCellOutput?: boolean;
 }
@@ -409,9 +410,6 @@ export interface ISearchConfigurationProperties {
 		badges: boolean;
 	};
 	defaultViewMode: ViewMode;
-	experimental: {
-		notebookSearch: boolean;
-	};
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

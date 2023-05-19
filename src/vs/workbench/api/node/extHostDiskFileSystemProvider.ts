@@ -8,8 +8,7 @@ import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileS
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { FileSystemProviderError } from 'vs/platform/files/common/files';
-import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
+import { FilePermission } from 'vs/platform/files/common/files';
 
 export class ExtHostDiskFileSystemProvider {
 
@@ -32,75 +31,43 @@ class DiskFileSystemProviderAdapter implements vscode.FileSystemProvider {
 	constructor(private readonly logService: ILogService) { }
 
 	async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
-		try {
-			return await this.impl.stat(uri);
-		} catch (error) {
-			this.handleError(error);
-		}
+		const stat = await this.impl.stat(uri);
+
+		return {
+			type: stat.type,
+			ctime: stat.ctime,
+			mtime: stat.mtime,
+			size: stat.size,
+			permissions: stat.permissions === FilePermission.Readonly ? 1 : undefined
+		};
 	}
 
-	async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
-		try {
-			return await this.impl.readdir(uri);
-		} catch (error) {
-			this.handleError(error);
-		}
+	readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
+		return this.impl.readdir(uri);
 	}
 
-	async createDirectory(uri: vscode.Uri): Promise<void> {
-		try {
-			return await this.impl.mkdir(uri);
-		} catch (error) {
-			this.handleError(error);
-		}
+	createDirectory(uri: vscode.Uri): Promise<void> {
+		return this.impl.mkdir(uri);
 	}
 
-	async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-		try {
-			return await this.impl.readFile(uri);
-		} catch (error) {
-			this.handleError(error);
-		}
+	readFile(uri: vscode.Uri): Promise<Uint8Array> {
+		return this.impl.readFile(uri);
 	}
 
-	async writeFile(uri: vscode.Uri, content: Uint8Array, options: { readonly create: boolean; readonly overwrite: boolean }): Promise<void> {
-		try {
-			return await this.impl.writeFile(uri, content, { ...options, unlock: false });
-		} catch (error) {
-			this.handleError(error);
-		}
+	writeFile(uri: vscode.Uri, content: Uint8Array, options: { readonly create: boolean; readonly overwrite: boolean }): Promise<void> {
+		return this.impl.writeFile(uri, content, { ...options, unlock: false });
 	}
 
-	async delete(uri: vscode.Uri, options: { readonly recursive: boolean }): Promise<void> {
-		try {
-			return await this.impl.delete(uri, { ...options, useTrash: false });
-		} catch (error) {
-			this.handleError(error);
-		}
+	delete(uri: vscode.Uri, options: { readonly recursive: boolean }): Promise<void> {
+		return this.impl.delete(uri, { ...options, useTrash: false });
 	}
 
-	async rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { readonly overwrite: boolean }): Promise<void> {
-		try {
-			return await this.impl.rename(oldUri, newUri, options);
-		} catch (error) {
-			this.handleError(error);
-		}
+	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { readonly overwrite: boolean }): Promise<void> {
+		return this.impl.rename(oldUri, newUri, options);
 	}
 
-	async copy(source: vscode.Uri, destination: vscode.Uri, options: { readonly overwrite: boolean }): Promise<void> {
-		try {
-			return await this.impl.copy(source, destination, options);
-		} catch (error) {
-			this.handleError(error);
-		}
-	}
-
-	private handleError(error: unknown): never {
-		if (error instanceof FileSystemProviderError) {
-			throw new FileSystemError(error.message, error.code);
-		}
-
-		throw error;
+	copy(source: vscode.Uri, destination: vscode.Uri, options: { readonly overwrite: boolean }): Promise<void> {
+		return this.impl.copy(source, destination, options);
 	}
 
 	// --- Not Implemented ---

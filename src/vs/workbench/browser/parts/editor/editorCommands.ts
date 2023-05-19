@@ -518,7 +518,7 @@ function registerOpenEditorAPICommands(): void {
 		const pathService = accessor.get(IPathService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const resourceOrString = typeof resourceArg === 'string' ? resourceArg : URI.revive(resourceArg);
+		const resourceOrString = typeof resourceArg === 'string' ? resourceArg : URI.from(resourceArg, true);
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
 		// use editor options or editor view column or resource scheme
@@ -590,8 +590,8 @@ function registerOpenEditorAPICommands(): void {
 		}
 
 		await editorService.openEditor({
-			original: { resource: URI.revive(originalResource) },
-			modified: { resource: URI.revive(modifiedResource) },
+			original: { resource: URI.from(originalResource, true) },
+			modified: { resource: URI.from(modifiedResource, true) },
 			label,
 			description,
 			options
@@ -605,7 +605,7 @@ function registerOpenEditorAPICommands(): void {
 
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
-		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
+		return editorService.openEditor({ resource: URI.from(resource, true), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
 	});
 }
 
