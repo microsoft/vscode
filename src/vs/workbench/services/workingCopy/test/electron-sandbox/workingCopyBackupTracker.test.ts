@@ -28,7 +28,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -44,6 +44,7 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 suite('WorkingCopyBackupTracker (native)', function () {
 
@@ -152,7 +153,10 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
-			new TestContextService(TestWorkspace)
+			new TestContextService(TestWorkspace),
+			TestEnvironmentService,
+			new UriIdentityService(new TestFileService()),
+			new TestFileService()
 		));
 
 		const part = await createEditorPart(instantiationService, disposables);

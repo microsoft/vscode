@@ -18,7 +18,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileDialogService, IPickAndOpenOptions } from 'vs/platform/dialogs/common/dialogs';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 import { IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
@@ -161,7 +161,7 @@ interface IOpenFolderAPICommandOptions {
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.openFolder',
-	handler: (accessor: ServicesAccessor, uri?: URI, arg?: boolean | IOpenFolderAPICommandOptions) => {
+	handler: (accessor: ServicesAccessor, uriComponents?: UriComponents, arg?: boolean | IOpenFolderAPICommandOptions) => {
 		const commandService = accessor.get(ICommandService);
 
 		// Be compatible to previous args by converting to options
@@ -170,7 +170,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		// Without URI, ask to pick a folder or workspace to open
-		if (!uri) {
+		if (!uriComponents) {
 			const options: IPickAndOpenOptions = {
 				forceNewWindow: arg?.forceNewWindow
 			};
@@ -183,7 +183,7 @@ CommandsRegistry.registerCommand({
 			return commandService.executeCommand('_files.pickFolderAndOpen', options);
 		}
 
-		uri = URI.revive(uri);
+		const uri = URI.from(uriComponents, true);
 
 		const options: IOpenWindowOptions = {
 			forceNewWindow: arg?.forceNewWindow,

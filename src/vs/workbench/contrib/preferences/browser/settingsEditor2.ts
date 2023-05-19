@@ -145,7 +145,8 @@ export class SettingsEditor2 extends EditorPane {
 			type === SettingValueType.Object ||
 			type === SettingValueType.Complex ||
 			type === SettingValueType.Boolean ||
-			type === SettingValueType.Exclude;
+			type === SettingValueType.Exclude ||
+			type === SettingValueType.Include;
 	}
 
 	// (!) Lots of props that are set once on the first render
@@ -439,7 +440,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.layoutSplitView(dimension);
 
-		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
+		const innerWidth = Math.min(this.headerContainer.clientWidth, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
 		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));

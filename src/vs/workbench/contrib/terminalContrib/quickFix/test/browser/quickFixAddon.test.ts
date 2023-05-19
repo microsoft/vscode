@@ -435,10 +435,14 @@ suite('QuickFixAddon', () => {
 
 function createCommand(command: string, output: string, outputMatcher?: RegExp | string, exitCode?: number, outputLines?: string[]): ITerminalCommand {
 	return {
+		cwd: '',
+		commandStartLineContent: '',
+		markProperties: {},
 		command,
+		isTrusted: true,
 		exitCode,
 		getOutput: () => { return output; },
-		getOutputMatch: (matcher: ITerminalOutputMatcher) => {
+		getOutputMatch: (_matcher: ITerminalOutputMatcher) => {
 			if (outputMatcher) {
 				const regexMatch = output.match(outputMatcher) ?? undefined;
 				if (regexMatch) {

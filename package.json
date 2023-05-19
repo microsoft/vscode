@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.78.0",
-  "distro": "19c7b8bfd54bd30518f7aeb946db6763ba030e82",
+  "version": "1.79.0",
+  "distro": "10ec4d08d4a06a1c18addcded03e90c8a0e6ecad",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -66,8 +66,8 @@
     "@parcel/watcher": "2.1.0",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",
-    "@vscode/proxy-agent": "^0.13.1",
-    "@vscode/ripgrep": "^1.15.2",
+    "@vscode/proxy-agent": "^0.13.2",
+    "@vscode/ripgrep": "^1.15.3",
     "@vscode/spdlog": "^0.13.10",
     "@vscode/sqlite3": "5.1.4-vscode",
     "@vscode/sudo-prompt": "9.3.1",
@@ -87,13 +87,14 @@
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "9.0.0",
-    "xterm": "5.2.0-beta.35",
-    "xterm-addon-canvas": "0.4.0-beta.9",
+    "xterm": "5.2.0-beta.41",
+    "xterm-addon-canvas": "0.4.0-beta.11",
+    "xterm-addon-image": "0.4.0",
     "xterm-addon-search": "0.11.0",
     "xterm-addon-serialize": "0.9.0",
     "xterm-addon-unicode11": "0.5.0",
-    "xterm-addon-webgl": "0.15.0-beta.8",
-    "xterm-headless": "5.2.0-beta.35",
+    "xterm-addon-webgl": "0.15.0-beta.10",
+    "xterm-headless": "5.2.0-beta.41",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -126,7 +127,7 @@
     "@typescript-eslint/eslint-plugin": "^5.57.0",
     "@typescript-eslint/experimental-utils": "^5.57.0",
     "@typescript-eslint/parser": "^5.57.0",
-    "@vscode/gulp-electron": "^1.33.0",
+    "@vscode/gulp-electron": "^1.34.0",
     "@vscode/l10n-dev": "0.0.21",
     "@vscode/telemetry-extractor": "^1.9.9",
     "@vscode/test-web": "^0.0.41",
@@ -203,7 +204,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.1.4",
-    "typescript": "^5.1.0-dev.20230424",
+    "typescript": "^5.2.0-dev.20230516",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",
@@ -226,9 +227,5 @@
     "@vscode/windows-process-tree": "0.4.2",
     "@vscode/windows-registry": "1.0.10",
     "windows-foreground-love": "0.5.0"
-  },
-  "resolutions": {
-    "elliptic": "^6.5.3",
-    "nwmatcher": "^1.4.4"
   }
 }

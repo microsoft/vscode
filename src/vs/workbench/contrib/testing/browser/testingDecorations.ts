@@ -14,6 +14,8 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -21,7 +23,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, I
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -34,24 +36,22 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { EditorLineNumberContextMenu, GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
-import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { labelForTestInState, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { DefaultGutterClickAction, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
+import { Testing, labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
-import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
-import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
-import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { EditorLineNumberContextMenu, GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
-import { isMacintosh } from 'vs/base/common/platform';
+import { ITestService, getContextForTestItem, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { IRichLocation, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
+import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
+import { TestUriType, buildTestUri, parseTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 
@@ -254,7 +254,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	}
 
 	/** @inheritdoc */
-	public getDecoratedRangeForTest(resource: URI, testId: string) {
+	public getDecoratedTestPosition(resource: URI, testId: string) {
 		const model = this.modelService.getModel(resource);
 		if (!model) {
 			return undefined;
@@ -265,7 +265,8 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 			return undefined;
 		}
 
-		return model.getDecorationRange(decoration.id) || undefined;
+		// decoration is collapsed, so the range is meaningless; only position matters.
+		return model.getDecorationRange(decoration.id)?.getStartPosition();
 	}
 
 	private invalidate() {
@@ -422,7 +423,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this._register(this.editor.onDidChangeModel(e => this.attachModel(e.newModelUrl || undefined)));
 		this._register(this.editor.onMouseDown(e => {
 			if (e.target.position && this.currentUri) {
-				const modelDecorations = editor.getModel()?.getDecorationsInRange(Range.fromPositions(e.target.position)) ?? [];
+				const modelDecorations = editor.getModel()?.getLineDecorations(e.target.position.lineNumber) ?? [];
 				if (!modelDecorations.length) {
 					return;
 				}
@@ -512,11 +513,11 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 }
 
-const firstLineRange = (originalRange: IRange) => ({
+const collapseRange = (originalRange: IRange) => ({
 	startLineNumber: originalRange.startLineNumber,
 	endLineNumber: originalRange.startLineNumber,
-	startColumn: 0,
-	endColumn: Number.MAX_SAFE_INTEGER,
+	startColumn: originalRange.startColumn,
+	endColumn: originalRange.startColumn,
 });
 
 const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[], states: readonly (TestResultItem | undefined)[], visible: boolean): IModelDeltaDecoration => {
@@ -526,7 +527,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	}
 
 	if (!visible) {
-		return { range: firstLineRange(range), options: { isWholeLine: true, description: 'run-test-decoration' } };
+		return { range: collapseRange(range), options: { isWholeLine: true, description: 'run-test-decoration' } };
 	}
 
 	let computedState = TestResultState.Unset;
@@ -560,10 +561,10 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	}
 
 	return {
-		range: firstLineRange(range),
+		range: collapseRange(range),
 		options: {
 			description: 'run-test-decoration',
-			isWholeLine: true,
+			showIfCollapsed: true,
 			get hoverMessage() {
 				if (!hoverMessage) {
 					const building = hoverMessage = new MarkdownString('', true).appendText(hoverMessageParts.join(', ') + '.');

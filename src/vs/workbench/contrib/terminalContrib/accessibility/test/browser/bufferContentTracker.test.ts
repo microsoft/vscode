@@ -20,7 +20,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
+import { BufferContentTracker, replaceWithNonBreakingSpaces } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Terminal } from 'xterm';
@@ -61,7 +61,7 @@ suite('Buffer Content Tracker', () => {
 		if (!isWindows) {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
-		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, new MockContextKeyService().createKey('', true)!, true);
+		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true);
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
@@ -99,10 +99,10 @@ suite('Buffer Content Tracker', () => {
 		await writeAndAssertBufferState(promptPlusData, 6, xterm.raw, bufferTracker);
 		await writeP(xterm.raw, '\x1b[3Ainserteddata');
 		await bufferTracker.update();
-		assert.deepStrictEqual(bufferTracker.lines, [promptPlusData, promptPlusData, `${promptPlusData}inserteddata`, promptPlusData, promptPlusData, promptPlusData].map(s => s.replace(new RegExp(' ', 'g'), '\xA0')));
+		assert.deepStrictEqual(bufferTracker.lines, [promptPlusData, promptPlusData, `${promptPlusData}inserteddata`, promptPlusData, promptPlusData, promptPlusData].map(s => replaceWithNonBreakingSpaces(s)));
 	});
 	test('should refresh viewport with full scrollback', async () => {
-		const content = `${prompt}\r\n`.repeat(1030).trimEnd().replace(new RegExp(' ', 'g'), '\xA0');
+		const content = replaceWithNonBreakingSpaces(`${prompt}\r\n`.repeat(1030).trimEnd());
 		await writeP(xterm.raw, content);
 		await bufferTracker.update();
 		await writeP(xterm.raw, '\x1b[4Ainsertion');
@@ -115,7 +115,7 @@ suite('Buffer Content Tracker', () => {
 		const content = `${prompt}\r\n`.repeat(1036).trimEnd();
 		await writeP(xterm.raw, content);
 		await bufferTracker.update();
-		const expected = content.split('\r\n').map(s => s.replace(new RegExp(' ', 'g'), '\xA0'));
+		const expected = content.split('\r\n').map(s => replaceWithNonBreakingSpaces(s));
 		// delete the 6 lines that should be trimmed
 		for (let i = 0; i < 6; i++) {
 			expected.pop();
@@ -134,6 +134,6 @@ async function writeAndAssertBufferState(data: string, rows: number, terminal: T
 	await writeP(terminal, content);
 	await bufferTracker.update();
 	assert.strictEqual(bufferTracker.lines.length, rows);
-	assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n').map(s => s.replace(new RegExp(' ', 'g'), '\xA0')));
+	assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n').map(s => replaceWithNonBreakingSpaces(s)));
 }
 

@@ -102,6 +102,7 @@ vsda/src/**
 vsda/.gitignore
 vsda/binding.gyp
 vsda/README.md
+vsda/SECURITY.md
 vsda/targets
 !vsda/build/Release/vsda.node
 

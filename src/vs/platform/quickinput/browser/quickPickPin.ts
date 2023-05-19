@@ -104,7 +104,7 @@ function updatePinnedItems(storageKey: string, changedItem: IQuickPickItem, stor
 	} else {
 		items.push(changedItem);
 	}
-	storageService.store(storageKey, JSON.stringify(items), StorageScope.WORKSPACE, StorageTarget.USER);
+	storageService.store(storageKey, JSON.stringify(items), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	return items;
 }
 

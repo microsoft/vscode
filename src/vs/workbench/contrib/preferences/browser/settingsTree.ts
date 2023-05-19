@@ -38,7 +38,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, ObjectSettingCheckboxWidget, IncludeSettingWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -67,7 +67,7 @@ import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 
 const $ = DOM.$;
 
-function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
+function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
 	const data = element.isConfigured ?
 		{ ...element.defaultValue, ...element.scopeValue } :
 		element.defaultValue;
@@ -626,8 +626,8 @@ interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undef
 	validationErrorMessageElement: HTMLElement;
 }
 
-interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
-	excludeWidget: ListSettingWidget;
+interface ISettingIncludeExcludeItemTemplate extends ISettingItemTemplate<void> {
+	includeExcludeWidget: ListSettingWidget;
 }
 
 interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string, unknown> | undefined> {
@@ -653,6 +653,7 @@ const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
 const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
 const SETTINGS_ARRAY_TEMPLATE_ID = 'settings.array.template';
 const SETTINGS_EXCLUDE_TEMPLATE_ID = 'settings.exclude.template';
+const SETTINGS_INCLUDE_TEMPLATE_ID = 'settings.include.template';
 const SETTINGS_OBJECT_TEMPLATE_ID = 'settings.object.template';
 const SETTINGS_BOOL_OBJECT_TEMPLATE_ID = 'settings.boolObject.template';
 const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
@@ -1415,29 +1416,30 @@ class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements
 	}
 }
 
-export class SettingExcludeRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExcludeItemTemplate> {
-	templateId = SETTINGS_EXCLUDE_TEMPLATE_ID;
+abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingIncludeExcludeItemTemplate> {
 
-	renderTemplate(container: HTMLElement): ISettingExcludeItemTemplate {
+	protected abstract isExclude(): boolean;
+
+	renderTemplate(container: HTMLElement): ISettingIncludeExcludeItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'list');
 
-		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
-		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		common.toDispose.add(excludeWidget);
+		const includeExcludeWidget = this._instantiationService.createInstance(this.isExclude() ? ExcludeSettingWidget : IncludeSettingWidget, common.controlElement);
+		includeExcludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		common.toDispose.add(includeExcludeWidget);
 
-		const template: ISettingExcludeItemTemplate = {
+		const template: ISettingIncludeExcludeItemTemplate = {
 			...common,
-			excludeWidget
+			includeExcludeWidget
 		};
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.add(excludeWidget.onDidChangeList(e => this.onDidChangeExclude(template, e)));
+		common.toDispose.add(includeExcludeWidget.onDidChangeList(e => this.onDidChangeIncludeExclude(template, e)));
 
 		return template;
 	}
 
-	private onDidChangeExclude(template: ISettingExcludeItemTemplate, e: ISettingListChangeEvent<IListDataItem>): void {
+	private onDidChangeIncludeExclude(template: ISettingIncludeExcludeItemTemplate, e: ISettingListChangeEvent<IListDataItem>): void {
 		if (template.context) {
 			const newValue = { ...template.context.scopeValue };
 
@@ -1480,17 +1482,33 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 		}
 	}
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingExcludeItemTemplate): void {
+	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingIncludeExcludeItemTemplate): void {
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExcludeItemTemplate, onChange: (value: string) => void): void {
-		const value = getExcludeDisplayValue(dataElement);
-		template.excludeWidget.setValue(value);
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingIncludeExcludeItemTemplate, onChange: (value: string) => void): void {
+		const value = getIncludeExcludeDisplayValue(dataElement);
+		template.includeExcludeWidget.setValue(value);
 		template.context = dataElement;
 		template.elementDisposables.add(toDisposable(() => {
-			template.excludeWidget.cancelEdit();
+			template.includeExcludeWidget.cancelEdit();
 		}));
+	}
+}
+
+export class SettingExcludeRenderer extends SettingIncludeExcludeRenderer {
+	templateId = SETTINGS_EXCLUDE_TEMPLATE_ID;
+
+	protected override isExclude(): boolean {
+		return true;
+	}
+}
+
+export class SettingIncludeRenderer extends SettingIncludeExcludeRenderer {
+	templateId = SETTINGS_INCLUDE_TEMPLATE_ID;
+
+	protected override isExclude(): boolean {
+		return false;
 	}
 }
 
@@ -1914,6 +1932,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingMultilineTextRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingIncludeRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingObjectRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingBoolObjectRenderer, this.settingActions, actionFactory),
@@ -2161,6 +2180,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 			if (element.valueType === SettingValueType.Exclude) {
 				return SETTINGS_EXCLUDE_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.Include) {
+				return SETTINGS_INCLUDE_TEMPLATE_ID;
 			}
 
 			if (element.valueType === SettingValueType.Object) {

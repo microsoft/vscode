@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ETAG_DISABLED, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -332,6 +332,12 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.filesConfigurationService.onReadonlyChange(() => this._onDidChangeReadonly.fire()));
 	}
 
 	//#region Dirty
@@ -484,7 +490,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			size,
 			etag,
 			value: buffer,
-			readonly: false
+			readonly: false,
+			locked: false
 		}, true /* dirty (resolved from buffer) */);
 	}
 
@@ -524,7 +531,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
-			readonly: false
+			readonly: false,
+			locked: false
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
@@ -616,6 +624,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			size: content.size,
 			etag: content.etag,
 			readonly: content.readonly,
+			locked: content.locked,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
@@ -1236,7 +1245,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	//#region Utilities
 
 	isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
 	}
 
 	private trace(msg: string): void {

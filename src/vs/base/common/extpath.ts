@@ -325,8 +325,8 @@ export function hasDriveLetter(path: string, isWindowsOS: boolean = isWindows): 
 	return false;
 }
 
-export function getDriveLetter(path: string): string | undefined {
-	return hasDriveLetter(path) ? path[0] : undefined;
+export function getDriveLetter(path: string, isWindowsOS: boolean = isWindows): string | undefined {
+	return hasDriveLetter(path, isWindowsOS) ? path[0] : undefined;
 }
 
 export function indexOfPath(path: string, candidate: string, ignoreCase?: boolean): number {
