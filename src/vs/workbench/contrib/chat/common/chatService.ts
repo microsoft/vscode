@@ -184,7 +184,7 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string | IChatReplyFollowup): Promise<boolean>;
+	sendRequest(sessionId: string, message: string | IChatReplyFollowup): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	clearSession(sessionId: string): void;
