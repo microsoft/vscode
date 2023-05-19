@@ -27,6 +27,7 @@ export function isWelcomeVM(item: unknown): item is IInteractiveWelcomeMessageVi
 }
 
 export interface IChatViewModel {
+	readonly isInitialized: boolean;
 	readonly providerId: string;
 	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
@@ -106,6 +107,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	get providerId() {
 		return this._model.providerId;
+	}
+
+	get isInitialized() {
+		return this._model.isInitialized;
 	}
 
 	constructor(
