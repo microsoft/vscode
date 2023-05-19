@@ -7,6 +7,9 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/179476
 
+	/**
+	 * Options applied to the mutator.
+	 */
 	export interface EnvironmentVariableMutatorOptions {
 		/**
 		 * Apply to the environment just before the process is created.
