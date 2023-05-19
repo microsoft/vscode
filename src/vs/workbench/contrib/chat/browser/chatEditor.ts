@@ -88,7 +88,7 @@ export class ChatEditor extends EditorPane {
 
 		const editorModel = await input.resolve();
 		if (!editorModel) {
-			throw new Error(`Failed to get model for interactive session editor. id: ${input.sessionId}`);
+			throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
 		}
 
 		if (!this.widget) {

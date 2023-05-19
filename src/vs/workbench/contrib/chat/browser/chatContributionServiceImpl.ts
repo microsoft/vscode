@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { getClearAction, getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatViewOptions, INTERACTIVE_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
+import { IChatViewOptions, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatContributionService, IChatProviderContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -113,7 +113,7 @@ export class ChatContributionService implements IChatContributionService {
 
 	private registerChatProvider(extension: Readonly<IRelaxedExtensionDescription>, providerDescriptor: IRawChatProviderContribution): IDisposable {
 		// Register View Container
-		const viewContainerId = INTERACTIVE_SIDEBAR_PANEL_ID + '.' + providerDescriptor.id;
+		const viewContainerId = CHAT_SIDEBAR_PANEL_ID + '.' + providerDescriptor.id;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
 			title: providerDescriptor.label,
@@ -140,7 +140,7 @@ export class ChatContributionService implements IChatContributionService {
 		const historyAction = registerAction2(getHistoryAction(viewId, providerDescriptor.id));
 		const clearAction = registerAction2(getClearAction(viewId, providerDescriptor.id));
 
-		// "Open Interactive Session Editor" Action
+		// "Open Chat Editor" Action
 		const openEditor = registerAction2(getOpenChatEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when));
 
 		return {

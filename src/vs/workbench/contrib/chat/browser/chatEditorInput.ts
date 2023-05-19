@@ -18,8 +18,8 @@ import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export class ChatEditorInput extends EditorInput {
-	static readonly TypeID: string = 'workbench.input.interactiveSession';
-	static readonly EditorID: string = 'workbench.editor.interactiveSession';
+	static readonly TypeID: string = 'workbench.input.chatSession';
+	static readonly EditorID: string = 'workbench.editor.chatSession';
 	static count = 0;
 
 	private readonly inputCount: number;
@@ -40,7 +40,7 @@ export class ChatEditorInput extends EditorInput {
 
 		const parsed = ChatUri.parse(resource);
 		if (typeof parsed?.handle !== 'number') {
-			throw new Error('Invalid interactive session URI');
+			throw new Error('Invalid chat URI');
 		}
 
 		this.sessionId = 'sessionId' in options.target ? options.target.sessionId : undefined;
@@ -126,11 +126,11 @@ export class ChatEditorModel extends Disposable implements IEditorModel {
 
 export namespace ChatUri {
 
-	export const scheme = Schemas.vscodeInteractiveSesssion;
+	export const scheme = Schemas.vscodeChatSesssion;
 
 
 	export function generate(handle: number): URI {
-		return URI.from({ scheme, path: `interactiveSession-${handle}` });
+		return URI.from({ scheme, path: `chat-${handle}` });
 	}
 
 	export function parse(resource: URI): { handle: number } | undefined {
@@ -138,7 +138,7 @@ export namespace ChatUri {
 			return undefined;
 		}
 
-		const match = resource.path.match(/interactiveSession-(\d+)/);
+		const match = resource.path.match(/chat-(\d+)/);
 		const handleStr = match?.[1];
 		if (typeof handleStr !== 'string') {
 			return undefined;
