@@ -242,6 +242,7 @@
 
 .interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar {
 	display: initial;
+	border-radius: 2px;
 }
 
 .interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor {
