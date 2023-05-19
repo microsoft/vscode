@@ -46,7 +46,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 					value: mutator.value,
 					type: mutator.type,
 					scope: mutator.scope,
-					variable: mutator.variable
+					variable: mutator.variable,
+					options: mutator.options
 				};
 				if (!extensionMutator.scope) {
 					delete extensionMutator.scope; // Convenient for tests
