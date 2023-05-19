@@ -33,6 +33,10 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 
 	const image = document.createElement('img');
 	image.src = src;
+	const altText = (outputInfo.metadata as any)?.altText;
+	if (altText) {
+		image.alt = altText;
+	}
 	const display = document.createElement('div');
 	display.classList.add('display');
 	display.appendChild(image);
