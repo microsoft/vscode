@@ -370,7 +370,7 @@ export class FileService extends Disposable implements IFileService {
 		await this.doWriteFile(tempResource, bufferOrReadableOrStream, options, true /* skip events */);
 
 		// then rename to target
-		const stat = await this.move(tempResource, resource, true, true);
+		const stat = await this.move(tempResource, resource, true, true /* skip events */);
 
 		// events
 		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.WRITE));
