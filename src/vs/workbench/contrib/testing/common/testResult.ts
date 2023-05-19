@@ -367,10 +367,6 @@ export class LiveTestResult implements ITestResult {
 			parent = this.addTestToRun(controllerId, chain[i], parent.item.extId);
 		}
 
-		for (let i = 0; i < this.tasks.length; i++) {
-			this.fireUpdateAndRefresh(parent, i, TestResultState.Queued);
-		}
-
 		return undefined;
 	}
 

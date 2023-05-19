@@ -13,7 +13,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInternalXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalAction, revealActiveTerminal } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
@@ -56,7 +56,7 @@ registerTerminalAction({
 	run: async (c, accessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		await instance.processReady;
 		if (!instance.xterm) {
 			throw new Error('Cannot write data to terminal if xterm isn\'t initialized');

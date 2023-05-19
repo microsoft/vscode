@@ -159,6 +159,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSessionVoteAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'vote';
 		responseId: string;
 		direction: InteractiveSessionVoteDirection;
@@ -171,6 +172,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSessionCopyAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'copy';
 		responseId: string;
 		codeBlockIndex: number;
@@ -181,6 +183,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSessionInsertAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'insert';
 		responseId: string;
 		codeBlockIndex: number;
@@ -189,6 +192,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSessionTerminalAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'runInTerminal';
 		responseId: string;
 		codeBlockIndex: number;
@@ -196,6 +200,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSessionCommandAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'command';
 		command: InteractiveResponseCommand;
 	}

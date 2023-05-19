@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, DisposableMap, toDisposable } from 'vs/base/common/lifecycle';
@@ -27,12 +27,12 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
+import { DataTransferFileCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -372,8 +372,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _pasteEditProviders = new Map<number, MainThreadPasteEditProvider>();
 
-	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean, pasteMimeTypes: readonly string[]): void {
-		const provider = new MainThreadPasteEditProvider(handle, this._proxy, supportsCopy, pasteMimeTypes, this._uriIdentService);
+	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IPasteEditProviderMetadataDto): void {
+		const provider = new MainThreadPasteEditProvider(handle, this._proxy, metadata, this._uriIdentService);
 		this._pasteEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentPasteEditProvider.register(selector, provider),
@@ -907,8 +907,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _documentOnDropEditProviders = new Map<number, MainThreadDocumentOnDropEditProvider>();
 
-	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, metadata: { id: string; dropMimeTypes: string[] }): void {
-		const provider = new MainThreadDocumentOnDropEditProvider(handle, extensionId, metadata, this._proxy, this._uriIdentService);
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IDocumentDropEditProviderMetadata): void {
+		const provider = new MainThreadDocumentOnDropEditProvider(handle, metadata, this._proxy, this._uriIdentService);
 		this._documentOnDropEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
@@ -927,57 +927,65 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider {
 
-	private readonly dataTransfers = new DataTransferCache();
+	private readonly dataTransfers = new DataTransferFileCache();
 
-	public readonly pasteMimeTypes: readonly string[];
+	public readonly copyMimeTypes?: readonly string[];
+	public readonly pasteMimeTypes?: readonly string[];
 
-	readonly prepareDocumentPaste?: (model: ITextModel, ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken) => Promise<undefined | VSDataTransfer>;
+	readonly prepareDocumentPaste?: languages.DocumentPasteEditProvider['prepareDocumentPaste'];
+	readonly provideDocumentPasteEdits?: languages.DocumentPasteEditProvider['provideDocumentPasteEdits'];
 
 	constructor(
 		private readonly handle: number,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
-		supportsCopy: boolean,
-		pasteMimeTypes: readonly string[],
+		metadata: IPasteEditProviderMetadataDto,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
-		this.pasteMimeTypes = pasteMimeTypes;
+		this.copyMimeTypes = metadata.copyMimeTypes;
+		this.pasteMimeTypes = metadata.pasteMimeTypes;
 
-		if (supportsCopy) {
-			this.prepareDocumentPaste = async (model: ITextModel, selections: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<VSDataTransfer | undefined> => {
-				const dataTransferDto = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
+		if (metadata.supportsCopy) {
+			this.prepareDocumentPaste = async (model: ITextModel, selections: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<IReadonlyVSDataTransfer | undefined> => {
+				const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
 
-				const result = await this._proxy.$prepareDocumentPaste(handle, model.uri, selections, dataTransferDto, token);
-				if (!result) {
+				const newDataTransfer = await this._proxy.$prepareDocumentPaste(handle, model.uri, selections, dataTransferDto, token);
+				if (!newDataTransfer) {
 					return undefined;
 				}
 
 				const dataTransferOut = new VSDataTransfer();
-				result.items.forEach(([type, item]) => {
+				for (const [type, item] of newDataTransfer.items) {
 					dataTransferOut.replace(type, createStringDataTransferItem(item.asString));
-				});
+				}
 				return dataTransferOut;
 			};
 		}
-	}
 
-	async provideDocumentPasteEdits(model: ITextModel, selections: Selection[], dataTransfer: VSDataTransfer, token: CancellationToken) {
-		const request = this.dataTransfers.add(dataTransfer);
-		try {
-			const d = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
-			const result = await this._proxy.$providePasteEdits(this.handle, request.id, model.uri, selections, d, token);
-			if (!result) {
-				return undefined;
-			}
+		if (metadata.supportsPaste) {
+			this.provideDocumentPasteEdits = async (model: ITextModel, selections: Selection[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken) => {
+				const request = this.dataTransfers.add(dataTransfer);
+				try {
+					const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+					if (token.isCancellationRequested) {
+						return;
+					}
 
-			return {
-				insertText: result.insertText,
-				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
+					const result = await this._proxy.$providePasteEdits(this.handle, request.id, model.uri, selections, dataTransferDto, token);
+					if (!result) {
+						return;
+					}
+
+					return {
+						...result,
+						additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
+					};
+				} finally {
+					request.dispose();
+				}
 			};
-		} finally {
-			request.dispose();
 		}
 	}
 
@@ -988,33 +996,34 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 
 class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEditProvider {
 
-	private readonly dataTransfers = new DataTransferCache();
+	private readonly dataTransfers = new DataTransferFileCache();
 
-	readonly id: string;
 	readonly dropMimeTypes?: readonly string[];
 
 	constructor(
 		private readonly handle: number,
-		extensionId: ExtensionIdentifier,
-		metadata: { id: string; dropMimeTypes: readonly string[] } | undefined,
+		metadata: IDocumentDropEditProviderMetadata | undefined,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
-		this.id = extensionId.value + (metadata ? '.' + metadata.id : '');
 		this.dropMimeTypes = metadata?.dropMimeTypes ?? ['*/*'];
 	}
 
-	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<languages.DocumentOnDropEdit | null | undefined> {
+	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentOnDropEdit | null | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
-			const dataTransferDto = await typeConvert.DataTransfer.toDataTransferDTO(dataTransfer);
+			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
+			if (token.isCancellationRequested) {
+				return;
+			}
+
 			const edit = await this._proxy.$provideDocumentOnDropEdits(this.handle, request.id, model.uri, position, dataTransferDto, token);
 			if (!edit) {
-				return undefined;
+				return;
 			}
+
 			return {
-				label: edit.label,
-				insertText: edit.insertText,
+				...edit,
 				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
 			};
 		} finally {

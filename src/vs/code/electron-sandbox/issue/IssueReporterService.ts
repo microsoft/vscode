@@ -20,7 +20,6 @@ import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 import { CancellationError } from 'vs/base/common/errors';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -91,7 +90,7 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		this.issueMainService.getSystemInfo().then(info => {
+		this.issueMainService.$getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
@@ -99,7 +98,7 @@ export class IssueReporter extends Disposable {
 			this.updatePreviewButtonState();
 		});
 		if (configuration.data.issueType === IssueType.PerformanceIssue) {
-			this.issueMainService.getPerformanceInfo().then(info => {
+			this.issueMainService.$getPerformanceInfo().then(info => {
 				this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 			});
 		}
@@ -225,9 +224,9 @@ export class IssueReporter extends Disposable {
 		this.updateExtensionSelector(installedExtensions);
 	}
 
-	private async updateIssueReporterUri(extension: IssueReporterExtensionData, token: CancellationToken): Promise<void> {
+	private async updateIssueReporterUri(extension: IssueReporterExtensionData): Promise<void> {
 		try {
-			const uri = await this.issueMainService.getIssueReporterUri(extension.id, token);
+			const uri = await this.issueMainService.$getIssueReporterUri(extension.id);
 			extension.bugsUrl = uri.toString(true);
 		} catch (e) {
 			extension.hasIssueUriRequestHandler = false;
@@ -241,7 +240,7 @@ export class IssueReporter extends Disposable {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
 			this.issueReporterModel.update({ issueType: issueType });
 			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				this.issueMainService.getPerformanceInfo().then(info => {
+				this.issueMainService.$getPerformanceInfo().then(info => {
 					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 				});
 			}
@@ -340,7 +339,7 @@ export class IssueReporter extends Disposable {
 		});
 
 		this.addEventListener('disableExtensions', 'click', () => {
-			this.issueMainService.reloadWithExtensionsDisabled();
+			this.issueMainService.$reloadWithExtensionsDisabled();
 		});
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
@@ -351,7 +350,7 @@ export class IssueReporter extends Disposable {
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
 			e.stopPropagation();
 			if ((e as KeyboardEvent).keyCode === 13 || (e as KeyboardEvent).keyCode === 32) {
-				this.issueMainService.reloadWithExtensionsDisabled();
+				this.issueMainService.$reloadWithExtensionsDisabled();
 			}
 		});
 
@@ -375,7 +374,7 @@ export class IssueReporter extends Disposable {
 				const { issueDescription } = this.issueReporterModel.getData();
 				if (!this.hasBeenSubmitted && (issueTitle || issueDescription)) {
 					// fire and forget
-					this.issueMainService.showConfirmCloseDialog();
+					this.issueMainService.$showConfirmCloseDialog();
 				} else {
 					this.close();
 				}
@@ -505,7 +504,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private async close(): Promise<void> {
-		await this.issueMainService.closeReporter();
+		await this.issueMainService.$closeReporter();
 	}
 
 	private clearSearchResults(): void {
@@ -882,7 +881,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
-		const shouldWrite = await this.issueMainService.showClipboardDialog();
+		const shouldWrite = await this.issueMainService.$showClipboardDialog();
 		if (!shouldWrite) {
 			throw new CancellationError();
 		}
@@ -1058,23 +1057,19 @@ export class IssueReporter extends Disposable {
 			const { selectedExtension } = this.issueReporterModel.getData();
 			reset(extensionsSelector, $<HTMLOptionElement>('option'), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
 
-			let tokenSource: CancellationTokenSource | undefined;
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
-				tokenSource?.cancel();
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
 				const extensions = this.issueReporterModel.getData().allExtensions;
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
-					this.validateSelectedExtension();
-
 					if (matches[0].hasIssueUriRequestHandler) {
-						tokenSource = new CancellationTokenSource();
-						this.updateIssueReporterUri(matches[0], tokenSource?.token);
+						this.updateIssueReporterUri(matches[0]);
+					} else {
+						this.validateSelectedExtension();
+						const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
+						this.searchExtensionIssues(title);
 					}
-
-					const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-					this.searchExtensionIssues(title);
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
@@ -1096,13 +1091,14 @@ export class IssueReporter extends Disposable {
 		hide(extensionValidationMessage);
 		hide(extensionValidationNoUrlsMessage);
 
-		if (!this.issueReporterModel.getData().selectedExtension) {
+		const extension = this.issueReporterModel.getData().selectedExtension;
+		if (!extension) {
 			this.previewButton.enabled = true;
 			return;
 		}
 
 		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
-		if (hasValidGitHubUrl) {
+		if (hasValidGitHubUrl || extension.hasIssueUriRequestHandler) {
 			this.previewButton.enabled = true;
 		} else {
 			this.setExtensionValidationMessage();

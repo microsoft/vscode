@@ -557,7 +557,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					disableDefaultAction: options.sticky,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-						if (resolved && resolved.kind === ResultKind.KbFound && resolved.commandId) {
+						if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 							if (!allowableCommands.includes(resolved.commandId)) {
 								EventHelper.stop(event, true);
 							}
