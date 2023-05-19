@@ -33,6 +33,7 @@ registerAction2(interactiveEditorActions.NextFromHistory);
 registerAction2(interactiveEditorActions.ViewInChatAction);
 registerAction2(interactiveEditorActions.ExpandMessageAction);
 registerAction2(interactiveEditorActions.ContractMessageAction);
+registerAction2(interactiveEditorActions.AccessibilityHelpEditorAction);
 
 registerAction2(interactiveEditorActions.ToggleInlineDiff);
 registerAction2(interactiveEditorActions.FeebackHelpfulCommand);

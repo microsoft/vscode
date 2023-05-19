@@ -13,6 +13,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 import { ExtensionIdentifier, ExtensionIdentifierMap, IExtension, IExtensionContributions, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -104,6 +105,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IRemoteExtensionsScannerService protected readonly _remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService protected readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 
@@ -657,11 +659,24 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private async _doStopExtensionHostsWithVeto(reason: string): Promise<boolean> {
 		const vetos: (boolean | Promise<boolean>)[] = [];
+		const vetoReasons: string[] = [];
 
 		this._onWillStop.fire({
 			reason,
-			veto(value) {
+			veto(value, reason) {
 				vetos.push(value);
+
+				if (typeof value === 'boolean') {
+					if (value === true) {
+						vetoReasons.push(reason);
+					}
+				} else {
+					value.then(value => {
+						if (value) {
+							vetoReasons.push(reason);
+						}
+					});
+				}
 			}
 		});
 
@@ -669,7 +684,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!veto) {
 			this._doStopExtensionHosts();
 		} else {
-			this._logService.warn('Extension Host stop request was vetoed');
+			this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasons.join(', ')})`);
+
+			await this._dialogService.warn(
+				nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
+				vetoReasons.length === 1 ?
+					nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasons[0]) :
+					nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasons.join('\n -')),
+			);
 		}
 
 		return !veto;

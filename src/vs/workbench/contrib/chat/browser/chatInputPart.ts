@@ -30,6 +30,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { CONTEXT_INTERACTIVE_INPUT_HAS_TEXT, CONTEXT_IN_INTERACTIVE_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const $ = dom.$;
 
@@ -85,19 +86,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('accessibility.verbosity.chatInput')) {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
 		}));
 	}
 
 	private _getAriaLabel(): string {
-		const verbose = this.configurationService.getValue<boolean>('accessibility.verbosity.chatInput');
+		const verbose = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
 		if (verbose) {
-			const kbLabel = this.keybindingService.lookupKeybinding('interactiveSession.action.accessibilityHelp')?.getLabel();
-			return kbLabel ? localize('interactiveSessionInput.accessibilityHelp', "Chat Input,  Type code here and press Enter to run. Use {0} for Interactive Session Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Interactive Session Accessibility Help command for more information.");
+			const kbLabel = this.keybindingService.lookupKeybinding('chat.action.accessibilityHelp')?.getLabel();
+			return kbLabel ? localize('actions.chat.accessibiltyHelp', "Chat Input,  Type code here and press enter to run. Use {0} for Chat Accessibility Help.", kbLabel) : localize('chatInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Chat Accessibility Help command for more information.");
 		}
-		return localize('interactiveSessionInput', "Chat Input");
+		return localize('chatInput', "Chat Input");
 	}
 
 	setState(providerId: string, inputValue: string): void {

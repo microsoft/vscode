@@ -276,7 +276,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean }): Promise<void>;
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: readonly string[]; dragMimeTypes: readonly string[]; hasHandleDrag: boolean; hasHandleDrop: boolean; manuallyManageCheckboxes: boolean }): Promise<void>;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Promise<void>;
 	$reveal(treeViewId: string, itemInfo: { item: ITreeItem; parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void>;
 	$setMessage(treeViewId: string, message: string): void;
@@ -1203,8 +1203,8 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 	$registerEditSessionIdentityProvider(handle: number, scheme: string): void;
 	$unregisterEditSessionIdentityProvider(handle: number): void;
-	$registerCanonicalUriIdentityProvider(handle: number, scheme: string): void;
-	$unregisterCanonicalUriIdentityProvider(handle: number): void;
+	$registerCanonicalUriProvider(handle: number, scheme: string): void;
+	$unregisterCanonicalUriProvider(handle: number): void;
 }
 
 export interface IFileChangeDto {
@@ -1386,7 +1386,7 @@ export interface IOpenUriOptions {
 }
 
 export interface MainThreadWindowShape extends IDisposable {
-	$getWindowVisibility(): Promise<boolean>;
+	$getInitialState(): Promise<{ isFocused: boolean; isActive: boolean }>;
 	$openUri(uri: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean>;
 	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
 }
@@ -1400,7 +1400,7 @@ export enum CandidatePortSource {
 export interface PortAttributesProviderSelector {
 	pid?: number;
 	portRange?: [number, number];
-	commandMatcher?: RegExp;
+	commandPattern?: RegExp;
 }
 
 export interface MainThreadTunnelServiceShape extends IDisposable {
@@ -1551,7 +1551,7 @@ export interface ExtHostWorkspaceShape {
 	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
 	$provideEditSessionIdentityMatch(folder: UriComponents, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
 	$onWillCreateEditSessionIdentity(folder: UriComponents, token: CancellationToken, timeout: number): Promise<void>;
-	$provideCanonicalUriIdentity(uri: UriComponents, token: CancellationToken): Promise<UriComponents | undefined>;
+	$provideCanonicalUri(uri: UriComponents, targetScheme: string, token: CancellationToken): Promise<UriComponents | undefined>;
 }
 
 export interface ExtHostFileSystemInfoShape {
@@ -2129,6 +2129,7 @@ export interface ExtHostDecorationsShape {
 
 export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
+	$onDidChangeWindowActive(value: boolean): void;
 }
 
 export interface ExtHostLogLevelServiceShape {

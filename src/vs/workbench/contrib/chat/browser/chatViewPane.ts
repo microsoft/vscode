@@ -11,6 +11,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -58,6 +59,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatService private readonly chatService: IChatService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -79,26 +81,31 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
-		super.renderBody(parent);
+		try {
+			super.renderBody(parent);
 
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+			const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
 
-		this._widget = this._register(scopedInstantiationService.createInstance(
-			ChatWidget,
-			{ viewId: this.id },
-			{
-				listForeground: SIDE_BAR_FOREGROUND,
-				listBackground: this.getBackgroundColor(),
-				inputEditorBackground: this.getBackgroundColor(),
-				resultEditorBackground: editorBackground
+			this._widget = this._register(scopedInstantiationService.createInstance(
+				ChatWidget,
+				{ viewId: this.id },
+				{
+					listForeground: SIDE_BAR_FOREGROUND,
+					listBackground: this.getBackgroundColor(),
+					inputEditorBackground: this.getBackgroundColor(),
+					resultEditorBackground: editorBackground
+				}));
+			this._register(this.onDidChangeBodyVisibility(visible => {
+				this._widget.setVisible(visible);
 			}));
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			this._widget.setVisible(visible);
-		}));
-		this._widget.render(parent);
+			this._widget.render(parent);
 
-		const initialModel = this.viewState.sessionId ? this.chatService.getOrRestoreSession(this.viewState.sessionId) : undefined;
-		this.updateModel(initialModel);
+			const initialModel = this.viewState.sessionId ? this.chatService.getOrRestoreSession(this.viewState.sessionId) : undefined;
+			this.updateModel(initialModel);
+		} catch (e) {
+			this.logService.error(e);
+			throw e;
+		}
 	}
 
 	acceptInput(query?: string): void {
@@ -127,13 +134,15 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	}
 
 	override saveState(): void {
-		// Since input history is per-provider, this is handled by a separate service and not the memento here.
-		// TODO multiple chat views will overwrite each other
-		this._widget.saveState();
+		if (this._widget) {
+			// Since input history is per-provider, this is handled by a separate service and not the memento here.
+			// TODO multiple chat views will overwrite each other
+			this._widget.saveState();
 
-		const widgetViewState = this._widget.getViewState();
-		this.viewState.inputValue = widgetViewState.inputValue;
-		this.memento.saveMemento();
+			const widgetViewState = this._widget.getViewState();
+			this.viewState.inputValue = widgetViewState.inputValue;
+			this.memento.saveMemento();
+		}
 
 		super.saveState();
 	}

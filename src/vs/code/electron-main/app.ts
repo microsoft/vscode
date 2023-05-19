@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -320,7 +320,11 @@ export class CodeApplication extends Disposable {
 		//#region UNC Host Allowlist (Windows)
 
 		if (isWindows) {
-			addUNCHostToAllowlist(this.configurationService.getValue('security.allowedUNCHosts'));
+			if (this.configurationService.getValue('security.restrictUNCAccess') === false) {
+				disableUNCAccessRestrictions();
+			} else {
+				addUNCHostToAllowlist(this.configurationService.getValue('security.allowedUNCHosts'));
+			}
 		}
 
 		//#endregion

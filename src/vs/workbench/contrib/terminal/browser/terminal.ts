@@ -185,7 +185,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
 	revealActiveTerminal(): Promise<void>;
 	moveToEditor(source: ITerminalInstance): void;
-	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
+	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
 	/**
@@ -237,7 +237,6 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void>;
-	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
