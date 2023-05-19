@@ -568,6 +568,10 @@ export class InstallAction extends AbstractInstallAction {
 					}, "{0} in {1}", baseLabel, host);
 			}
 
+			if (isWeb && server === this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer) {
+				return localize('install browser', "Install in Browser");
+			}
+
 			return isMachineScoped ?
 				localize('install extension locally and do not sync', "{0} Locally ({1})", baseLabel, donotSyncLabel) : localize('install extension locally', "{0} Locally", baseLabel);
 		}
