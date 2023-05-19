@@ -31,7 +31,7 @@ class ShortIdent {
 	next(isNameTaken: (name: string) => boolean): string {
 		const candidate = this.prefix + ShortIdent.convert(this._value);
 		this._value++;
-		if (ShortIdent._keywords.has(candidate) || /^[_0-9]/.test(candidate) || isNameTaken?.(candidate)) {
+		if (ShortIdent._keywords.has(candidate) || (/^[_0-9]/.test(candidate) && !candidate.startsWith(this.prefix)) || isNameTaken?.(candidate)) {
 			// try again
 			return this.next(isNameTaken);
 		}
