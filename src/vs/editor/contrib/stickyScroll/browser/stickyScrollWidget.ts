@@ -13,11 +13,15 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./stickyScroll';
+import { CodeLensItem, CodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { Command } from 'vs/editor/common/languages';
 
 export class StickyScrollWidgetState {
 	constructor(
 		readonly lineNumbers: number[],
-		readonly lastLineRelativePosition: number
+		readonly lastLineRelativePosition: number,
+		readonly codeLensModel: CodeLensModel | undefined,
 	) { }
 }
 
@@ -31,8 +35,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private _lineNumbers: number[] = [];
 	private _lastLineRelativePosition: number = 0;
+	private _codeLensModel: CodeLensModel | undefined = undefined;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
+	private readonly _commands = new Map<string, Command>();
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -79,21 +85,39 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._lastLineRelativePosition = 0;
 			this._lineNumbers = [];
 		}
+		this._codeLensModel = state.codeLensModel;
 		this._renderRootNode();
 	}
 
 	private _renderRootNode(): void {
-
 		if (!this._editor._getViewModel()) {
 			return;
 		}
-		for (const [index, line] of this._lineNumbers.entries()) {
-			const childNode = this._renderChildNode(index, line);
-			this._rootDomNode.appendChild(childNode);
+
+		let codeLensLineHeightCount = 0;
+
+		// If there is no lineNumbers, check if there are codelens of the first line of editor's visible ranges
+		if (!this._lineNumbers.length) {
+			const firstLineNumberOfVisibleRanges = this._editor.getVisibleRanges()[0].startLineNumber;
+			const codeLensChildNode = this._renderCodeLensLine(firstLineNumberOfVisibleRanges);
+			if (codeLensChildNode) {
+				this._rootDomNode.appendChild(codeLensChildNode);
+				codeLensLineHeightCount += codeLensChildNode.clientHeight;
+			}
+		} else {
+			for (const [index, line] of this._lineNumbers.entries()) {
+				const codeLensChildNode = this._renderCodeLensLine(line);
+				if (codeLensChildNode) {
+					this._rootDomNode.appendChild(codeLensChildNode);
+					codeLensLineHeightCount += codeLensChildNode.clientHeight;
+				}
+				const childNode = this._renderChildNode(index, line);
+				this._rootDomNode.appendChild(childNode);
+			}
 		}
 
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
+		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + codeLensLineHeightCount + this._lastLineRelativePosition;
 		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
 		this._rootDomNode.style.height = widgetHeight.toString() + 'px';
 		this._rootDomNode.setAttribute('role', 'list');
@@ -104,8 +128,111 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	private _renderChildNode(index: number, line: number): HTMLDivElement {
+	private _renderCodeLensLine(lineNumber: number) {
+		this._commands.clear();
 
+		const codeLensItems = this._groupCodeLensModel(this._codeLensModel);
+		if (!codeLensItems?.length) {
+			return;
+		}
+
+		const lineCodeLensItems = codeLensItems.find(cl => cl[0].symbol?.range?.startLineNumber === lineNumber);
+		if (!lineCodeLensItems?.length) {
+			return;
+		}
+
+		const child = document.createElement('div');
+		const layoutInfo = this._editor.getLayoutInfo();
+		const width = layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth;
+		child.className = 'sticky-line-root';
+		child.setAttribute('role', 'listitem');
+		child.tabIndex = 0;
+		child.style.cssText = `width: ${width}px; z-index: 0;`;
+		const codeLensCont = document.createElement('div');
+		codeLensCont.className = 'codelens-decoration';
+		codeLensCont.style.cssText = `position: relative; left: ${layoutInfo.contentLeft}px;`;
+		child.appendChild(codeLensCont);
+
+		// Convert codelens startColumn to space and use renderViewLine to render it
+		const viewModel = this._editor._getViewModel();
+		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(lineNumber, 1)).lineNumber;
+		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
+		const renderLineInput: RenderLineInput = new RenderLineInput(
+			true,
+			true,
+			'\u00a0'.repeat(lineCodeLensItems[0].symbol.range.startColumn - 1),
+			false,
+			true,
+			false,
+			0,
+			lineRenderingData.tokens,
+			[],
+			lineRenderingData.tabSize,
+			1,
+			1, 1, 1, 500, 'none', true, true, null
+		);
+		const sb = new StringBuilder(2000);
+		renderViewLine(renderLineInput, sb);
+		let newLine;
+		if (_ttPolicy) {
+			newLine = _ttPolicy.createHTML(sb.build() as string);
+		} else {
+			newLine = sb.build();
+		}
+		const indentNodeChild = document.createElement('span');
+		indentNodeChild.innerHTML = newLine as string;
+		this._editor.applyFontInfo(indentNodeChild);
+		codeLensCont.append(indentNodeChild);
+
+		// Render codeLens commands
+		const children: HTMLElement[] = [];
+		lineCodeLensItems.forEach((lens, i) => {
+			if (lens?.symbol?.command) {
+				const title = renderLabelWithIcons(lens.symbol.command?.title?.trim());
+				if (lens.symbol.command?.id) {
+					children.push(dom.$('a', { id: String(i), title: lens.symbol.command?.tooltip, role: 'button' }, ...title));
+					this._commands.set(String(i), lens.symbol.command);
+				} else {
+					children.push(dom.$('span', { title: lens.symbol.command?.tooltip }, ...title));
+				}
+				if (i + 1 < lineCodeLensItems.length) {
+					children.push(dom.$('span', undefined, '\u00a0|\u00a0'));
+				}
+			}
+		});
+		codeLensCont.append(...children);
+
+		return child;
+	}
+
+	private _groupCodeLensModel(codeLensModel: CodeLensModel | undefined): CodeLensItem[][] {
+		if (!codeLensModel) {
+			return [];
+		}
+
+		const maxLineNumber = this._editor.getModel()?.getLineCount() || 0;
+		const groups: CodeLensItem[][] = [];
+		let lastGroup: CodeLensItem[] | undefined;
+
+		for (const symbol of codeLensModel.lenses) {
+			const line = symbol.symbol.range.startLineNumber;
+			if (line < 1 || line > maxLineNumber) {
+				// invalid code lens
+				continue;
+			} else if (lastGroup && lastGroup[lastGroup.length - 1].symbol.range.startLineNumber === line) {
+				// on same line as previous
+				lastGroup.push(symbol);
+			} else {
+				// on later line as previous
+				lastGroup = [symbol];
+				groups.push(lastGroup);
+			}
+		}
+
+		return groups;
+	}
+
+	private _renderChildNode(index: number, line: number): HTMLDivElement {
 		const child = document.createElement('div');
 		const viewModel = this._editor._getViewModel();
 		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
@@ -221,5 +348,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return {
 			preference: null
 		};
+	}
+
+	getCommand(link: HTMLLinkElement) {
+		return link.parentElement?.parentElement?.parentElement === this._rootDomNode ? this._commands.get(link.id) : undefined;
 	}
 }

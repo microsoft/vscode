@@ -24,6 +24,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class CodeLensContribution implements IEditorContribution {
 
@@ -41,6 +42,8 @@ export class CodeLensContribution implements IEditorContribution {
 	private _getCodeLensModelPromise: CancelablePromise<CodeLensModel> | undefined;
 	private _oldCodeLensModels = new DisposableStore();
 	private _currentCodeLensModel: CodeLensModel | undefined;
+	private _onDidChangeCodeLensModel: Emitter<void> = new Emitter();
+	public readonly onDidChangeCodeLensModel: Event<void> = this._onDidChangeCodeLensModel.event;
 	private _resolveCodeLensesPromise: CancelablePromise<any> | undefined;
 
 	constructor(
@@ -76,6 +79,7 @@ export class CodeLensContribution implements IEditorContribution {
 		this._disposables.dispose();
 		this._oldCodeLensModels.dispose();
 		this._currentCodeLensModel?.dispose();
+		this._onDidChangeCodeLensModel.fire();
 	}
 
 	private _getLayoutInfo() {
@@ -123,6 +127,7 @@ export class CodeLensContribution implements IEditorContribution {
 		this._localToDispose.clear();
 		this._oldCodeLensModels.clear();
 		this._currentCodeLensModel?.dispose();
+		this._onDidChangeCodeLensModel.fire();
 	}
 
 	private _onModelChange(): void {
@@ -176,6 +181,7 @@ export class CodeLensContribution implements IEditorContribution {
 					this._oldCodeLensModels.add(this._currentCodeLensModel);
 				}
 				this._currentCodeLensModel = result;
+				this._onDidChangeCodeLensModel.fire();
 
 				// cache model to reduce flicker
 				this._codeLensCache.put(model, result);

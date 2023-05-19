@@ -26,6 +26,9 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import * as dom from 'vs/base/browser/dom';
 import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
+import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface CustomMouseEvent {
 	detail: string;
@@ -76,7 +79,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeatureDebounceService _languageFeatureDebounceService: ILanguageFeatureDebounceService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
@@ -84,7 +89,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(this._stickyScrollWidget);
 		this._register(this._stickyLineCandidateProvider);
 
-		this._widgetState = new StickyScrollWidgetState([], 0);
+		this._widgetState = new StickyScrollWidgetState([], 0, undefined);
 		this._readConfiguration();
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
@@ -104,7 +109,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			if (this._positionRevealed === false && height === 0) {
 				this._focusedStickyElementIndex = -1;
 				this.focus();
-
 			}
 			// In all other casees, dispose the focus on the sticky scroll
 			else {
@@ -278,9 +282,16 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
-
 			} else if (!e.isRightClick) {
 				// Normal click
+				if (e.target?.element?.getAttribute('role') === 'button') {
+					// Click CodeLens button
+					const command = this._stickyScrollWidget.getCommand(e.target.element as HTMLLinkElement);
+					if (command) {
+						this._commandService.executeCommand(command.id, ...(command.arguments || [])).catch(err => this._notificationService.error(err));
+					}
+					return;
+				}
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
@@ -312,6 +323,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
 			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this._renderStickyScroll()));
+			this._sessionStore.add(this._editor.onDidChangeConfiguration(e => {
+				if (e.hasChanged(EditorOption.codeLens)) {
+					this._renderStickyScroll();
+				}
+			}));
+
+			// When codeLensModel changed, add the listeners on the sticky scroll
+			const codeLensContribution = this._editor.getContribution<CodeLensContribution>(CodeLensContribution.ID);
+			if (codeLensContribution) {
+				this._sessionStore.add(codeLensContribution.onDidChangeCodeLensModel(() => this._renderStickyScroll()));
+			}
+
 			this._enabled = true;
 		}
 
@@ -426,7 +449,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 			}
 		}
-		return new StickyScrollWidgetState(lineNumbers, lastLineRelativePosition);
+		const codeLensContribution = this._editor.getContribution<CodeLensContribution>(CodeLensContribution.ID);
+		return new StickyScrollWidgetState(lineNumbers, lastLineRelativePosition, this._editor.getOption(EditorOption.codeLens) ? codeLensContribution?.getModel?.() : undefined);
 	}
 
 	override dispose(): void {
