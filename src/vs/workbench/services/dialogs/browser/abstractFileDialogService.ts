@@ -95,10 +95,13 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	private async preferredHome(schemeFilter: string): Promise<URI> {
 		const dialogHomePath = this.configurationService.getValue<string>('workbench.fileDialog.homePath');
 		const userHomePromise = this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
-		if (dialogHomePath) {
-			return (await userHomePromise).with({ path: dialogHomePath });
+		if (!dialogHomePath) {
+			return userHomePromise;
 		}
-		return userHomePromise;
+
+		// Normalize homePath setting so simple file dialog works correctly
+		const path = (await this.pathService.fileURI(dialogHomePath)).path;
+		return (await userHomePromise).with({ path });
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
