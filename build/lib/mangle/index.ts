@@ -330,6 +330,12 @@ const skippedExportMangledProjects = [
 	'html-language-features/server',
 ];
 
+const skippedExportMangledSymbols = [
+	// Don't mangle extension entry points
+	'activate',
+	'deactivate',
+];
+
 class DeclarationData {
 
 	readonly replacementName: string;
@@ -349,8 +355,13 @@ class DeclarationData {
 	}
 
 	shouldMangle(newName: string): boolean {
+		const currentName = this.node.name!.getText();
+		if (skippedExportMangledSymbols.includes(currentName)) {
+			return false;
+		}
+
 		// New name is longer the existing one :'(
-		if (newName.length >= this.node.name!.getText().length) {
+		if (newName.length >= currentName.length) {
 			return false;
 		}
 
@@ -387,8 +398,13 @@ class ConstData {
 	}
 
 	shouldMangle(newName: string): boolean {
+		const currentName = this.decl.name.getText();
+		if (skippedExportMangledSymbols.includes(currentName)) {
+			return false;
+		}
+
 		// New name is longer the existing one :'(
-		if (newName.length >= this.decl.name.getText().length) {
+		if (newName.length >= currentName.length) {
 			return false;
 		}
 
