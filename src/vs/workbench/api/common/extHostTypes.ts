@@ -479,7 +479,22 @@ export class Selection extends Range {
 	}
 }
 
+const validateConnectionToken = (connectionToken: string) => {
+	if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z_\-]+$/.test(connectionToken)) {
+		throw illegalArgument('connectionToken');
+	}
+};
+
+
 export class ResolvedAuthority {
+	public static isResolvedAuthority(resolvedAuthority: any): resolvedAuthority is ResolvedAuthority {
+		return resolvedAuthority
+			&& typeof resolvedAuthority === 'object'
+			&& typeof resolvedAuthority.host === 'string'
+			&& typeof resolvedAuthority.port === 'number'
+			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
+	}
+
 	readonly host: string;
 	readonly port: number;
 	readonly connectionToken: string | undefined;
@@ -492,13 +507,28 @@ export class ResolvedAuthority {
 			throw illegalArgument('port');
 		}
 		if (typeof connectionToken !== 'undefined') {
-			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z_\-]+$/.test(connectionToken)) {
-				throw illegalArgument('connectionToken');
-			}
+			validateConnectionToken(connectionToken);
 		}
 		this.host = host;
 		this.port = Math.round(port);
 		this.connectionToken = connectionToken;
+	}
+}
+
+
+export class ManagedResolvedAuthority {
+
+	public static isManagedResolvedAuthority(resolvedAuthority: any): resolvedAuthority is ManagedResolvedAuthority {
+		return resolvedAuthority
+			&& typeof resolvedAuthority === 'object'
+			&& typeof resolvedAuthority.makeConnection === 'function'
+			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
+	}
+
+	constructor(public readonly makeConnection: () => Thenable<vscode.ManagedMessagePassing>, public readonly connectionToken?: string) {
+		if (typeof connectionToken !== 'undefined') {
+			validateConnectionToken(connectionToken);
+		}
 	}
 }
 
@@ -2944,6 +2974,24 @@ export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInli
 	}
 }
 
+
+@es5ClassCompat
+export class StackFrameFocus {
+	constructor(
+		public readonly session: vscode.DebugSession,
+		readonly threadId?: number,
+		readonly frameId?: number) { }
+}
+
+@es5ClassCompat
+export class ThreadFocus {
+	constructor(
+		public readonly session: vscode.DebugSession,
+		readonly threadId?: number) { }
+}
+
+
+
 @es5ClassCompat
 export class EvaluatableExpression implements vscode.EvaluatableExpression {
 	readonly range: vscode.Range;
@@ -3786,15 +3834,16 @@ export class LinkedEditingRanges {
 
 //#region ports
 export class PortAttributes {
-	private _port: number;
 	private _autoForwardAction: PortAutoForwardAction;
-	constructor(port: number, autoForwardAction: PortAutoForwardAction) {
-		this._port = port;
-		this._autoForwardAction = autoForwardAction;
-	}
 
-	get port(): number {
-		return this._port;
+	constructor(autoForwardAction: PortAutoForwardAction);
+	constructor(port: number, autoForwardAction: PortAutoForwardAction);
+	constructor(portOrAction: number | PortAutoForwardAction, autoForwardAction?: PortAutoForwardAction) {
+		if (typeof portOrAction === 'number') {
+			this._autoForwardAction = autoForwardAction!;
+		} else {
+			this._autoForwardAction = portOrAction;
+		}
 	}
 
 	get autoForwardAction(): PortAutoForwardAction {
