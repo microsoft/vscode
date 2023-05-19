@@ -167,6 +167,10 @@
 	line-height: 1.6em;
 }
 
+.interactive-item-container li {
+	line-height: 1.5rem;
+}
+
 .interactive-item-container .monaco-tokenized-source,
 .interactive-item-container code {
 	font-family: var(--monaco-monospace-font);
@@ -251,6 +255,12 @@
 
 .interactive-item-container .interactive-result-editor-wrapper {
 	margin: 16px 0;
+}
+
+.interactive-item-container .interactive-result-editor-wrapper,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-editor,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
+	border-radius: 6px;
 }
 
 .interactive-response .interactive-response-error-details {
