@@ -26,6 +26,8 @@ export class ChatEditorInput extends EditorInput {
 	public sessionId: string | undefined;
 	public providerId: string | undefined;
 
+	private model: IChatModel | undefined;
+
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
 		return ChatUri.generate(handle);
@@ -65,26 +67,31 @@ export class ChatEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		return this.model?.title || nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+	}
+
+	override getLabelExtraClasses(): string[] {
+		return ['chat-editor-label'];
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
-		let model: IChatModel | undefined;
 		if (typeof this.sessionId === 'string') {
-			model = this.chatService.getOrRestoreSession(this.sessionId);
+			this.model = this.chatService.getOrRestoreSession(this.sessionId);
 		} else if (typeof this.providerId === 'string') {
-			model = this.chatService.startSession(this.providerId, CancellationToken.None);
+			this.model = this.chatService.startSession(this.providerId, CancellationToken.None);
 		} else if ('data' in this.options.target) {
-			model = this.chatService.loadSessionFromContent(this.options.target.data);
+			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
-		if (!model) {
+		if (!this.model) {
 			return null;
 		}
 
-		this.sessionId = model.sessionId;
-		await model.waitForInitialization();
-		return this._register(new ChatEditorModel(model));
+		this.sessionId = this.model.sessionId;
+		await this.model.waitForInitialization();
+		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
+
+		return this._register(new ChatEditorModel(this.model));
 	}
 
 	override dispose(): void {

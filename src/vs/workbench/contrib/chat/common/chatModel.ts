@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatProgress, IChatResponse, IChatResponseErrorDetails, IChat, IChatFollowup, IChatReplyFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -174,7 +174,7 @@ export interface IChatModel {
 	readonly sessionId: string;
 	readonly providerId: string;
 	readonly isInitialized: boolean;
-	// readonly title: string;
+	readonly title: string;
 	readonly welcomeMessage: IChatWelcomeMessageModel | undefined;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
@@ -317,6 +317,17 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _isImported = false;
 	get isImported(): boolean {
 		return this._isImported;
+	}
+
+	get title(): string {
+		const firstRequestMessage = this._requests[0]?.message;
+		if (typeof firstRequestMessage === 'string') {
+			return firstRequestMessage;
+		} else if (firstRequestMessage) {
+			return firstRequestMessage.message;
+		} else {
+			return '';
+		}
 	}
 
 	constructor(
