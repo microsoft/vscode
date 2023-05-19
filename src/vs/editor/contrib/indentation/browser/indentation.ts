@@ -521,9 +521,18 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			}
 		};
 
+		let endLineNumber = range.endLineNumber;
+
+		// Don't indent the final line if the range ends at the start of it, because it will mess up
+		// the indentation of the preexisting code (outside the paste range) on that line.
+		// See https://github.com/microsoft/vscode/issues/85781 and https://github.com/microsoft/vscode/issues/147223
+		if (range.endColumn === 1) {
+			endLineNumber--;
+		}
+
 		let startLineNumber = range.startLineNumber;
 
-		while (startLineNumber <= range.endLineNumber) {
+		while (startLineNumber <= endLineNumber) {
 			if (this.shouldIgnoreLine(model, startLineNumber)) {
 				startLineNumber++;
 				continue;
@@ -531,7 +540,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			break;
 		}
 
-		if (startLineNumber > range.endLineNumber) {
+		if (startLineNumber > endLineNumber) {
 			return;
 		}
 
@@ -568,7 +577,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		const firstLineNumber = startLineNumber;
 
 		// ignore empty or ignored lines
-		while (startLineNumber < range.endLineNumber) {
+		while (startLineNumber < endLineNumber) {
 			if (!/\S/.test(model.getLineContent(startLineNumber + 1))) {
 				startLineNumber++;
 				continue;
@@ -576,7 +585,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			break;
 		}
 
-		if (startLineNumber !== range.endLineNumber) {
+		if (startLineNumber !== endLineNumber) {
 			const virtualModel = {
 				tokenization: {
 					getLineTokens: (lineNumber: number) => {
@@ -604,7 +613,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
 					const spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
-					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
+					for (let i = startLineNumber + 1; i <= endLineNumber; i++) {
 						const lineContent = model.getLineContent(i);
 						const originalIndent = strings.getLeadingWhitespace(lineContent);
 						const originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);
