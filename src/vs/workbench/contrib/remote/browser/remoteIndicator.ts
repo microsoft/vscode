@@ -69,9 +69,11 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private virtualWorkspaceLocation: { scheme: string; authority: string } | undefined = undefined;
 
-	private connectionState: 'initializing' | 'connected' | 'connected-slow' | 'reconnecting' | 'disconnected' | undefined = undefined;
+	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
 	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
-	private measureRemoteConnectionLatencyScheduler: RunOnceScheduler | undefined = undefined;
+
+	private networkState: 'online' | 'offline' | 'slow' | undefined = undefined;
+	private measureNetworkConnectionLatencyScheduler: RunOnceScheduler | undefined = undefined;
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 
@@ -178,6 +180,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				};
 			});
 		}
+
+
 	}
 
 	private registerListeners(): void {
@@ -209,13 +213,13 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						case PersistentConnectionEventType.ConnectionLost:
 						case PersistentConnectionEventType.ReconnectionRunning:
 						case PersistentConnectionEventType.ReconnectionWait:
-							this.setState('reconnecting');
+							this.setConnectionState('reconnecting');
 							break;
 						case PersistentConnectionEventType.ReconnectionPermanentFailure:
-							this.setState('disconnected');
+							this.setConnectionState('disconnected');
 							break;
 						case PersistentConnectionEventType.ConnectionGain:
-							this.setState('connected');
+							this.setConnectionState('connected');
 							break;
 					}
 				}));
@@ -243,9 +247,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				try {
 					await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
 
-					this.setState('connected');
+					this.setConnectionState('connected');
 				} catch (error) {
-					this.setState('disconnected');
+					this.setConnectionState('disconnected');
 				}
 			})();
 		}
@@ -253,20 +257,15 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		this.updateRemoteStatusIndicator();
 	}
 
-	private setState(newState: 'disconnected' | 'connected' | 'reconnecting' | 'connected-slow'): void {
+	private setConnectionState(newState: 'disconnected' | 'connected' | 'reconnecting'): void {
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
 
-			// simplify context key which doesn't support some of the states
-			switch (this.connectionState) {
-				case 'reconnecting':
-					this.connectionStateContextKey.set('disconnected');
-					break;
-				case 'connected-slow':
-					this.connectionStateContextKey.set('connected');
-					break;
-				default:
-					this.connectionStateContextKey.set(this.connectionState);
+			// simplify context key which doesn't support `connecting`
+			if (this.connectionState === 'reconnecting') {
+				this.connectionStateContextKey.set('disconnected');
+			} else {
+				this.connectionStateContextKey.set(this.connectionState);
 			}
 
 			// indicate status
@@ -274,41 +273,49 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 			// start measuring connection latency once connected
 			if (newState === 'connected') {
-				this.scheduleMeasureRemoteConnectionLatency();
+				this.scheduleMeasureNetworkConnectionLatency();
 			}
 		}
 	}
 
-	private scheduleMeasureRemoteConnectionLatency(): void {
+	private scheduleMeasureNetworkConnectionLatency(): void {
 		if (
 			!this.remoteAuthority ||								// only when having a remote connection
-			!!this.environmentService.options?.windowIndicator ||	// only when we own the indicator to show this state
-			this.measureRemoteConnectionLatencyScheduler			// already scheduled
+			this.measureNetworkConnectionLatencyScheduler			// already scheduled
 		) {
 			return;
 		}
 
-		this.measureRemoteConnectionLatencyScheduler = this._register(new RunOnceScheduler(() => this.measureRemoteConnectionLatency(), RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY));
-		this.measureRemoteConnectionLatencyScheduler.schedule(RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SCHEDULER_FIRST_RUN_DELAY);
+		this.measureNetworkConnectionLatencyScheduler = this._register(new RunOnceScheduler(() => this.measureNetworkConnectionLatency(), RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY));
+		this.measureNetworkConnectionLatencyScheduler.schedule(RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SCHEDULER_FIRST_RUN_DELAY);
 	}
 
-	private async measureRemoteConnectionLatency(): Promise<void> {
+	private async measureNetworkConnectionLatency(): Promise<void> {
 
 		// Measure round trip if we are connected or connected-slow
 		// but only when the window has focus to prevent constantly
 		// waking up the connection to the remote
 
-		if (this.hostService.hasFocus && (this.connectionState === 'connected' || this.connectionState === 'connected-slow')) {
+		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'slow')) {
 			const connectionLatency = await measureRoundTripTime(this.remoteAgentService);
 
 			if (typeof connectionLatency === 'number' && connectionLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD) {
-				this.setState('connected-slow');
-			} else if (this.connectionState === 'connected-slow') {
-				this.setState('connected');
+				this.setNetworkState('slow');
+			} else if (this.networkState === 'slow') {
+				this.setNetworkState('online');
 			}
 		}
 
-		this.measureRemoteConnectionLatencyScheduler?.schedule();
+		this.measureNetworkConnectionLatencyScheduler?.schedule();
+	}
+
+	private setNetworkState(newState: 'online' | 'offline' | 'slow'): void {
+		if (this.networkState !== newState) {
+			this.networkState = newState;
+
+			// update status
+			this.updateRemoteStatusIndicator();
+		}
 	}
 
 	private validatedGroup(group: string) {
@@ -359,11 +366,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					} else {
 						tooltip.appendText(nls.localize({ key: 'host.tooltip', comment: ['{0} is a remote host name, e.g. Dev Container'] }, "Editing on {0}", hostLabel));
 					}
-					if (this.connectionState === 'connected-slow') {
-						this.renderRemoteStatusIndicator(`${nls.localize('slowConnection', "$(remote) {0} - $(alert) High Latency", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, tooltip);
-					} else {
-						this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
-					}
+					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
 				}
 			}
 			return;
