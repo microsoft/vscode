@@ -188,7 +188,7 @@ suite('Chat', () => {
 		assert.strictEqual(commands?.[0].sortText, 'sortText');
 	});
 
-	test('sendInteractiveRequestToProvider', async () => {
+	test('sendRequestToProvider', async () => {
 		const testService = instantiationService.createInstance(ChatService);
 		testService.registerProvider(new SimpleTestProvider('testProvider'));
 

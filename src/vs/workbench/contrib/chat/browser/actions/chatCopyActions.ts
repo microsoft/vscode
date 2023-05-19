@@ -30,8 +30,8 @@ export function registerChatCopyActions() {
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
 			const clipboardService = accessor.get(IClipboardService);
-			const interactiveWidgetService = accessor.get(IChatWidgetService);
-			const widget = interactiveWidgetService.lastFocusedWidget;
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const widget = chatWidgetService.lastFocusedWidget;
 			if (widget) {
 				const viewModel = widget.viewModel;
 				const sessionAsText = viewModel?.getItems()

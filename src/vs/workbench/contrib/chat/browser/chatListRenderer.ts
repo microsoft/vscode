@@ -61,9 +61,9 @@ import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/ch
 
 const $ = dom.$;
 
-export type InteractiveTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
+export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
-interface IInteractiveListItemTemplate {
+interface IChatListItemTemplate {
 	rowContainer: HTMLElement;
 	titleToolbar: MenuWorkbenchToolBar;
 	avatar: HTMLElement;
@@ -75,7 +75,7 @@ interface IInteractiveListItemTemplate {
 }
 
 interface IItemHeightChangeParams {
-	element: InteractiveTreeItem;
+	element: ChatTreeItem;
 	height: number;
 }
 
@@ -86,7 +86,7 @@ export interface IChatRendererDelegate {
 	getSlashCommands(): ISlashCommand[];
 }
 
-export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
+export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
 	static readonly ID = 'item';
 
@@ -122,14 +122,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	get templateId(): string {
-		return InteractiveListItemRenderer.ID;
+		return ChatListItemRenderer.ID;
 	}
 
 	private traceLayout(method: string, message: string) {
 		if (forceVerboseLayoutTracing) {
-			this.logService.info(`InteractiveListItemRenderer#${method}: ${message}`);
+			this.logService.info(`ChatListItemRenderer#${method}: ${message}`);
 		} else {
-			this.logService.trace(`InteractiveListItemRenderer#${method}: ${message}`);
+			this.logService.trace(`ChatListItemRenderer#${method}: ${message}`);
 		}
 	}
 
@@ -178,7 +178,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		});
 	}
 
-	renderTemplate(container: HTMLElement): IInteractiveListItemTemplate {
+	renderTemplate(container: HTMLElement): IChatListItemTemplate {
 		const templateDisposables = new DisposableStore();
 		const rowContainer = dom.append(container, $('.interactive-item-container'));
 		const header = dom.append(rowContainer, $('.header'));
@@ -204,11 +204,11 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}));
 
 
-		const template: IInteractiveListItemTemplate = { avatar, username, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
+		const template: IChatListItemTemplate = { avatar, username, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
 
-	renderElement(node: ITreeNode<InteractiveTreeItem, FuzzyScore>, index: number, templateData: IInteractiveListItemTemplate): void {
+	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
 		const { element } = node;
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
@@ -272,7 +272,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate) {
+	private basicRenderElement(markdownValue: string, element: ChatTreeItem, index: number, templateData: IChatListItemTemplate) {
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
 		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
 		dom.clearNode(templateData.value);
@@ -304,7 +304,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IInteractiveListItemTemplate) {
+	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
 		dom.clearNode(templateData.value);
 		const slashCommands = this.delegate.getSlashCommands();
 
@@ -331,7 +331,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	/**
 	 *	@returns true if progressive rendering should be considered complete- the element's data is fully rendered or the view is not visible
 	 */
-	private doNextProgressiveRender(element: IChatResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
+	private doNextProgressiveRender(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
 		if (!this._isVisible) {
 			return true;
 		}
@@ -369,7 +369,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				// when the codeblock is the last thing in the response, and that happens often.
 				const plusCursor = renderValue.value.match(/```\s*$/) ?
 					renderValue.value :
-					renderValue.value + ` ${InteractiveListItemRenderer.cursorCharacter}`;
+					renderValue.value + ` ${ChatListItemRenderer.cursorCharacter}`;
 				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
 				// Doing the progressive render
 				dom.clearNode(templateData.value);
@@ -391,7 +391,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return !!isFullyRendered;
 	}
 
-	private renderMarkdown(markdown: IMarkdownString, element: InteractiveTreeItem, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
+	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposablesList: IDisposable[] = [];
 		let codeBlockIndex = 0;
 
@@ -450,7 +450,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return result;
 	}
 
-	private renderCodeBlock(data: IInteractiveResultCodeBlockData, disposables: DisposableStore): IDisposableReference<IInteractiveResultCodeBlockPart> {
+	private renderCodeBlock(data: IChatResultCodeBlockData, disposables: DisposableStore): IDisposableReference<IChatResultCodeBlockPart> {
 		const ref = this._editorPool.get();
 		const editorInfo = ref.object;
 		editorInfo.render(data, this._currentLayoutWidth);
@@ -474,16 +474,16 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return getNWords(element.response.value, numWordsToRender);
 	}
 
-	disposeElement(node: ITreeNode<InteractiveTreeItem, FuzzyScore>, index: number, templateData: IInteractiveListItemTemplate): void {
+	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
 		templateData.elementDisposables.clear();
 	}
 
-	disposeTemplate(templateData: IInteractiveListItemTemplate): void {
+	disposeTemplate(templateData: IChatListItemTemplate): void {
 		templateData.templateDisposables.dispose();
 	}
 }
 
-export class ChatListDelegate implements IListVirtualDelegate<InteractiveTreeItem> {
+export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 	constructor(
 		@ILogService private readonly logService: ILogService
 	) { }
@@ -496,29 +496,29 @@ export class ChatListDelegate implements IListVirtualDelegate<InteractiveTreeIte
 		}
 	}
 
-	getHeight(element: InteractiveTreeItem): number {
+	getHeight(element: ChatTreeItem): number {
 		const kind = isRequestVM(element) ? 'request' : 'response';
 		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? 200;
 		this._traceLayout('getHeight', `${kind}, height=${height}`);
 		return height;
 	}
 
-	getTemplateId(element: InteractiveTreeItem): string {
-		return InteractiveListItemRenderer.ID;
+	getTemplateId(element: ChatTreeItem): string {
+		return ChatListItemRenderer.ID;
 	}
 
-	hasDynamicHeight(element: InteractiveTreeItem): boolean {
+	hasDynamicHeight(element: ChatTreeItem): boolean {
 		return true;
 	}
 }
 
-export class ChatAccessibilityProvider implements IListAccessibilityProvider<InteractiveTreeItem> {
+export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
 
 	getWidgetRole(): AriaRole {
 		return 'list';
 	}
 
-	getRole(element: InteractiveTreeItem): AriaRole | undefined {
+	getRole(element: ChatTreeItem): AriaRole | undefined {
 		return 'listitem';
 	}
 
@@ -526,7 +526,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Int
 		return localize('chat', "Chat");
 	}
 
-	getAriaLabel(element: InteractiveTreeItem): string {
+	getAriaLabel(element: ChatTreeItem): string {
 		if (isRequestVM(element)) {
 			return element.messageText;
 		}
@@ -543,27 +543,27 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Int
 	}
 }
 
-interface IInteractiveResultCodeBlockData {
+interface IChatResultCodeBlockData {
 	text: string;
 	languageId: string;
 	codeBlockIndex: number;
-	element: InteractiveTreeItem;
+	element: ChatTreeItem;
 	parentContextKeyService: IContextKeyService;
 }
 
-interface IInteractiveResultCodeBlockPart {
+interface IChatResultCodeBlockPart {
 	readonly onDidChangeContentHeight: Event<number>;
 	readonly element: HTMLElement;
 	readonly textModel: ITextModel;
 	layout(width: number): void;
-	render(data: IInteractiveResultCodeBlockData, width: number): void;
+	render(data: IChatResultCodeBlockData, width: number): void;
 	focus(): void;
 	dispose(): void;
 }
 
 const defaultCodeblockPadding = 10;
 
-class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPart {
+class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
@@ -683,7 +683,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		this.updatePaddingForLayout();
 	}
 
-	render(data: IInteractiveResultCodeBlockData, width: number): void {
+	render(data: IChatResultCodeBlockData, width: number): void {
 		this.contextKeyService.updateParent(data.parentContextKeyService);
 
 		if (this.options.configuration.resultEditor.wordWrap === 'on') {
@@ -725,9 +725,9 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		}
 
 		let removedChars = 0;
-		if (currentText.endsWith(` ${InteractiveListItemRenderer.cursorCharacter}`)) {
+		if (currentText.endsWith(` ${ChatListItemRenderer.cursorCharacter}`)) {
 			removedChars = 2;
-		} else if (currentText.endsWith(InteractiveListItemRenderer.cursorCharacter)) {
+		} else if (currentText.endsWith(ChatListItemRenderer.cursorCharacter)) {
 			removedChars = 1;
 		}
 
@@ -757,9 +757,9 @@ interface IDisposableReference<T> extends IDisposable {
 }
 
 class EditorPool extends Disposable {
-	private _pool: ResourcePool<IInteractiveResultCodeBlockPart>;
+	private _pool: ResourcePool<IChatResultCodeBlockPart>;
 
-	public get inUse(): ReadonlySet<IInteractiveResultCodeBlockPart> {
+	public get inUse(): ReadonlySet<IChatResultCodeBlockPart> {
 		return this._pool.inUse;
 	}
 
@@ -773,11 +773,11 @@ class EditorPool extends Disposable {
 		// TODO listen to changes on options
 	}
 
-	private editorFactory(): IInteractiveResultCodeBlockPart {
+	private editorFactory(): IChatResultCodeBlockPart {
 		return this.instantiationService.createInstance(CodeBlockPart, this.options);
 	}
 
-	get(): IDisposableReference<IInteractiveResultCodeBlockPart> {
+	get(): IDisposableReference<IChatResultCodeBlockPart> {
 		const object = this._pool.get();
 		return {
 			object,

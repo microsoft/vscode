@@ -21,7 +21,7 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -398,7 +398,7 @@ export function registerChatCodeBlockActions() {
 				keybinding: {
 					primary: KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_INTERACTIVE_SESSION,
+					when: CONTEXT_IN_CHAT_SESSION,
 				},
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -421,7 +421,7 @@ export function registerChatCodeBlockActions() {
 				keybinding: {
 					primary: KeyMod.Shift | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_INTERACTIVE_SESSION,
+					when: CONTEXT_IN_CHAT_SESSION,
 				},
 				f1: true,
 				category: CHAT_CATEGORY,

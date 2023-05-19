@@ -23,8 +23,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 
 const decorationDescription = 'chat';
-const slashCommandPlaceholderDecorationType = 'interactive-session-detail';
-const slashCommandTextDecorationType = 'interactive-session-text';
+const slashCommandPlaceholderDecorationType = 'chat-session-detail';
+const slashCommandTextDecorationType = 'chat-session-text';
 
 class InputEditorDecorations extends Disposable {
 
