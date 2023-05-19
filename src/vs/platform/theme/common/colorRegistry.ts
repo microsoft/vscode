@@ -292,6 +292,8 @@ export const editorInfoBackground = registerColor('editorInfo.background', { dar
 export const editorInfoForeground = registerColor('editorInfo.foreground', { dark: '#3794FF', light: '#1a85ff', hcDark: '#3794FF', hcLight: '#1a85ff' }, nls.localize('editorInfo.foreground', 'Foreground color of info squigglies in the editor.'));
 export const editorInfoBorder = registerColor('editorInfo.border', { dark: null, light: null, hcDark: Color.fromHex('#3794FF').transparent(0.8), hcLight: '#292929' }, nls.localize('infoBorder', 'If set, color of double underlines for infos in the editor.'));
 
+export const editorSuccessForeground = registerColor('editorSuccess.foreground', { dark: '#89D185', light: '#388A34', hcDark: '#89D185', hcLight: '#388A34' }, nls.localize('editorSuccess.foreground', 'Foreground color of success icons in the editor.'));
+
 export const editorHintForeground = registerColor('editorHint.foreground', { dark: Color.fromHex('#eeeeee').transparent(0.7), light: '#6c6c6c', hcDark: null, hcLight: null }, nls.localize('editorHint.foreground', 'Foreground color of hint squigglies in the editor.'));
 export const editorHintBorder = registerColor('editorHint.border', { dark: null, light: null, hcDark: Color.fromHex('#eeeeee').transparent(0.8), hcLight: '#292929' }, nls.localize('hintBorder', 'If set, color of double underlines for hints in the editor.'));
 
@@ -555,6 +557,7 @@ export const minimapSliderActiveBackground = registerColor('minimapSlider.active
 export const problemsErrorIconForeground = registerColor('problemsErrorIcon.foreground', { dark: editorErrorForeground, light: editorErrorForeground, hcDark: editorErrorForeground, hcLight: editorErrorForeground }, nls.localize('problemsErrorIconForeground', "The color used for the problems error icon."));
 export const problemsWarningIconForeground = registerColor('problemsWarningIcon.foreground', { dark: editorWarningForeground, light: editorWarningForeground, hcDark: editorWarningForeground, hcLight: editorWarningForeground }, nls.localize('problemsWarningIconForeground', "The color used for the problems warning icon."));
 export const problemsInfoIconForeground = registerColor('problemsInfoIcon.foreground', { dark: editorInfoForeground, light: editorInfoForeground, hcDark: editorInfoForeground, hcLight: editorInfoForeground }, nls.localize('problemsInfoIconForeground', "The color used for the problems info icon."));
+export const problemsSuccessIconForeground = registerColor('problemsSuccessIcon.foreground', { dark: editorSuccessForeground, light: editorSuccessForeground, hcDark: editorSuccessForeground, hcLight: editorSuccessForeground }, nls.localize('problemsSuccessIconForeground', "The color used for the problems success icon."));
 
 /**
  * Chart colors

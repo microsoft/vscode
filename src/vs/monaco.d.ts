@@ -48,7 +48,8 @@ declare namespace monaco {
 		Hint = 1,
 		Info = 2,
 		Warning = 4,
-		Error = 8
+		Error = 8,
+		Success = 16
 	}
 
 	export class CancellationTokenSource {

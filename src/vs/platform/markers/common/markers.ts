@@ -47,6 +47,7 @@ export enum MarkerSeverity {
 	Info = 2,
 	Warning = 4,
 	Error = 8,
+	Success = 16
 }
 
 export namespace MarkerSeverity {
@@ -69,6 +70,7 @@ export namespace MarkerSeverity {
 			case Severity.Error: return MarkerSeverity.Error;
 			case Severity.Warning: return MarkerSeverity.Warning;
 			case Severity.Info: return MarkerSeverity.Info;
+			case Severity.Success: return MarkerSeverity.Success;
 			case Severity.Ignore: return MarkerSeverity.Hint;
 		}
 	}
@@ -79,6 +81,7 @@ export namespace MarkerSeverity {
 			case MarkerSeverity.Warning: return Severity.Warning;
 			case MarkerSeverity.Info: return Severity.Info;
 			case MarkerSeverity.Hint: return Severity.Ignore;
+			case MarkerSeverity.Success: return Severity.Success;
 		}
 	}
 }

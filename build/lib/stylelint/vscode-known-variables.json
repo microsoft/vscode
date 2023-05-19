@@ -457,6 +457,7 @@
 		"--vscode-problemsErrorIcon-foreground",
 		"--vscode-problemsInfoIcon-foreground",
 		"--vscode-problemsWarningIcon-foreground",
+		"--vscode-problemsSuccessIcon-foreground",
 		"--vscode-profileBadge-background",
 		"--vscode-profileBadge-foreground",
 		"--vscode-progressBar-background",

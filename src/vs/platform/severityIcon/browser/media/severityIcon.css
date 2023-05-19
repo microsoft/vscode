@@ -29,3 +29,12 @@
 .preferences-editor .codicon.codicon-info {
 	color: var(--vscode-problemsInfoIcon-foreground);
 }
+
+.monaco-editor .zone-widget .codicon.codicon-check,
+.markers-panel .marker-icon.info, .markers-panel .marker-icon .codicon.codicon-check,
+.text-search-provider-messages .providerMessage .codicon.codicon-check,
+.extensions-viewlet > .extensions .codicon.codicon-check,
+.extension-editor .codicon.codicon-check,
+.preferences-editor .codicon.codicon-check {
+	color: var(--vscode-problemsSuccessIcon-foreground);
+}

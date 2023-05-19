@@ -154,7 +154,12 @@ export interface IPromptResultWithCancel<T> extends IPromptResult<T> {
 
 export type IDialogResult = IConfirmationResult | IInputResult | IPromptResult<unknown>;
 
-export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
+export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning' | 'success';
+
+export interface IInputBox<T> {
+	readonly value: string;
+	readonly action?: IPromptButton<T>;
+}
 
 export interface ICheckbox {
 	readonly label: string;
@@ -403,7 +408,7 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 		}
 
 		if (typeof type === 'number') {
-			return (type === Severity.Info) ? 'info' : (type === Severity.Error) ? 'error' : (type === Severity.Warning) ? 'warning' : 'none';
+			return (type === Severity.Info) ? 'info' : (type === Severity.Error) ? 'error' : (type === Severity.Warning) ? 'warning' : (type === Severity.Success) ? 'success' : 'none';
 		}
 
 		return undefined;

@@ -9,7 +9,8 @@ enum Severity {
 	Ignore = 0,
 	Info = 1,
 	Warning = 2,
-	Error = 3
+	Error = 3,
+	Success = 4
 }
 
 namespace Severity {
@@ -19,6 +20,7 @@ namespace Severity {
 	const _warn = 'warn';
 	const _info = 'info';
 	const _ignore = 'ignore';
+	const _success = 'success';
 
 	/**
 	 * Parses 'error', 'warning', 'warn', 'info' in call casings
@@ -40,6 +42,11 @@ namespace Severity {
 		if (strings.equalsIgnoreCase(_info, value)) {
 			return Severity.Info;
 		}
+
+		if (strings.equalsIgnoreCase(_success, value)) {
+			return Severity.Success;
+		}
+
 		return Severity.Ignore;
 	}
 
@@ -48,6 +55,7 @@ namespace Severity {
 			case Severity.Error: return _error;
 			case Severity.Warning: return _warning;
 			case Severity.Info: return _info;
+			case Severity.Success: return _success;
 			default: return _ignore;
 		}
 	}

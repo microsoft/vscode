@@ -60,6 +60,7 @@
 /** Dialog: Message Container */
 .monaco-dialog-box .dialog-message-row .dialog-message-container {
 	display: flex;
+	flex: 1;
 	flex-direction: column;
 	overflow: hidden;
 	text-overflow: ellipsis;
