@@ -930,7 +930,7 @@ configurationRegistry.registerConfiguration({
 			default: {}
 		},
 		[NotebookSetting.formatOnCellExecution]: {
-			markdownDescription: nls.localize('notebook.formatOnRun', "Format a notebook on cell exectuion. A formatter must be available, and the editor must not be shutting down."),
+			markdownDescription: nls.localize('notebook.formatOnCellExecution', "Format a notebook cell upon execution. A formatter must be available, and the editor must not be shutting down."),
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false

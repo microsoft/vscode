@@ -36,6 +36,9 @@ export interface ICellExecutionStateChangedEvent {
 	affectsCell(cell: URI): boolean;
 	affectsNotebook(notebook: URI): boolean;
 }
+export interface ICellExecutionParticipant {
+	onWillExecuteCell(executions: INotebookCellExecution[]): Promise<void>;
+}
 export interface IExecutionStateChangedEvent {
 	type: NotebookExecutionType.notebook;
 	notebook: URI;
@@ -69,6 +72,8 @@ export interface INotebookExecutionStateService {
 	getExecution(notebook: URI): INotebookExecution | undefined;
 	createExecution(notebook: URI): INotebookExecution;
 	getLastFailedCellForNotebook(notebook: URI): number | undefined;
+	registerExecutionParticipant(participant: ICellExecutionParticipant): IDisposable;
+	runExecutionParticipants(executions: INotebookCellExecution[]): Promise<void>;
 }
 
 export interface INotebookCellExecution {
