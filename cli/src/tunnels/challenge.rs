@@ -25,7 +25,6 @@ pub fn verify_challenge(challenge: &str, response: &str) -> bool {
 
 #[cfg(feature = "vsda")]
 pub fn create_challenge() -> String {
-	println!("challenging with vsda");
 	use rand::distributions::{Alphanumeric, DistString};
 	let str = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
 	vsda::create_new_message(&str)
