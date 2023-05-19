@@ -384,7 +384,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
-					const lastResponse: IInteractiveResponseViewModel | undefined = responses?.[responses.length - 1];
+					const lastResponse = responses?.[responses.length - 1];
 					if (lastResponse) {
 						alert(lastResponse.response.value);
 					}
