@@ -35,20 +35,19 @@ declare module 'vscode' {
 	}
 
 	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
-		// TODO: Uncomment when workspace/scopes is removed from the other proposal
-		// /**
-		//  * @param options Options applied to the mutator.
-		//  */
-		// replace(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
+		/**
+		 * @param options Options applied to the mutator.
+		 */
+		replace(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
 
-		// /**
-		//  * @param options Options applied to the mutator.
-		//  */
-		// append(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
+		/**
+		 * @param options Options applied to the mutator.
+		 */
+		append(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
 
-		// /**
-		//  * @param options Options applied to the mutator.
-		//  */
-		// prepend(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
+		/**
+		 * @param options Options applied to the mutator.
+		 */
+		prepend(variable: string, value: string, options?: EnvironmentVariableMutatorOptions): void;
 	}
 }

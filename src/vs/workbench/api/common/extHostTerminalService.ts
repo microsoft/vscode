@@ -899,19 +899,16 @@ class EnvironmentVariableCollection {
 		return scopedCollection;
 	}
 
-	replace(variable: string, value: string, scope: vscode.EnvironmentVariableScope | undefined): void {
-		// TODO: Implement options in API
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, scope, options: {} });
+	replace(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, options: options ?? {}, scope });
 	}
 
-	append(variable: string, value: string, scope: vscode.EnvironmentVariableScope | undefined): void {
-		// TODO: Implement options in API
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, scope, options: {} });
+	append(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, options: options ?? {}, scope });
 	}
 
-	prepend(variable: string, value: string, scope: vscode.EnvironmentVariableScope | undefined): void {
-		// TODO: Implement options in API
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, scope, options: {} });
+	prepend(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, options: options ?? {}, scope });
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator & { scope: vscode.EnvironmentVariableScope | undefined }): void {
@@ -1026,16 +1023,16 @@ class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableC
 		return this.collection.getScopedEnvironmentVariableCollection(this.scope);
 	}
 
-	replace(variable: string, value: string): void {
-		this.collection.replace(variable, value, this.scope);
+	replace(variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions | undefined): void {
+		this.collection.replace(variable, value, options, this.scope);
 	}
 
-	append(variable: string, value: string): void {
-		this.collection.append(variable, value, this.scope);
+	append(variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions | undefined): void {
+		this.collection.append(variable, value, options, this.scope);
 	}
 
-	prepend(variable: string, value: string): void {
-		this.collection.prepend(variable, value, this.scope);
+	prepend(variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions | undefined): void {
+		this.collection.prepend(variable, value, options, this.scope);
 	}
 
 	get(variable: string): vscode.EnvironmentVariableMutator | undefined {
