@@ -279,7 +279,7 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 }
 
 const fileIdents = new class {
-	private readonly idents = new ShortIdent('$');
+	private readonly idents = new ShortIdent('_$');
 
 	next(file: ts.SourceFile) {
 		return this.idents.next(name => isNameTakenInFile(file, name));
@@ -356,7 +356,7 @@ class DeclarationData {
 
 	shouldMangle(newName: string): boolean {
 		const currentName = this.node.name!.getText();
-		if (skippedExportMangledSymbols.includes(currentName)) {
+		if (currentName.startsWith('$') || skippedExportMangledSymbols.includes(currentName)) {
 			return false;
 		}
 
@@ -399,7 +399,7 @@ class ConstData {
 
 	shouldMangle(newName: string): boolean {
 		const currentName = this.decl.name.getText();
-		if (skippedExportMangledSymbols.includes(currentName)) {
+		if (currentName.startsWith('$') || skippedExportMangledSymbols.includes(currentName)) {
 			return false;
 		}
 
