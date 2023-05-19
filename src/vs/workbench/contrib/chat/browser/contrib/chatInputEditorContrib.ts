@@ -22,7 +22,7 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 
-const decorationDescription = 'interactive session';
+const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'interactive-session-detail';
 const slashCommandTextDecorationType = 'interactive-session-text';
 

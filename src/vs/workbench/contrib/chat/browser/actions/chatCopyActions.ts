@@ -9,7 +9,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export function registerChatCopyActions() {
 	registerAction2(class CopyAllAction extends Action2 {
@@ -35,7 +35,7 @@ export function registerChatCopyActions() {
 			if (widget) {
 				const viewModel = widget.viewModel;
 				const sessionAsText = viewModel?.getItems()
-					.filter((item): item is (IInteractiveRequestViewModel | IInteractiveResponseViewModel) => isRequestVM(item) || isResponseVM(item))
+					.filter((item): item is (IChatRequestViewModel | IChatResponseViewModel) => isRequestVM(item) || isResponseVM(item))
 					.map(stringifyItem)
 					.join('\n\n');
 				if (sessionAsText) {
@@ -74,7 +74,7 @@ export function registerChatCopyActions() {
 	});
 }
 
-function stringifyItem(item: IInteractiveRequestViewModel | IInteractiveResponseViewModel): string {
+function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel): string {
 	return isRequestVM(item) ?
 		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.value}`;
 }

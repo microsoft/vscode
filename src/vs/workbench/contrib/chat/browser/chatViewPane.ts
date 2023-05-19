@@ -73,7 +73,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 
 		model = model ?? this.chatService.startSession(this.interactiveSessionViewOptions.providerId, CancellationToken.None);
 		if (!model) {
-			throw new Error('Could not start interactive session');
+			throw new Error('Could not start chat session');
 		}
 
 		this._widget.setModel(model, { ...this.viewState });

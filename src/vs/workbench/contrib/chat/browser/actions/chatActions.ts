@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -101,22 +101,22 @@ export function registerChatActions() {
 		}
 	});
 
-	registerEditorAction(class FocusChatAction extends EditorAction {
+	registerAction2(class FocusChatAction extends EditorAction2 {
 		constructor() {
 			super({
 				id: 'chat.action.focus',
-				label: localize('actions.interactiveSession.focus', "Focus Interactive Session"),
-				alias: 'Focus Interactive Session',
+				title: { value: localize('actions.interactiveSession.focus', "Focus Chat List"), original: 'Focus Chat List' },
 				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
-				kbOpts: {
-					kbExpr: EditorContextKeys.textInputFocus,
+				category: CHAT_CATEGORY,
+				keybinding: {
+					when: EditorContextKeys.textInputFocus,
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 					weight: KeybindingWeight.EditorContrib
 				}
 			});
 		}
 
-		run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+		runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 			const editorUri = editor.getModel()?.uri;
 			if (editorUri) {
 				const widgetService = accessor.get(IChatWidgetService);
@@ -148,8 +148,8 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.focusInput',
 				title: {
-					value: localize('interactiveSession.focusInput.label', "Focus Input"),
-					original: 'Focus Input'
+					value: localize('interactiveSession.focusInput.label', "Focus Chat Input"),
+					original: 'Focus Chat Input'
 				},
 				f1: false,
 				keybinding: {

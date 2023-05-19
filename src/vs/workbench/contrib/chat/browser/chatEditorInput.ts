@@ -40,7 +40,7 @@ export class ChatEditorInput extends EditorInput {
 
 		const parsed = ChatUri.parse(resource);
 		if (typeof parsed?.handle !== 'number') {
-			throw new Error('Invalid interactive session URI');
+			throw new Error('Invalid chat URI');
 		}
 
 		this.sessionId = 'sessionId' in options.target ? options.target.sessionId : undefined;

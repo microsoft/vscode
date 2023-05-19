@@ -23,7 +23,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
-import { IInteractiveResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -35,7 +35,7 @@ export interface IChatCodeBlockActionContext {
 	code: string;
 	languageId: string;
 	codeBlockIndex: number;
-	element: IInteractiveResponseViewModel;
+	element: IChatResponseViewModel;
 }
 
 export function isCodeBlockActionContext(thing: unknown): thing is IChatCodeBlockActionContext {
@@ -374,7 +374,7 @@ export function registerChatCodeBlockActions() {
 
 		const focusResponse = curCodeBlockInfo ?
 			curCodeBlockInfo.element :
-			widget.viewModel?.getItems().reverse().find((item): item is IInteractiveResponseViewModel => isResponseVM(item));
+			widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
 		if (!focusResponse) {
 			return;
 		}

@@ -56,12 +56,12 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatReplyFollowup, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, IInteractiveWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
 const $ = dom.$;
 
-export type InteractiveTreeItem = IInteractiveRequestViewModel | IInteractiveResponseViewModel | IInteractiveWelcomeMessageViewModel;
+export type InteractiveTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
 interface IInteractiveListItemTemplate {
 	rowContainer: HTMLElement;
@@ -137,7 +137,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering');
 	}
 
-	private getProgressiveRenderRate(element: IInteractiveResponseViewModel): number {
+	private getProgressiveRenderRate(element: IChatResponseViewModel): number {
 		const configuredRate = this.configService.getValue('interactive.experimental.progressiveRenderingRate');
 		if (typeof configuredRate === 'number') {
 			return configuredRate;
@@ -158,7 +158,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return 8;
 	}
 
-	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IChatCodeBlockInfo[] {
+	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
 		const codeBlocks = this.codeBlocksByResponseId.get(response.id);
 		return codeBlocks ?? [];
 	}
@@ -304,7 +304,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private renderWelcomeMessage(element: IInteractiveWelcomeMessageViewModel, templateData: IInteractiveListItemTemplate) {
+	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IInteractiveListItemTemplate) {
 		dom.clearNode(templateData.value);
 		const slashCommands = this.delegate.getSlashCommands();
 
@@ -331,7 +331,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	/**
 	 *	@returns true if progressive rendering should be considered complete- the element's data is fully rendered or the view is not visible
 	 */
-	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
+	private doNextProgressiveRender(element: IChatResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
 		if (!this._isVisible) {
 			return true;
 		}
@@ -458,7 +458,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return ref;
 	}
 
-	private getWordsForProgressiveRender(element: IInteractiveResponseViewModel): IWordCountResult | undefined {
+	private getWordsForProgressiveRender(element: IChatResponseViewModel): IWordCountResult | undefined {
 		const renderData = element.renderData ?? { renderedWordCount: 0, lastRenderTime: 0 };
 		const rate = this.getProgressiveRenderRate(element);
 		const numWordsToRender = renderData.lastRenderTime === 0 ?

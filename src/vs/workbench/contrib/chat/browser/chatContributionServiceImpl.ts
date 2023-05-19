@@ -140,7 +140,7 @@ export class ChatContributionService implements IChatContributionService {
 		const historyAction = registerAction2(getHistoryAction(viewId, providerDescriptor.id));
 		const clearAction = registerAction2(getClearAction(viewId, providerDescriptor.id));
 
-		// "Open Interactive Session Editor" Action
+		// "Open Chat Editor" Action
 		const openEditor = registerAction2(getOpenChatEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when));
 
 		return {
