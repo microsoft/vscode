@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -381,6 +382,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (result) {
 				revealLastElement(this.tree);
 				this.inputPart.acceptInput(query);
+				result.responseCompletePromise.then(() => {
+					const responses = this.viewModel?.getItems().filter(isResponseVM);
+					const lastResponse: IInteractiveResponseViewModel | undefined = responses?.[responses.length - 1];
+					if (lastResponse) {
+						alert(lastResponse.response.value);
+					}
+				});
 			}
 		}
 	}
