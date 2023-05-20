@@ -165,8 +165,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		});
 
 		const promise = createCancelablePromise(async token => {
-			const results = coalesce(await Promise.all(providers.map(provider => {
-				return provider.prepareDocumentPaste!(model, ranges, dataTransfer, token);
+			const results = coalesce(await Promise.all(providers.map(async provider => {
+				try {
+					return await provider.prepareDocumentPaste!(model, ranges, dataTransfer, token);
+				} catch (err) {
+					console.error(err);
+					return undefined;
+				}
 			})));
 
 			// Values from higher priority providers should overwrite values from lower priority ones.
@@ -391,9 +396,14 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: readonly Selection[], token: CancellationToken): Promise<DocumentPasteEdit[]> {
 		const result = await raceCancellation(
-			Promise.all(
-				providers.map(provider => provider.provideDocumentPasteEdits?.(model, selections, dataTransfer, token))
-			).then(coalesce),
+			Promise.all(providers.map(provider => {
+				try {
+					return provider.provideDocumentPasteEdits?.(model, selections, dataTransfer, token);
+				} catch (err) {
+					console.error(err);
+					return undefined;
+				}
+			})).then(coalesce),
 			token);
 		result?.sort((a, b) => b.priority - a.priority);
 		return result ?? [];

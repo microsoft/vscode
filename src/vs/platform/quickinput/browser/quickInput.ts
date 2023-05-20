@@ -93,6 +93,7 @@ interface QuickInputUI {
 	title: HTMLElement;
 	description1: HTMLElement;
 	description2: HTMLElement;
+	widget: HTMLElement;
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	filterContainer: HTMLElement;
@@ -141,6 +142,8 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	private _title: string | undefined;
 	private _description: string | undefined;
+	private _widget: HTMLElement | undefined;
+	private _widgetUpdated = false;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	protected visible = false;
@@ -187,6 +190,21 @@ class QuickInput extends Disposable implements IQuickInput {
 	set description(description: string | undefined) {
 		this._description = description;
 		this.update();
+	}
+
+	get widget() {
+		return this._widget;
+	}
+
+	set widget(widget: unknown | undefined) {
+		if (!(widget instanceof HTMLElement)) {
+			return;
+		}
+		if (this._widget !== widget) {
+			this._widget = widget;
+			this._widgetUpdated = true;
+			this.update();
+		}
 	}
 
 	get step() {
@@ -350,6 +368,14 @@ class QuickInput extends Disposable implements IQuickInput {
 		}
 		if (this.ui.description2.textContent !== description) {
 			this.ui.description2.textContent = description;
+		}
+		if (this._widgetUpdated) {
+			this._widgetUpdated = false;
+			if (this._widget) {
+				dom.reset(this.ui.widget, this._widget);
+			} else {
+				dom.reset(this.ui.widget);
+			}
 		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = new TimeoutTimer();
@@ -1337,6 +1363,8 @@ export class QuickInputController extends Disposable {
 		const progressBar = new ProgressBar(container, this.styles.progressBar);
 		progressBar.getContainer().classList.add('quick-input-progress');
 
+		const widget = dom.append(container, $('.quick-input-html-widget'));
+
 		const listId = this.idPrefix + 'list';
 		const list = this._register(new QuickInputList(container, listId, this.options));
 		inputBox.setAttribute('aria-controls', listId);
@@ -1410,6 +1438,14 @@ export class QuickInputController extends Disposable {
 						if (this.getUI().message) {
 							selectors.push('.quick-input-message a');
 						}
+
+						if (this.getUI().widget) {
+							if (dom.isAncestor(event.target, this.getUI().widget)) {
+								// let the widget control tab
+								break;
+							}
+							selectors.push('.quick-input-html-widget');
+						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
 						if (event.shiftKey && event.target === stops[0]) {
 							// Clear the focus from the list in order to allow
@@ -1439,6 +1475,7 @@ export class QuickInputController extends Disposable {
 			title,
 			description1,
 			description2,
+			widget,
 			rightActionBar,
 			checkAll,
 			filterContainer,
@@ -1676,6 +1713,7 @@ export class QuickInputController extends Disposable {
 		ui.title.textContent = '';
 		ui.description1.textContent = '';
 		ui.description2.textContent = '';
+		dom.reset(ui.widget);
 		ui.rightActionBar.clear();
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.

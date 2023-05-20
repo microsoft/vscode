@@ -114,7 +114,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				linkCandidates.push(parsedLink.path.text);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, parsedLink.path.text, osPath);
+					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, parsedLink.path.text, osPath, this._logService);
 					// Only add a single exact link candidate if the cwd is available, this may cause
 					// the link to not be resolved but that should only occur when the actual file does
 					// not exist. Doing otherwise could cause unexpected results where handling via the
@@ -122,8 +122,9 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					if (absolutePath) {
 						linkCandidates.push(...absolutePath);
 					}
-				} else {
-					// Fallback to resolving against the initial cwd, removing any relative directory prefixes
+				}
+				// Fallback to resolving against the initial cwd, removing any relative directory prefixes
+				if (linkCandidates.length === 0) {
 					linkCandidates.push(parsedLink.path.text);
 					if (parsedLink.path.text.match(/^(\.\.[\/\\])+/)) {
 						linkCandidates.push(parsedLink.path.text.replace(/^(\.\.[\/\\])+/, ''));

@@ -24,6 +24,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
+import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 export type Recording = {
 	when: Date;
@@ -36,6 +37,7 @@ type TelemetryData = {
 	rounds: string;
 	undos: string;
 	edits: boolean;
+	finishedByEdit: boolean;
 	startTime: string;
 	endTime: string;
 	editMode: string;
@@ -48,6 +50,7 @@ type TelemetryDataClassification = {
 	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of request that were made' };
 	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Requests that have been undone' };
 	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits happen while the session was active' };
+	finishedByEdit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits cause the session to terminate' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
 	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
@@ -56,6 +59,7 @@ type TelemetryDataClassification = {
 export class Session {
 
 	private _lastInput: string | undefined;
+	private _lastTextModelChanges: LineRangeMapping[] | undefined;
 	private _lastSnapshot: ITextSnapshot | undefined;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
@@ -110,8 +114,36 @@ export class Session {
 		return this._exchange[this._exchange.length - 1];
 	}
 
-	recordExternalEditOccurred() {
+	get lastTextModelChanges() {
+		return this._lastTextModelChanges ?? [];
+	}
+
+	set lastTextModelChanges(changes: LineRangeMapping[]) {
+		this._lastTextModelChanges = changes;
+	}
+
+	get hasChangedText(): boolean {
+		return !this.textModel0.equalsTextBuffer(this.textModelN.getTextBuffer());
+	}
+
+	asChangedText(): string | undefined {
+		if (!this._lastTextModelChanges || this._lastTextModelChanges.length === 0) {
+			return undefined;
+		}
+
+		let startLine = Number.MAX_VALUE;
+		let endLine = Number.MIN_VALUE;
+		for (const change of this._lastTextModelChanges) {
+			startLine = Math.min(startLine, change.modifiedRange.startLineNumber);
+			endLine = Math.max(endLine, change.modifiedRange.endLineNumberExclusive);
+		}
+
+		return this.textModelN.getValueInRange(new Range(startLine, 1, endLine, Number.MAX_VALUE));
+	}
+
+	recordExternalEditOccurred(didFinish: boolean) {
 		this._teldata.edits = true;
+		this._teldata.finishedByEdit = didFinish;
 	}
 
 	asTelemetryData(): TelemetryData {
@@ -272,7 +304,14 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
-		const raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+		let raw: IInteractiveEditorSession | undefined | null;
+		try {
+			raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+		} catch (error) {
+			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
+			this._logService.error(error);
+			return undefined;
+		}
 		if (!raw) {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return undefined;

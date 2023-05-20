@@ -336,7 +336,7 @@ suite('Splitview', () => {
 		const viewContainers = container.querySelectorAll('.split-view-view');
 		assert.strictEqual(viewContainers.length, 2, 'there are two view containers');
 		assert.strictEqual((viewContainers.item(0) as HTMLElement).style.height, '66px', 'second view container is 66px');
-		assert.strictEqual((viewContainers.item(1) as HTMLElement).style.height, `${986 - 66}px`, 'first view container is 66px');
+		assert.strictEqual<string>((viewContainers.item(1) as HTMLElement).style.height, `${986 - 66}px`, 'first view container is 66px');
 
 		splitview.dispose();
 		view2.dispose();

@@ -1171,6 +1171,10 @@ export class PauseableEmitter<T> extends Emitter<T> {
 	protected _eventQueue = new LinkedList<T>();
 	private _mergeFn?: (input: T[]) => T;
 
+	public get isPaused(): boolean {
+		return this._isPaused !== 0;
+	}
+
 	constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {
 		super(options);
 		this._mergeFn = options?.merge;

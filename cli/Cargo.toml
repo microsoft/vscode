@@ -22,7 +22,7 @@ flate2 = { version = "1.0.22" }
 zip = { version = "0.5.13", default-features = false, features = ["time", "deflate"] }
 regex = { version = "1.5.5" }
 lazy_static = { version = "1.4.0" }
-sysinfo = { version = "0.27.7" }
+sysinfo = { version = "0.27.7", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 rmp-serde = "1.0"
