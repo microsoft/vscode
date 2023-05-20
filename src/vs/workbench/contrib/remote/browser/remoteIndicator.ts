@@ -320,7 +320,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// but only when the window has focus to prevent constantly
 		// waking up the connection to the remote
 
-		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'slow')) {
+		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'slow' || this.networkState === undefined)) {
 			this.networkConnectionLatency = await measureRoundTripTime(this.remoteAgentService);
 
 			if (typeof this.networkConnectionLatency === 'number' && this.networkConnectionLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD) {
@@ -420,6 +420,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				return;
 			}
 		}
+
 		// Show when there are commands other than the 'install additional remote extensions' command.
 		if (this.hasRemoteMenuCommands(true)) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
@@ -431,22 +432,18 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		this.remoteStatusEntry = undefined;
 	}
 
-	private renderRemoteStatusIndicator(text: string, tooltip?: string | IMarkdownString, command?: string, showProgress?: boolean): void {
-		const name = nls.localize('remoteHost', "Remote Host");
-		if (typeof command !== 'string' && (this.hasRemoteMenuCommands(false))) {
-			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
-		}
+	private renderRemoteStatusIndicator(initialText: string, initialTooltip?: string | MarkdownString, command?: string, showProgress?: boolean): void {
+		const { text, tooltip } = this.withNetworkStatus(initialText, initialTooltip);
 
-		const ariaLabel = getCodiconAriaLabel(text);
 		const properties: IStatusbarEntry = {
-			name,
+			name: nls.localize('remoteHost', "Remote Host"),
 			backgroundColor: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_BACKGROUND : STATUS_BAR_HOST_NAME_BACKGROUND),
 			color: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_FOREGROUND : STATUS_BAR_HOST_NAME_FOREGROUND),
-			ariaLabel,
+			ariaLabel: getCodiconAriaLabel(text),
 			text,
 			showProgress,
 			tooltip,
-			command
+			command: command ?? this.hasRemoteMenuCommands(false) ? RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID : undefined
 		};
 
 		if (this.remoteStatusEntry) {
@@ -454,6 +451,41 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		} else {
 			this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
 		}
+	}
+
+	private withNetworkStatus(initialText: string, initialTooltip?: string | MarkdownString): { text: string; tooltip: string | IMarkdownString | undefined } {
+		let text = initialText;
+		let tooltip = initialTooltip;
+
+		switch (this.networkState) {
+			case 'offline':
+				text = `${initialText} - ${nls.localize('networkStatusOffline', "$(debug-disconnect) Offline")}`;
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusOfflineTooltip', "You appear to be offline. Some features may be unavailable."));
+				break;
+			case 'slow':
+				text = `${initialText} - ${nls.localize('networkStatusSlow', "$(alert) Lagging")}`;
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "The network is slow (measured latency of {0}ms). Some features may be slow to respond.", this.networkConnectionLatency));
+				break;
+		}
+
+		return { text, tooltip };
+	}
+
+	private appendTooltipLine(tooltip: string | MarkdownString | undefined, line: string): MarkdownString {
+		let markdownTooltip: MarkdownString;
+		if (typeof tooltip === 'string') {
+			markdownTooltip = new MarkdownString(tooltip, { isTrusted: true, supportThemeIcons: true });
+		} else {
+			markdownTooltip = tooltip ?? new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+		}
+
+		if (markdownTooltip.value.length > 0) {
+			markdownTooltip.appendText('\n\n');
+		}
+
+		markdownTooltip.appendText(line);
+
+		return markdownTooltip;
 	}
 
 	private showRemoteMenu() {
