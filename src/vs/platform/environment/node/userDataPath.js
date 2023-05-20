@@ -92,6 +92,8 @@
 					appDataPath = path.join(os.homedir(), 'Library', 'Application Support');
 					break;
 				case 'linux':
+				case 'android':
+				case 'freebsd':
 					appDataPath = process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
 					break;
 				default:
