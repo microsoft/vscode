@@ -4,80 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { VSBufferReadableStream, newWriteableBufferStream, VSBuffer, streamToBuffer, bufferToStream, readableToBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { VSBufferReadableStream, VSBuffer, streamToBuffer, bufferToStream, readableToBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/resources';
 import { consumeReadable, consumeStream, isReadable, isReadableStream } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
+import { IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
+import { TestUntitledFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-
-export class TestUntitledFileWorkingCopyModel extends Disposable implements IUntitledFileWorkingCopyModel {
-
-	private readonly _onDidChangeContent = this._register(new Emitter<IUntitledFileWorkingCopyModelContentChangedEvent>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
-
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
-
-	constructor(readonly resource: URI, public contents: string) {
-		super();
-	}
-
-	fireContentChangeEvent(event: IUntitledFileWorkingCopyModelContentChangedEvent): void {
-		this._onDidChangeContent.fire(event);
-	}
-
-	updateContents(newContents: string): void {
-		this.doUpdate(newContents);
-	}
-
-	private throwOnSnapshot = false;
-	setThrowOnSnapshot(): void {
-		this.throwOnSnapshot = true;
-	}
-
-	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
-		if (this.throwOnSnapshot) {
-			throw new Error('Fail');
-		}
-
-		const stream = newWriteableBufferStream();
-		stream.end(VSBuffer.fromString(this.contents));
-
-		return stream;
-	}
-
-	async update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void> {
-		this.doUpdate((await streamToBuffer(contents)).toString());
-	}
-
-	private doUpdate(newContents: string): void {
-		this.contents = newContents;
-
-		this.versionId++;
-
-		this._onDidChangeContent.fire({ isInitial: newContents.length === 0 });
-	}
-
-	versionId = 0;
-
-	pushedStackElement = false;
-
-	pushStackElement(): void {
-		this.pushedStackElement = true;
-	}
-
-	override dispose(): void {
-		this._onWillDispose.fire();
-
-		super.dispose();
-	}
-}
 
 export class TestUntitledFileWorkingCopyModelFactory implements IUntitledFileWorkingCopyModelFactory<TestUntitledFileWorkingCopyModel> {
 
@@ -86,7 +23,7 @@ export class TestUntitledFileWorkingCopyModelFactory implements IUntitledFileWor
 	}
 }
 
-suite('UntitledFileWorkingCopy', () => {
+suite('UntitledScratchpadWorkingCopy', () => {
 
 	const factory = new TestUntitledFileWorkingCopyModelFactory();
 
@@ -102,7 +39,7 @@ suite('UntitledFileWorkingCopy', () => {
 			uri,
 			basename(uri),
 			hasAssociatedFilePath,
-			false,
+			true,
 			initialValue.length > 0 ? { value: bufferToStream(VSBuffer.fromString(initialValue)) } : undefined,
 			factory,
 			async workingCopy => { await workingCopy.revert(); return true; },
@@ -133,7 +70,7 @@ suite('UntitledFileWorkingCopy', () => {
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
 	});
 
-	test('dirty', async () => {
+	test('modified - not dirty', async () => {
 		assert.strictEqual(workingCopy.isDirty(), false);
 
 		let changeDirtyCounter = 0;
@@ -149,44 +86,46 @@ suite('UntitledFileWorkingCopy', () => {
 		await workingCopy.resolve();
 		assert.strictEqual(workingCopy.isResolved(), true);
 
-		// Dirty from: Model content change
-		workingCopy.model?.updateContents('hello dirty');
+		// Modified from: Model content change
+		workingCopy.model?.updateContents('hello modified');
 		assert.strictEqual(contentChangeCounter, 1);
 
-		assert.strictEqual(workingCopy.isDirty(), true);
-		assert.strictEqual(changeDirtyCounter, 1);
+		assert.strictEqual(workingCopy.isDirty(), false);
+		assert.strictEqual(workingCopy.isModified(), true);
+		assert.strictEqual(changeDirtyCounter, 0);
 
 		await workingCopy.save();
 
 		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(changeDirtyCounter, 2);
+		assert.strictEqual(changeDirtyCounter, 0);
 	});
 
-	test('dirty - cleared when content event signals isEmpty', async () => {
-		assert.strictEqual(workingCopy.isDirty(), false);
+	test('modified - cleared when content event signals isEmpty', async () => {
+		assert.strictEqual(workingCopy.isModified(), false);
 
 		await workingCopy.resolve();
 
-		workingCopy.model?.updateContents('hello dirty');
-		assert.strictEqual(workingCopy.isDirty(), true);
+		workingCopy.model?.updateContents('hello modified');
+
+		assert.strictEqual(workingCopy.isModified(), true);
 
 		workingCopy.model?.fireContentChangeEvent({ isInitial: true });
 
-		assert.strictEqual(workingCopy.isDirty(), false);
+		assert.strictEqual(workingCopy.isModified(), false);
 	});
 
-	test('dirty - not cleared when content event signals isEmpty when associated resource', async () => {
+	test('modified - not cleared when content event signals isEmpty when associated resource', async () => {
 		workingCopy.dispose();
 		workingCopy = createWorkingCopy(resource, true);
 
 		await workingCopy.resolve();
 
-		workingCopy.model?.updateContents('hello dirty');
-		assert.strictEqual(workingCopy.isDirty(), true);
+		workingCopy.model?.updateContents('hello modified');
+		assert.strictEqual(workingCopy.isModified(), true);
 
 		workingCopy.model?.fireContentChangeEvent({ isInitial: true });
 
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assert.strictEqual(workingCopy.isModified(), true);
 	});
 
 	test('revert', async () => {
@@ -202,14 +141,14 @@ suite('UntitledFileWorkingCopy', () => {
 
 		await workingCopy.resolve();
 
-		workingCopy.model?.updateContents('hello dirty');
-		assert.strictEqual(workingCopy.isDirty(), true);
+		workingCopy.model?.updateContents('hello modified');
+		assert.strictEqual(workingCopy.isModified(), true);
 
 		await workingCopy.revert();
 
 		assert.strictEqual(revertCounter, 1);
 		assert.strictEqual(disposeCounter, 1);
-		assert.strictEqual(workingCopy.isDirty(), false);
+		assert.strictEqual(workingCopy.isModified(), false);
 	});
 
 	test('dispose', async () => {
@@ -263,11 +202,11 @@ suite('UntitledFileWorkingCopy', () => {
 			contentChangeCounter++;
 		});
 
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assert.strictEqual(workingCopy.isModified(), true);
 
 		await workingCopy.resolve();
 
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.model?.contents, 'Hello Initial');
 		assert.strictEqual(contentChangeCounter, 1);
 
@@ -282,7 +221,7 @@ suite('UntitledFileWorkingCopy', () => {
 
 		workingCopy = createWorkingCopy(resource, false, 'Hello Initial');
 
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assert.strictEqual(workingCopy.isModified(), true);
 
 		const backup = (await workingCopy.backup(CancellationToken.None)).content;
 		if (isReadableStream(backup)) {
@@ -303,7 +242,7 @@ suite('UntitledFileWorkingCopy', () => {
 
 		await workingCopy.resolve();
 
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.hasAssociatedFilePath, true);
 	});
 
@@ -327,7 +266,7 @@ suite('UntitledFileWorkingCopy', () => {
 
 		await workingCopy.resolve();
 
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.model?.contents, 'Hello Backup');
 		assert.strictEqual(contentChangeCounter, 1);
 	});

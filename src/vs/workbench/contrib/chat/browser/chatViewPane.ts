@@ -34,9 +34,9 @@ interface IViewPaneState extends IViewState {
 	sessionId?: string;
 }
 
-export const INTERACTIVE_SIDEBAR_PANEL_ID = 'workbench.panel.interactiveSessionSidebar';
+export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chatSidebar';
 export class ChatViewPane extends ViewPane implements IChatViewPane {
-	static ID = 'workbench.panel.interactiveSession.view';
+	static ID = 'workbench.panel.chat.view';
 
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -46,7 +46,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	private viewState: IViewPaneState;
 
 	constructor(
-		private readonly interactiveSessionViewOptions: IChatViewOptions,
+		private readonly chatViewOptions: IChatViewOptions,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -64,16 +64,16 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
-		this.memento = new Memento('interactive-session-view-' + this.interactiveSessionViewOptions.providerId, this.storageService);
+		this.memento = new Memento('interactive-session-view-' + this.chatViewOptions.providerId, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 	}
 
 	private updateModel(model?: IChatModel | undefined): void {
 		this.modelDisposables.clear();
 
-		model = model ?? this.chatService.startSession(this.interactiveSessionViewOptions.providerId, CancellationToken.None);
+		model = model ?? this.chatService.startSession(this.chatViewOptions.providerId, CancellationToken.None);
 		if (!model) {
-			throw new Error('Could not start interactive session');
+			throw new Error('Could not start chat session');
 		}
 
 		this._widget.setModel(model, { ...this.viewState });

@@ -955,6 +955,10 @@ export interface ITerminalChildElement {
 	xtermReady?(xterm: IXtermTerminal): void;
 }
 
+export const enum XtermTerminalConstants {
+	SearchHighlightLimit = 1000
+}
+
 export interface IXtermTerminal {
 	/**
 	 * An object that tracks when commands are run and enables navigating and selecting between
@@ -968,7 +972,7 @@ export interface IXtermTerminal {
 	readonly shellIntegration: IShellIntegration;
 
 	readonly onDidChangeSelection: Event<void>;
-	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
+	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number }>;
 
 	/**
 	 * Gets a view of the current texture atlas used by the renderers.
