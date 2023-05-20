@@ -238,3 +238,8 @@
 .monaco-editor .interactive-editor-newfile-widget .title {
 	padding: 3px 0;
 }
+
+/* Temp fix for microsoft/vscode-internalbacklog#4152 to unblock demo */
+.monaco-editor .zone-widget:has(div.interactive-editor-diff-widget) {
+	z-index: 11 !important;
+}
