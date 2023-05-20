@@ -24,6 +24,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ITreeViewsDnDService, TreeViewsDnDService } from 'vs/editor/common/services/treeViewsDnd';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 
 type TreeItemHandle = string;
 
@@ -92,7 +93,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		const hasHandleDrag = !!options.dragAndDropController?.handleDrag;
 		const hasHandleDrop = !!options.dragAndDropController?.handleDrop;
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop });
+		const proxyOptions = { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop, manuallyManageCheckboxes: !!options.manuallyManageCheckboxSelection };
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, proxyOptions);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
@@ -767,14 +769,15 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 		let checkboxState: TreeItemCheckboxState;
 		let tooltip: string | undefined = undefined;
+		let accessibilityInformation: IAccessibilityInformation | undefined = undefined;
 		if (typeof extensionTreeItem.checkboxState === 'number') {
 			checkboxState = extensionTreeItem.checkboxState;
-		}
-		else {
+		} else {
 			checkboxState = extensionTreeItem.checkboxState.state;
 			tooltip = extensionTreeItem.checkboxState.tooltip;
+			accessibilityInformation = extensionTreeItem.checkboxState.accessibilityInformation;
 		}
-		return { isChecked: checkboxState === TreeItemCheckboxState.Checked, tooltip };
+		return { isChecked: checkboxState === TreeItemCheckboxState.Checked, tooltip, accessibilityInformation };
 	}
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {

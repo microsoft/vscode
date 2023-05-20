@@ -35,7 +35,7 @@ variables:
   - name: Codeql.TSAEnabled
     value: true
   - name: Codeql.TSAOptionsPath
-    value: '$(Build.SourcesDirectory)\build\azure-pipelines\.gdntsa'
+    value: '$(Build.SourcesDirectory)\build\azure-pipelines\config\tsaoptions.json'
 
 stages:
   - stage: Windows
@@ -161,7 +161,7 @@ stages:
           - task: TSAUpload@2
             inputs:
               GdnPublishTsaOnboard: true
-              GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)\build\azure-pipelines\.gdntsa'
+              GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)\build\azure-pipelines\config\tsaoptions.json'
 
   - stage: Linux
     dependsOn: []
@@ -280,4 +280,4 @@ stages:
 
           - task: TSAUpload@2
             inputs:
-              GdnPublishTsaConfigFile: '$(Build.SourceDirectory)\build\azure-pipelines\.gdntsa'
+              GdnPublishTsaConfigFile: '$(Build.SourceDirectory)\build\azure-pipelines\config\tsaoptions.json'

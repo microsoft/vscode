@@ -103,6 +103,7 @@
 .monaco-editor .interactive-editor .status .label {
 	overflow: hidden;
 	padding-left: 10px;
+	padding-right: 4px;
 	margin-left: auto;
 	color: var(--vscode-descriptionForeground);
 }

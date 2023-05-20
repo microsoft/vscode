@@ -25,13 +25,13 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager, dev_tunnels, legal,
 		paths::get_all_servers,
-		protocol,
+		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
 		singleton_client::do_single_rpc_call,
 		singleton_server::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
-		Next, ServiceContainer, ServiceManager,
+		Next, ServeStreamParams, ServiceContainer, ServiceManager,
 	},
 	util::{
 		app_lock::AppMutex,
@@ -105,6 +105,25 @@ impl ServiceContainer for TunnelServiceContainer {
 		.await?;
 		Ok(())
 	}
+}
+
+pub async fn command_shell(ctx: CommandContext) -> Result<i32, AnyError> {
+	let platform = PreReqChecker::new().verify().await?;
+	serve_stream(
+		tokio::io::stdin(),
+		tokio::io::stderr(),
+		ServeStreamParams {
+			log: ctx.log,
+			launcher_paths: ctx.paths,
+			platform,
+			requires_auth: true,
+			exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+			code_server_args: (&ctx.args).into(),
+		},
+	)
+	.await;
+
+	Ok(0)
 }
 
 pub async fn service(
