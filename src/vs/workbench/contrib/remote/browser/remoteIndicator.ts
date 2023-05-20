@@ -8,6 +8,7 @@ import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IRemoteAgentService, measureRoundTripTime } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { MenuId, IMenuService, MenuItemAction, MenuRegistry, registerAction2, Action2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -43,6 +44,22 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { DomEmitter } from 'vs/base/browser/event';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+
+export const STATUS_BAR_OFFLINE_BACKGROUND = registerColor('statusBar.offlineBackground', {
+	dark: '#6c1717',
+	light: '#6c1717',
+	hcDark: '#6c1717',
+	hcLight: '#6c1717'
+}, nls.localize('statusBarOfflineBackground', "Status bar background color when the workbench is offline. The status bar is shown in the bottom of the window"));
+
+export const STATUS_BAR_OFFLINE_FOREGROUND = registerColor('statusBar.offlineForeground', {
+	dark: STATUS_BAR_HOST_NAME_FOREGROUND,
+	light: STATUS_BAR_HOST_NAME_FOREGROUND,
+	hcDark: STATUS_BAR_HOST_NAME_FOREGROUND,
+	hcLight: STATUS_BAR_HOST_NAME_FOREGROUND
+}, nls.localize('statusBarOfflineForeground', "Status bar foreground color when the workbench is offline. The status bar is shown in the bottom of the window"));
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
@@ -74,6 +91,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private networkState: 'online' | 'offline' | 'slow' | undefined = undefined;
 	private measureNetworkConnectionLatencyScheduler: RunOnceScheduler | undefined = undefined;
+	private networkConnectionLatency: number | undefined = undefined;
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 
@@ -180,8 +198,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				};
 			});
 		}
-
-
 	}
 
 	private registerListeners(): void {
@@ -229,6 +245,14 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				this.updateVirtualWorkspaceLocation();
 				this.updateRemoteStatusIndicator();
 			}));
+		}
+
+		// Online / Offline changes (web only)
+		if (isWeb) {
+			this._register(Event.any(
+				this._register(new DomEmitter(window, 'online')).event,
+				this._register(new DomEmitter(window, 'offline')).event
+			)(() => this.setNetworkState(navigator.onLine ? 'online' : 'offline')));
 		}
 	}
 
@@ -297,9 +321,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// waking up the connection to the remote
 
 		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'slow')) {
-			const connectionLatency = await measureRoundTripTime(this.remoteAgentService);
+			this.networkConnectionLatency = await measureRoundTripTime(this.remoteAgentService);
 
-			if (typeof connectionLatency === 'number' && connectionLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD) {
+			if (typeof this.networkConnectionLatency === 'number' && this.networkConnectionLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD) {
 				this.setNetworkState('slow');
 			} else if (this.networkState === 'slow') {
 				this.setNetworkState('online');
@@ -373,6 +397,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 		// Show when in a virtual workspace
 		if (this.virtualWorkspaceLocation) {
+
 			// Workspace with label: indicate editing source
 			const workspaceLabel = this.labelService.getHostLabel(this.virtualWorkspaceLocation.scheme, this.virtualWorkspaceLocation.authority);
 			if (workspaceLabel) {
@@ -415,8 +440,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		const ariaLabel = getCodiconAriaLabel(text);
 		const properties: IStatusbarEntry = {
 			name,
-			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),
-			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
+			backgroundColor: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_BACKGROUND : STATUS_BAR_HOST_NAME_BACKGROUND),
+			color: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_FOREGROUND : STATUS_BAR_HOST_NAME_FOREGROUND),
 			ariaLabel,
 			text,
 			showProgress,

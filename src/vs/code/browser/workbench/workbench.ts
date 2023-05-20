@@ -500,6 +500,7 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	// Create workbench
 	create(document.body, {
 		...config,
+		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: '' },
 		settingsSyncOptions: config.settingsSyncOptions ? {
 			enabled: config.settingsSyncOptions.enabled,
 		} : undefined,
