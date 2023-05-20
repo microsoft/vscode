@@ -408,19 +408,24 @@ schema.definitions = {
 	...schemaVersion2.definitions,
 };
 schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])];
+class TaskSchemaContribution extends Disposable implements IWorkbenchContribution {
+	constructor() {
+		super();
+		const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
+		jsonRegistry.registerSchema(tasksSchemaId, schema);
+		ProblemMatcherRegistry.onMatcherChanged(() => {
+			updateProblemMatchers();
+			jsonRegistry.notifySchemaChanged(tasksSchemaId);
+		});
 
-const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
-jsonRegistry.registerSchema(tasksSchemaId, schema);
+		TaskDefinitionRegistry.onDefinitionsChanged(() => {
+			updateTaskDefinitions();
+			jsonRegistry.notifySchemaChanged(tasksSchemaId);
+		});
+	}
+}
 
-ProblemMatcherRegistry.onMatcherChanged(() => {
-	updateProblemMatchers();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
-});
-
-TaskDefinitionRegistry.onDefinitionsChanged(() => {
-	updateTaskDefinitions();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
-});
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TaskSchemaContribution, LifecyclePhase.Restored);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
