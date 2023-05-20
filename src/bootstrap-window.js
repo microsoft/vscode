@@ -114,6 +114,7 @@
 		loaderConfig.paths = {
 			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
 			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
+			'vsda': `${baseNodeModulesPath}/vsda/index.js`,
 			'xterm': `${baseNodeModulesPath}/xterm/lib/xterm.js`,
 			'xterm-addon-canvas': `${baseNodeModulesPath}/xterm-addon-canvas/lib/xterm-addon-canvas.js`,
 			'xterm-addon-image': `${baseNodeModulesPath}/xterm-addon-image/lib/xterm-addon-image.js`,

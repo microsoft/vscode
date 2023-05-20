@@ -43,7 +43,13 @@ import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+
+const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -84,7 +90,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 		showStatusBar: false,
 	},
 	wordWrap: 'on',
-	ariaLabel: localize('aria-label', "Interactive Editor Input"),
+	ariaLabel: defaultAriaLabel,
 	fontFamily: DEFAULT_FONT_FAMILY,
 	fontSize: 13,
 	lineHeight: 20,
@@ -143,7 +149,7 @@ export class InteractiveEditorWidget {
 	private readonly _store = new DisposableStore();
 	private readonly _slashCommands = this._store.add(new DisposableStore());
 
-	readonly _inputEditor: IActiveCodeEditor;
+	private readonly _inputEditor: IActiveCodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
 	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
@@ -172,7 +178,10 @@ export class InteractiveEditorWidget {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 
 		// input editor logic
@@ -185,10 +194,16 @@ export class InteractiveEditorWidget {
 		};
 
 		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, parentEditor);
+		this._updateAriaLabel();
 		this._store.add(this._inputEditor);
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
 		this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InteractiveEditor)) {
+				this._updateAriaLabel();
+			}
+		}));
 
 		const uri = URI.from({ scheme: 'vscode', authority: 'interactive-editor', path: `/interactive-editor/model${InteractiveEditorWidget._modelPool++}.txt` });
 		this._inputModel = this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri);
@@ -289,6 +304,19 @@ export class InteractiveEditorWidget {
 		this._store.add(markdownMessageToolbar);
 	}
 
+	private _updateAriaLabel(): void {
+		if (!this._accessibilityService.isScreenReaderOptimized()) {
+			return;
+		}
+		let label = defaultAriaLabel;
+		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InteractiveEditor)) {
+			const kbLabel = this._keybindingService.lookupKeybinding('interactiveEditor.accessibilityHelp')?.getLabel();
+			label = kbLabel ? localize('interactiveEditor.accessibilityHelp', "Interactive Editor Input, Use {0} for Interactive Editor Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Interactive Editor Input, Run the Interactive Editor Accessibility Help command for more information.");
+		}
+		_inputEditorOptions.ariaLabel = label;
+		this._inputEditor.updateOptions({ ariaLabel: label });
+	}
+
 	dispose(): void {
 		this._store.dispose();
 		this._ctxInputEmpty.reset();
@@ -330,21 +358,6 @@ export class InteractiveEditorWidget {
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
 		return base + editorHeight + markdownMessageHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
-	}
-
-	saveViewState(): InteractiveEditorWidgetViewState {
-		const editorViewState = this._inputEditor.saveViewState();
-		return {
-			editorViewState,
-			input: this.value,
-			placeholder: this.placeholder
-		};
-	}
-
-	restoreViewState(state: InteractiveEditorWidgetViewState) {
-		this.value = state.input;
-		this.placeholder = state.placeholder;
-		this._inputEditor.restoreViewState(state.editorViewState);
 	}
 
 	updateProgress(show: boolean) {
@@ -675,17 +688,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super.show(where, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
-	}
-
-	updatePosition(where: IPosition) {
-		// todo@jrieken
-		// UGYLY: we need to restore focus because showing the zone removes and adds it and that
-		// means we loose focus for a bit
-		const hasFocusNow = this.widget._inputEditor.hasWidgetFocus();
-		super.show(where, this._computeHeightInLines());
-		if (hasFocusNow) {
-			this.widget._inputEditor.focus();
-		}
 	}
 
 	protected override revealRange(_range: Range, _isLastLine: boolean) {

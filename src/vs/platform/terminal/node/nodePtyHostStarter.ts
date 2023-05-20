@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -43,9 +44,12 @@ export class NodePtyHostStarter implements IPtyHostStarter {
 
 		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 
+		const store = new DisposableStore();
+		store.add(client);
+
 		return {
 			client,
-			dispose: client.dispose,
+			store,
 			onDidProcessExit: client.onDidProcessExit
 		};
 	}

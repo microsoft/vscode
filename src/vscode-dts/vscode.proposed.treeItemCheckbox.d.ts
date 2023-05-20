@@ -7,9 +7,10 @@ declare module 'vscode' {
 
 	export class TreeItem2 extends TreeItem {
 		/**
-		 * [TreeItemCheckboxState](#TreeItemCheckboxState) of the tree item.
+		 * {@link TreeItemCheckboxState TreeItemCheckboxState} of the tree item.
+		 * {@link TreeDataProvider.onDidChangeTreeData onDidChangeTreeData} should be fired when {@link TreeItem2.checkboxState checkboxState} changes.
 		 */
-		checkboxState?: TreeItemCheckboxState | { readonly state: TreeItemCheckboxState; readonly tooltip?: string };
+		checkboxState?: TreeItemCheckboxState | { readonly state: TreeItemCheckboxState; readonly tooltip?: string; readonly accessibilityInformation?: AccessibilityInformation };
 	}
 
 	/**
@@ -41,5 +42,17 @@ declare module 'vscode' {
 		* The item that was checked or unchecked.
 		*/
 		readonly items: ReadonlyArray<[T, TreeItemCheckboxState]>;
+	}
+
+	/**
+	 * Options for creating a {@link TreeView}
+	 */
+	export interface TreeViewOptions<T> {
+		/**
+		 * By default, when the children of a tree item have already been fetched, child checkboxes are automatically managed based on the checked state of the parent tree item.
+		 * If the tree item is collapsed by default (meaning that the children haven't yet been fetched) then child checkboxes will not be updated.
+		 * To override this behavior and manage child and parent checkbox state in the extension, set this to `true`.
+		 */
+		manuallyManageCheckboxSelection?: boolean;
 	}
 }
