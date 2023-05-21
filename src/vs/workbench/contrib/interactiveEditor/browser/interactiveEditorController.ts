@@ -555,7 +555,11 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxLastFeedbackKind.reset();
 
 		this._zone.hide();
-		this._editor.focus();
+
+		// Return focus to the editor only if the current focus is within the editor widget
+		if (this._editor.hasWidgetFocus()) {
+			this._editor.focus();
+		}
 
 		this._sessionStore?.dispose();
 		this._sessionStore = undefined;
