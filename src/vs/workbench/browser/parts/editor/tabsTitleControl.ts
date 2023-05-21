@@ -246,15 +246,15 @@ export class TabsTitleControl extends TitleControl {
 			}));
 			tabSizingFixedDisposables.add(addDisposableListener(tabsContainer, EventType.MOUSE_LEAVE, () => {
 				this.isMouseOverTabs = false;
-				this.updateTabsFixedWith(false);
+				this.updateTabsFixedWidth(false);
 			}));
 		} else if (fromEvent) {
 			tabsContainer.style.removeProperty('--tab-sizing-fixed-max-width');
-			this.updateTabsFixedWith(false);
+			this.updateTabsFixedWidth(false);
 		}
 	}
 
-	private updateTabsFixedWith(fixed: boolean): void {
+	private updateTabsFixedWidth(fixed: boolean): void {
 		this.forEachTab((editor, index, tabContainer) => {
 			if (fixed) {
 				const { width } = tabContainer.getBoundingClientRect();
@@ -577,7 +577,7 @@ export class TabsTitleControl extends TitleControl {
 
 			// Fix tabs width if we are mouse over tabs and the tab sizing is 'fixed'
 			if (this.isMouseOverTabs && this.accessor.partOptions.tabSizing === 'fixed') {
-				this.updateTabsFixedWith(true);
+				this.updateTabsFixedWidth(true);
 			}
 
 			// Remove tabs that got closed
