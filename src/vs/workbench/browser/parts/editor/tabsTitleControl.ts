@@ -258,12 +258,7 @@ export class TabsTitleControl extends TitleControl {
 		this.forEachTab((editor, index, tabContainer) => {
 			if (fixed) {
 				const { width } = tabContainer.getBoundingClientRect();
-
-				// Adjust width so the last tab doesn't wrap onto the next line due to tiny rounding errors
-				// introduced by fixed sizing just overflowing the tab bar's width.
-				const adjustedWidth = tabContainer.classList.contains('last-in-row') ? width - 0.1 : width;
-
-				tabContainer.style.setProperty('--tab-sizing-current-width', `${adjustedWidth}px`);
+				tabContainer.style.setProperty('--tab-sizing-current-width', `${width}px`);
 			} else {
 				tabContainer.style.removeProperty('--tab-sizing-current-width');
 			}
