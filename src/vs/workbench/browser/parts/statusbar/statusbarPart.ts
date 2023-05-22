@@ -9,7 +9,7 @@ import { DisposableStore, dispose, disposeIfDisposable, IDisposable, MutableDisp
 import { Part } from 'vs/workbench/browser/part';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride, isStatusbarEntryLocation, IStatusbarEntryLocation, isStatusbarEntryPriority, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride, isStatusbarEntryLocation, IStatusbarEntryLocation, isStatusbarEntryPriority, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

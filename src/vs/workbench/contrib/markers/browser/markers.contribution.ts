@@ -21,7 +21,7 @@ import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
 import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';

@@ -27,7 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorGroupLayout, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from 'vs/base/browser/ui/grid/grid';
 import { Part } from 'vs/workbench/browser/part';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';

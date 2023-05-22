@@ -10,7 +10,7 @@ import { DisposableMap } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IExtensionStatusBarItemService } from 'vs/workbench/api/browser/statusBarExtensionPoint';
+import { IExtensionStatusBarItemService } from 'vs/workbench/api/common/statusBarExtensionPoint';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {

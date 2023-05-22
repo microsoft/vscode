@@ -14,7 +14,7 @@ import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorEx
 import { IconExtensionPoint } from 'vs/workbench/services/themes/common/iconExtensionPoint';
 import { TokenClassificationExtensionPoints } from 'vs/workbench/services/themes/common/tokenClassificationExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint';
-import { StatusBarItemsExtensionPoint } from 'vs/workbench/api/browser/statusBarExtensionPoint';
+import { StatusBarItemsExtensionPoint } from 'vs/workbench/api/common/statusBarExtensionPoint';
 
 // --- mainThread participants
 import './mainThreadLocalization';

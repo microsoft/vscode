@@ -20,7 +20,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostProfile, IExtensionService, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-sandbox/extensionHostProfiler';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 

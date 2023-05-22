@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { KeyCode } from 'vs/base/common/keyCodes';

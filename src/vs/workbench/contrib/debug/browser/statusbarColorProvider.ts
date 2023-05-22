@@ -10,7 +10,7 @@ import { IDebugService, State, IDebugSession, IDebugConfiguration } from 'vs/wor
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // colors for theming
