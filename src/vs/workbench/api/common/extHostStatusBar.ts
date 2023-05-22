@@ -9,9 +9,10 @@ import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto } from
 import { localize } from 'vs/nls';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNumber } from 'vs/base/common/types';
+import { asStatusBarItemIdentifier } from 'vs/workbench/api/common/statusBarExtensionPoint';
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
@@ -60,7 +61,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this.#commands = commands;
 
 		if (id && extension) {
-			this._entryId = `${ExtensionIdentifier.toKey(extension.identifier)}.${id}`;
+			this._entryId = asStatusBarItemIdentifier(extension.identifier, id);
 			proxy.$hasEntry(this._entryId).then(exits => {
 				if (exits && this._visible === undefined) {
 					// mark new item as visible if it already exists

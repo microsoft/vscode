@@ -205,13 +205,12 @@ export class StatusBarItemsExtensionPoint {
 						continue;
 					}
 
-					const extensionId = ExtensionIdentifier.toKey(entry.description.identifier);
-					const fullItemId = `${extensionId}.${candidate.id}`;
+					const fullItemId = asStatusBarItemIdentifier(entry.description.identifier, candidate.id);
 
 					contributions.add(statusBarItemsService.setOrUpdateEntry(
 						fullItemId,
 						fullItemId,
-						extensionId,
+						ExtensionIdentifier.toKey(entry.description.identifier),
 						candidate.name ?? entry.description.displayName ?? entry.description.name,
 						candidate.text,
 						undefined, undefined, undefined, undefined,
@@ -223,4 +222,9 @@ export class StatusBarItemsExtensionPoint {
 			}
 		});
 	}
+}
+
+
+export function asStatusBarItemIdentifier(extension: ExtensionIdentifier, id: string): string {
+	return `${ExtensionIdentifier.toKey(extension)}.${id}`;
 }
