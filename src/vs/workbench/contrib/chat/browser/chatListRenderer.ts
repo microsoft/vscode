@@ -58,6 +58,7 @@ import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/work
 import { IChatReplyFollowup, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const $ = dom.$;
 
@@ -582,6 +583,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this.element = $('.interactive-result-editor-wrapper');
@@ -608,7 +610,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			scrollbar: {
 				alwaysConsumeMouseWheel: false
 			},
-			ariaLabel: localize('chat.codeBlock', 'Code block'),
+			ariaLabel: this._configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlockHelp', 'Code block, to discover ways this can be interacted with, search the command palette for Chat: Insert and Chat: Run.') : localize('chat.codeBlock', 'Code block'),
 			...this.getEditorOptionsFromConfig()
 		}, {
 			isSimpleWidget: true,
