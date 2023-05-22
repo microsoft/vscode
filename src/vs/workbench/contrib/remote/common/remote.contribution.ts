@@ -202,8 +202,8 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 	}
 
 	private async _measureExtHostLatency() {
-		const bestLatency = await remoteConnectionLatencyMeasurer.measure(this._remoteAgentService);
-		if (bestLatency === undefined) {
+		const measurement = await remoteConnectionLatencyMeasurer.measure(this._remoteAgentService);
+		if (measurement === undefined) {
 			return;
 		}
 
@@ -223,7 +223,7 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 		this._telemetryService.publicLog2<RemoteConnectionLatencyEvent, RemoteConnectionLatencyClassification>('remoteConnectionLatency', {
 			web: isWeb,
 			remoteName: getRemoteName(this._environmentService.remoteAuthority),
-			latencyMs: bestLatency.current
+			latencyMs: measurement.current
 		});
 	}
 }

@@ -44,8 +44,11 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 					.then(info => {
 						if (info) {
 							(info as IRemoteDiagnosticInfo).hostName = hostName;
-							if (remoteConnectionLatencyMeasurer.last?.slow) {
-								(info as IRemoteDiagnosticInfo).latency = remoteConnectionLatencyMeasurer.last?.current;
+							if (remoteConnectionLatencyMeasurer.latency?.slow) {
+								(info as IRemoteDiagnosticInfo).latency = {
+									average: remoteConnectionLatencyMeasurer.latency.average,
+									current: remoteConnectionLatencyMeasurer.latency.current
+								};
 							}
 						}
 
