@@ -261,7 +261,7 @@ const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: 
 	},
 	menu: {
 		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.has('config.interactive.experimental.chatHistory')),
+		when: ContextKeyExpr.equals('view', viewId),
 		group: 'navigation',
 		order: 0
 	},
