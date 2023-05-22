@@ -499,8 +499,33 @@ export class TerminalService implements ITerminalService {
 		this.onDidChangeInstances(() => updateTerminalContextKeys());
 	}
 
-	async getActiveOrCreateInstance(): Promise<ITerminalInstance> {
-		return this.activeInstance || this.createTerminal();
+	async getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance> {
+		const activeInstance = this.activeInstance;
+		// No instance, create
+		if (!activeInstance) {
+			return this.createTerminal();
+		}
+		// Active instance, ensure accepts input
+		if (!options?.acceptsInput || activeInstance.xterm?.isStdinDisabled !== true) {
+			return activeInstance;
+		}
+		// Active instance doesn't accept input, create and focus
+		const instance = await this.createTerminal();
+		this.setActiveInstance(instance);
+		await this.revealActiveTerminal();
+		return instance;
+	}
+
+	async revealActiveTerminal(): Promise<void> {
+		const instance = this.activeInstance;
+		if (!instance) {
+			return;
+		}
+		if (instance.target === TerminalLocation.Editor) {
+			await this._terminalEditorService.revealActiveEditor();
+		} else {
+			await this._terminalGroupService.showPanel();
+		}
 	}
 
 	setEditable(instance: ITerminalInstance, data?: IEditableData | null): void {
@@ -625,20 +650,17 @@ export class TerminalService implements ITerminalService {
 	private _onWillShutdown(e: WillShutdownEvent): void {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
-		if (shouldPersistTerminals) {
-			for (const instance of this._terminalGroupService.instances) {
-				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
-			}
-			return;
-		}
 
-		// Force dispose of all pane terminal instances
-		for (const instance of this._terminalGroupService.instances) {
-			instance.dispose(TerminalExitReason.Shutdown);
+		for (const instance of [...this._terminalGroupService.instances, ...this._backgroundedTerminalInstances]) {
+			if (shouldPersistTerminals && instance.shouldPersist) {
+				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
+			} else {
+				instance.dispose(TerminalExitReason.Shutdown);
+			}
 		}
 
 		// Clear terminal layout info only when not persisting
-		if (!this._shouldReviveProcesses(e.reason)) {
+		if (!shouldPersistTerminals && !this._shouldReviveProcesses(e.reason)) {
 			this._primaryBackend?.setTerminalLayoutInfo(undefined);
 		}
 	}
@@ -722,19 +744,16 @@ export class TerminalService implements ITerminalService {
 		this._terminalEditorService.openEditor(source);
 	}
 
-	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
+	async moveToTerminalView(source?: ITerminalInstance | URI, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
 		if (URI.isUri(source)) {
 			source = this.getInstanceFromResource(source);
 		}
 
-		if (source) {
-			this._terminalEditorService.detachInstance(source);
-		} else {
-			source = this._terminalEditorService.detachActiveEditorInstance();
-			if (!source) {
-				return;
-			}
+		if (!source) {
+			return;
 		}
+
+		this._terminalEditorService.detachInstance(source);
 
 		if (source.target !== TerminalLocation.Editor) {
 			await this._terminalGroupService.showPanel(true);
@@ -933,7 +952,7 @@ export class TerminalService implements ITerminalService {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
-			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Panel, options?.resource);
+			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Panel);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
@@ -995,13 +1014,14 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _addToReconnected(instance: ITerminalInstance): void {
-		if (instance.reconnectionProperties) {
-			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionProperties.ownerId);
-			if (reconnectedTerminals) {
-				reconnectedTerminals.push(instance);
-			} else {
-				this._reconnectedTerminals.set(instance.reconnectionProperties.ownerId, [instance]);
-			}
+		if (!instance.reconnectionProperties?.ownerId) {
+			return;
+		}
+		const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionProperties.ownerId);
+		if (reconnectedTerminals) {
+			reconnectedTerminals.push(instance);
+		} else {
+			this._reconnectedTerminals.set(instance.reconnectionProperties.ownerId, [instance]);
 		}
 	}
 
@@ -1009,7 +1029,7 @@ export class TerminalService implements ITerminalService {
 		let instance;
 		const editorOptions = this._getEditorOptions(options?.location);
 		if (location === TerminalLocation.Editor) {
-			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor, options?.resource);
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
 			this._terminalEditorService.openEditor(instance, editorOptions);
 		} else {
 			// TODO: pass resource?

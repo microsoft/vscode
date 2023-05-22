@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Promises } from 'vs/base/node/pfs';
 import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, Storage } from 'vs/base/parts/storage/common/storage';
@@ -30,6 +31,21 @@ flakySuite('Storage Library', function () {
 		return Promises.rm(testDir);
 	});
 
+	test('objects', () => {
+		return runWithFakedTimers({}, async function () {
+			const storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
+
+			await storage.init();
+
+			ok(!storage.getObject('foo'));
+			const uri = URI.file('path/to/folder');
+			storage.set('foo', { 'bar': uri });
+			deepStrictEqual(storage.getObject('foo'), { 'bar': uri });
+
+			await storage.close();
+		});
+	});
+
 	test('basics', () => {
 		return runWithFakedTimers({}, async function () {
 			const storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
@@ -40,6 +56,7 @@ flakySuite('Storage Library', function () {
 			strictEqual(storage.get('foo', 'bar'), 'bar');
 			strictEqual(storage.getNumber('foo', 55), 55);
 			strictEqual(storage.getBoolean('foo', true), true);
+			deepStrictEqual(storage.getObject('foo', { 'bar': 'baz' }), { 'bar': 'baz' });
 
 			let changes = new Set<string>();
 			storage.onDidChangeStorage(key => {
@@ -52,6 +69,7 @@ flakySuite('Storage Library', function () {
 			const set1Promise = storage.set('bar', 'foo');
 			const set2Promise = storage.set('barNumber', 55);
 			const set3Promise = storage.set('barBoolean', true);
+			const set4Promise = storage.set('barObject', { 'bar': 'baz' });
 
 			let flushPromiseResolved = false;
 			storage.whenFlushed().then(() => flushPromiseResolved = true);
@@ -59,14 +77,16 @@ flakySuite('Storage Library', function () {
 			strictEqual(storage.get('bar'), 'foo');
 			strictEqual(storage.getNumber('barNumber'), 55);
 			strictEqual(storage.getBoolean('barBoolean'), true);
+			deepStrictEqual(storage.getObject('barObject'), { 'bar': 'baz' });
 
-			strictEqual(changes.size, 3);
+			strictEqual(changes.size, 4);
 			ok(changes.has('bar'));
 			ok(changes.has('barNumber'));
 			ok(changes.has('barBoolean'));
+			ok(changes.has('barObject'));
 
 			let setPromiseResolved = false;
-			await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
+			await Promise.all([set1Promise, set2Promise, set3Promise, set4Promise]).then(() => setPromiseResolved = true);
 			strictEqual(setPromiseResolved, true);
 			strictEqual(flushPromiseResolved, true);
 
@@ -76,21 +96,25 @@ flakySuite('Storage Library', function () {
 			storage.set('bar', 'foo');
 			storage.set('barNumber', 55);
 			storage.set('barBoolean', true);
+			storage.set('barObject', { 'bar': 'baz' });
 			strictEqual(changes.size, 0);
 
 			// Simple deletes
 			const delete1Promise = storage.delete('bar');
 			const delete2Promise = storage.delete('barNumber');
 			const delete3Promise = storage.delete('barBoolean');
+			const delete4Promise = storage.delete('barObject');
 
 			ok(!storage.get('bar'));
 			ok(!storage.getNumber('barNumber'));
 			ok(!storage.getBoolean('barBoolean'));
+			ok(!storage.getObject('barObject'));
 
-			strictEqual(changes.size, 3);
+			strictEqual(changes.size, 4);
 			ok(changes.has('bar'));
 			ok(changes.has('barNumber'));
 			ok(changes.has('barBoolean'));
+			ok(changes.has('barObject'));
 
 			changes = new Set<string>();
 
@@ -98,10 +122,11 @@ flakySuite('Storage Library', function () {
 			storage.delete('bar');
 			storage.delete('barNumber');
 			storage.delete('barBoolean');
+			storage.delete('barObject');
 			strictEqual(changes.size, 0);
 
 			let deletePromiseResolved = false;
-			await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
+			await Promise.all([delete1Promise, delete2Promise, delete3Promise, delete4Promise]).then(() => deletePromiseResolved = true);
 			strictEqual(deletePromiseResolved, true);
 
 			await storage.close();

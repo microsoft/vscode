@@ -23,8 +23,10 @@ import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { findFreePort } from 'vs/base/node/ports';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -712,6 +714,19 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		initUnexpectedErrorHandler((error: any) => logService.error(error));
 	});
 
+	// On Windows, configure the UNC allow list based on settings
+	instantiationService.invokeFunction((accessor) => {
+		const configurationService = accessor.get(IConfigurationService);
+
+		if (platform.isWindows) {
+			if (configurationService.getValue('security.restrictUNCAccess') === false) {
+				disableUNCAccessRestrictions();
+			} else {
+				addUNCHostToAllowlist(configurationService.getValue('security.allowedUNCHosts'));
+			}
+		}
+	});
+
 	//
 	// On Windows, exit early with warning message to users about potential security issue
 	// if there is node_modules folder under home drive or Users folder.
@@ -719,7 +734,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	instantiationService.invokeFunction((accessor) => {
 		const logService = accessor.get(ILogService);
 
-		if (process.platform === 'win32' && process.env.HOMEDRIVE && process.env.HOMEPATH) {
+		if (platform.isWindows && process.env.HOMEDRIVE && process.env.HOMEPATH) {
 			const homeDirModulesPath = join(process.env.HOMEDRIVE, 'node_modules');
 			const userDir = dirname(join(process.env.HOMEDRIVE, process.env.HOMEPATH));
 			const userDirModulesPath = join(userDir, 'node_modules');

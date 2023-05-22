@@ -80,7 +80,7 @@ export class TestingContinuousRunService extends Disposable implements ITestingC
 		this.lastRun = new StoredValue<Set<number>>({
 			key: 'lastContinuousRunProfileIds',
 			scope: StorageScope.WORKSPACE,
-			target: StorageTarget.USER,
+			target: StorageTarget.MACHINE,
 			serialization: {
 				deserialize: v => new Set(JSON.parse(v)),
 				serialize: v => JSON.stringify([...v])

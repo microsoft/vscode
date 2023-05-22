@@ -307,7 +307,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-description-content:not(:empty){
 	margin-bottom: 8px;
-	margin-left: 48px;
+	margin-left: 32px;
 	overflow: hidden;
 	-webkit-line-clamp: 2;
 	display: -webkit-box;
@@ -365,9 +365,9 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category img.featured-icon {
 	padding-right: 8px;
-	max-width: 40px;
-	border-radius: 10%;
-	max-height: 40px;
+	max-width: 24px;
+	max-height: 24px;
+	border-radius: 4px;
 	position: relative;
 	top: auto;
 }
@@ -678,6 +678,7 @@
 	padding: 0 2px 2px;
 	margin: 10px;
 	z-index: 1;
+	display: none;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .prev-button.button-link {

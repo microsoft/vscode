@@ -21,10 +21,12 @@ import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener 
 import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { randomPath } from 'vs/base/common/extpath';
+import { isUNC, randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
 import { FileAccess } from 'vs/base/common/network';
 import { cwd } from 'vs/base/common/process';
+import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { URI } from 'vs/base/common/uri';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -98,7 +100,7 @@ export async function main(argv: string[]): Promise<any> {
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
 			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
-			case 'fish': file = 'shellIntegration.fish'; break;
+			case 'fish': file = 'fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
 		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
@@ -116,6 +118,16 @@ export async function main(argv: string[]): Promise<any> {
 	else if (args['file-write']) {
 		const source = args._[0];
 		const target = args._[1];
+
+		// Windows: set the paths as allowed UNC paths given
+		// they are explicitly provided by the user as arguments
+		if (isWindows) {
+			for (const path of [source, target]) {
+				if (isUNC(path)) {
+					addUNCHostToAllowlist(URI.file(path).authority);
+				}
+			}
+		}
 
 		// Validate
 		if (

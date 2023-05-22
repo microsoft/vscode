@@ -14,6 +14,7 @@ import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorEx
 import { IconExtensionPoint } from 'vs/workbench/services/themes/common/iconExtensionPoint';
 import { TokenClassificationExtensionPoints } from 'vs/workbench/services/themes/common/tokenClassificationExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint';
+import { StatusBarItemsExtensionPoint } from 'vs/workbench/api/browser/statusBarExtensionPoint';
 
 // --- mainThread participants
 import './mainThreadLocalization';
@@ -43,6 +44,7 @@ import './mainThreadLanguageFeatures';
 import './mainThreadLanguages';
 import './mainThreadLogService';
 import './mainThreadMessageService';
+import './mainThreadManagedSockets';
 import './mainThreadOutputService';
 import './mainThreadProgress';
 import './mainThreadQuickDiff';
@@ -72,7 +74,7 @@ import './mainThreadNotebookRenderers';
 import './mainThreadNotebookSaveParticipant';
 import './mainThreadInteractive';
 import './mainThreadInteractiveEditor';
-import './mainThreadInteractiveSession';
+import './mainThreadChat';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';
@@ -95,6 +97,7 @@ export class ExtensionPoints implements IWorkbenchContribution {
 		this.instantiationService.createInstance(IconExtensionPoint);
 		this.instantiationService.createInstance(TokenClassificationExtensionPoints);
 		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
+		this.instantiationService.createInstance(StatusBarItemsExtensionPoint);
 	}
 }
 
