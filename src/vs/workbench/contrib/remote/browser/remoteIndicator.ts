@@ -369,7 +369,12 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// Remote Indicator: show if provided via options, e.g. by the web embedder API
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
-			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
+			let remoteIndicatorLabel = remoteIndicator.label.trim();
+			if (!remoteIndicatorLabel.startsWith('$(')) {
+				remoteIndicatorLabel = `$(remote) ${remoteIndicatorLabel}`; // ensure the indicator has a codicon
+			}
+
+			this.renderRemoteStatusIndicator(truncate(remoteIndicatorLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
 			return;
 		}
 
