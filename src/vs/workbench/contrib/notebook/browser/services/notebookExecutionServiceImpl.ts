@@ -112,7 +112,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		return toDisposable(() => this.cellExecutionParticipants.delete(participant));
 	}
 
-	async runExecutionParticipants(executions: INotebookCellExecution[]): Promise<void> {
+	private async runExecutionParticipants(executions: INotebookCellExecution[]): Promise<void> {
 		for (const participant of this.cellExecutionParticipants) {
 			await participant.onWillExecuteCell(executions);
 		}

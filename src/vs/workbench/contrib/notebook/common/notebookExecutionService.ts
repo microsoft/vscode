@@ -39,7 +39,6 @@ export interface INotebookExecutionService {
 	cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>): Promise<void>;
 	cancelNotebookCellHandles(notebook: INotebookTextModel, cells: Iterable<number>): Promise<void>;
 	registerExecutionParticipant(participant: ICellExecutionParticipant): IDisposable;
-	runExecutionParticipants(executions: INotebookCellExecution[]): Promise<void>;
 }
 
 export interface ICellExecutionParticipant {
