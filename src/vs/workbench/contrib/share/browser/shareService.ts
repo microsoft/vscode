@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IShareProvider, IShareService, IShareableItem } from 'vs/workbench/contrib/share/common/share';
 
@@ -22,6 +23,7 @@ export class ShareService implements IShareService {
 
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IQuickInputService private quickInputService: IQuickInputService
 	) {
 		this.providerCount = ShareProviderCountContext.bindTo(this.contextKeyService);
@@ -55,7 +57,7 @@ export class ShareService implements IShareService {
 		}
 
 		const items: (IQuickPickItem & { provider: IShareProvider })[] = providers.map((p) => ({ label: p.label, provider: p }));
-		const selected = await this.quickInputService.pick(items, { canPickMany: false, placeHolder: localize('type to filter', 'Choose how to share {0}', item.resourceUri.toString()) }, token);
+		const selected = await this.quickInputService.pick(items, { canPickMany: false, placeHolder: localize('type to filter', 'Choose how to share {0}', this.labelService.getUriLabel(item.resourceUri)) }, token);
 		return selected?.provider.provideShare(item, token);
 	}
 }
