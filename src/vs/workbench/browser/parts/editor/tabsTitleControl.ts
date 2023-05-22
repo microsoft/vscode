@@ -557,15 +557,16 @@ export class TabsTitleControl extends TitleControl {
 			labelA.ariaLabel === labelB.ariaLabel;
 	}
 
-	beforeCloseEditor(): void {
+	beforeCloseEditor(editor: EditorInput): void {
 
-		// Fix tabs width if the mouse is over tabs and
-		// before closing a tab when tab sizing is 'fixed'.
+		// Fix tabs width if the mouse is over tabs and before closing
+		// a tab (except the last tab) when tab sizing is 'fixed'.
 		// This helps keeping the close button stable under
 		// the mouse and allows for rapid closing of tabs.
 
 		if (this.isMouseOverTabs && this.accessor.partOptions.tabSizing === 'fixed') {
-			this.updateTabsFixedWidth(true);
+			const closingLastTab = this.group.editors.at(-1) === editor;
+			this.updateTabsFixedWidth(!closingLastTab);
 		}
 	}
 
