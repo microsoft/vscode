@@ -558,7 +558,12 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	beforeCloseEditor(): void {
-		// Fix tabs width if we are mouse over tabs and the tab sizing is 'fixed'
+
+		// Fix tabs width if the mouse is over tabs and
+		// before closing a tab when tab sizing is 'fixed'.
+		// This helps keeping the close button stable under
+		// the mouse and allows for rapid closing of tabs.
+
 		if (this.isMouseOverTabs && this.accessor.partOptions.tabSizing === 'fixed') {
 			this.updateTabsFixedWidth(true);
 		}
