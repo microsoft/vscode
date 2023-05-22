@@ -437,13 +437,13 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private renderRemoteStatusIndicator(initialText: string, initialTooltip?: string | MarkdownString, command?: string, showProgress?: boolean): void {
-		const { text, tooltip } = this.withNetworkStatus(initialText, initialTooltip);
+		const { text, tooltip, ariaLabel } = this.withNetworkStatus(initialText, initialTooltip);
 
 		const properties: IStatusbarEntry = {
 			name: nls.localize('remoteHost', "Remote Host"),
 			backgroundColor: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_BACKGROUND : STATUS_BAR_HOST_NAME_BACKGROUND),
 			color: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_FOREGROUND : STATUS_BAR_HOST_NAME_FOREGROUND),
-			ariaLabel: getCodiconAriaLabel(text),
+			ariaLabel,
 			text,
 			showProgress,
 			tooltip,
@@ -457,9 +457,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private withNetworkStatus(initialText: string, initialTooltip?: string | MarkdownString): { text: string; tooltip: string | IMarkdownString | undefined } {
+	private withNetworkStatus(initialText: string, initialTooltip?: string | MarkdownString): { text: string; tooltip: string | IMarkdownString | undefined; ariaLabel: string } {
 		let text = initialText;
 		let tooltip = initialTooltip;
+		let ariaLabel = getCodiconAriaLabel(text);
 
 		// `initialText` can have a "$(remote)" codicon in the beginning
 		// but it may not have it depending on the environment.
@@ -474,23 +475,22 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			return `${codicon} ${target}`;
 		}
 
+		const offlineMessage = nls.localize('networkStatusOfflineTooltip', "Network appears to be offline, certain features might be unavailable.");
+
 		switch (this.networkState) {
 			case 'offline':
-				text = insertOrReplaceCodicon(initialText, '$(debug-disconnect)');
-				if (text === '$(debug-disconnect)') {
-					text = `${text} ${nls.localize('networkStatusOffline', "Offline")}`;
-				} else {
-					text = `${text} (${nls.localize('networkStatusOffline', "Offline")})`;
-				}
-				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusOfflineTooltip', "Network appears to be offline, certain features might be unavailable."));
+				insertOrReplaceCodicon(initialText, '$(alert)');
+
+				tooltip = this.appendTooltipLine(tooltip, offlineMessage);
+				ariaLabel = `${ariaLabel}, ${offlineMessage}`;
 				break;
 			case 'slow':
 				text = insertOrReplaceCodicon(initialText, '$(alert)');
-				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "Network appears to be slow, certain features may be slow to respond (latency: {0}ms last, {1}ms average).", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "Network appears to be slow (latency: {0}ms last, {1}ms average), certain features may be slow to respond.", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
 				break;
 		}
 
-		return { text, tooltip };
+		return { text, tooltip, ariaLabel };
 	}
 
 	private appendTooltipLine(tooltip: string | MarkdownString | undefined, line: string): MarkdownString {
