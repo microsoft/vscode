@@ -181,11 +181,7 @@ export function registerChatActions() {
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.WinCtrl | KeyCode.KeyL,
-					when: CONTEXT_IN_CHAT_SESSION,
-					mac: {
-						primary: KeyMod.WinCtrl | KeyCode.KeyL,
-						secondary: [KeyMod.CtrlCmd | KeyCode.KeyK]
-					}
+					when: CONTEXT_IN_CHAT_SESSION
 				}
 			});
 		}
