@@ -15,6 +15,8 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditMode } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 
+export const interactiveEditorHelpIntro = localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request.");
+
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat' | 'editor', currentInput?: string): string {
 	const keybindingService = accessor.get(IKeybindingService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -28,7 +30,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 		content.push(descriptionForCommand('workbench.action.chat.insertIntoNewFile', localize('workbench.action.chat.insertIntoNewFile', 'Insert into New File ({0}) creates a new file with the code block as its content'), localize('workbench.action.chat.insertIntoNewFileNoKb', 'Insert into New File creates a new file with the code block as its content and is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.chat.runInTerminal', localize('workbench.action.chat.runInTerminal', 'Run in Terminal ({0}) runs the code block in the terminal'), localize('workbench.action.chat.runInTerminalNoKb', 'Run in Terminal runs the code block in the terminal and is currently not triggerable by a keybinding.'), keybindingService));
 	} else {
-		content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request."));
+		content.push(interactiveEditorHelpIntro);
 		const regex = /^(\/fix|\/explain)/;
 		const match = currentInput?.match(regex);
 		const command = match && match.length ? match[0].substring(1) : undefined;

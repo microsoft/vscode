@@ -38,6 +38,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { interactiveEditorHelpIntro } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -412,6 +413,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		});
 
 		const typeListener = this._zone.widget.onDidChangeInput(() => {
+			if (this._zone.widget.value.includes(interactiveEditorHelpIntro)) {
+				return;
+			}
 			requestCts.cancel();
 		});
 
