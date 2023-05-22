@@ -557,6 +557,13 @@ export class TabsTitleControl extends TitleControl {
 			labelA.ariaLabel === labelB.ariaLabel;
 	}
 
+	beforeCloseEditor(): void {
+		// Fix tabs width if we are mouse over tabs and the tab sizing is 'fixed'
+		if (this.isMouseOverTabs && this.accessor.partOptions.tabSizing === 'fixed') {
+			this.updateTabsFixedWidth(true);
+		}
+	}
+
 	closeEditor(editor: EditorInput, index: number | undefined): void {
 		this.handleClosedEditors(index);
 	}
@@ -569,11 +576,6 @@ export class TabsTitleControl extends TitleControl {
 
 		// There are tabs to show
 		if (this.group.activeEditor) {
-
-			// Fix tabs width if we are mouse over tabs and the tab sizing is 'fixed'
-			if (this.isMouseOverTabs && this.accessor.partOptions.tabSizing === 'fixed') {
-				this.updateTabsFixedWidth(true);
-			}
 
 			// Remove tabs that got closed
 			const tabsContainer = assertIsDefined(this.tabsContainer);
