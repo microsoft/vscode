@@ -30,7 +30,7 @@ export interface IDialogOptions {
 	readonly detail?: string;
 	readonly checkboxLabel?: string;
 	readonly checkboxChecked?: boolean;
-	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | 'success';
+	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
@@ -58,7 +58,6 @@ export interface IDialogStyles {
 	readonly errorIconForeground: string | undefined;
 	readonly warningIconForeground: string | undefined;
 	readonly infoIconForeground: string | undefined;
-	readonly successIconForeground: string | undefined;
 	readonly textLinkForeground: string | undefined;
 }
 
@@ -184,8 +183,6 @@ export class Dialog extends Disposable {
 			case 'pending':
 				typeLabel = nls.localize('dialogPendingMessage', 'In Progress');
 				break;
-			case 'success':
-				typeLabel = nls.localize('dialogSuccessMessage', 'Success');
 			case 'none':
 			case 'info':
 			case 'question':
@@ -374,9 +371,6 @@ export class Dialog extends Disposable {
 					case 'warning':
 						this.iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.dialogWarning));
 						break;
-					case 'success':
-						this.iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
-						break;
 					case 'pending':
 						this.iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), spinModifierClassName);
 						break;
@@ -460,9 +454,6 @@ export class Dialog extends Disposable {
 				break;
 			case 'warning':
 				color = style.warningIconForeground;
-				break;
-			case 'success':
-				color = style.successIconForeground;
 				break;
 			default:
 				color = style.infoIconForeground;
