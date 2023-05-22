@@ -58,6 +58,7 @@ import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/work
 import { IChatReplyFollowup, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const $ = dom.$;
@@ -583,11 +584,11 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.element = $('.interactive-result-editor-wrapper');
-
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		this.toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.ChatCodeBlock, {
@@ -595,6 +596,12 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 				shouldForwardArgs: true
 			}
 		}));
+
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			const toolbarElt = this.toolbar.getElement();
+			toolbarElt.style.display = 'block';
+			toolbarElt.ariaLabel = this._configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
+		}
 
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.editor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, editorElement, {
@@ -610,7 +617,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			scrollbar: {
 				alwaysConsumeMouseWheel: false
 			},
-			ariaLabel: this._configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlockHelp', 'Code block, to discover ways this can be interacted with, search the command palette for Chat: Insert and Chat: Run.') : localize('chat.codeBlock', 'Code block'),
+			ariaLabel: localize('chat.codeBlockHelp', 'Code block'),
 			...this.getEditorOptionsFromConfig()
 		}, {
 			isSimpleWidget: true,
