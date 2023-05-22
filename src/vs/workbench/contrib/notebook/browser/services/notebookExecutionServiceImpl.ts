@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -13,7 +13,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { KernelPickerMRUStrategy } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookExecutionService, ICellExecutionParticipant } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
@@ -78,7 +78,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 		// request execution
 		if (validCellExecutions.length > 0) {
-			await this._notebookExecutionStateService.runExecutionParticipants(validCellExecutions);
+			await this.runExecutionParticipants(validCellExecutions);
 
 			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
 			await kernel.executeNotebookCellsRequest(notebook.uri, validCellExecutions.map(c => c.cellHandle));
@@ -103,6 +103,20 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 	async cancelNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>): Promise<void> {
 		this.cancelNotebookCellHandles(notebook, Array.from(cells, cell => cell.handle));
+	}
+
+	private readonly cellExecutionParticipants = new Set<ICellExecutionParticipant>;
+
+	registerExecutionParticipant(participant: ICellExecutionParticipant) {
+		this.cellExecutionParticipants.add(participant);
+		return toDisposable(() => this.cellExecutionParticipants.delete(participant));
+	}
+
+	async runExecutionParticipants(executions: INotebookCellExecution[]): Promise<void> {
+		for (const participant of this.cellExecutionParticipants) {
+			await participant.onWillExecuteCell(executions);
+		}
+		return;
 	}
 
 	dispose() {

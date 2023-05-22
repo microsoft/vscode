@@ -24,7 +24,8 @@ import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICellExecutionParticipant, INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecutionParticipant, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -206,14 +207,14 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 export class CellExecutionParticipantsContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService
+		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService
 	) {
 		super();
 		this.registerKernelExecutionParticipants();
 	}
 
 	private registerKernelExecutionParticipants(): void {
-		this._register(this.notebookExecutionStateService.registerExecutionParticipant(this.instantiationService.createInstance(FormatOnCellExecutionParticipant)));
+		this._register(this.notebookExecutionService.registerExecutionParticipant(this.instantiationService.createInstance(FormatOnCellExecutionParticipant)));
 	}
 }
 

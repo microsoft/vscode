@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { insert } from 'vs/base/common/arrays';
 import { generateUuid } from 'vs/base/common/uuid';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookExecutionState, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IExecutionStateChangedEvent, IFailedCellInfo, ICellExecutionParticipant, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IExecutionStateChangedEvent, IFailedCellInfo, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -43,20 +42,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		@IAudioCueService private readonly _audioCueService: IAudioCueService
 	) {
 		super();
-	}
-
-	private readonly cellExecutionParticipants: ICellExecutionParticipant[] = [];
-
-	registerExecutionParticipant(participant: ICellExecutionParticipant) {
-		const remove = insert(this.cellExecutionParticipants, participant);
-		return toDisposable(() => remove());
-	}
-
-	async runExecutionParticipants(executions: INotebookCellExecution[]): Promise<void> {
-		for (const participant of this.cellExecutionParticipants) {
-			await participant.onWillExecuteCell(executions);
-		}
-		return;
 	}
 
 	getLastFailedCellForNotebook(notebook: URI): number | undefined {
