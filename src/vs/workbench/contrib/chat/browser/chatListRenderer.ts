@@ -608,6 +608,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			scrollbar: {
 				alwaysConsumeMouseWheel: false
 			},
+			ariaLabel: localize('chat.codeBlock', 'Code block'),
 			...this.getEditorOptionsFromConfig()
 		}, {
 			isSimpleWidget: true,
