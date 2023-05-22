@@ -38,26 +38,26 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
-		@IInstantiationService readonly _instantiationService: IInstantiationService,
-		@ITerminalService readonly _terminalService: ITerminalService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITerminalService terminalService: ITerminalService
 	) {
 		super();
 
 		this._findWidget = new Lazy(() => {
-			const findWidget = this._instantiationService.createInstance(TerminalFindWidget, _instance);
+			const findWidget = instantiationService.createInstance(TerminalFindWidget, this._instance);
 
 			// Track focus and set state so we can force the scroll bar to be visible
 			findWidget.focusTracker.onDidFocus(() => {
 				this._focusState = true;
-				_instance.forceScrollbarVisibility();
-				_terminalService.setActiveInstance(_instance);
+				this._instance.forceScrollbarVisibility();
+				terminalService.setActiveInstance(this._instance);
 			});
 			findWidget.focusTracker.onDidBlur(() => {
 				this._focusState = false;
-				_instance.resetScrollbarVisibility();
+				this._instance.resetScrollbarVisibility();
 			});
 
-			_instance.domElement.appendChild(findWidget.getDomNode());
+			this._instance.domElement.appendChild(findWidget.getDomNode());
 			if (this._lastLayoutDimensions) {
 				findWidget.layout(this._lastLayoutDimensions.width);
 			}
@@ -98,7 +98,7 @@ registerActiveInstanceAction({
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (activeInstance) => {
-		TerminalFindContribution.get(activeInstance)?.findWidget?.reveal();
+		TerminalFindContribution.get(activeInstance)?.findWidget.reveal();
 	}
 });
 
@@ -113,7 +113,7 @@ registerActiveInstanceAction({
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (activeInstance) => {
-		TerminalFindContribution.get(activeInstance)?.findWidget?.hide();
+		TerminalFindContribution.get(activeInstance)?.findWidget.hide();
 	}
 });
 
@@ -128,10 +128,8 @@ registerActiveInstanceAction({
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (activeInstance) => {
-		const state = TerminalFindContribution.get(activeInstance)?.findWidget?.state;
-		if (state) {
-			state.change({ matchCase: !state.isRegex }, false);
-		}
+		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
+		state?.change({ matchCase: !state.isRegex }, false);
 	}
 });
 
@@ -146,10 +144,8 @@ registerActiveInstanceAction({
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (activeInstance) => {
-		const state = TerminalFindContribution.get(activeInstance)?.findWidget?.state;
-		if (state) {
-			state.change({ matchCase: !state.wholeWord }, false);
-		}
+		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
+		state?.change({ matchCase: !state.wholeWord }, false);
 	}
 });
 
@@ -164,10 +160,8 @@ registerActiveInstanceAction({
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (activeInstance) => {
-		const state = TerminalFindContribution.get(activeInstance)?.findWidget?.state;
-		if (state) {
-			state.change({ matchCase: !state.matchCase }, false);
-		}
+		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
+		state?.change({ matchCase: !state.matchCase }, false);
 	}
 });
 
