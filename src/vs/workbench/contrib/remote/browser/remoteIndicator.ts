@@ -320,7 +320,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// but only when the window has focus to prevent constantly
 		// waking up the connection to the remote
 
-		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'high-latency' || this.networkState === undefined)) {
+		if (this.hostService.hasFocus && this.networkState !== 'offline') {
 			const measurement = await remoteConnectionLatencyMeasurer.measure(this.remoteAgentService);
 			if (measurement) {
 				this.networkConnectionCurrentLatency = measurement.current;
@@ -482,7 +482,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		switch (this.networkState) {
 			case 'offline': {
-				insertOrReplaceCodicon(initialText, '$(alert)');
+				text = insertOrReplaceCodicon(initialText, '$(alert)');
 
 				const offlineMessage = nls.localize('networkStatusOfflineTooltip', "Network appears to be offline, certain features might be unavailable.");
 				tooltip = this.appendTooltipLine(tooltip, offlineMessage);
