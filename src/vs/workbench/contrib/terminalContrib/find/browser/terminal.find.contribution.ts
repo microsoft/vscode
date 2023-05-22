@@ -30,7 +30,6 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 
 	private _findWidget: Lazy<TerminalFindWidget>;
 	private _lastLayoutDimensions: IDimension | undefined;
-	private _focusState: boolean = false;
 
 	get findWidget(): TerminalFindWidget { return this._findWidget.value; }
 
@@ -48,12 +47,10 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 
 			// Track focus and set state so we can force the scroll bar to be visible
 			findWidget.focusTracker.onDidFocus(() => {
-				this._focusState = true;
 				this._instance.forceScrollbarVisibility();
 				terminalService.setActiveInstance(this._instance);
 			});
 			findWidget.focusTracker.onDidBlur(() => {
-				this._focusState = false;
 				this._instance.resetScrollbarVisibility();
 			});
 
@@ -77,12 +74,7 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 
 	override dispose() {
 		super.dispose();
-
-		const focusTerminal = this._focusState;
 		this._findWidget.rawValue?.dispose();
-		if (focusTerminal) {
-			this._instance.focus();
-		}
 	}
 
 }
