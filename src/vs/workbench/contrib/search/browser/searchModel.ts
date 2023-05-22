@@ -393,7 +393,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ILabelService readonly labelService: ILabelService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
@@ -445,8 +444,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			this.bindModel(model);
 			this.updateMatchesForModel();
 		} else {
-			const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
-			const notebookEditorWidgetBorrow = experimentalNotebooksEnabled ? this.notebookEditorService.retrieveExistingWidgetFromURI(this.resource) : undefined;
+			const notebookEditorWidgetBorrow = this.notebookEditorService.retrieveExistingWidgetFromURI(this.resource);
 
 			if (notebookEditorWidgetBorrow?.value) {
 				this.bindNotebookEditorWidget(notebookEditorWidgetBorrow.value);
@@ -812,7 +810,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				caseSensitive: this._query.isCaseSensitive,
 				wordSeparators: wordSeparators ?? undefined,
 				includeMarkupInput: this._query.notebookInfo?.isInNotebookMarkdownInput,
-				includeMarkupPreview: !this._query.notebookInfo?.isInNotebookMarkdownInput,
+				includeMarkupPreview: this._query.notebookInfo?.isInNotebookMarkdownPreview,
 				includeCodeInput: this._query.notebookInfo?.isInNotebookCellInput,
 				includeOutput: this._query.notebookInfo?.isInNotebookCellOutput,
 			}, CancellationToken.None, false, true);
@@ -1542,21 +1540,17 @@ export class SearchResult extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 
-		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
-		if (experimentalNotebooksEnabled) {
-			this._register(this.notebookEditorService.onDidAddNotebookEditor(widget => {
-				if (widget instanceof NotebookEditorWidget) {
-					this.onDidAddNotebookEditorWidget(<NotebookEditorWidget>widget);
-				}
-			}));
-		}
+		this._register(this.notebookEditorService.onDidAddNotebookEditor(widget => {
+			if (widget instanceof NotebookEditorWidget) {
+				this.onDidAddNotebookEditorWidget(<NotebookEditorWidget>widget);
+			}
+		}));
 
 		this._register(this.onChange(e => {
 			if (e.removed) {
@@ -1662,11 +1656,6 @@ export class SearchResult extends Disposable {
 	}
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
-		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
-
-		if (!experimentalNotebooksEnabled) {
-			return;
-		}
 
 		this._onWillChangeModelListener?.dispose();
 		this._onWillChangeModelListener = widget.onWillChangeModel(
@@ -1988,7 +1977,7 @@ export class SearchModel extends Disposable {
 						wholeWord: query.contentPattern.isWordMatch,
 						caseSensitive: query.contentPattern.isCaseSensitive,
 						includeMarkupInput: query.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
-						includeMarkupPreview: !query.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
+						includeMarkupPreview: query.contentPattern.notebookInfo?.isInNotebookMarkdownPreview,
 						includeCodeInput: query.contentPattern.notebookInfo?.isInNotebookCellInput,
 						includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput,
 					}, token, false, true);
@@ -2049,9 +2038,7 @@ export class SearchModel extends Disposable {
 
 			onProgress?.(p);
 		};
-		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
-
-		const notebookResult = experimentalNotebooksEnabled ? await this.notebookSearch(query, this.currentCancelTokenSource.token, onProgressCall) : undefined;
+		const notebookResult = await this.notebookSearch(query, this.currentCancelTokenSource.token, onProgressCall);
 		const currentResult = await this.searchService.textSearch(
 			searchQuery,
 			this.currentCancelTokenSource.token, onProgressCall,

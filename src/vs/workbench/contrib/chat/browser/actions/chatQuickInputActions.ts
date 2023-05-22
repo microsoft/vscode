@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asCssVariable, editorBackground, foreground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { InteractiveListItemRenderer } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatListItemRenderer } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -46,7 +46,7 @@ class AskQuickQuestionAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-				when: ContextKeyExpr.equals('config.interactiveSession.experimental.quickQuestion.enable', true),
+				when: ContextKeyExpr.equals('config.chat.experimental.quickQuestion.enable', true),
 			}
 		});
 	}
@@ -184,11 +184,11 @@ class InteractiveQuickPickSession extends Disposable {
 		this._listDisposable = new DisposableStore();
 		const options = this._listDisposable.add(this._instantiationService.createInstance(ChatEditorOptions, 'quickpick-interactive', foreground, editorBackground, editorBackground));
 		const list = this._listDisposable.add(this._instantiationService.createInstance(
-			InteractiveListItemRenderer,
+			ChatListItemRenderer,
 			options,
 			{
 				getListLength: () => {
-					return this._viewModel.getItems().length;
+					return 1;
 				},
 				getSlashCommands() {
 					return [];

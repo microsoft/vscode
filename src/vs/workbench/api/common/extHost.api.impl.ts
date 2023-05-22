@@ -684,7 +684,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
 			},
 			get state() {
-				return extHostWindow.state;
+				return extHostWindow.getState(extension);
 			},
 			onDidChangeWindowState(listener, thisArg?, disposables?) {
 				return extHostWindow.onDidChangeWindowState(listener, thisArg, disposables);
@@ -1071,7 +1071,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'tunnels');
 				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
 			},
-			registerPortAttributesProvider: (portSelector: { pid?: number; portRange?: [number, number]; commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider) => {
+			registerPortAttributesProvider: (portSelector: { pid?: number; portRange?: [number, number]; commandPattern?: RegExp }, provider: vscode.PortAttributesProvider) => {
 				checkProposedApiEnabled(extension, 'portsAttributes');
 				return extHostTunnelService.registerPortsAttributesProvider(portSelector, provider);
 			},
@@ -1097,13 +1097,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'editSessionIdentityProvider');
 				return extHostWorkspace.getOnWillCreateEditSessionIdentityEvent(extension)(listener, thisArgs, disposables);
 			},
-			registerCanonicalUriIdentityProvider: (scheme: string, provider: vscode.CanonicalUriIdentityProvider) => {
-				checkProposedApiEnabled(extension, 'canonicalUriIdentityProvider');
-				return extHostWorkspace.registerCanonicalUriIdentityProvider(scheme, provider);
+			registerCanonicalUriProvider: (scheme: string, provider: vscode.CanonicalUriProvider) => {
+				checkProposedApiEnabled(extension, 'canonicalUriProvider');
+				return extHostWorkspace.registerCanonicalUriProvider(scheme, provider);
 			},
-			provideCanonicalUriIdentity: (uri: vscode.Uri, token: vscode.CancellationToken) => {
-				checkProposedApiEnabled(extension, 'canonicalUriIdentityProvider');
-				return extHostWorkspace.provideCanonicalUriIdentity(uri, token);
+			getCanonicalUri: (uri: vscode.Uri, options: vscode.CanonicalUriRequestOptions, token: vscode.CancellationToken) => {
+				checkProposedApiEnabled(extension, 'canonicalUriProvider');
+				return extHostWorkspace.provideCanonicalUri(uri, options, token);
 			}
 		};
 

@@ -336,10 +336,10 @@ export interface WillStopExtensionHostsEvent {
 	 * Allows to veto the stopping of extension hosts. The veto can be a long running
 	 * operation.
 	 *
-	 * @param id to identify the veto operation in case it takes very long or never
-	 * completes.
+	 * @param reason a human readable reason for vetoing the extension host stop in case
+	 * where the resolved `value: true`.
 	 */
-	veto(value: boolean | Promise<boolean>, id: string): void;
+	veto(value: boolean | Promise<boolean>, reason: string): void;
 }
 
 export interface IExtensionService {

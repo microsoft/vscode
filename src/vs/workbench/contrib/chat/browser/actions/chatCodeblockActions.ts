@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
@@ -21,9 +21,9 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
-import { IInteractiveResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -35,11 +35,33 @@ export interface IChatCodeBlockActionContext {
 	code: string;
 	languageId: string;
 	codeBlockIndex: number;
-	element: IInteractiveResponseViewModel;
+	element: IChatResponseViewModel;
 }
 
 export function isCodeBlockActionContext(thing: unknown): thing is IChatCodeBlockActionContext {
 	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
+}
+
+abstract class ChatCodeBlockAction extends Action2 {
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		let context = args[0];
+		if (!isCodeBlockActionContext(context)) {
+			const codeEditorService = accessor.get(ICodeEditorService);
+			const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+			if (!editor) {
+				return;
+			}
+
+			context = getContextFromEditor(editor, accessor);
+			if (!isCodeBlockActionContext(context)) {
+				return;
+			}
+		}
+
+		return this.runWithContext(accessor, context);
+	}
+
+	abstract runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext): any;
 }
 
 export function registerChatCodeBlockActions() {
@@ -135,7 +157,7 @@ export function registerChatCodeBlockActions() {
 		return false;
 	});
 
-	registerAction2(class InsertCodeBlockAction extends EditorAction2 {
+	registerAction2(class InsertCodeBlockAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
@@ -153,15 +175,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-			let context = args[0];
-			if (!isCodeBlockActionContext(context)) {
-				context = getContextFromEditor(editor, accessor);
-				if (!isCodeBlockActionContext(context)) {
-					return;
-				}
-			}
-
+		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
 			const editorService = accessor.get(IEditorService);
 			const textFileService = accessor.get(ITextFileService);
 
@@ -220,12 +234,15 @@ export function registerChatCodeBlockActions() {
 		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, context: IChatCodeBlockActionContext) {
 			this.notifyUserAction(accessor, context);
 			const bulkEditService = accessor.get(IBulkEditService);
+			const codeEditorService = accessor.get(ICodeEditorService);
 
 			const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
 			await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
 				range: activeSelection,
 				text: context.code,
 			})]);
+
+			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 		}
 
 		private notifyUserAction(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
@@ -243,7 +260,7 @@ export function registerChatCodeBlockActions() {
 
 	});
 
-	registerAction2(class InsertIntoNewFileAction extends EditorAction2 {
+	registerAction2(class InsertIntoNewFileAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
@@ -262,15 +279,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-			let context = args[0];
-			if (!isCodeBlockActionContext(context)) {
-				context = getContextFromEditor(editor, accessor);
-				if (!isCodeBlockActionContext(context)) {
-					return;
-				}
-			}
-
+		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
 			editorService.openEditor(<IUntitledTextResourceEditorInput>{ contents: context.code, languageId: context.languageId, resource: undefined });
@@ -288,7 +297,7 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
-	registerAction2(class RunInTerminalAction extends EditorAction2 {
+	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
@@ -314,15 +323,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-			let context = args[0];
-			if (!isCodeBlockActionContext(context)) {
-				context = getContextFromEditor(editor, accessor);
-				if (!isCodeBlockActionContext(context)) {
-					return;
-				}
-			}
-
+		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
 			const chatService = accessor.get(IChatService);
 			const terminalService = accessor.get(ITerminalService);
 			const editorService = accessor.get(IEditorService);
@@ -373,7 +374,7 @@ export function registerChatCodeBlockActions() {
 
 		const focusResponse = curCodeBlockInfo ?
 			curCodeBlockInfo.element :
-			widget.viewModel?.getItems().reverse().find((item): item is IInteractiveResponseViewModel => isResponseVM(item));
+			widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
 		if (!focusResponse) {
 			return;
 		}
@@ -397,7 +398,7 @@ export function registerChatCodeBlockActions() {
 				keybinding: {
 					primary: KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_INTERACTIVE_SESSION,
+					when: CONTEXT_IN_CHAT_SESSION,
 				},
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -420,7 +421,7 @@ export function registerChatCodeBlockActions() {
 				keybinding: {
 					primary: KeyMod.Shift | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_INTERACTIVE_SESSION,
+					when: CONTEXT_IN_CHAT_SESSION,
 				},
 				f1: true,
 				category: CHAT_CATEGORY,

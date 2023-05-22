@@ -7,25 +7,38 @@ import { localize } from 'vs/nls';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
+export const enum AccessibilityVerbositySettingId {
+	Terminal = 'accessibility.verbosity.terminal',
+	DiffEditor = 'accessibility.verbosity.diff-editor',
+	Chat = 'accessibility.verbosity.chat',
+	InteractiveEditor = 'accessibility.verbosity.interactiveEditor'
+}
+
 const configuration: IConfigurationNode = {
 	id: 'accessibility',
 	title: localize('accessibilityConfigurationTitle', "Accessibility"),
 	type: 'object',
 	properties: {
-		'accessibility.verbosity.terminal': {
+		[AccessibilityVerbositySettingId.Terminal]: {
 			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused'),
 			type: 'boolean',
 			default: true,
 			tags: ['accessibility']
 		},
-		'accessibility.verbosity.diff-editor': {
+		[AccessibilityVerbositySettingId.DiffEditor]: {
 			description: localize('verbosity.diff-editor.description', 'Provide information about how to navigate changes in the diff editor when it is focused'),
 			type: 'boolean',
 			default: true,
 			tags: ['accessibility']
 		},
-		'accessibility.verbosity.chatInput': {
-			description: localize('verbosity.chatInput.description', 'Provide information about how to access the interactive session accessibility help menu when the interactive input is focused'),
+		[AccessibilityVerbositySettingId.Chat]: {
+			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused'),
+			type: 'boolean',
+			default: true,
+			tags: ['accessibility']
+		},
+		[AccessibilityVerbositySettingId.InteractiveEditor]: {
+			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the interactive editor accessibility help menu when the interactive editor input is focused'),
 			type: 'boolean',
 			default: true,
 			tags: ['accessibility']
