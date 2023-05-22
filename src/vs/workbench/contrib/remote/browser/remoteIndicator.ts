@@ -324,30 +324,24 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'slow' || this.networkState === undefined)) {
 			const measurement = await measureRoundTripTime(this.remoteAgentService);
-			if (!measurement) {
-				return;
-			}
+			if (typeof measurement?.initial === 'number') {
+				this.networkConnectionCurrentLatency = measurement.current;
+				this.networkConnectionAverageLatency = measurement.average;
 
-			if (!measurement.initial) {
-				return; // wait for initial latency to be computed
-			}
+				// based on the initial, average and current latency, try to decide
+				// if the connection is slow
+				// Some rules:
+				// - we only consider latency above REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD as potentially slow
+				// - we require the current latency to be above the average latency by a factor of REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
 
-			this.networkConnectionCurrentLatency = measurement.current;
-			this.networkConnectionAverageLatency = measurement.average;
-
-			// based on the initial, average and current latency, try to decide
-			// if the connection is slow
-			// Some rules:
-			// - we only consider latency above REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD as potentially slow
-			// - we require the current latency to be above the average latency by a factor of REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
-
-			if (
-				this.networkConnectionCurrentLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD &&
-				this.networkConnectionCurrentLatency > measurement.initial * RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
-			) {
-				this.setNetworkState('slow');
-			} else if (this.networkState === 'slow') {
-				this.setNetworkState('online');
+				if (
+					this.networkConnectionCurrentLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD &&
+					this.networkConnectionCurrentLatency > measurement.initial * RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
+				) {
+					this.setNetworkState('slow');
+				} else if (this.networkState === 'slow') {
+					this.setNetworkState('online');
+				}
 			}
 		}
 
@@ -398,7 +392,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					this.renderRemoteStatusIndicator(nls.localize('host.open', "Opening Remote..."), nls.localize('host.open', "Opening Remote..."), undefined, true /* progress */);
 					break;
 				case 'reconnecting':
-					this.renderRemoteStatusIndicator(`${nls.localize('host.reconnecting', "Reconnecting to {0}...", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, undefined, undefined, true);
+					this.renderRemoteStatusIndicator(`${nls.localize('host.reconnecting', "Reconnecting to {0}...", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, undefined, undefined, true /* progress */);
 					break;
 				case 'disconnected':
 					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`);
@@ -478,14 +472,32 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		let text = initialText;
 		let tooltip = initialTooltip;
 
+		// `initialText` can have a "$(remote)" codicon in the beginning
+		// but it may not have it depending on the environment.
+		// the following function will replace the codicon in the beginning with
+		// another icon or add it to the beginning if no icon
+
+		function insertOrReplaceCodicon(target: string, codicon: string): string {
+			if (target.startsWith('$(remote)')) {
+				return target.replace('$(remote)', codicon);
+			}
+
+			return `${codicon} ${target}`;
+		}
+
 		switch (this.networkState) {
 			case 'offline':
-				text = `${initialText} - ${nls.localize('networkStatusOffline', "$(debug-disconnect) Offline")}`;
+				text = insertOrReplaceCodicon(initialText, '$(debug-disconnect)');
+				if (text === '$(debug-disconnect)') {
+					text = `${text} ${nls.localize('networkStatusOffline', "Offline")}`;
+				} else {
+					text = `${text} (${nls.localize('networkStatusOffline', "Offline")})`;
+				}
 				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusOfflineTooltip', "You appear to be offline. Some features may be unavailable."));
 				break;
 			case 'slow':
-				text = `${initialText} - ${nls.localize('networkStatusSlow', "$(alert) Lagging")}`;
-				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "The network is slow (latency: {0}ms currently, {1}ms average). Some features may be slow to respond.", this.networkConnectionCurrentLatency, this.networkConnectionAverageLatency));
+				text = insertOrReplaceCodicon(initialText, '$(alert)');
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "The network is slow (latency: {0}ms currently, {1}ms average). Some features may be slow to respond.", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
 				break;
 		}
 
