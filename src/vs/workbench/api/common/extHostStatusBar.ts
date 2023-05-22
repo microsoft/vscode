@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
+import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor, asStatusBarItemIdentifier } from './extHostTypes';
 import type * as vscode from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto } from './extHost.protocol';
 import { localize } from 'vs/nls';
@@ -12,7 +12,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNumber } from 'vs/base/common/types';
-import { asStatusBarItemIdentifier } from 'vs/workbench/api/common/statusBarExtensionPoint';
+
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 

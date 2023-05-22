@@ -19,6 +19,7 @@ import { hash } from 'vs/base/common/hash';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Iterable } from 'vs/base/common/iterator';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { asStatusBarItemIdentifier } from 'vs/workbench/api/common/extHostTypes';
 
 
 // --- service
@@ -222,9 +223,4 @@ export class StatusBarItemsExtensionPoint {
 			}
 		});
 	}
-}
-
-
-export function asStatusBarItemIdentifier(extension: ExtensionIdentifier, id: string): string {
-	return `${ExtensionIdentifier.toKey(extension)}.${id}`;
 }
