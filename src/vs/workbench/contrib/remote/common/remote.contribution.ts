@@ -9,7 +9,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService, measureRoundTripTime } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -202,7 +202,7 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 	}
 
 	private async _measureExtHostLatency() {
-		const bestLatency = await measureRoundTripTime(this._remoteAgentService);
+		const bestLatency = await remoteConnectionLatencyMeasurer.measure(this._remoteAgentService);
 		if (bestLatency === undefined) {
 			return;
 		}
