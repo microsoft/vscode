@@ -597,12 +597,13 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			}
 		}));
 
-		if (this._accessibilityService.isScreenReaderOptimized()) {
-			const toolbarElt = this.toolbar.getElement();
-			toolbarElt.style.display = 'block';
-			toolbarElt.ariaLabel = this._configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
-		}
-
+		this._configureForScreenReader();
+		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
+		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectedKeys.has(AccessibilityVerbositySettingId.Chat)) {
+				this._configureForScreenReader();
+			}
+		}));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.editor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, editorElement, {
 			...getSimpleEditorOptions(),
@@ -670,6 +671,17 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			Math.max(defaultCodeblockPadding - scrollbarHeight, 2) :
 			defaultCodeblockPadding;
 		this.editor.updateOptions({ padding: { top: defaultCodeblockPadding, bottom: bottomPadding } });
+	}
+
+	private _configureForScreenReader(): void {
+		const toolbarElt = this.toolbar.getElement();
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			toolbarElt.style.display = 'block';
+			toolbarElt.ariaLabel = this._configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
+		} else {
+			toolbarElt.style.display = '';
+		}
+
 	}
 
 	private getEditorOptionsFromConfig(): IEditorOptions {
