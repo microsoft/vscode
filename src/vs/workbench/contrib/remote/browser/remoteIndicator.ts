@@ -88,7 +88,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
 	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
 
-	private networkState: 'online' | 'offline' | 'slow' | undefined = undefined;
+	private networkState: 'online' | 'offline' | 'high-latency' | undefined = undefined;
 	private measureNetworkConnectionLatencyScheduler: RunOnceScheduler | undefined = undefined;
 	private networkConnectionCurrentLatency: number | undefined = undefined;
 	private networkConnectionAverageLatency: number | undefined = undefined;
@@ -316,19 +316,19 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private async measureNetworkConnectionLatency(): Promise<void> {
 
-		// Measure round trip if we are connected or connected-slow
+		// Measure latency if we are online
 		// but only when the window has focus to prevent constantly
 		// waking up the connection to the remote
 
-		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'slow' || this.networkState === undefined)) {
+		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'high-latency' || this.networkState === undefined)) {
 			const measurement = await remoteConnectionLatencyMeasurer.measure(this.remoteAgentService);
 			if (measurement) {
 				this.networkConnectionCurrentLatency = measurement.current;
 				this.networkConnectionAverageLatency = measurement.average;
 
-				if (measurement.slow) {
-					this.setNetworkState('slow');
-				} else if (this.networkState === 'slow') {
+				if (measurement.high) {
+					this.setNetworkState('high-latency');
+				} else if (this.networkState === 'high-latency') {
 					this.setNetworkState('online');
 				}
 			}
@@ -337,7 +337,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		this.measureNetworkConnectionLatencyScheduler?.schedule();
 	}
 
-	private setNetworkState(newState: 'online' | 'offline' | 'slow'): void {
+	private setNetworkState(newState: 'online' | 'offline' | 'high-latency'): void {
 		if (this.networkState !== newState) {
 			this.networkState = newState;
 
@@ -489,9 +489,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				ariaLabel = `${ariaLabel}, ${offlineMessage}`;
 				break;
 			}
-			case 'slow':
+			case 'high-latency':
 				text = insertOrReplaceCodicon(initialText, '$(alert)');
-				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "Network appears to be slow (latency: {0}ms last, {1}ms average), certain features may be slow to respond.", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusHighLatencyTooltip', "Network appears to have high latency ({0}ms last, {1}ms average), certain features may be slow to respond.", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
 				break;
 		}
 

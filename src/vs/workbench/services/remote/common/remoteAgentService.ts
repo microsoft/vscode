@@ -67,7 +67,7 @@ export interface IRemoteConnectionLatencyMeasurement {
 	readonly current: number;
 	readonly average: number;
 
-	readonly slow: boolean;
+	readonly high: boolean;
 }
 
 export const remoteConnectionLatencyMeasurer = new class {
@@ -81,9 +81,9 @@ export const remoteConnectionLatencyMeasurer = new class {
 	readonly #average: number[] = [];
 	readonly #maxAverageCount = 100;
 
-	readonly #slowMultiple = 2;
-	readonly #slowMinThreshold = 500;
-	readonly #slowMaxThreshold = 1500;
+	readonly #highLatencyMultiple = 2;
+	readonly #highLatencyMinThreshold = 500;
+	readonly #highLatencyMaxThreshold = 1500;
 
 	#lastMeasurement: IRemoteConnectionLatencyMeasurement | undefined = undefined;
 	get latency() { return this.#lastMeasurement; }
@@ -121,25 +121,25 @@ export const remoteConnectionLatencyMeasurer = new class {
 			initial: initialLatency,
 			current: currentLatency,
 			average: this.#average.reduce((sum, value) => sum + value, 0) / this.#average.length,
-			slow: (() => {
+			high: (() => {
 
 				// based on the initial, average and current latency, try to decide
-				// if the connection is slow
+				// if the connection has high latency
 				// Some rules:
 				// - we require the initial latency to be computed
-				// - we only consider latency above slowMinThreshold as potentially slow
-				// - we require the current latency to be above the average latency by a factor of slowMultiple
-				// - but not if the latency is actually above slowMaxThreshold
+				// - we only consider latency above highLatencyMinThreshold as potentially high
+				// - we require the current latency to be above the average latency by a factor of highLatencyMultiple
+				// - but not if the latency is actually above highLatencyMaxThreshold
 
 				if (typeof initialLatency === 'undefined') {
 					return false;
 				}
 
-				if (currentLatency > this.#slowMaxThreshold) {
+				if (currentLatency > this.#highLatencyMaxThreshold) {
 					return true;
 				}
 
-				if (currentLatency > this.#slowMinThreshold && currentLatency > initialLatency * this.#slowMultiple) {
+				if (currentLatency > this.#highLatencyMinThreshold && currentLatency > initialLatency * this.#highLatencyMultiple) {
 					return true;
 				}
 
