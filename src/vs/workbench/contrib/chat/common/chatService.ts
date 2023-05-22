@@ -88,6 +88,7 @@ export interface IChatResponseCommandFollowup {
 
 export type IChatFollowup = IChatReplyFollowup | IChatResponseCommandFollowup;
 
+// Name has to match the one in vscode.d.ts for some reason
 export enum InteractiveSessionVoteDirection {
 	Up = 1,
 	Down = 2
@@ -184,7 +185,7 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string | IChatReplyFollowup): Promise<boolean>;
+	sendRequest(sessionId: string, message: string | IChatReplyFollowup): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	clearSession(sessionId: string): void;

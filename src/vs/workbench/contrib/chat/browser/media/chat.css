@@ -103,7 +103,7 @@
 .interactive-item-container .value table,
 .interactive-item-container .value table td,
 .interactive-item-container .value table th {
-	border: 1px solid var(--vscode-interactive-requestBorder);
+	border: 1px solid var(--vscode-chat-requestBorder);
 	border-collapse: collapse;
 	padding: 4px 6px;
 }
@@ -122,9 +122,9 @@
 }
 
 .interactive-request {
-	background-color: var(--vscode-interactive-requestBackground);
-	border-bottom: 1px solid var(--vscode-interactive-requestBorder);
-	border-top: 1px solid var(--vscode-interactive-requestBorder);
+	background-color: var(--vscode-chat-requestBackground);
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+	border-top: 1px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-item-container .value {
@@ -165,6 +165,10 @@
 .interactive-item-container .value p {
 	margin: 0 0 16px 0;
 	line-height: 1.6em;
+}
+
+.interactive-item-container li {
+	line-height: 1.5rem;
 }
 
 .interactive-item-container .monaco-tokenized-source,
@@ -222,7 +226,7 @@
 	right: 10px;
 	height: 26px;
 	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
-	border: 1px solid var(--vscode-interactive-requestBorder);
+	border: 1px solid var(--vscode-chat-requestBorder);
 	z-index: 100;
 }
 
@@ -238,6 +242,7 @@
 
 .interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar {
 	display: initial;
+	border-radius: 2px;
 }
 
 .interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor {
@@ -251,6 +256,12 @@
 
 .interactive-item-container .interactive-result-editor-wrapper {
 	margin: 16px 0;
+}
+
+.interactive-item-container .interactive-result-editor-wrapper,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-editor,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
+	border-radius: 4px;
 }
 
 .interactive-response .interactive-response-error-details {
@@ -279,13 +290,13 @@
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
-	border-top: solid 1px var(--vscode-interactive-requestBorder);
+	border-top: solid 1px var(--vscode-chat-requestBorder);
 }
 
 .interactive-session-followups {
 	display: flex;
 	flex-direction: column;
-	gap: 5px;
+	gap: 8px;
 	align-items: start;
 }
 
@@ -326,13 +337,13 @@
 
 .interactive-session-followups .monaco-button.interactive-followup-reply {
 	padding: 0px;
-	font-size: 11px;
+	font-size: 12px;
 	font-weight: 600;
 	border: none;
 }
 
 .interactive-welcome .value .interactive-session-followups {
-	margin-bottom: 10px;
+	margin-bottom: 16px;
 }
 
 .interactive-item-container .monaco-toolbar .codicon {

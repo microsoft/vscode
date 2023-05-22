@@ -108,6 +108,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabsContainer: HTMLElement | undefined;
 	private editorToolbarContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
+	private tabSizingFixedDisposables: DisposableStore | undefined;
 
 	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
@@ -130,6 +131,7 @@ export class TabsTitleControl extends TitleControl {
 	private path: IPath = isWindows ? win32 : posix;
 
 	private lastMouseWheelEventTime = 0;
+	private isMouseOverTabs = false;
 
 	constructor(
 		parent: HTMLElement,
@@ -176,6 +178,9 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.classList.add('tabs-container');
 		this._register(Gesture.addTarget(this.tabsContainer));
 
+		this.tabSizingFixedDisposables = this._register(new DisposableStore());
+		this.updateTabSizing(false);
+
 		// Tabs Scrollbar
 		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
 		this.tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
@@ -219,6 +224,44 @@ export class TabsTitleControl extends TitleControl {
 	private updateTabsScrollbarSizing(): void {
 		this.tabsScrollbar?.updateOptions({
 			horizontalScrollbarSize: this.getTabsScrollbarSizing()
+		});
+	}
+
+	private updateTabSizing(fromEvent: boolean): void {
+		const [tabsContainer, tabSizingFixedDisposables] = assertAllDefined(this.tabsContainer, this.tabSizingFixedDisposables);
+
+		tabSizingFixedDisposables.clear();
+
+		const options = this.accessor.partOptions;
+		if (options.tabSizing === 'fixed') {
+			tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', `${options.tabSizingFixedMaxWidth}px`);
+
+			// For https://github.com/microsoft/vscode/issues/40290 we want to
+			// preserve the current tab widths as long as the mouse is over the
+			// tabs so that you can quickly close them via mouse click. For that
+			// we track mouse movements over the tabs container.
+
+			tabSizingFixedDisposables.add(addDisposableListener(tabsContainer, EventType.MOUSE_ENTER, () => {
+				this.isMouseOverTabs = true;
+			}));
+			tabSizingFixedDisposables.add(addDisposableListener(tabsContainer, EventType.MOUSE_LEAVE, () => {
+				this.isMouseOverTabs = false;
+				this.updateTabsFixedWidth(false);
+			}));
+		} else if (fromEvent) {
+			tabsContainer.style.removeProperty('--tab-sizing-fixed-max-width');
+			this.updateTabsFixedWidth(false);
+		}
+	}
+
+	private updateTabsFixedWidth(fixed: boolean): void {
+		this.forEachTab((editor, index, tabContainer) => {
+			if (fixed) {
+				const { width } = tabContainer.getBoundingClientRect();
+				tabContainer.style.setProperty('--tab-sizing-current-width', `${width}px`);
+			} else {
+				tabContainer.style.removeProperty('--tab-sizing-current-width');
+			}
 		});
 	}
 
@@ -514,6 +557,18 @@ export class TabsTitleControl extends TitleControl {
 			labelA.ariaLabel === labelB.ariaLabel;
 	}
 
+	beforeCloseEditor(): void {
+
+		// Fix tabs width if the mouse is over tabs and
+		// before closing a tab when tab sizing is 'fixed'.
+		// This helps keeping the close button stable under
+		// the mouse and allows for rapid closing of tabs.
+
+		if (this.isMouseOverTabs && this.accessor.partOptions.tabSizing === 'fixed') {
+			this.updateTabsFixedWidth(true);
+		}
+	}
+
 	closeEditor(editor: EditorInput, index: number | undefined): void {
 		this.handleClosedEditors(index);
 	}
@@ -661,6 +716,14 @@ export class TabsTitleControl extends TitleControl {
 		// Update tabs scrollbar sizing
 		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
 			this.updateTabsScrollbarSizing();
+		}
+
+		// Update tabs sizing
+		if (
+			oldOptions.tabSizingFixedMaxWidth !== newOptions.tabSizingFixedMaxWidth ||
+			oldOptions.tabSizing !== newOptions.tabSizing
+		) {
+			this.updateTabSizing(true);
 		}
 
 		// Redraw tabs when other options change
@@ -1229,7 +1292,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
-		for (const option of ['fit', 'shrink']) {
+		for (const option of ['fit', 'shrink', 'fixed']) {
 			tabContainer.classList.toggle(`sizing-${option}`, tabSizing === option);
 		}
 
@@ -2109,7 +2172,7 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 
-	// Fade out styles via linear gradient (when tabs are set to shrink)
+	// Fade out styles via linear gradient (when tabs are set to shrink or fixed)
 	// But not when:
 	// - in high contrast theme
 	// - if we have a contrast border (which draws an outline - https://github.com/microsoft/vscode/issues/109117)
@@ -2132,11 +2195,13 @@ registerThemingParticipant((theme, collector) => {
 
 		// Adjust gradient for focused and unfocused hover background
 		const makeTabHoverBackgroundRule = (color: Color, colorDrag: Color, hasFocus = false) => `
-			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
+			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after,
+			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-fixed:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
 				background: linear-gradient(to left, ${color}, transparent) !important;
 			}
 
-			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after,
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-fixed:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
 				background: linear-gradient(to left, ${colorDrag}, transparent) !important;
 			}
 		`;
@@ -2160,18 +2225,22 @@ registerThemingParticipant((theme, collector) => {
 			const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
 				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-fixed.dragged-over:not(.active):not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-fixed.dragged-over:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
 					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 				}
 		`);
 		}
 
 		const makeTabBackgroundRule = (color: Color, colorDrag: Color, focused: boolean, active: boolean) => `
-				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-fixed${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
 					background: linear-gradient(to left, ${color}, transparent);
 				}
 
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-fixed${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
 					background: linear-gradient(to left, ${colorDrag}, transparent);
 				}
 		`;
