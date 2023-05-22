@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 suite('Workbench status bar model', () => {
 

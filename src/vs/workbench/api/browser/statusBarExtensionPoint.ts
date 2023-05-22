@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ThemeColor } from 'vs/base/common/themables';
 import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
@@ -193,7 +193,7 @@ export class StatusBarItemsExtensionPoint {
 			for (const entry of extensions) {
 
 				if (!isProposedApiEnabled(entry.description, 'contribStatusBarItems')) {
-					entry.collector.error(`The '${statusBarItemsExtensionPoint.name}' contribution is proposed API and cannot be used by this extension`);
+					entry.collector.error(`The ${statusBarItemsExtensionPoint.name} is proposed API`);
 					continue;
 				}
 
