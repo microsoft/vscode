@@ -15,8 +15,6 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditMode } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 
-export const interactiveEditorHelpIntro = localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request.");
-
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat' | 'editor', currentInput?: string): string {
 	const keybindingService = accessor.get(IKeybindingService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -26,7 +24,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 		content.push(descriptionForCommand('chat.action.focus', localize('workbench.action.chat.focus', 'The Focus Chat command ({0}) focuses the chat request/response list, which can be navigated with UpArrow/DownArrow.',), localize('workbench.action.chat.focusNoKb', 'The Focus Chat List command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow and is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.chat.focusInput', localize('workbench.action.chat.focusInput', 'The Focus Chat Input command ({0}) focuses the input box for chat requests.'), localize('workbench.action.interactiveSession.focusInputNoKb', 'Focus Chat Input command focuses the input box for chat requests and is currently not triggerable by a keybinding.'), keybindingService));
 	} else {
-		content.push(interactiveEditorHelpIntro);
+		content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request."));
 		const regex = /^(\/fix|\/explain)/;
 		const match = currentInput?.match(regex);
 		const command = match && match.length ? match[0].substring(1) : undefined;
