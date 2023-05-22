@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
+import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor, asStatusBarItemIdentifier } from './extHostTypes';
 import type * as vscode from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto } from './extHost.protocol';
 import { localize } from 'vs/nls';
@@ -12,6 +12,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNumber } from 'vs/base/common/types';
+
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
@@ -27,7 +28,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	#proxy: MainThreadStatusBarShape;
 	#commands: CommandsConverter;
 
-	private _entryId: number;
+	private readonly _entryId: string;
 
 	private _extension?: IExtensionDescription;
 
@@ -36,7 +37,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _priority?: number;
 
 	private _disposed: boolean = false;
-	private _visible: boolean = false;
+	private _visible?: boolean;
 
 	private _text: string = '';
 	private _tooltip?: string | vscode.MarkdownString;
@@ -59,8 +60,19 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this.#proxy = proxy;
 		this.#commands = commands;
 
-		this._entryId = ExtHostStatusBarEntry.ID_GEN++;
-
+		if (id && extension) {
+			this._entryId = asStatusBarItemIdentifier(extension.identifier, id);
+			proxy.$hasEntry(this._entryId).then(exits => {
+				if (exits && this._visible === undefined) {
+					// mark new item as visible if it already exists
+					// this can only happen when an item was contributed by an extension
+					this._visible = true;
+					this.update();
+				}
+			});
+		} else {
+			this._entryId = String(ExtHostStatusBarEntry.ID_GEN++);
+		}
 		this._extension = extension;
 
 		this._id = id;
@@ -258,8 +270,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 class StatusBarMessage {
 
-	private _item: vscode.StatusBarItem;
-	private _messages: { message: string }[] = [];
+	private readonly _item: vscode.StatusBarItem;
+	private readonly _messages: { message: string }[] = [];
 
 	constructor(statusBar: ExtHostStatusBar) {
 		this._item = statusBar.createStatusBarEntry(undefined, 'status.extensionMessage', ExtHostStatusBarAlignment.Left, Number.MIN_VALUE);
@@ -299,7 +311,7 @@ export class ExtHostStatusBar {
 
 	private readonly _proxy: MainThreadStatusBarShape;
 	private readonly _commands: CommandsConverter;
-	private _statusMessage: StatusBarMessage;
+	private readonly _statusMessage: StatusBarMessage;
 
 	constructor(mainContext: IMainContext, commands: CommandsConverter) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadStatusBar);

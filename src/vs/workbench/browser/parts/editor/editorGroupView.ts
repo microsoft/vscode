@@ -1337,6 +1337,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private doCloseEditor(editor: EditorInput, focusNext = (this.accessor.activeGroup === this), internalOptions?: IInternalEditorCloseOptions): void {
 		let index: number | undefined;
 
+		// Forward to title control unless skipped via internal options
+		if (!internalOptions?.skipTitleUpdate) {
+			this.titleAreaControl.beforeCloseEditor(editor, index);
+		}
+
 		// Closing the active editor of the group is a bit more work
 		if (this.model.isActive(editor)) {
 			index = this.doCloseActiveEditor(focusNext, internalOptions);
