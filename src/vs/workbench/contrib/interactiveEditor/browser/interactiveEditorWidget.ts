@@ -48,7 +48,6 @@ import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { MarkdownResponseCropState } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -153,7 +152,6 @@ export class InteractiveEditorWidget {
 	private readonly _inputEditor: IActiveCodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
-	// private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
 
 	private readonly _progressBar: ProgressBar;
 
@@ -185,7 +183,6 @@ export class InteractiveEditorWidget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 
-		// console.log('Inside of the interactive editor widget constructor');
 		// input editor logic
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
@@ -198,22 +195,9 @@ export class InteractiveEditorWidget {
 		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, parentEditor);
 		this._updateAriaLabel();
 		this._store.add(this._inputEditor);
-		this._store.add(this._inputEditor.onDidChangeModelContent(() => {
-			this._onDidChangeInput.fire(this);
-			// console.log('inside of on did change model content');
-		}));
-		this._store.add(this._inputEditor.onDidLayoutChange(() => {
-			this._onDidChangeHeight.fire();
-			// console.log('inside of on did layout change');
-		}));
-		this._store.add(this._inputEditor.onDidContentSizeChange(() => {
-			this._onDidChangeHeight.fire();
-			// console.log('inside of on did content size change');
-		}));
-		this._store.add(parentEditor.onDidChangeModel(() => {
-			this._onDidChangeHeight.fire();
-			// console.log('inside of on did content model of the parent editor');
-		}));
+		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
+		this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
+		this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InteractiveEditor)) {
 				this._updateAriaLabel();
@@ -226,7 +210,6 @@ export class InteractiveEditorWidget {
 
 		// --- context keys
 
-		// this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
 		this._ctxInputEmpty = CTX_INTERACTIVE_EDITOR_EMPTY.bindTo(this._contextKeyService);
 
 		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
@@ -272,7 +255,6 @@ export class InteractiveEditorWidget {
 			if (contentHeight !== currentContentHeight && this._lastDim) {
 				this._lastDim = this._lastDim.with(undefined, contentHeight);
 				this._inputEditor.layout(this._lastDim);
-				// console.log('inside of toggle placeholder');
 				this._onDidChangeHeight.fire();
 			}
 		};
@@ -336,7 +318,6 @@ export class InteractiveEditorWidget {
 	dispose(): void {
 		this._store.dispose();
 		this._ctxInputEmpty.reset();
-		// this._ctxMessageCropState.reset();
 	}
 
 	get domNode(): HTMLElement {
@@ -344,18 +325,11 @@ export class InteractiveEditorWidget {
 	}
 
 	layout(dim: Dimension) {
-		// console.log('interactiveEditorWidget.ts:333 ~ InteractiveEditorWidget ~ layout ~ layout');
-		// console.log('this.widget.getHeight() inside of layout : ', this.getHeight());
-		// console.log('content height : ', this._inputEditor.getContentHeight());
-		// console.log('dim : ', dim);
 		this._isLayouting = true;
 		try {
 			const innerEditorWidth = dim.width - (getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */);
 			dim = new Dimension(innerEditorWidth, dim.height);
-			// console.log('this._lastDim :', this._lastDim);
-			// console.log('Dimension.equals(this._lastDim, dim) : ', Dimension.equals(this._lastDim, dim));
 			if (!this._lastDim || !Dimension.equals(this._lastDim, dim)) {
-				// console.log('entered into the if statement');
 				this._lastDim = dim;
 				this._inputEditor.layout(new Dimension(innerEditorWidth, this._inputEditor.getContentHeight()));
 				this._elements.placeholder.style.width = `${innerEditorWidth  /* input-padding*/}px`;
@@ -369,26 +343,17 @@ export class InteractiveEditorWidget {
 				this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
 			}
 		} finally {
-			// console.log('this.widget.getHeight() inside of layout in finally : ', this.getHeight());
 			this._isLayouting = false;
 		}
 	}
 
 	getHeight(): number {
-		// console.log("interactiveEditorWidget.ts:358 ~ InteractiveEditorWidget ~ getHeight ~ getHeight:");
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
-		// console.log("interactiveEditorWidget.ts:361 ~ InteractiveEditorWidget ~ getHeight ~ base:", base);
 		const editorHeight = this._inputEditor.getContentHeight() + 12 /* padding and border */;
-		// console.log("interactiveEditorWidget.ts:363 ~ InteractiveEditorWidget ~ getHeight ~ editorHeight:", editorHeight)
 		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage);
-		// console.log("interactiveEditorWidget.ts:365 ~ InteractiveEditorWidget ~ getHeight ~ markdownMessageHeight:", markdownMessageHeight)
 		const previewDiffHeight = this._previewDiffEditor.getModel().modified ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())) : 0;
-		// console.log("interactiveEditorWidget.ts:367 ~ InteractiveEditorWidget ~ getHeight ~ previewDiffHeight:", previewDiffHeight)
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
-		// console.log("interactiveEditorWidget.ts:369 ~ InteractiveEditorWidget ~ getHeight ~ previewCreateTitleHeight:", previewCreateTitleHeight)
 		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
-		// console.log("interactiveEditorWidget.ts:371 ~ InteractiveEditorWidget ~ getHeight ~ previewCreateHeight:", previewCreateHeight)
-		// console.log('height : ', base + editorHeight + markdownMessageHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/);
 		return base + editorHeight + markdownMessageHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
@@ -419,30 +384,20 @@ export class InteractiveEditorWidget {
 
 	updateToolbar(show: boolean) {
 		this._elements.statusToolbar.classList.toggle('hidden', !show);
-		console.log('inside of update toolbar');
 		this._onDidChangeHeight.fire();
 	}
 
-	updateMarkdownMessage(message: Node | undefined, cropState?: MarkdownResponseCropState) {
-		console.log('inside of update markdown message');
+	updateMarkdownMessage(message: Node | undefined) {
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
 		if (!message) {
-			// this._ctxMessageCropState.reset();
 			reset(this._elements.message);
-
 		} else {
 			reset(this._elements.message, message);
-			// if (this._elements.message.scrollHeight > this._elements.message.clientHeight) {
-			// 	this._ctxMessageCropState.set('cropped');
-			// } else {
-			// 	this._ctxMessageCropState.set('not_cropped');
-			// }
 		}
-		// console.log('inside of update markdown message');
 		this._onDidChangeHeight.fire();
 	}
 
-	isMessageOverflowing(): boolean {
+	isMarkdownMessageOverflowing(): boolean {
 		return this._elements.message.scrollHeight > this._elements.message.clientHeight;
 	}
 
@@ -463,7 +418,6 @@ export class InteractiveEditorWidget {
 		} else {
 			delete this._elements.statusLabel.dataset['state'];
 		}
-		// console.log('inside of update status');
 		this._onDidChangeHeight.fire();
 	}
 
@@ -477,7 +431,6 @@ export class InteractiveEditorWidget {
 		this._elements.statusToolbar.classList.add('hidden');
 		this.hideCreatePreview();
 		this.hideEditsPreview();
-		// console.log('inside of reset');
 		this._onDidChangeHeight.fire();
 	}
 
@@ -486,9 +439,7 @@ export class InteractiveEditorWidget {
 	}
 
 	updateToggleState(expand: boolean) {
-		// this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
 		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
-		// console.log('inside of update toggle state');
 		this._onDidChangeHeight.fire();
 	}
 
@@ -532,7 +483,6 @@ export class InteractiveEditorWidget {
 		this._previewDiffEditor.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');
 		this._previewDiffEditor.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
 
-		// console.log('inside of show edits preview');
 		this._onDidChangeHeight.fire();
 	}
 
@@ -540,7 +490,6 @@ export class InteractiveEditorWidget {
 		this._elements.previewDiff.classList.add('hidden');
 		this._previewDiffEditor.setModel(null);
 		this._previewDiffModel.clear();
-		// console.log('inside of hide edits preview');
 		this._onDidChangeHeight.fire();
 	}
 
@@ -555,7 +504,6 @@ export class InteractiveEditorWidget {
 		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		this._previewCreateModel.value = model;
 		this._previewCreateEditor.setModel(model);
-		// console.log('inside of show create preview');
 		this._onDidChangeHeight.fire();
 	}
 
@@ -564,7 +512,6 @@ export class InteractiveEditorWidget {
 		this._elements.previewCreate.classList.add('hidden');
 		this._previewCreateEditor.setModel(null);
 		this._previewCreateTitle.element.clear();
-		// console.log('inside of hide create preview');
 		this._onDidChangeHeight.fire();
 	}
 
@@ -705,10 +652,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 	protected override _doLayout(heightInPixel: number): void {
 
-		// console.log('inside of _doLayout');
-		// console.log('this.widget.getHeight() inside of _doLayout before code : ', this.widget.getHeight());
-		// console.log('heightInPixel : ', heightInPixel);
-
 		const info = this.editor.getLayoutInfo();
 		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
 		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
@@ -716,23 +659,18 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
 		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
 		this._dimension = new Dimension(width, heightInPixel);
-		// console.log('this._dimension : ', this._dimension);
 		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
 		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
-		// console.log('this.widget.getHeight() inside of _doLayout after code : ', this.widget.getHeight());
 	}
 
 	private _computeHeightInLines(): number {
-		// console.log('inside of _computeHeightInLines');
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		return this.widget.getHeight() / lineHeight;
 	}
 
 	protected override _relayout() {
-		// console.log('inside of _relayout');
-		// console.log('this._dimension : ', this._dimension);
 		if (this._dimension) {
 			this._doLayout(this._dimension.height);
 		}
@@ -740,7 +678,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 
 	override show(where: IPosition): void {
-		// console.log('inside of show');
 		super.show(where, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
@@ -751,7 +688,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 
 	override hide(): void {
-		// console.log('inside of hide');
 		this._ctxVisible.reset();
 		this._ctxCursorPosition.reset();
 		this.widget.reset();

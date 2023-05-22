@@ -85,7 +85,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _store = new DisposableStore();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
-	// the context key is now controlled inside of the controller
 	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
 	private readonly _ctxLastResponseType: IContextKey<undefined | InteractiveEditorResponseType>;
 	private readonly _ctxDidEdit: IContextKey<boolean>;
@@ -507,8 +506,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		const { response } = this._activeSession.lastExchange!;
 
-		console.log('response in SHOW_RESPONSE : ', response);
-
 		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
 			? response.raw.type
 			: undefined);
@@ -582,28 +579,16 @@ export class InteractiveEditorController implements IEditorContribution {
 	// ---- controller API
 
 	updateMarkdownMessage(response: MarkdownResponse | undefined): void {
-
-		console.log('inside of updateMarkdownMessage');
-		console.log('response : ', response);
-
 		if (response) {
-			console.log('entered into the case when the response is defined');
-
 			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
 			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
-
 			const cropState = response.cropState;
-			console.log('cropState : ', cropState);
 
 			if (cropState) {
-				console.log('entered into if loop');
 				this._ctxMessageCropState.set(cropState);
-				const expand = cropState === MarkdownResponseCropState.EXPANDED;
-				this._zone.widget.updateToggleState(expand);
+				this._zone.widget.updateToggleState(cropState === MarkdownResponseCropState.EXPANDED);
 			} else {
-				console.log('entered into the else loop');
-				// need to initialize the crop state to either cropped or not cropped
-				if (this._zone.widget.isMessageOverflowing()) {
+				if (this._zone.widget.isMarkdownMessageOverflowing()) {
 					this._ctxMessageCropState.set('cropped');
 					response.cropState = MarkdownResponseCropState.CROPPED;
 				} else {
@@ -612,11 +597,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				}
 				this._zone.widget.updateToggleState(false);
 			}
-			console.log('this._ctxMessageCropState.get() : ', this._ctxMessageCropState.get());
-
 		} else {
-			console.log('entered into the case when the response is undefined');
-
 			this._zone.widget.updateMarkdownMessage(undefined);
 			this._ctxMessageCropState.reset();
 		}
@@ -668,16 +649,13 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	updateExpansionState(expand: boolean) {
-		console.log('inside of update expansion state');
-		const cropState = expand ? MarkdownResponseCropState.EXPANDED : MarkdownResponseCropState.CROPPED;
-		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
 		const response = this._activeSession?.lastExchange!.response;
 		if (response instanceof MarkdownResponse) {
+			const cropState = expand ? MarkdownResponseCropState.EXPANDED : MarkdownResponseCropState.CROPPED;
 			response.cropState = cropState;
+			this._ctxMessageCropState.set(cropState);
+			this._zone.widget.updateToggleState(expand);
 		}
-		console.log('response: ', response);
-		console.log('this._ctxMessageCropState.get() : ', this._ctxMessageCropState.get());
-		this._zone.widget.updateToggleState(expand);
 	}
 
 	feedbackLast(helpful: boolean) {
