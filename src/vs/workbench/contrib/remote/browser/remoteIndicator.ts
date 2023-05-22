@@ -71,6 +71,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
 
+	private static readonly REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE = 2;
 	private static readonly REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD = 500;
 	private static readonly REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY = 60 * 1000;
 	private static readonly REMOTE_CONNECTION_LATENCY_SCHEDULER_FIRST_RUN_DELAY = 10 * 1000;
@@ -91,7 +92,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private networkState: 'online' | 'offline' | 'slow' | undefined = undefined;
 	private measureNetworkConnectionLatencyScheduler: RunOnceScheduler | undefined = undefined;
-	private networkConnectionLatency: number | undefined = undefined;
+	private networkConnectionCurrentLatency: number | undefined = undefined;
+	private networkConnectionAverageLatency: number | undefined = undefined;
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 
@@ -321,9 +323,28 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// waking up the connection to the remote
 
 		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'slow' || this.networkState === undefined)) {
-			this.networkConnectionLatency = await measureRoundTripTime(this.remoteAgentService);
+			const measurement = await measureRoundTripTime(this.remoteAgentService);
+			if (!measurement) {
+				return;
+			}
 
-			if (typeof this.networkConnectionLatency === 'number' && this.networkConnectionLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD) {
+			if (!measurement.initial) {
+				return; // wait for initial latency to be computed
+			}
+
+			this.networkConnectionCurrentLatency = measurement.current;
+			this.networkConnectionAverageLatency = measurement.average;
+
+			// based on the initial, average and current latency, try to decide
+			// if the connection is slow
+			// Some rules:
+			// - we only consider latency above REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD as potentially slow
+			// - we require the current latency to be above the average latency by a factor of REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
+
+			if (
+				this.networkConnectionCurrentLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD &&
+				this.networkConnectionCurrentLatency > measurement.initial * RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
+			) {
 				this.setNetworkState('slow');
 			} else if (this.networkState === 'slow') {
 				this.setNetworkState('online');
@@ -464,7 +485,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				break;
 			case 'slow':
 				text = `${initialText} - ${nls.localize('networkStatusSlow', "$(alert) Lagging")}`;
-				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "The network is slow (measured latency of {0}ms). Some features may be slow to respond.", this.networkConnectionLatency));
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "The network is slow (latency: {0}ms currently, {1}ms average). Some features may be slow to respond.", this.networkConnectionCurrentLatency, this.networkConnectionAverageLatency));
 				break;
 		}
 

@@ -223,7 +223,7 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 		this._telemetryService.publicLog2<RemoteConnectionLatencyEvent, RemoteConnectionLatencyClassification>('remoteConnectionLatency', {
 			web: isWeb,
 			remoteName: getRemoteName(this._environmentService.remoteAuthority),
-			latencyMs: bestLatency
+			latencyMs: bestLatency.current
 		});
 	}
 }
