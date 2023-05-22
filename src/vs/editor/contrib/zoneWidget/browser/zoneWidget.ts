@@ -467,6 +467,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	protected _relayout(newHeightInLines: number): void {
+
+		// console.log('inside of _relayout of the ZoneWidget');
+
 		if (this._viewZone && this._viewZone.heightInLines !== newHeightInLines) {
 			this.editor.changeViewZones(accessor => {
 				if (this._viewZone) {

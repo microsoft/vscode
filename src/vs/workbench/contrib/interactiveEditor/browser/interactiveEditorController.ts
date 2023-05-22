@@ -29,10 +29,10 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, MarkdownResponseCropState, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorStrategies';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -85,6 +85,8 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _store = new DisposableStore();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
+	// the context key is now controlled inside of the controller
+	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
 	private readonly _ctxLastResponseType: IContextKey<undefined | InteractiveEditorResponseType>;
 	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
@@ -110,6 +112,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
+		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(contextKeyService);
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INTERACTIVE_EDITOR_DID_EDIT.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
@@ -470,7 +473,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		const { response } = this._activeSession.lastExchange!;
 		if (response instanceof EditResponse) {
 			// edit response -> complex...
-			this._zone.widget.updateMarkdownMessage(undefined);
+			this.updateMarkdownMessage(undefined);
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
@@ -504,6 +507,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		const { response } = this._activeSession.lastExchange!;
 
+		console.log('response in SHOW_RESPONSE : ', response);
+
 		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
 			? response.raw.type
 			: undefined);
@@ -521,14 +526,13 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		} else if (response instanceof MarkdownResponse) {
 			// clear status, show MD message
-			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
 			this._zone.widget.updateStatus('');
-			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
+			this.updateMarkdownMessage(response);
 			this._zone.widget.updateToolbar(true);
 
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
-			this._zone.widget.updateMarkdownMessage(undefined);
+			this.updateMarkdownMessage(undefined);
 			this._zone.widget.updateToolbar(true);
 
 			const canContinue = this._strategy.checkChanges(response);
@@ -577,6 +581,46 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	// ---- controller API
 
+	updateMarkdownMessage(response: MarkdownResponse | undefined): void {
+
+		console.log('inside of updateMarkdownMessage');
+		console.log('response : ', response);
+
+		if (response) {
+			console.log('entered into the case when the response is defined');
+
+			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
+			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
+
+			const cropState = response.cropState;
+			console.log('cropState : ', cropState);
+
+			if (cropState) {
+				console.log('entered into if loop');
+				this._ctxMessageCropState.set(cropState);
+				const expand = cropState === MarkdownResponseCropState.EXPANDED;
+				this._zone.widget.updateToggleState(expand);
+			} else {
+				console.log('entered into the else loop');
+				// need to initialize the crop state to either cropped or not cropped
+				if (this._zone.widget.isMessageOverflowing()) {
+					this._ctxMessageCropState.set('cropped');
+					response.cropState = MarkdownResponseCropState.CROPPED;
+				} else {
+					this._ctxMessageCropState.set('not_cropped');
+					response.cropState = MarkdownResponseCropState.NOT_CROPPED;
+				}
+				this._zone.widget.updateToggleState(false);
+			}
+			console.log('this._ctxMessageCropState.get() : ', this._ctxMessageCropState.get());
+
+		} else {
+			console.log('entered into the case when the response is undefined');
+
+			this._zone.widget.updateMarkdownMessage(undefined);
+			this._ctxMessageCropState.reset();
+		}
+	}
 	accept(): void {
 		this._messages.fire(Message.ACCEPT_INPUT);
 	}
@@ -624,6 +668,15 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	updateExpansionState(expand: boolean) {
+		console.log('inside of update expansion state');
+		const cropState = expand ? MarkdownResponseCropState.EXPANDED : MarkdownResponseCropState.CROPPED;
+		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
+		const response = this._activeSession?.lastExchange!.response;
+		if (response instanceof MarkdownResponse) {
+			response.cropState = cropState;
+		}
+		console.log('response: ', response);
+		console.log('this._ctxMessageCropState.get() : ', this._ctxMessageCropState.get());
 		this._zone.widget.updateToggleState(expand);
 	}
 

@@ -194,7 +194,16 @@ export class ErrorResponse {
 	}
 }
 
+export enum MarkdownResponseCropState {
+	CROPPED = 'cropped',
+	NOT_CROPPED = 'not_cropped',
+	EXPANDED = 'expanded'
+}
+
 export class MarkdownResponse {
+
+	cropState: MarkdownResponseCropState | undefined;
+
 	constructor(
 		readonly localUri: URI,
 		readonly raw: IInteractiveEditorMessageResponse
