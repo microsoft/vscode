@@ -82,7 +82,8 @@ export const remoteConnectionLatencyMeasurer = new class {
 	readonly #maxAverageCount = 100;
 
 	readonly #slowMultiple = 2;
-	readonly #slowThreshold = 500;
+	readonly #slowMinThreshold = 500;
+	readonly #slowMaxThreshold = 1500;
 
 	#lastMeasurement: IRemoteConnectionLatencyMeasurement | undefined = undefined;
 	get latency() { return this.#lastMeasurement; }
@@ -121,17 +122,28 @@ export const remoteConnectionLatencyMeasurer = new class {
 			current: currentLatency,
 			average: this.#average.reduce((sum, value) => sum + value, 0) / this.#average.length,
 			slow: (() => {
-				if (typeof initialLatency === 'undefined') {
-					return false; // need more samples to make a statement
-				}
 
 				// based on the initial, average and current latency, try to decide
 				// if the connection is slow
 				// Some rules:
-				// - we only consider latency above REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD as potentially slow
-				// - we require the current latency to be above the average latency by a factor of REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
+				// - we require the initial latency to be computed
+				// - we only consider latency above slowMinThreshold as potentially slow
+				// - we require the current latency to be above the average latency by a factor of slowMultiple
+				// - but not if the latency is actually above slowMaxThreshold
 
-				return currentLatency > this.#slowThreshold && currentLatency > initialLatency * this.#slowMultiple;
+				if (typeof initialLatency === 'undefined') {
+					return false;
+				}
+
+				if (currentLatency > this.#slowMaxThreshold) {
+					return true;
+				}
+
+				if (currentLatency > this.#slowMinThreshold && currentLatency > initialLatency * this.#slowMultiple) {
+					return true;
+				}
+
+				return false;
 			})()
 		};
 
