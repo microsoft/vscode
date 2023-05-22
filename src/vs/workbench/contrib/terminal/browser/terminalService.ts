@@ -506,8 +506,7 @@ export class TerminalService implements ITerminalService {
 			return this.createTerminal();
 		}
 		// Active instance, ensure accepts input
-		// Don't use task terminals or other terminals that don't accept input
-		if (!options?.acceptsInput || activeInstance?.shellLaunchConfig.type !== 'Task' && activeInstance.xterm?.isStdinDisabled !== true) {
+		if (!options?.acceptsInput || activeInstance.xterm?.isStdinDisabled !== true) {
 			return activeInstance;
 		}
 		// Active instance doesn't accept input, create and focus

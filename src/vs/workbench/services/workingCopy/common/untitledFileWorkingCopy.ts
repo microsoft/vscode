@@ -37,9 +37,9 @@ export interface IUntitledFileWorkingCopyModelContentChangedEvent {
 
 	/**
 	 * Flag that indicates that the content change should
-	 * clear the dirty flag, e.g. because the contents are
+	 * clear the dirty/modified flags, e.g. because the contents are
 	 * back to being empty or back to an initial state that
-	 * should not be considered as dirty.
+	 * should not be considered as modified.
 	 */
 	readonly isInitial: boolean;
 }
@@ -92,7 +92,7 @@ export interface IUntitledFileWorkingCopyInitialContents {
 
 export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
 
-	readonly capabilities = WorkingCopyCapabilities.Untitled;
+	readonly capabilities = this.isScratchpad ? WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad : WorkingCopyCapabilities.Untitled;
 
 	private _model: M | undefined = undefined;
 	get model(): M | undefined { return this._model; }
@@ -121,6 +121,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		readonly resource: URI,
 		readonly name: string,
 		readonly hasAssociatedFilePath: boolean,
+		private readonly isScratchpad: boolean,
 		private readonly initialContents: IUntitledFileWorkingCopyInitialContents | undefined,
 		private readonly modelFactory: IUntitledFileWorkingCopyModelFactory<M>,
 		private readonly saveDelegate: IUntitledFileWorkingCopySaveDelegate<M>,
@@ -136,19 +137,25 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	//#region Dirty
 
-	private dirty = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markDirty !== false);
+	private modified = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markDirty !== false);
 
 	isDirty(): boolean {
-		return this.dirty;
+		return this.modified && !this.isScratchpad; // Scratchpad working copies are never dirty
 	}
 
-	private setDirty(dirty: boolean): void {
-		if (this.dirty === dirty) {
+	isModified(): boolean {
+		return this.modified;
+	}
+
+	private setModified(modified: boolean): void {
+		if (this.modified === modified) {
 			return;
 		}
 
-		this.dirty = dirty;
-		this._onDidChangeDirty.fire();
+		this.modified = modified;
+		if (!this.isScratchpad) {
+			this._onDidChangeDirty.fire();
+		}
 	}
 
 	//#endregion
@@ -189,8 +196,8 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		// Create model
 		await this.doCreateModel(untitledContents);
 
-		// Untitled associated to file path are dirty right away as well as untitled with content
-		this.setDirty(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markDirty !== false));
+		// Untitled associated to file path are modified right away as well as untitled with content
+		this.setModified(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markDirty !== false));
 
 		// If we have initial contents, make sure to emit this
 		// as the appropriate events to the outside.
@@ -220,16 +227,16 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	private onModelContentChanged(e: IUntitledFileWorkingCopyModelContentChangedEvent): void {
 
-		// Mark the untitled file working copy as non-dirty once its
+		// Mark the untitled file working copy as non-modified once its
 		// in case provided by the change event and in case we do not
 		// have an associated path set
 		if (!this.hasAssociatedFilePath && e.isInitial) {
-			this.setDirty(false);
+			this.setModified(false);
 		}
 
-		// Turn dirty otherwise
+		// Turn modified otherwise
 		else {
-			this.setDirty(true);
+			this.setModified(true);
 		}
 
 		// Emit as general content change event
@@ -287,8 +294,8 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	async revert(): Promise<void> {
 		this.trace('revert()');
 
-		// No longer dirty
-		this.setDirty(false);
+		// No longer modified
+		this.setModified(false);
 
 		// Emit as event
 		this._onDidRevert.fire();

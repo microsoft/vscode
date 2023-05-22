@@ -5,7 +5,7 @@
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
-import { IInteractiveResponseViewModel, IChatViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatResponseViewModel, IChatViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -31,7 +31,7 @@ export interface IChatWidgetService {
 
 export interface IChatCodeBlockInfo {
 	codeBlockIndex: number;
-	element: IInteractiveResponseViewModel;
+	element: IChatResponseViewModel;
 	focus(): void;
 }
 
@@ -49,7 +49,7 @@ export interface IChatWidget {
 	focusInput(): void;
 	getSlashCommands(): Promise<ISlashCommand[] | undefined>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
-	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IChatCodeBlockInfo[];
+	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 }
 
 export interface IChatViewPane {

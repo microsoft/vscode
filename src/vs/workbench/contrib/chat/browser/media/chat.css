@@ -103,7 +103,7 @@
 .interactive-item-container .value table,
 .interactive-item-container .value table td,
 .interactive-item-container .value table th {
-	border: 1px solid var(--vscode-interactive-requestBorder);
+	border: 1px solid var(--vscode-chat-requestBorder);
 	border-collapse: collapse;
 	padding: 4px 6px;
 }
@@ -122,9 +122,9 @@
 }
 
 .interactive-request {
-	background-color: var(--vscode-interactive-requestBackground);
-	border-bottom: 1px solid var(--vscode-interactive-requestBorder);
-	border-top: 1px solid var(--vscode-interactive-requestBorder);
+	background-color: var(--vscode-chat-requestBackground);
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+	border-top: 1px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-item-container .value {
@@ -222,7 +222,7 @@
 	right: 10px;
 	height: 26px;
 	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
-	border: 1px solid var(--vscode-interactive-requestBorder);
+	border: 1px solid var(--vscode-chat-requestBorder);
 	z-index: 100;
 }
 
@@ -279,7 +279,7 @@
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
-	border-top: solid 1px var(--vscode-interactive-requestBorder);
+	border-top: solid 1px var(--vscode-chat-requestBorder);
 }
 
 .interactive-session-followups {
