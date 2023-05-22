@@ -1183,17 +1183,6 @@ class ViewModel {
 				this.storageService.store(`scm.viewState`, JSON.stringify(this.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		});
-
-		this.storageService.onDidChangeValue(e => {
-			switch (e.key) {
-				case 'scm.viewMode':
-					this.mode = this.getViewModelMode();
-					break;
-				case 'scm.viewSortKey':
-					this.sortKey = this.getViewModelSortKey();
-					break;
-			}
-		});
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
