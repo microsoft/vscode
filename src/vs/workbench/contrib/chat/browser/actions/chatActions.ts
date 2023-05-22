@@ -3,28 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addStandardDisposableListener } from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { getAccessibilityHelpText } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
+import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { clearChatEditor, clearChatSession } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -38,7 +35,7 @@ export function registerChatActions() {
 				id: 'chat.action.acceptInput',
 				label: localize({ key: 'actions.chat.acceptInput', comment: ['Apply input from the chat input box'] }, "Accept Chat Input"),
 				alias: 'Accept Chat Input',
-				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
+				precondition: CONTEXT_IN_CHAT_INPUT,
 				kbOpts: {
 					kbExpr: EditorContextKeys.textInputFocus,
 					primary: KeyCode.Enter,
@@ -104,22 +101,22 @@ export function registerChatActions() {
 		}
 	});
 
-	registerEditorAction(class FocusChatAction extends EditorAction {
+	registerAction2(class FocusChatAction extends EditorAction2 {
 		constructor() {
 			super({
 				id: 'chat.action.focus',
-				label: localize('actions.interactiveSession.focus', "Focus Interactive Session"),
-				alias: 'Focus Interactive Session',
-				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
-				kbOpts: {
-					kbExpr: EditorContextKeys.textInputFocus,
+				title: { value: localize('actions.interactiveSession.focus', "Focus Chat List"), original: 'Focus Chat List' },
+				precondition: CONTEXT_IN_CHAT_INPUT,
+				category: CHAT_CATEGORY,
+				keybinding: {
+					when: EditorContextKeys.textInputFocus,
 					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 					weight: KeybindingWeight.EditorContrib
 				}
 			});
 		}
 
-		run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+		runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 			const editorUri = editor.getModel()?.uri;
 			if (editorUri) {
 				const widgetService = accessor.get(IChatWidgetService);
@@ -134,49 +131,15 @@ export function registerChatActions() {
 				id: 'chat.action.accessibilityHelp',
 				label: localize('chat.action.accessibiltyHelp', "Chat View Accessibility Help"),
 				alias: 'Chat View Accessibility Help',
-				precondition: CONTEXT_IN_INTERACTIVE_INPUT,
+				precondition: CONTEXT_IN_CHAT_INPUT,
 				kbOpts: {
 					primary: KeyMod.Alt | KeyCode.F1,
 					weight: KeybindingWeight.EditorContrib + 10
 				}
 			});
 		}
-
 		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-			const widgetService = accessor.get(IChatWidgetService);
-			const keybindingService = accessor.get(IKeybindingService);
-			const inputEditor = widgetService.lastFocusedWidget?.inputEditor;
-			const editorUri = editor.getModel()?.uri;
-
-			if (!inputEditor || !editorUri) {
-				return;
-			}
-
-			const widget = widgetService.getWidgetByInputUri(editorUri);
-			const domNode = withNullAsUndefined(inputEditor.getDomNode());
-
-			if (!domNode || !widget) {
-				return;
-			}
-
-			const cachedInput = inputEditor.getValue();
-			const cachedPosition = inputEditor.getPosition();
-
-			const helpText = getAccessibilityHelpText(keybindingService);
-			inputEditor.setValue(helpText);
-			inputEditor.updateOptions({ readOnly: true });
-			inputEditor.focus();
-			const disposable = addStandardDisposableListener(domNode, 'keydown', e => {
-				if (e.keyCode === KeyCode.Escape && inputEditor.getValue() === helpText) {
-					inputEditor.updateOptions({ readOnly: false });
-					inputEditor.setValue(cachedInput);
-					if (cachedPosition) {
-						inputEditor.setPosition(cachedPosition);
-					}
-					widget.focusInput();
-					disposable.dispose();
-				}
-			});
+			runAccessibilityHelpAction(accessor, editor, 'chat');
 		}
 	});
 
@@ -185,14 +148,14 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.focusInput',
 				title: {
-					value: localize('interactiveSession.focusInput.label', "Focus Input"),
-					original: 'Focus Input'
+					value: localize('interactiveSession.focusInput.label', "Focus Chat Input"),
+					original: 'Focus Chat Input'
 				},
 				f1: false,
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: ContextKeyExpr.and(CONTEXT_IN_INTERACTIVE_SESSION, ContextKeyExpr.not(EditorContextKeys.focus.key))
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, ContextKeyExpr.not(EditorContextKeys.focus.key))
 				}
 			});
 		}
@@ -216,7 +179,7 @@ export function registerChatActions() {
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.WinCtrl | KeyCode.KeyL,
-					when: CONTEXT_IN_INTERACTIVE_SESSION,
+					when: CONTEXT_IN_CHAT_SESSION,
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL,
 						secondary: [KeyMod.CtrlCmd | KeyCode.KeyK]

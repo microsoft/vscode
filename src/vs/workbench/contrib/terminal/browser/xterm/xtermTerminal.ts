@@ -18,7 +18,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -152,7 +152,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	readonly onDidRequestSendText = this._onDidRequestSendText.event;
 	private readonly _onDidRequestFreePort = new Emitter<string>();
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
-	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
+	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number }>();
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 	private readonly _onDidChangeSelection = new Emitter<void>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
@@ -409,9 +409,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			return this._searchAddon;
 		}
 		const AddonCtor = await this._getSearchAddonConstructor();
-		this._searchAddon = new AddonCtor();
+		this._searchAddon = new AddonCtor({ highlightLimit: XtermTerminalConstants.SearchHighlightLimit });
 		this.raw.loadAddon(this._searchAddon);
-		this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number } | undefined) => {
+		this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
 			this._lastFindResult = results;
 			this._onDidChangeFindResults.fire(results);
 		});

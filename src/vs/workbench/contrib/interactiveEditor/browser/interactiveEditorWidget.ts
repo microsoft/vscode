@@ -43,7 +43,13 @@ import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+
+const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -84,7 +90,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 		showStatusBar: false,
 	},
 	wordWrap: 'on',
-	ariaLabel: localize('aria-label', "Interactive Editor Input"),
+	ariaLabel: defaultAriaLabel,
 	fontFamily: DEFAULT_FONT_FAMILY,
 	fontSize: 13,
 	lineHeight: 20,
@@ -172,7 +178,10 @@ export class InteractiveEditorWidget {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 
 		// input editor logic
@@ -185,10 +194,16 @@ export class InteractiveEditorWidget {
 		};
 
 		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, parentEditor);
+		this._updateAriaLabel();
 		this._store.add(this._inputEditor);
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
 		this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InteractiveEditor)) {
+				this._updateAriaLabel();
+			}
+		}));
 
 		const uri = URI.from({ scheme: 'vscode', authority: 'interactive-editor', path: `/interactive-editor/model${InteractiveEditorWidget._modelPool++}.txt` });
 		this._inputModel = this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri);
@@ -287,6 +302,19 @@ export class InteractiveEditorWidget {
 		this._elements.statusLabel.tabIndex = 0;
 		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
 		this._store.add(markdownMessageToolbar);
+	}
+
+	private _updateAriaLabel(): void {
+		if (!this._accessibilityService.isScreenReaderOptimized()) {
+			return;
+		}
+		let label = defaultAriaLabel;
+		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InteractiveEditor)) {
+			const kbLabel = this._keybindingService.lookupKeybinding('interactiveEditor.accessibilityHelp')?.getLabel();
+			label = kbLabel ? localize('interactiveEditor.accessibilityHelp', "Interactive Editor Input, Use {0} for Interactive Editor Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Interactive Editor Input, Run the Interactive Editor Accessibility Help command for more information.");
+		}
+		_inputEditorOptions.ariaLabel = label;
+		this._inputEditor.updateOptions({ ariaLabel: label });
 	}
 
 	dispose(): void {

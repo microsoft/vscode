@@ -349,8 +349,7 @@ export class SearchView extends ViewPane {
 		}));
 
 		// folder includes list
-		const folderIncludesList = dom.append(this.queryDetails,
-			$('.file-types.includes'));
+		const folderIncludesList = dom.append(this.queryDetails, $('.file-types.includes'));
 		const filesToIncludeTitle = nls.localize('searchScope.includes', "files to include");
 		dom.append(folderIncludesList, $('h4', undefined, filesToIncludeTitle));
 
@@ -689,6 +688,8 @@ export class SearchView extends ViewPane {
 					errors.isCancellationError(error);
 					this.notificationService.error(error);
 				});
+			} else {
+				progressComplete();
 			}
 		});
 	}
@@ -1994,6 +1995,11 @@ export class SearchView extends ViewPane {
 	}
 
 	public override saveState(): void {
+		// This can be called before renderBody() method gets called for the first time
+		// if we move the searchView inside another viewPaneContainer
+		if (!this.searchWidget) {
+			return;
+		}
 
 		const patternExcludes = this.inputPatternExcludes?.getValue().trim() ?? '';
 		const patternIncludes = this.inputPatternIncludes?.getValue().trim() ?? '';
@@ -2010,6 +2016,7 @@ export class SearchView extends ViewPane {
 			const isInNotebookCellInput = this.searchWidget.getNotebookFilters().codeInput;
 			const isInNotebookCellOutput = this.searchWidget.getNotebookFilters().codeOutput;
 			const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
+			const isInNotebookMarkdownPreview = this.searchWidget.getNotebookFilters().markupPreview;
 
 			this.viewletState['query.contentPattern'] = contentPattern;
 			this.viewletState['query.regex'] = isRegex;
@@ -2017,6 +2024,7 @@ export class SearchView extends ViewPane {
 			this.viewletState['query.caseSensitive'] = isCaseSensitive;
 
 			this.viewletState['query.isInNotebookMarkdownInput'] = isInNotebookMarkdownInput;
+			this.viewletState['query.isInNotebookMarkdownPreview'] = isInNotebookMarkdownPreview;
 			this.viewletState['query.isInNotebookCellInput'] = isInNotebookCellInput;
 			this.viewletState['query.isInNotebookCellOutput'] = isInNotebookCellOutput;
 		}
