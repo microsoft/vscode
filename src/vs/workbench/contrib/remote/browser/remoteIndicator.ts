@@ -502,10 +502,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 
 		if (markdownTooltip.value.length > 0) {
-			markdownTooltip.appendText('\n\n');
+			markdownTooltip.appendMarkdown('\n\n');
 		}
 
-		markdownTooltip.appendText(line);
+		markdownTooltip.appendMarkdown(line);
 
 		return markdownTooltip;
 	}
