@@ -36,12 +36,28 @@ let lastPtyId = 0;
 export class PtyHostService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
-	private _connection: IPtyHostConnection;
+	private __connection?: IPtyHostConnection;
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
-	private _proxy: IPtyService;
+	private __proxy?: IPtyService;
+
+	private get _connection(): IPtyHostConnection {
+		this._ensurePtyHost();
+		return this.__connection!;
+	}
+	private get _proxy(): IPtyService {
+		this._ensurePtyHost();
+		return this.__proxy!;
+	}
+
+	private _ensurePtyHost() {
+		if (!this.__connection) {
+			[this.__connection, this.__proxy] = this._startPtyHost();
+		}
+	}
 
 	private readonly _shellEnv: Promise<typeof process.env>;
 	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string; originalText: string[] }>;
+	private _wasQuitRequested = false;
 	private _restartCount = 0;
 	private _isResponsive = true;
 	private _isDisposed = false;
@@ -90,20 +106,19 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		this._register(toDisposable(() => this._disposePtyHost()));
 
+
 		this._resolveVariablesRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
 
-		[this._connection, this._proxy] = this._startPtyHost();
+		// Force the pty host to start as the first window is starting if the starter has that
+		// capability
+		if (this._ptyHostStarter.onBeforeWindowConnection) {
+			Event.once(this._ptyHostStarter.onBeforeWindowConnection)(() => this._ensurePtyHost());
+		} else {
+			this._ensurePtyHost();
+		}
 
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
-				await this._refreshIgnoreProcessNames();
-			}
-		}));
-	}
-
-	initialize(): void {
-		this._refreshIgnoreProcessNames();
+		this._ptyHostStarter.onWillShutdown?.(() => this._wasQuitRequested = true);
 	}
 
 	private get _ignoreProcessNames(): string[] {
@@ -142,7 +157,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// Handle exit
 		this._register(connection.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
-			if (!this._isDisposed) {
+			if (!this._wasQuitRequested && !this._isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
 					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
 					this._restartCount++;
@@ -168,6 +183,16 @@ export class PtyHostService extends Disposable implements IPtyService {
 		Event.once(Event.any(proxy.onProcessReady, proxy.onProcessReplay))(() => {
 			this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 		});
+
+		this.__connection = connection;
+		this.__proxy = proxy;
+
+		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
+				await this._refreshIgnoreProcessNames();
+			}
+		}));
+		this._refreshIgnoreProcessNames();
 
 		return [connection, proxy];
 	}
@@ -315,14 +340,14 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	async restartPtyHost(): Promise<void> {
-		this._isResponsive = true;
 		this._disposePtyHost();
-		[this._connection, this._proxy] = this._startPtyHost();
+		this._isResponsive = true;
+		this._startPtyHost();
 	}
 
 	private _disposePtyHost(): void {
 		this._proxy.shutdownAll?.();
-		this._connection.dispose();
+		this._connection.store.dispose();
 	}
 
 	private _handleHeartbeat() {
