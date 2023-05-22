@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
@@ -44,6 +44,9 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 					.then(info => {
 						if (info) {
 							(info as IRemoteDiagnosticInfo).hostName = hostName;
+							if (remoteConnectionLatencyMeasurer.last?.slow) {
+								(info as IRemoteDiagnosticInfo).latency = remoteConnectionLatencyMeasurer.last?.current;
+							}
 						}
 
 						ipcRenderer.send(request.replyChannel, info);

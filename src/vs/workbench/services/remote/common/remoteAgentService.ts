@@ -61,44 +61,81 @@ export interface IRemoteAgentConnection {
 	getInitialConnectionTimeMs(): Promise<number>;
 }
 
-const ROUNDTRIP_MEASURE_SAMPLES = 5;
-const ROUNDTRIP_MEASURE_DELAY = 2000;
-const ROUNDTRIP_MEASURE_INITIAL: number[] = [];
-const ROUNDTRIP_MEASURE_INITIAL_COUNT = 3;
-const ROUNDTRIP_MEASURE_AVERAGE: number[] = [];
-const ROUNDTRIP_MEASURE_AVERAGE_COUNT = 100;
+export interface IRemoteConnectionLatencyMeasurement {
 
-export async function measureRoundTripTime(remoteAgentService: IRemoteAgentService, samples = ROUNDTRIP_MEASURE_SAMPLES, interval = ROUNDTRIP_MEASURE_DELAY): Promise<{ initial: number | undefined; current: number; average: number } | undefined> {
-	let currentLatency = Infinity;
+	readonly initial: number | undefined;
+	readonly current: number;
+	readonly average: number;
 
-	// Measure up to samples count
-	for (let i = 0; i < samples; i++) {
-		const rtt = await remoteAgentService.getRoundTripTime();
-		if (rtt === undefined) {
-			return undefined;
+	readonly slow: boolean;
+}
+
+export const remoteConnectionLatencyMeasurer = new class {
+
+	private readonly maxSampleCount = 5;
+	private readonly sampleDelay = 2000;
+
+	private readonly initial: number[] = [];
+	private readonly maxInitialCount = 3;
+
+	private readonly average: number[] = [];
+	private readonly maxAverageCount = 100;
+
+	private readonly slowMultiple = 2;
+	private readonly slowThreshold = 500;
+
+	private _lastMeasurement: IRemoteConnectionLatencyMeasurement | undefined = undefined;
+	get last() { return this._lastMeasurement; }
+
+	async measure(remoteAgentService: IRemoteAgentService): Promise<IRemoteConnectionLatencyMeasurement | undefined> {
+		let currentLatency = Infinity;
+
+		// Measure up to samples count
+		for (let i = 0; i < this.maxSampleCount; i++) {
+			const rtt = await remoteAgentService.getRoundTripTime();
+			if (rtt === undefined) {
+				return undefined;
+			}
+
+			currentLatency = Math.min(currentLatency, rtt / 2 /* we want just one way, not round trip time */);
+			await timeout(this.sampleDelay);
 		}
 
-		currentLatency = Math.min(currentLatency, rtt / 2 /* we want just one way, not round trip time */);
-		await timeout(interval);
-	}
+		// Keep track of average latency
+		this.average.push(currentLatency);
+		if (this.average.length > this.maxAverageCount) {
+			this.average.shift();
+		}
 
-	// Keep result stored for averages
-	ROUNDTRIP_MEASURE_AVERAGE.push(currentLatency);
-	if (ROUNDTRIP_MEASURE_AVERAGE.length > ROUNDTRIP_MEASURE_AVERAGE_COUNT) {
-		ROUNDTRIP_MEASURE_AVERAGE.shift();
-	}
+		// Keep track of initial latency
+		let initialLatency: number | undefined = undefined;
+		if (this.initial.length < this.maxInitialCount) {
+			this.initial.push(currentLatency);
+		} else {
+			initialLatency = this.initial.reduce((sum, value) => sum + value, 0) / this.initial.length;
+		}
 
-	// Keep track of initial latency
-	let initialLatency: number | undefined = undefined;
-	if (ROUNDTRIP_MEASURE_INITIAL.length < ROUNDTRIP_MEASURE_INITIAL_COUNT) {
-		ROUNDTRIP_MEASURE_INITIAL.push(currentLatency);
-	} else {
-		initialLatency = ROUNDTRIP_MEASURE_INITIAL.reduce((sum, value) => sum + value, 0) / ROUNDTRIP_MEASURE_INITIAL.length;
-	}
+		// Remember as last measurement
+		this._lastMeasurement = {
+			initial: initialLatency,
+			current: currentLatency,
+			average: this.average.reduce((sum, value) => sum + value, 0) / this.average.length,
+			slow: (() => {
+				if (typeof initialLatency === 'undefined') {
+					return false; // need more samples to make a statement
+				}
 
-	return {
-		initial: initialLatency,
-		current: currentLatency,
-		average: ROUNDTRIP_MEASURE_AVERAGE.reduce((sum, value) => sum + value, 0) / ROUNDTRIP_MEASURE_AVERAGE.length
-	};
-}
+				// based on the initial, average and current latency, try to decide
+				// if the connection is slow
+				// Some rules:
+				// - we only consider latency above REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD as potentially slow
+				// - we require the current latency to be above the average latency by a factor of REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
+
+				return currentLatency > this.slowThreshold && currentLatency > initialLatency * this.slowMultiple;
+			})()
+		};
+
+		return this._lastMeasurement;
+	}
+};
+

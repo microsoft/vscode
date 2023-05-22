@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IRemoteAgentService, measureRoundTripTime } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
@@ -71,8 +71,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
 
-	private static readonly REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE = 2;
-	private static readonly REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD = 500;
 	private static readonly REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY = 60 * 1000;
 	private static readonly REMOTE_CONNECTION_LATENCY_SCHEDULER_FIRST_RUN_DELAY = 10 * 1000;
 
@@ -323,21 +321,12 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// waking up the connection to the remote
 
 		if (this.hostService.hasFocus && (this.networkState === 'online' || this.networkState === 'slow' || this.networkState === undefined)) {
-			const measurement = await measureRoundTripTime(this.remoteAgentService);
-			if (typeof measurement?.initial === 'number') {
+			const measurement = await remoteConnectionLatencyMeasurer.measure(this.remoteAgentService);
+			if (measurement) {
 				this.networkConnectionCurrentLatency = measurement.current;
 				this.networkConnectionAverageLatency = measurement.average;
 
-				// based on the initial, average and current latency, try to decide
-				// if the connection is slow
-				// Some rules:
-				// - we only consider latency above REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD as potentially slow
-				// - we require the current latency to be above the average latency by a factor of REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
-
-				if (
-					this.networkConnectionCurrentLatency > RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_THRESHOLD &&
-					this.networkConnectionCurrentLatency > measurement.initial * RemoteStatusIndicator.REMOTE_CONNECTION_LATENCY_SLOW_MULTIPLE
-				) {
+				if (measurement.slow) {
 					this.setNetworkState('slow');
 				} else if (this.networkState === 'slow') {
 					this.setNetworkState('online');
