@@ -409,7 +409,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			const resolverResult = await proxy.resolveAuthority(remoteAuthority, resolveAttempt);
 			intervalLogger.dispose();
 			if (resolverResult.type === 'ok') {
-				logInfo(`returned ${resolverResult.value.authority.host}:${resolverResult.value.authority.port}`);
+				logInfo(`returned ${resolverResult.value.authority.connectTo}`);
 			} else {
 				logError(`returned an error`, resolverResult.error);
 			}
