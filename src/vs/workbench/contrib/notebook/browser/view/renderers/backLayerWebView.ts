@@ -1427,7 +1427,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			const buffer = output.outputs.find(out => out.mime === 'text/plain')?.data.buffer;
 			if (buffer?.length && buffer?.length > 0) {
 				const altText = new TextDecoder().decode(buffer);
-				return { ...output.metadata, altText: altText };
+				return { ...output.metadata, vscode_altText: altText };
 			}
 		}
 		return output.metadata;

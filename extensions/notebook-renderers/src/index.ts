@@ -70,8 +70,8 @@ const domEval = (container: Element) => {
 
 function getAltText(outputInfo: OutputItem) {
 	const metadata = outputInfo.metadata;
-	if (typeof metadata === 'object' && metadata && 'altText' in metadata && typeof metadata.altText === 'string') {
-		return metadata.altText;
+	if (typeof metadata === 'object' && metadata && 'vscode_altText' in metadata && typeof metadata.vscode_altText === 'string') {
+		return metadata.vscode_altText;
 	}
 	return undefined;
 }
