@@ -2385,7 +2385,9 @@ export class Repository implements Disposable {
 					}
 				}
 
-				this.branchProtection.set(remote, matchers);
+				if (matchers.length !== 0) {
+					this.branchProtection.set(remote, matchers);
+				}
 			}
 		}
 

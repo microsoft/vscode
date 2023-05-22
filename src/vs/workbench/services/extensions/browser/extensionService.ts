@@ -5,6 +5,7 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -63,6 +64,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
+		@IDialogService dialogService: IDialogService,
 	) {
 		const extensionsProposedApi = instantiationService.createInstance(ExtensionsProposedApi);
 		const extensionHostFactory = new BrowserExtensionHostFactory(
@@ -93,7 +95,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			remoteAgentService,
 			remoteExtensionsScannerService,
 			lifecycleService,
-			remoteAuthorityResolverService
+			remoteAuthorityResolverService,
+			dialogService
 		);
 
 		// Initialize installed extensions first and do it only after workbench is ready

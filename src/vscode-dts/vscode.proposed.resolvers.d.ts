@@ -60,6 +60,13 @@ declare module 'vscode' {
 		label: string;
 	}
 
+	export namespace env {
+		/** Quality of the application. May be undefined if running from sources. */
+		export const appQuality: string | undefined;
+		/** Commit of the application. May be undefined if running from sources. */
+		export const appCommit: string | undefined;
+	}
+
 	interface TunnelOptions {
 		remoteAddress: { port: number; host: string };
 		// The desired local port. If this port can't be used, then another will be chosen.

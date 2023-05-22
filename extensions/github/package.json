@@ -27,7 +27,8 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
-    "contribEditSessions"
+    "contribEditSessions",
+    "canonicalUriProvider"
   ],
   "contributes": {
     "commands": [

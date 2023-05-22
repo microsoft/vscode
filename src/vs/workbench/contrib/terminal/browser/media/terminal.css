@@ -580,3 +580,7 @@
 	z-index: 33;
 	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }
+
+.monaco-workbench .xterm.terminal.hide {
+	visibility: hidden;
+}
