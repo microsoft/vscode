@@ -482,11 +482,11 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				} else {
 					text = `${text} (${nls.localize('networkStatusOffline', "Offline")})`;
 				}
-				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusOfflineTooltip', "You appear to be offline. Some features may be unavailable."));
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusOfflineTooltip', "Network appears to be offline, certain features might be unavailable."));
 				break;
 			case 'slow':
 				text = insertOrReplaceCodicon(initialText, '$(alert)');
-				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "The network is slow (latency: {0}ms last, {1}ms average). Some features may be slow to respond.", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "Network appears to be slow, certain features may be slow to respond (latency: {0}ms last, {1}ms average).", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
 				break;
 		}
 
