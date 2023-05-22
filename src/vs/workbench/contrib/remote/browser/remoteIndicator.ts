@@ -90,8 +90,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private networkState: 'online' | 'offline' | 'high-latency' | undefined = undefined;
 	private measureNetworkConnectionLatencyScheduler: RunOnceScheduler | undefined = undefined;
-	private networkConnectionCurrentLatency: number | undefined = undefined;
-	private networkConnectionAverageLatency: number | undefined = undefined;
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 
@@ -323,9 +321,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		if (this.hostService.hasFocus && this.networkState !== 'offline') {
 			const measurement = await remoteConnectionLatencyMeasurer.measure(this.remoteAgentService);
 			if (measurement) {
-				this.networkConnectionCurrentLatency = measurement.current;
-				this.networkConnectionAverageLatency = measurement.average;
-
 				if (measurement.high) {
 					this.setNetworkState('high-latency');
 				} else if (this.networkState === 'high-latency') {
@@ -491,7 +486,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 			case 'high-latency':
 				text = insertOrReplaceCodicon(initialText, '$(alert)');
-				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusHighLatencyTooltip', "Network appears to have high latency ({0}ms last, {1}ms average), certain features may be slow to respond.", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusHighLatencyTooltip', "Network appears to have high latency ({0}ms last, {1}ms average), certain features may be slow to respond.", remoteConnectionLatencyMeasurer.latency?.current?.toFixed(2), remoteConnectionLatencyMeasurer.latency?.average?.toFixed(2)));
 				break;
 		}
 
