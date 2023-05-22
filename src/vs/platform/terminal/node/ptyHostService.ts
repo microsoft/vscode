@@ -55,7 +55,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 	}
 
-	private readonly _shellEnv: Promise<typeof process.env>;
 	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string; originalText: string[] }>;
 	private _wasQuitRequested = false;
 	private _restartCount = 0;
@@ -101,8 +100,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// Platform configuration is required on the process running the pty host (shared process or
 		// remote server).
 		registerTerminalPlatformConfiguration();
-
-		this._shellEnv = this._resolveShellEnv();
 
 		this._register(toDisposable(() => this._disposePtyHost()));
 
@@ -287,7 +284,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
 	async getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		const shellEnv = await this._shellEnv;
+		const shellEnv = await this._resolveShellEnv();
 		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, shellEnv, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {

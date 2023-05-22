@@ -24,7 +24,7 @@ import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/ter
 import { Terminal } from 'xterm';
 
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
-	static readonly ID: 'terminal.accessible-buffer';
+	static readonly ID = 'terminal.accessible-buffer';
 	static get(instance: ITerminalInstance): AccessibleBufferContribution | null {
 		return instance.getContribution<AccessibleBufferContribution>(AccessibleBufferContribution.ID);
 	}
