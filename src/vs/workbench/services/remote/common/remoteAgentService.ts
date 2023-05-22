@@ -84,8 +84,8 @@ export const remoteConnectionLatencyMeasurer = new class {
 	readonly slowMultiple = 2;
 	readonly slowThreshold = 500;
 
-	lastMeasurement: IRemoteConnectionLatencyMeasurement | undefined = undefined;
-	get last() { return this.lastMeasurement; }
+	#lastMeasurement: IRemoteConnectionLatencyMeasurement | undefined = undefined;
+	get last() { return this.#lastMeasurement; }
 
 	async measure(remoteAgentService: IRemoteAgentService): Promise<IRemoteConnectionLatencyMeasurement | undefined> {
 		let currentLatency = Infinity;
@@ -116,7 +116,7 @@ export const remoteConnectionLatencyMeasurer = new class {
 		}
 
 		// Remember as last measurement
-		this.lastMeasurement = {
+		this.#lastMeasurement = {
 			initial: initialLatency,
 			current: currentLatency,
 			average: this.average.reduce((sum, value) => sum + value, 0) / this.average.length,
@@ -135,7 +135,7 @@ export const remoteConnectionLatencyMeasurer = new class {
 			})()
 		};
 
-		return this.lastMeasurement;
+		return this.#lastMeasurement;
 	}
 };
 
