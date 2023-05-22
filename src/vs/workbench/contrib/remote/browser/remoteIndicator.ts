@@ -486,7 +486,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				break;
 			case 'slow':
 				text = insertOrReplaceCodicon(initialText, '$(alert)');
-				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "The network is slow (latency: {0}ms currently, {1}ms average). Some features may be slow to respond.", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
+				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusSlowTooltip', "The network is slow (latency: {0}ms last, {1}ms average). Some features may be slow to respond.", this.networkConnectionCurrentLatency?.toFixed(2), this.networkConnectionAverageLatency?.toFixed(2)));
 				break;
 		}
 
