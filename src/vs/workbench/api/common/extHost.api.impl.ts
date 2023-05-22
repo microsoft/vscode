@@ -1286,6 +1286,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostChat.sendInteractiveRequestToProvider(providerId, message);
 			},
 			get onDidPerformUserAction() {
+				checkProposedApiEnabled(extension, 'interactiveUserActions');
 				return extHostChat.onDidPerformUserAction;
 			}
 		};
