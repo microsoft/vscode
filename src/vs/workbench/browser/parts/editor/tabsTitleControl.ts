@@ -164,7 +164,6 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	protected create(parent: HTMLElement): void {
-		this.tabSizingFixedDisposables = new DisposableStore;
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
@@ -179,6 +178,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.classList.add('tabs-container');
 		this._register(Gesture.addTarget(this.tabsContainer));
 
+		this.tabSizingFixedDisposables = this._register(new DisposableStore());
 		this.updateTabSizing(false);
 
 		// Tabs Scrollbar

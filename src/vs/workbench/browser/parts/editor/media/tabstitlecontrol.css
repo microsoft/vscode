@@ -130,7 +130,9 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.last-in-row {
-	/* prevent last tab in a row from moving to next row when tab widths are fixed in case rounding errors make the fixed tabs grow over the size of the tabs container */
+	/* prevent last tab in a row from moving to next row when tab widths are
+	 * fixed in case rounding errors make the fixed tabs grow over the size
+	 * of the tabs container */
 	min-width: calc(var(--tab-sizing-current-width, 50px) - 1px);
 }
 
