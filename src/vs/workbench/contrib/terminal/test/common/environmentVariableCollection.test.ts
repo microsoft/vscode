@@ -31,13 +31,13 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				}],
 				['ext4', {
 					map: deserializeEnvironmentVariableCollection([
-						['A-key', { value: 'a4', type: EnvironmentVariableMutatorType.Append, variable: 'A' }]
+						['A-key', { value: 'a4', type: EnvironmentVariableMutatorType.Append, variable: 'A', options: { applyAtProcessCreation: true, applyAtShellIntegration: true } }]
 					])
 				}]
 			]));
 			deepStrictEqual([...merged.getVariableMap(undefined).entries()], [
 				['A', [
-					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4', variable: 'A', options: undefined },
+					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4', variable: 'A', options: { applyAtProcessCreation: true, applyAtShellIntegration: true } },
 					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Prepend, value: 'a3', variable: 'A', options: undefined },
 					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2', variable: 'A', options: undefined },
 					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'a1', variable: 'A', options: undefined }
