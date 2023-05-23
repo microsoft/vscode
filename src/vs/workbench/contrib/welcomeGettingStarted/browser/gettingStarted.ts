@@ -304,8 +304,8 @@ export class GettingStartedPage extends EditorPane {
 	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
-		await this.lifecycleService.when(LifecyclePhase.Restored);
 		await super.setInput(newInput, options, context, token);
+		await this.lifecycleService.when(LifecyclePhase.Restored);
 		await this.buildCategoriesSlide();
 		if (this.shouldAnimate()) {
 			setTimeout(() => this.container.classList.add('animatable'), 0);
