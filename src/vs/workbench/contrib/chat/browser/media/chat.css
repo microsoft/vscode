@@ -65,17 +65,12 @@
 	color: var(--vscode-badge-foreground) !important;
 }
 
-.interactive-item-container .header .monaco-toolbar,
-.interactive-item-container .header .monaco-toolbar .action-label {
+.interactive-item-container:not(.interactive-response:hover) .header .monaco-toolbar,
+.interactive-item-container:not(.interactive-response:hover) .header .monaco-toolbar .action-label {
 	/* Also apply this rule to the .action-label directly to work around a strange issue- when the
 	toolbar is hidden without that second rule, tabbing from the list container into a list item doesn't work
 	and the tab key doesn't do anything. */
 	display: none;
-}
-
-.interactive-item-container.interactive-response:hover .header .monaco-toolbar,
-.interactive-item-container.interactive-response:hover .header .monaco-toolbar .action-label {
-	display: initial;
 }
 
 .interactive-item-container .header .monaco-toolbar .action-label {
@@ -167,7 +162,7 @@
 	line-height: 1.6em;
 }
 
-.interactive-item-container li {
+.interactive-item-container .value li {
 	line-height: 1.5rem;
 }
 
@@ -240,13 +235,14 @@
 	margin: 1px;
 }
 
-.interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar {
+.interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar,
+.interactive-item-container .interactive-result-editor-wrapper.focused .monaco-toolbar {
 	display: initial;
 	border-radius: 2px;
 }
 
-.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor {
-	border: 1px solid var(--vscode-input-border, transparent);
+.interactive-item-container .interactive-result-editor-wrapper {
+	margin: 16px 0;
 }
 
 .interactive-response .monaco-editor .margin,
@@ -254,8 +250,12 @@
 	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
-.interactive-item-container .interactive-result-editor-wrapper {
-	margin: 16px 0;
+.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor {
+	border: 1px solid var(--vscode-input-border, transparent);
+}
+
+.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor.focused {
+	border-color: var(--vscode-focusBorder, transparent);
 }
 
 .interactive-item-container .interactive-result-editor-wrapper,
