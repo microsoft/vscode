@@ -185,7 +185,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
 	revealActiveTerminal(): Promise<void>;
 	moveToEditor(source: ITerminalInstance): void;
-	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
+	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
 	/**
@@ -237,7 +237,6 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void>;
-	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
@@ -956,6 +955,10 @@ export interface ITerminalChildElement {
 	xtermReady?(xterm: IXtermTerminal): void;
 }
 
+export const enum XtermTerminalConstants {
+	SearchHighlightLimit = 1000
+}
+
 export interface IXtermTerminal {
 	/**
 	 * An object that tracks when commands are run and enables navigating and selecting between
@@ -969,7 +972,7 @@ export interface IXtermTerminal {
 	readonly shellIntegration: IShellIntegration;
 
 	readonly onDidChangeSelection: Event<void>;
-	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
+	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number }>;
 
 	/**
 	 * Gets a view of the current texture atlas used by the renderers.

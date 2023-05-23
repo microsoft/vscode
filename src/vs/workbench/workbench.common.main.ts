@@ -55,7 +55,7 @@ import 'vs/workbench/browser/parts/views/viewsService';
 import 'vs/platform/actions/common/actions.contribution';
 import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/workbench/services/workspaces/common/editSessionIdentityService';
-import 'vs/workbench/services/workspaces/common/canonicalUriIdentityService';
+import 'vs/workbench/services/workspaces/common/canonicalUriService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
@@ -367,5 +367,8 @@ import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairC
 
 // Accessibility
 import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
+
+// Share
+import 'vs/workbench/contrib/share/browser/share.contribution';
 
 //#endregion

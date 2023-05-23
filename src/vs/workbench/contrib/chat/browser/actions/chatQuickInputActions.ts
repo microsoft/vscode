@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asCssVariable, editorBackground, foreground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { InteractiveListItemRenderer } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatListItemRenderer } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -25,6 +25,7 @@ import { ChatViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 export function registerChatQuickQuestionActions() {
 	registerAction2(AskQuickQuestionAction);
@@ -41,6 +42,7 @@ class AskQuickQuestionAction extends Action2 {
 		super({
 			id: 'chat.action.askQuickQuestion',
 			title: { value: localize('askQuickQuestion', "Ask Quick Question"), original: 'Ask Quick Question' },
+			precondition: CONTEXT_PROVIDER_EXISTS,
 			f1: true,
 			category: CHAT_CATEGORY,
 			keybinding: {
@@ -184,11 +186,11 @@ class InteractiveQuickPickSession extends Disposable {
 		this._listDisposable = new DisposableStore();
 		const options = this._listDisposable.add(this._instantiationService.createInstance(ChatEditorOptions, 'quickpick-interactive', foreground, editorBackground, editorBackground));
 		const list = this._listDisposable.add(this._instantiationService.createInstance(
-			InteractiveListItemRenderer,
+			ChatListItemRenderer,
 			options,
 			{
 				getListLength: () => {
-					return this._viewModel.getItems().length;
+					return 1;
 				},
 				getSlashCommands() {
 					return [];

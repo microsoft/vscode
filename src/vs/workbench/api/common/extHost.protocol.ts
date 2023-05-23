@@ -362,6 +362,11 @@ export interface IDocumentFilterDto {
 	isBuiltin?: boolean;
 }
 
+export interface IShareableItemDto {
+	resourceUri: UriComponents;
+	range?: IRange;
+}
+
 export interface ISignatureHelpProviderMetadataDto {
 	readonly triggerCharacters: readonly string[];
 	readonly retriggerCharacters: readonly string[];
@@ -609,8 +614,9 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, statusId: string, extensionId: string | undefined, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
-	$dispose(id: number): void;
+	$hasEntry(id: string): Promise<boolean>;
+	$setEntry(id: string, statusId: string, extensionId: string | undefined, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
+	$dispose(id: string): void;
 }
 
 export interface MainThreadStorageShape extends IDisposable {
@@ -1203,8 +1209,8 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 	$registerEditSessionIdentityProvider(handle: number, scheme: string): void;
 	$unregisterEditSessionIdentityProvider(handle: number): void;
-	$registerCanonicalUriIdentityProvider(handle: number, scheme: string): void;
-	$unregisterCanonicalUriIdentityProvider(handle: number): void;
+	$registerCanonicalUriProvider(handle: number, scheme: string): void;
+	$unregisterCanonicalUriProvider(handle: number): void;
 }
 
 export interface IFileChangeDto {
@@ -1244,6 +1250,11 @@ export interface MainThreadSearchShape extends IDisposable {
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
 	$handleTextMatch(handle: number, session: number, data: search.IRawFileMatch2[]): void;
 	$handleTelemetry(eventName: string, data: any): void;
+}
+
+export interface MainThreadShareShape extends IDisposable {
+	$registerShareProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string): void;
+	$unregisterShareProvider(handle: number): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -1551,7 +1562,7 @@ export interface ExtHostWorkspaceShape {
 	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
 	$provideEditSessionIdentityMatch(folder: UriComponents, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
 	$onWillCreateEditSessionIdentity(folder: UriComponents, token: CancellationToken, timeout: number): Promise<void>;
-	$provideCanonicalUriIdentity(uri: UriComponents, token: CancellationToken): Promise<UriComponents | undefined>;
+	$provideCanonicalUri(uri: UriComponents, targetScheme: string, token: CancellationToken): Promise<UriComponents | undefined>;
 }
 
 export interface ExtHostFileSystemInfoShape {
@@ -2006,6 +2017,10 @@ export interface ExtHostSCMShape {
 
 export interface ExtHostQuickDiffShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
+}
+
+export interface ExtHostShareShape {
+	$provideShare(handle: number, shareableItem: IShareableItemDto, token: CancellationToken): Promise<UriComponents | undefined>;
 }
 
 export interface ExtHostTaskShape {
@@ -2524,6 +2539,7 @@ export const MainContext = {
 	MainThreadExtensionService: createProxyIdentifier<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createProxyIdentifier<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadSearch: createProxyIdentifier<MainThreadSearchShape>('MainThreadSearch'),
+	MainThreadShare: createProxyIdentifier<MainThreadShareShape>('MainThreadShare'),
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
@@ -2564,6 +2580,7 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createProxyIdentifier<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createProxyIdentifier<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostQuickDiff: createProxyIdentifier<ExtHostQuickDiffShape>('ExtHostQuickDiff'),
+	ExtHostShare: createProxyIdentifier<ExtHostShareShape>('ExtHostShare'),
 	ExtHostExtensionService: createProxyIdentifier<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
 	ExtHostLogLevelServiceShape: createProxyIdentifier<ExtHostLogLevelServiceShape>('ExtHostLogLevelServiceShape'),
 	ExtHostTerminalService: createProxyIdentifier<ExtHostTerminalServiceShape>('ExtHostTerminalService'),

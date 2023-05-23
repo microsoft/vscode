@@ -373,7 +373,7 @@ CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider
 	}
 
 	const commandService = accessor.get(ICommandService);
-	await commandService.executeCommand('openInTerminal', provider.rootUri);
+	await commandService.executeCommand('openInIntegratedTerminal', provider.rootUri);
 });
 
 MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {

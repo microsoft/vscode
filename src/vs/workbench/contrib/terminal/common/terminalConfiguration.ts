@@ -269,7 +269,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 1
 		},
 		[TerminalSettingId.Scrollback]: {
-			description: localize('terminal.integrated.scrollback', "Controls the maximum number of lines the terminal keeps in its buffer."),
+			description: localize('terminal.integrated.scrollback', "Controls the maximum number of lines the terminal keeps in its buffer. We pre-allocate memory based on this value in order to ensure a smooth experience. As such, as the value increases, so will the amount of memory."),
 			type: 'number',
 			default: 1000
 		},

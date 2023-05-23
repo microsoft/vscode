@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { assertFn } from 'vs/base/common/assert';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IReader, IObservable, IObserver, IChangeContext } from 'vs/base/common/observableImpl/base';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
@@ -140,9 +140,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		}
 		this.updateCount--;
 
-		if (this.updateCount < 0) {
-			throw new BugIndicatingError();
-		}
+		assertFn(() => this.updateCount >= 0);
 	}
 
 	public handlePossibleChange(observable: IObservable<any>): void {
