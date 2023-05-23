@@ -1033,7 +1033,12 @@ class CompletionsAdapter {
 			return undefined;
 		}
 
-		return this._convertCompletionItem(resolvedItem, id);
+		return this._convertCompletionItem({
+			...item,
+			documentation: resolvedItem.documentation,
+			detail: resolvedItem.detail,
+			additionalTextEdits: resolvedItem.additionalTextEdits
+		}, id);
 	}
 
 	releaseCompletionItems(id: number): any {

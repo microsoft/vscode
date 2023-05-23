@@ -104,6 +104,10 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 		R: Serialize,
 		F: Fn(P, &C) -> Result<R, AnyError> + Send + Sync + 'static,
 	{
+		if self.methods.contains_key(method_name) {
+			panic!("Method already registered: {}", method_name);
+		}
+
 		let serial = self.serializer.clone();
 		let context = self.context.clone();
 		self.methods.insert(
@@ -276,7 +280,9 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 		self.register_async(METHOD_STREAM_ENDED, move |m: StreamEndedParams, _| {
 			let s1 = s1.clone();
 			async move {
-				s1.lock().await.remove(&m.stream);
+				if let Some(mut s) = s1.lock().await.remove(&m.stream) {
+					let _ = s.shutdown().await;
+				}
 				Ok(())
 			}
 		});
@@ -410,13 +416,17 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 	/// The future or return result will be optional bytes that should be sent
 	/// back to the socket.
 	pub fn dispatch(&self, body: &[u8]) -> MaybeSync {
-		let partial = match self.serializer.deserialize::<PartialIncoming>(body) {
-			Ok(b) => b,
+		match self.serializer.deserialize::<PartialIncoming>(body) {
+			Ok(partial) => self.dispatch_with_partial(body, partial),
 			Err(_err) => {
 				warning!(self.log, "Failed to deserialize request, hex: {:X?}", body);
-				return MaybeSync::Sync(None);
+				MaybeSync::Sync(None)
 			}
-		};
+		}
+	}
+
+	/// Like dispatch, but allows passing an existing PartialIncoming.
+	pub fn dispatch_with_partial(&self, body: &[u8], partial: PartialIncoming) -> MaybeSync {
 		let id = partial.id;
 
 		if let Some(method_name) = partial.method {
@@ -536,8 +546,8 @@ trait AssertIsSync: Sync {}
 impl<S: Serialization, C: Send + Sync> AssertIsSync for RpcDispatcher<S, C> {}
 
 /// Approximate shape that is used to determine what kind of data is incoming.
-#[derive(Deserialize)]
-struct PartialIncoming {
+#[derive(Deserialize, Debug)]
+pub struct PartialIncoming {
 	pub id: Option<u32>,
 	pub method: Option<String>,
 	pub error: Option<ResponseError>,

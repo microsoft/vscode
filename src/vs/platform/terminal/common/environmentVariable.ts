@@ -11,22 +11,22 @@ export enum EnvironmentVariableMutatorType {
 	Append = 2,
 	Prepend = 3
 }
-// export enum EnvironmentVariableMutatorTiming {
-// 	AtSpawn = 1,
-// 	AfterShellIntegration = 2
-// 	// TODO: Do we need a both?
-// }
 export interface IEnvironmentVariableMutator {
 	readonly variable: string;
 	readonly value: string;
 	readonly type: EnvironmentVariableMutatorType;
 	readonly scope?: EnvironmentVariableScope;
-	// readonly timing?: EnvironmentVariableMutatorTiming;
+	readonly options?: IEnvironmentVariableMutatorOptions;
 }
 
 export interface IEnvironmentDescriptionMutator {
 	readonly description: string | undefined;
 	readonly scope?: EnvironmentVariableScope;
+}
+
+export interface IEnvironmentVariableMutatorOptions {
+	applyAtProcessCreation?: boolean;
+	applyAtShellIntegration?: boolean;
 }
 
 export type EnvironmentVariableScope = {

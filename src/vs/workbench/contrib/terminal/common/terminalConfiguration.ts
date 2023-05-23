@@ -269,7 +269,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 1
 		},
 		[TerminalSettingId.Scrollback]: {
-			description: localize('terminal.integrated.scrollback', "Controls the maximum number of lines the terminal keeps in its buffer."),
+			description: localize('terminal.integrated.scrollback', "Controls the maximum number of lines the terminal keeps in its buffer. We pre-allocate memory based on this value in order to ensure a smooth experience. As such, as the value increases, so will the amount of memory."),
 			type: 'number',
 			default: 1000
 		},
@@ -585,7 +585,14 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
 			default: false
-		}
+		},
+		[TerminalSettingId.ExperimentalImageSupport]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.experimentalImageSupport', "Enables experimental image support in the terminal. Both sixel and iTerm's inline image protocol are supported on Linux and macOS, Windows support will light up automatically when ConPTY passes through the sequences. Images will not be retained currently between window reloads/reconnects."),
+			type: 'boolean',
+			default: false,
+			tags: ['experimental']
+		},
 	}
 };
 
