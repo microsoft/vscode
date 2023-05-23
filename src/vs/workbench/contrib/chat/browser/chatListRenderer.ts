@@ -418,7 +418,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}));
 
 				if (isResponseVM(element)) {
-					const info = {
+					const info: IChatCodeBlockInfo = {
 						codeBlockIndex: data.codeBlockIndex,
 						element,
 						focus() {
@@ -584,8 +584,8 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.element = $('.interactive-result-editor-wrapper');
@@ -598,8 +598,8 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		}));
 
 		this._configureForScreenReader();
-		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
-		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectedKeys.has(AccessibilityVerbositySettingId.Chat)) {
 				this._configureForScreenReader();
 			}
@@ -648,9 +648,11 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			}
 		}));
 		this._register(this.editor.onDidBlurEditorWidget(() => {
+			this.element.classList.remove('focused');
 			WordHighlighterContribution.get(this.editor)?.stopHighlighting();
 		}));
 		this._register(this.editor.onDidFocusEditorWidget(() => {
+			this.element.classList.add('focused');
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
 		}));
 
@@ -675,9 +677,9 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 
 	private _configureForScreenReader(): void {
 		const toolbarElt = this.toolbar.getElement();
-		if (this._accessibilityService.isScreenReaderOptimized()) {
+		if (this.accessibilityService.isScreenReaderOptimized()) {
 			toolbarElt.style.display = 'block';
-			toolbarElt.ariaLabel = this._configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
+			toolbarElt.ariaLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
 		} else {
 			toolbarElt.style.display = '';
 		}
