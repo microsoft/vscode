@@ -143,11 +143,11 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	beforeCloseEditor(): void {
+	beforeCloseEditor(editor: EditorInput): void {
 		// Nothing to do before closing an editor
 	}
 
-	closeEditor(editor: EditorInput, index: number | undefined): void {
+	closeEditor(editor: EditorInput): void {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
