@@ -48,6 +48,7 @@ import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { once } from 'vs/base/common/functional';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -512,8 +513,9 @@ export class InteractiveEditorWidget {
 		this._previewCreateModel.value = model;
 		this._previewCreateEditor.setModel(model);
 		this._onDidChangeHeight.fire();
+		// This should not be needed once Henning has done the DiffReview refactor
 		if (this._accessibilityService.isScreenReaderOptimized()) {
-			this._previewDiffEditor.onDidUpdateDiff(() => {
+			once(() => this._previewDiffEditor.onDidUpdateDiff(() => {
 				const modified = this._previewDiffEditor.getModifiedEditor().getDomNode();
 				const original = this._previewDiffEditor.getOriginalEditor().getDomNode();
 				const container = this._previewDiffEditor.getContainerDomNode();
@@ -531,7 +533,7 @@ export class InteractiveEditorWidget {
 				container.querySelector('div > div.diff-review-actions > div > ul > li > a')?.remove();
 				// go back to the input so the placeholder text is read
 				this._inputEditor.focus();
-			});
+			}));
 		}
 	}
 
