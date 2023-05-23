@@ -479,7 +479,7 @@ export class Mangler {
 					&& node.name && node.body // On named function and not on the overload
 				)
 			) {
-				if (node.flags & ts.ModifierFlags.Ambient) {
+				if (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Ambient) {
 					// Do not mangle inline ambient declarations
 					return;
 				}
