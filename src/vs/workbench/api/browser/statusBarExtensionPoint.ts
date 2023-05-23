@@ -26,12 +26,17 @@ import { asStatusBarItemIdentifier } from 'vs/workbench/api/common/extHostTypes'
 
 export const IExtensionStatusBarItemService = createDecorator<IExtensionStatusBarItemService>('IExtensionStatusBarItemService');
 
+export interface IExtensionStatusBarItemChangeEvent {
+	readonly added?: Readonly<{ entryId: string } & IStatusbarEntry>;
+	readonly removed?: string;
+}
+
 export interface IExtensionStatusBarItemService {
 	readonly _serviceBrand: undefined;
 
 	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): IDisposable;
 
-	hasEntry(id: string): boolean;
+	getEntries(): Iterable<[string, { entry: IStatusbarEntry; alignment: MainThreadStatusBarAlignment; priority: number }]>;
 }
 
 
@@ -39,7 +44,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _entries: Map<string, { accessor: IStatusbarEntryAccessor; alignment: MainThreadStatusBarAlignment; priority: number }> = new Map();
+	private readonly _entries: Map<string, { accessor: IStatusbarEntryAccessor; entry: IStatusbarEntry; alignment: MainThreadStatusBarAlignment; priority: number }> = new Map();
 
 	constructor(@IStatusbarService private readonly _statusbarService: IStatusbarService) { }
 
@@ -88,6 +93,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 
 			this._entries.set(entryId, {
 				accessor: this._statusbarService.addEntry(entry, id, alignment, entryPriority),
+				entry,
 				alignment,
 				priority
 			});
@@ -95,6 +101,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 		} else {
 			// Otherwise update
 			existingEntry.accessor.update(entry);
+			existingEntry.entry = entry;
 		}
 
 		return toDisposable(() => {
@@ -106,8 +113,8 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 		});
 	}
 
-	hasEntry(id: string): boolean {
-		return this._entries.has(id);
+	getEntries(): Iterable<[string, { entry: IStatusbarEntry; alignment: MainThreadStatusBarAlignment; priority: number }]> {
+		return this._entries.entries();
 	}
 }
 
