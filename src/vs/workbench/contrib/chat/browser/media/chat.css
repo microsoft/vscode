@@ -73,6 +73,10 @@
 	display: none;
 }
 
+.interactive-item-container .header .monaco-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
 .interactive-item-container .header .monaco-toolbar .action-label {
 	border: 1px solid transparent;
 	padding: 2px;
