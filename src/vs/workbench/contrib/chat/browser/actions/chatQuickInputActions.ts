@@ -25,6 +25,7 @@ import { ChatViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 export function registerChatQuickQuestionActions() {
 	registerAction2(AskQuickQuestionAction);
@@ -41,6 +42,7 @@ class AskQuickQuestionAction extends Action2 {
 		super({
 			id: 'chat.action.askQuickQuestion',
 			title: { value: localize('askQuickQuestion', "Ask Quick Question"), original: 'Ask Quick Question' },
+			precondition: CONTEXT_PROVIDER_EXISTS,
 			f1: true,
 			category: CHAT_CATEGORY,
 			keybinding: {

@@ -21,7 +21,7 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -83,7 +83,7 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class ClearEditorAction extends Action2 {
+	registerAction2(class ClearChatHistoryAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chatEditor.clearHistory',
@@ -91,6 +91,7 @@ export function registerChatActions() {
 					value: localize('interactiveSession.clearHistory.label', "Clear Input History"),
 					original: 'Clear Input History'
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				category: CHAT_CATEGORY,
 				f1: true,
 			});
@@ -175,15 +176,12 @@ export function registerChatActions() {
 				},
 				category: CHAT_CATEGORY,
 				icon: Codicon.clearAll,
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.WinCtrl | KeyCode.KeyL,
-					when: CONTEXT_IN_CHAT_SESSION,
-					mac: {
-						primary: KeyMod.WinCtrl | KeyCode.KeyL,
-						secondary: [KeyMod.CtrlCmd | KeyCode.KeyK]
-					}
+					when: CONTEXT_IN_CHAT_SESSION
 				}
 			});
 		}
@@ -259,7 +257,7 @@ const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: 
 	},
 	menu: {
 		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.has('config.interactive.experimental.chatHistory')),
+		when: ContextKeyExpr.equals('view', viewId),
 		group: 'navigation',
 		order: 0
 	},

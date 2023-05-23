@@ -92,7 +92,7 @@ function getRangeOrSelection(lineNumber: number | undefined) {
 		: vscode.window.activeTextEditor?.selection;
 }
 
-function rangeString(range: vscode.Range | undefined) {
+export function rangeString(range: vscode.Range | undefined) {
 	if (!range) {
 		return '';
 	}
@@ -119,7 +119,7 @@ export function notebookCellRangeString(index: number | undefined, range: vscode
 	return hash;
 }
 
-function encodeURIComponentExceptSlashes(path: string) {
+export function encodeURIComponentExceptSlashes(path: string) {
 	// There may be special characters like # and whitespace in the path.
 	// These characters are not escaped by encodeURI(), so it is not sufficient to
 	// feed the full URI to encodeURI().
