@@ -46,7 +46,9 @@
     "workspaceTrust",
     "telemetry",
     "windowActivity",
-    "interactiveUserActions"
+    "interactiveUserActions",
+    "envCollectionWorkspace",
+    "envCollectionOptions"
   ],
   "private": true,
   "activationEvents": [],
