@@ -290,6 +290,7 @@ export class InteractiveEditorWidget {
 			}
 		};
 		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, workbenchToolbarOptions);
+		this._store.add(statusToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusToolbar);
 
 		// preview editors
@@ -301,6 +302,7 @@ export class InteractiveEditorWidget {
 		this._elements.message.tabIndex = 0;
 		this._elements.statusLabel.tabIndex = 0;
 		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
+		this._store.add(markdownMessageToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(markdownMessageToolbar);
 	}
 
@@ -354,6 +356,9 @@ export class InteractiveEditorWidget {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this._inputEditor.getContentHeight() + 12 /* padding and border */;
 		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage);
+		console.log(this._elements.markdownMessage.innerHTML);
+		console.log(this._elements.markdownMessage.isConnected);
+		console.log(markdownMessageHeight);
 		const previewDiffHeight = this._previewDiffEditor.getModel().modified ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
