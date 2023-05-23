@@ -16,7 +16,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { getClearAction, getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { getClearAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
+import { getMoveToEditorAction, getMoveToSidebarAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { IChatViewOptions, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatContributionService, IChatProviderContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -136,20 +138,23 @@ export class ChatContributionService implements IChatContributionService {
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
 
+		// Per-provider actions
+
 		// Actions in view title
-		const historyAction = registerAction2(getHistoryAction(viewId, providerDescriptor.id));
-		const clearAction = registerAction2(getClearAction(viewId, providerDescriptor.id));
+		const disposables = new DisposableStore();
+		disposables.add(registerAction2(getHistoryAction(viewId, providerDescriptor.id)));
+		disposables.add(registerAction2(getClearAction(viewId, providerDescriptor.id)));
+		disposables.add(registerAction2(getMoveToEditorAction(viewId, providerDescriptor.id)));
+		disposables.add(registerAction2(getMoveToSidebarAction(viewId, providerDescriptor.id)));
 
 		// "Open Chat Editor" Action
-		const openEditor = registerAction2(getOpenChatEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when));
+		disposables.add(registerAction2(getOpenChatEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when)));
 
 		return {
 			dispose: () => {
 				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, viewContainer);
 				Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
-				clearAction.dispose();
-				historyAction.dispose();
-				openEditor.dispose();
+				disposables.dispose();
 			}
 		};
 	}
