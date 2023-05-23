@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -152,6 +152,7 @@ export class InteractiveEditorWidget {
 	private readonly _inputEditor: IActiveCodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
+	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
 
 	private readonly _progressBar: ProgressBar;
 
@@ -210,6 +211,7 @@ export class InteractiveEditorWidget {
 
 		// --- context keys
 
+		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
 		this._ctxInputEmpty = CTX_INTERACTIVE_EDITOR_EMPTY.bindTo(this._contextKeyService);
 
 		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
@@ -318,6 +320,7 @@ export class InteractiveEditorWidget {
 	dispose(): void {
 		this._store.dispose();
 		this._ctxInputEmpty.reset();
+		this._ctxMessageCropState.reset();
 	}
 
 	get domNode(): HTMLElement {
@@ -390,16 +393,18 @@ export class InteractiveEditorWidget {
 	updateMarkdownMessage(message: Node | undefined) {
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
 		if (!message) {
+			this._ctxMessageCropState.reset();
 			reset(this._elements.message);
 
 		} else {
 			reset(this._elements.message, message);
+			if (this._elements.message.scrollHeight > this._elements.message.clientHeight) {
+				this._ctxMessageCropState.set('cropped');
+			} else {
+				this._ctxMessageCropState.set('not_cropped');
+			}
 		}
 		this._onDidChangeHeight.fire();
-	}
-
-	isMarkdownMessageOverflowing(): boolean {
-		return this._elements.message.scrollHeight > this._elements.message.clientHeight;
 	}
 
 	updateStatus(message: string, ops: { classes?: string[]; resetAfter?: number; keepMessage?: boolean } = {}) {
@@ -439,7 +444,8 @@ export class InteractiveEditorWidget {
 		this._inputEditor.focus();
 	}
 
-	updateToggleState(expand: boolean) {
+	updateMarkdownMessageExpansionState(expand: boolean) {
+		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
 		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
 		this._onDidChangeHeight.fire();
 	}

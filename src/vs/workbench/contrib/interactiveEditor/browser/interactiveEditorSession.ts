@@ -59,6 +59,7 @@ type TelemetryDataClassification = {
 export class Session {
 
 	private _lastInput: string | undefined;
+	private _lastExpansionState: boolean | undefined;
 	private _lastTextModelChanges: LineRangeMapping[] | undefined;
 	private _lastSnapshot: ITextSnapshot | undefined;
 	private readonly _exchange: SessionExchange[] = [];
@@ -90,6 +91,14 @@ export class Session {
 
 	get lastInput() {
 		return this._lastInput;
+	}
+
+	get lastExpansionState() {
+		return this._lastExpansionState ?? false;
+	}
+
+	set lastExpansionState(state: boolean) {
+		this._lastExpansionState = state;
 	}
 
 	get lastSnapshot(): ITextSnapshot | undefined {
@@ -194,16 +203,7 @@ export class ErrorResponse {
 	}
 }
 
-export enum MarkdownResponseCropState {
-	CROPPED = 'cropped',
-	NOT_CROPPED = 'not_cropped',
-	EXPANDED = 'expanded'
-}
-
 export class MarkdownResponse {
-
-	cropState: MarkdownResponseCropState | undefined;
-
 	constructor(
 		readonly localUri: URI,
 		readonly raw: IInteractiveEditorMessageResponse

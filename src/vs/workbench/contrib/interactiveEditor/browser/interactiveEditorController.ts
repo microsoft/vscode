@@ -29,10 +29,10 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, MarkdownResponseCropState, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorStrategies';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -85,7 +85,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _store = new DisposableStore();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
-	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
 	private readonly _ctxLastResponseType: IContextKey<undefined | InteractiveEditorResponseType>;
 	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
@@ -111,7 +110,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(contextKeyService);
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INTERACTIVE_EDITOR_DID_EDIT.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
@@ -473,7 +471,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		const { response } = this._activeSession.lastExchange!;
 		if (response instanceof EditResponse) {
 			// edit response -> complex...
-			this.updateMarkdownMessage(undefined);
+			this._zone.widget.updateMarkdownMessage(undefined);
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
@@ -524,13 +522,15 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		} else if (response instanceof MarkdownResponse) {
 			// clear status, show MD message
+			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
 			this._zone.widget.updateStatus('');
-			this.updateMarkdownMessage(response);
+			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.widget.updateToolbar(true);
+			this._zone.widget.updateMarkdownMessageExpansionState(this._activeSession.lastExpansionState);
 
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
-			this.updateMarkdownMessage(undefined);
+			this._zone.widget.updateMarkdownMessage(undefined);
 			this._zone.widget.updateToolbar(true);
 
 			const canContinue = this._strategy.checkChanges(response);
@@ -579,22 +579,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	// ---- controller API
 
-	updateMarkdownMessage(response: MarkdownResponse | undefined): void {
-		if (response) {
-			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
-			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
-			let cropState = response.cropState;
-			if (!cropState) {
-				cropState = this._zone.widget.isMarkdownMessageOverflowing() ? MarkdownResponseCropState.CROPPED : MarkdownResponseCropState.NOT_CROPPED;
-			}
-			this._ctxMessageCropState.set(cropState);
-			response.cropState = cropState;
-			this._zone.widget.updateToggleState(cropState === MarkdownResponseCropState.EXPANDED);
-		} else {
-			this._zone.widget.updateMarkdownMessage(undefined);
-			this._ctxMessageCropState.reset();
-		}
-	}
 	accept(): void {
 		this._messages.fire(Message.ACCEPT_INPUT);
 	}
@@ -642,12 +626,9 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	updateExpansionState(expand: boolean) {
-		const response = this._activeSession?.lastExchange!.response;
-		if (response instanceof MarkdownResponse) {
-			const cropState = expand ? MarkdownResponseCropState.EXPANDED : MarkdownResponseCropState.CROPPED;
-			response.cropState = cropState;
-			this._ctxMessageCropState.set(cropState);
-			this._zone.widget.updateToggleState(expand);
+		if (this._activeSession) {
+			this._zone.widget.updateMarkdownMessageExpansionState(expand);
+			this._activeSession.lastExpansionState = expand;
 		}
 	}
 
