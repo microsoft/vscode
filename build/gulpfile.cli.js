@@ -13,16 +13,36 @@ const path = require('path');
 const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 const cp = require('child_process');
+const { tmpdir } = require('os');
+const { promises: fs, existsSync, mkdirSync, rmSync } = require('fs');
 
 const task = require('./lib/task');
 const watcher = require('./lib/watch');
 const { debounce } = require('./lib/util');
 const createReporter = require('./lib/reporter').createReporter;
-const { promises: fs, existsSync } = require('fs');
 
 const root = 'cli';
+const rootAbs = path.resolve(__dirname, '..', root);
 const src = `${root}/src`;
 const targetCliPath = path.join(root, 'target', 'debug', process.platform === 'win32' ? 'code.exe' : 'code');
+
+const platformOpensslDirName =
+	process.platform === 'win32' ? (
+		process.arch === 'arm64'
+			? 'arm64-windows-static-md'
+			: process.arch === 'ia32'
+				? 'x86-windows-static-md'
+				: 'x64-windows-static-md')
+		: process.platform === 'darwin' ? (
+			process.arch === 'arm64'
+				? 'arm64-osx'
+				: 'x64-osx')
+			: (process.arch === 'arm64'
+				? 'arm64-linux'
+				: process.arch === 'arm'
+					? 'arm-linux'
+					: 'x64-linux');
+const platformOpensslDir = path.join(rootAbs, 'openssl', 'package', 'out', platformOpensslDirName);
 
 const hasLocalRust = (() => {
 	/** @type boolean | undefined */
@@ -73,8 +93,13 @@ const debounceEsStream = (fn, duration = 100) => {
 	});
 };
 
-const compileFromSources = (/** @type import('./lib/reporter').IReporter */ reporter) => es.map((_, callback) => {
-	const proc = cp.spawn('cargo', ['--color', 'always', 'build'], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+const compileFromSources = (callback) => {
+	const proc = cp.spawn('cargo', ['--color', 'always', 'build'], {
+		cwd: root,
+		stdio: ['ignore', 'pipe', 'pipe'],
+		env: existsSync(platformOpensslDir) ? { OPENSSL_DIR: platformOpensslDir, ...process.env } : process.env
+	});
+
 	/** @type Buffer[] */
 	const stdoutErr = [];
 	proc.stdout.on('data', d => stdoutErr.push(d));
@@ -82,67 +107,83 @@ const compileFromSources = (/** @type import('./lib/reporter').IReporter */ repo
 	proc.on('error', callback);
 	proc.on('exit', code => {
 		if (code !== 0) {
-			reporter(Buffer.concat(stdoutErr).toString());
+			callback(Buffer.concat(stdoutErr).toString());
+		} else {
+			callback();
 		}
+	});
+};
+
+const acquireBuiltOpenSSL = (callback) => {
+	const untar = require('gulp-untar');
+	const gunzip = require('gulp-gunzip');
+	const dir = path.join(tmpdir(), 'vscode-openssl-download');
+	mkdirSync(dir, { recursive: true });
+
+	cp.spawnSync(
+		process.platform === 'win32' ? 'npm.cmd' : 'npm',
+		['pack', '@vscode/openssl-prebuilt'],
+		{ stdio: ['ignore', 'ignore', 'inherit'], cwd: dir }
+	);
+
+	gulp.src('*.tgz', { cwd: dir })
+		.pipe(gunzip())
+		.pipe(untar())
+		.pipe(gulp.dest(`${root}/openssl`))
+		.on('error', callback)
+		.on('end', () => {
+			rmSync(dir, { recursive: true, force: true });
+			callback();
+		});
+};
+
+const compileWithOpenSSLCheck = (/** @type import('./lib/reporter').IReporter */ reporter) => es.map((_, callback) => {
+	compileFromSources(err => {
+		if (!err) {
+			// no-op
+		} else if (err.toString().includes('Could not find directory of OpenSSL installation') && !existsSync(platformOpensslDir)) {
+			fancyLog(ansiColors.yellow(`[cli]`), 'OpenSSL libraries not found, acquiring prebuilt bits...');
+			acquireBuiltOpenSSL(err => {
+				if (err) {
+					callback(err);
+				} else {
+					compileFromSources(err => {
+						if (err) {
+							reporter(err.toString());
+						}
+						callback(null, '');
+					});
+				}
+			});
+		} else {
+			reporter(err.toString());
+		}
+
 		callback(null, '');
 	});
 });
 
-const compile = () => {
+const warnIfRustNotInstalled = () => {
+	if (!hasLocalRust()) {
+		fancyLog(ansiColors.yellow(`[cli]`), 'No local Rust install detected, compilation may fail.');
+		fancyLog(ansiColors.yellow(`[cli]`), 'Get rust from: https://rustup.rs/');
+	}
 };
 
-const downloadCli = task.define('download-insiders-cli', async () => {
-	const vscodeTest = require('@vscode/test-electron');
-
-	const platform = process.platform === 'win32' ? 'win32' : process.platform === 'darwin' ? 'darwin' : 'linux';
-	let tmpPath = await vscodeTest.download({
-		cachePath: path.resolve(__dirname, '..', '.build', '.vscode-test'),
-		version: 'insiders',
-		platform: `cli-${platform}-${process.arch}`,
-	});
-
-	if (process.platform === 'win32' && !tmpPath.endsWith('.exe')) {
-		tmpPath += '.exe';
-	}
-
-	await fs.mkdir(path.dirname(targetCliPath), { recursive: true });
-	await fs.copyFile(tmpPath, targetCliPath);
-	await fs.chmod(targetCliPath, 0o755);
-});
-
 const compileCliTask = task.define('compile-cli', () => {
-	if (!hasLocalRust()) {
-		if (existsSync(targetCliPath)) {
-			fancyLog(ansiColors.green(`[cli]`), 'No local Rust install detected, skipping CLI compilation');
-			return Promise.resolve();
-		} else {
-			fancyLog(ansiColors.green(`[cli]`), 'No local Rust install detected, downloading from CDN');
-			return downloadCli();
-		}
-	}
-
+	warnIfRustNotInstalled();
 	const reporter = createReporter('cli');
 	return gulp.src(`${root}/Cargo.toml`)
-		.pipe(compileFromSources(reporter))
+		.pipe(compileWithOpenSSLCheck(reporter))
 		.pipe(reporter.end(true));
 });
 
 
 const watchCliTask = task.define('watch-cli', () => {
-	if (!hasLocalRust()) {
-		fancyLog(ansiColors.yellow(`[cli]`), 'No local Rust install detected, skipping watch-cli');
-		if (!existsSync(targetCliPath)) {
-			fancyLog(ansiColors.green(`[cli]`), 'Downloading initial CLI build from CDN');
-			return downloadCli();
-		}
-
-		return Promise.resolve();
-	}
-
+	warnIfRustNotInstalled();
 	return watcher(`${src}/**`, { read: false })
 		.pipe(debounce(compileCliTask));
 });
 
-gulp.task(downloadCli);
 gulp.task(compileCliTask);
 gulp.task(watchCliTask);
