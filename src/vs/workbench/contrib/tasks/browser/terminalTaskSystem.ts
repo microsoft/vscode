@@ -1166,18 +1166,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				windowsShellArgs = true;
 				// If we don't have a cwd, then the terminal uses the home dir.
 				const userHome = await this._pathService.userHome();
-				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
-					return undefined;
-				}
-				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
+				if (basename === 'cmd.exe') {
+					if ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath))) {
+						return undefined;
+					}
+					toAdd.push('/d', '/c');
+				} else if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
 					toAdd.push('-Command');
 				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
 					toAdd.push('-c');
 				} else if (basename === 'wsl.exe') {
 					toAdd.push('-e');
-				} else {
-					toAdd.push('/d', '/c');
 				}
 			} else {
 				// Under Mac remove -l to not start it as a login shell.
