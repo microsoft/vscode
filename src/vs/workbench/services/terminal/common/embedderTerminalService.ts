@@ -59,7 +59,6 @@ class EmbedderTerminalService implements IEmbedderTerminalService {
 	readonly onDidCreateTerminal = Event.buffer(this._onDidCreateTerminal.event);
 
 	createTerminal(options: IEmbedderTerminalOptions): void {
-		console.log('createTerminal!', options);
 		const slc: EmbedderTerminal = {
 			name: options.name,
 			isFeatureTerminal: true,

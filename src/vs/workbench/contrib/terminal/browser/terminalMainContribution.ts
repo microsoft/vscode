@@ -91,9 +91,7 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 			}
 		});
 
-		console.log('Main contribution init', embedderTerminalService);
 		embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
-			console.log('Main contribution', embedderTerminal);
 			const terminal = await terminalService.createTerminal({
 				config: embedderTerminal,
 				location: TerminalLocation.Panel
