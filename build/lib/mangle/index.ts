@@ -279,7 +279,7 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 }
 
 const fileIdents = new class {
-	private readonly idents = new ShortIdent('z$');
+	private readonly idents = new ShortIdent('$');
 
 	next(file: ts.SourceFile) {
 		return this.idents.next(name => isNameTakenInFile(file, name));
@@ -479,6 +479,11 @@ export class Mangler {
 					&& node.name && node.body // On named function and not on the overload
 				)
 			) {
+				if (node.flags & ts.ModifierFlags.Ambient) {
+					// Do not mangle inline ambient declarations
+					return;
+				}
+
 				const anchor = node.name;
 				const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
 				if (this.allExportsByKey.has(key)) {
@@ -766,9 +771,9 @@ function normalize(path: string): string {
 }
 
 async function _run() {
-
-	const projectPath = path.join(__dirname, '../../../src/tsconfig.json');
-	const projectBase = path.dirname(projectPath);
+	const root = path.join(__dirname, '..', '..', '..');
+	const projectBase = path.join(root, 'src');
+	const projectPath = path.join(projectBase, 'tsconfig.json');
 	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '2');
 
 	fs.cpSync(projectBase, newProjectBase, { recursive: true });
