@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, IInteractiveEditorSlashCommand, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -48,8 +48,6 @@ import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { MarkdownResponse, MarkdownResponseCropState } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -154,7 +152,6 @@ export class InteractiveEditorWidget {
 	private readonly _inputEditor: IActiveCodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
-	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
 
 	private readonly _progressBar: ProgressBar;
 
@@ -213,7 +210,6 @@ export class InteractiveEditorWidget {
 
 		// --- context keys
 
-		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
 		this._ctxInputEmpty = CTX_INTERACTIVE_EDITOR_EMPTY.bindTo(this._contextKeyService);
 
 		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
@@ -322,7 +318,6 @@ export class InteractiveEditorWidget {
 	dispose(): void {
 		this._store.dispose();
 		this._ctxInputEmpty.reset();
-		this._ctxMessageCropState.reset();
 	}
 
 	get domNode(): HTMLElement {
@@ -392,25 +387,18 @@ export class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	updateMarkdownMessage(response: MarkdownResponse | undefined) {
-
-		this._elements.markdownMessage.classList.toggle('hidden', !response);
-		if (response) {
-			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
-			reset(this._elements.message, renderedMarkdown.element);
-			let currentCropState = response.cropState;
-			console.log('currentCropState : ', currentCropState);
-			if (!currentCropState) {
-				currentCropState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? MarkdownResponseCropState.CROPPED : MarkdownResponseCropState.NOT_CROPPED;
-				response.cropState = currentCropState;
-			}
-			this._ctxMessageCropState.set(currentCropState);
-			this.updateToggleViewState(currentCropState === MarkdownResponseCropState.EXPANDED);
-		} else {
+	updateMarkdownMessage(message: Node | undefined) {
+		this._elements.markdownMessage.classList.toggle('hidden', !message);
+		if (!message) {
 			reset(this._elements.message);
-			this._ctxMessageCropState.reset();
+		} else {
+			reset(this._elements.message, message);
 		}
 		this._onDidChangeHeight.fire();
+	}
+
+	isMarkdownMessageOverflowing(): boolean {
+		return this._elements.message.scrollHeight > this._elements.message.clientHeight;
 	}
 
 	updateStatus(message: string, ops: { classes?: string[]; resetAfter?: number; keepMessage?: boolean } = {}) {
@@ -450,14 +438,7 @@ export class InteractiveEditorWidget {
 		this._inputEditor.focus();
 	}
 
-	updateToggleState(response: MarkdownResponse, expand: boolean) {
-		const cropState = expand ? MarkdownResponseCropState.EXPANDED : MarkdownResponseCropState.CROPPED;
-		response.cropState = cropState;
-		this._ctxMessageCropState.set(cropState);
-		this.updateToggleViewState(expand);
-	}
-
-	updateToggleViewState(expand: boolean) {
+	updateToggleState(expand: boolean) {
 		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
 		this._onDidChangeHeight.fire();
 	}
