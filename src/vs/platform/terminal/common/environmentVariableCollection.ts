@@ -151,7 +151,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	getDescriptionMap(scope: EnvironmentVariableScope | undefined): Map<string, string | undefined> {
 		const result = new Map<string, string | undefined>();
 		this.descriptionMap.forEach((mutators, _key) => {
-			const filteredMutators = mutators.filter(m => filterScope(m, scope));
+			const filteredMutators = mutators.filter(m => filterScope(m, scope, true));
 			if (filteredMutators.length > 0) {
 				// There should be exactly one description per extension per scope.
 				result.set(filteredMutators[0].extensionIdentifier, filteredMutators[0].description);
@@ -190,11 +190,22 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	}
 }
 
+/**
+ * Returns whether a mutator matches with the scope provided.
+ * @param mutator Mutator to filter
+ * @param scope Scope to be used for querying
+ * @param strictFilter If true, mutators with global scope is not returned when querying for workspace scope.
+ * i.e whether mutator scope should always exactly match with query scope.
+ */
 function filterScope(
 	mutator: IExtensionOwnedEnvironmentVariableMutator | IExtensionOwnedEnvironmentDescriptionMutator,
-	scope: EnvironmentVariableScope | undefined
+	scope: EnvironmentVariableScope | undefined,
+	strictFilter = false
 ): boolean {
 	if (!mutator.scope) {
+		if (strictFilter) {
+			return scope === mutator.scope;
+		}
 		return true;
 	}
 	// If a mutator is scoped to a workspace folder, only apply it if the workspace

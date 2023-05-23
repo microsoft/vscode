@@ -181,6 +181,8 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			]));
 			deepStrictEqual([...merged.getDescriptionMap(scope1).entries()], [
 				['ext1', 'ext1 scope1 description'],
+			]);
+			deepStrictEqual([...merged.getDescriptionMap(undefined).entries()], [
 				['ext2', 'ext2 global description'],
 			]);
 		});
