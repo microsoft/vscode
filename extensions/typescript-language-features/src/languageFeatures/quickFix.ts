@@ -35,6 +35,21 @@ class ApplyCodeActionCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
+	private findEndLine(startLine: number, navigationTree: Proto.NavigationTree[]): number {
+
+		for (const node of navigationTree) {
+			const nodeStartLine = node.spans[0].start.line;
+			const nodeEndLine = node.spans[0].end.line;
+
+			if (nodeStartLine === startLine) {
+				return nodeEndLine;
+			} else if (startLine > nodeStartLine && startLine <= nodeEndLine && node.childItems) {
+				return this.findEndLine(startLine, node.childItems);
+			}
+		}
+		return -1;
+	}
+
 	public async execute({ resource, action, diagnostic }: ApplyCodeActionCommand_args): Promise<boolean> {
 		/* __GDPR__
 			"quickFix.execute" : {
@@ -45,33 +60,39 @@ class ApplyCodeActionCommand implements Command {
 				]
 			}
 		*/
-		console.log('resource : ', resource);
-		console.log('action : ', action);
-		console.log('diagnostic : ', diagnostic);
 
 		this.telemetryReporter.logTelemetry('quickFix.execute', {
 			fixName: action.fixName
 		});
 
 		this.diagnosticManager.deleteDiagnostic(resource, diagnostic);
-		// TODO: point of interest
 		const codeActionResult = await applyCodeActionCommands(this.client, action.commands, nulToken);
 
-		// TODO: how to find the end line number of the class?
-		// const startLine = diagnostic.range.start.line;
-		// Find end line using the outline
-		// vscode.window.activeTextEditor?.document
-
-		const numberLines = vscode.window.activeTextEditor?.document.lineCount;
-
-		// once done, need to call the interactive editor, when working with the implentation interface case
 		if (action.fixName === 'fixClassIncorrectlyImplementsInterface') {
-			console.log('case when class incorrectly implements interface');
-			await vscode.commands.executeCommand('interactiveEditor.start', { initialRange: { startLineNumber: 0, endLineNumber: numberLines, startColumn: 0, endColumn: 0 }, message: 'Implement the class from the interface', autoSend: true });
-		}
-		//
 
-		return codeActionResult;
+			const diagnosticStartLine = diagnostic.range.start.line + 1;
+			const document = vscode.window.activeTextEditor?.document;
+
+			if (document) {
+				const filepath = this.client.toOpenTsFilePath(document);
+
+				if (filepath) {
+					const cancellationTokenSource = new vscode.CancellationTokenSource();
+					const response = await this.client.execute('navtree', { file: filepath }, cancellationTokenSource.token);
+
+					if (response.type === 'response' && response.body?.childItems) {
+
+						const endLineFound = this.findEndLine(diagnosticStartLine, response.body.childItems);
+						const endLine = endLineFound !== -1 ? endLineFound : vscode.window.activeTextEditor?.document.lineCount;
+						const startLine = endLineFound !== -1 ? diagnosticStartLine : 0;
+
+						await vscode.commands.executeCommand('interactiveEditor.start', { initialRange: { startLineNumber: startLine, endLineNumber: endLine, startColumn: 0, endColumn: 0 }, message: 'Implement the class using the interface', autoSend: true });
+					}
+				}
+			}
+			return codeActionResult;
+		}
+		return false;
 	}
 }
 

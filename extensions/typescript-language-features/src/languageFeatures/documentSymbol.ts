@@ -33,7 +33,7 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	return vscode.SymbolKind.Variable;
 };
 
-class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+export class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -60,7 +60,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		return result;
 	}
 
-	private static convertNavTree(
+	public static convertNavTree(
 		resource: vscode.Uri,
 		output: vscode.DocumentSymbol[],
 		item: Proto.NavigationTree,
