@@ -565,7 +565,7 @@ export class TabsTitleControl extends TitleControl {
 		// the mouse and allows for rapid closing of tabs.
 
 		if (this.isMouseOverTabs && this.accessor.partOptions.tabSizing === 'fixed') {
-			const closingLastTab = this.group.editors.at(-1) === editor;
+			const closingLastTab = this.group.isLast(editor);
 			this.updateTabsFixedWidth(!closingLastTab);
 		}
 	}
