@@ -391,6 +391,7 @@ export class InteractiveEditorWidget {
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
 		if (!message) {
 			reset(this._elements.message);
+
 		} else {
 			reset(this._elements.message, message);
 		}
