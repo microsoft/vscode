@@ -17,6 +17,7 @@ import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -90,6 +91,17 @@ export interface IWorkbench {
 			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
 			task: (progress: IProgress<IProgressStep>) => Promise<R>
 		): Promise<R>;
+
+		/**
+		 * Creates a terminal with limited capabilities that is intended for
+		 * writing output from the embedder before the workbench has finished
+		 * loading. When an embedder terminal is created it will automatically
+		 * show to the user.
+		 *
+		 * @param options The definition of the terminal, this is similar to
+		 * `ExtensionTerminalOptions` in the extension API.
+		 */
+		createTerminal(options: IEmbedderTerminalOptions): void;
 	};
 
 	workspace: {
