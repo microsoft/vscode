@@ -479,9 +479,11 @@ export class Mangler {
 					&& node.name && node.body // On named function and not on the overload
 				)
 			) {
-				if (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Ambient) {
-					// Do not mangle inline ambient declarations
-					return;
+				// Do not mangle symbols in ambient contexts
+				for (let p = node.parent; p; p = p.parent) {
+					if (ts.isModuleDeclaration(p)) {
+						return;
+					}
 				}
 
 				const anchor = node.name;
