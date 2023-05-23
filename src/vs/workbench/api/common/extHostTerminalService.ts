@@ -25,7 +25,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { Promises } from 'vs/base/common/async';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
-import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -914,21 +914,21 @@ class UnifiedEnvironmentVariableCollection {
 
 	replace(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
 		if (this._extension && options) {
-			isProposedApiEnabled(this._extension, 'envCollectionOptions');
+			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
 		}
 		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, options: options ?? {}, scope });
 	}
 
 	append(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
 		if (this._extension && options) {
-			isProposedApiEnabled(this._extension, 'envCollectionOptions');
+			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
 		}
 		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, options: options ?? {}, scope });
 	}
 
 	prepend(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
 		if (this._extension && options) {
-			isProposedApiEnabled(this._extension, 'envCollectionOptions');
+			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
 		}
 		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, options: options ?? {}, scope });
 	}
