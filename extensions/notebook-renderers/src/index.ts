@@ -265,6 +265,11 @@ function scrollingEnabled(output: OutputItem, options: RenderOptions) {
 		metadata.scrollable : options.outputScrolling;
 }
 
+//  div.cell_container
+//    div.output_container
+//      div.output.output-stream		<-- outputElement parameter
+//        div.scrollable? tabindex="0" 	<-- contentParent
+//          div output-item-id="{guid}"	<-- content from outputItem parameter
 function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
@@ -281,7 +286,7 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 	const scrollTop = outputScrolling ? findScrolledHeight(outputElement) : undefined;
 
 	// If the previous output item for the same cell was also a stream, append this output to the previous
-	const existingContentParent = getPreviousMatchingContentGroup(outputElement);
+	const existingContentParent = getPreviousMatchingContentGroup(outputElement) || outputElement.querySelector('div');
 	if (existingContentParent) {
 		const existing = existingContentParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		if (existing) {
