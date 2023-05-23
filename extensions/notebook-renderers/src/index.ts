@@ -291,6 +291,9 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 		const existing = existingContentParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		if (existing) {
 			existing.replaceWith(content);
+			while (content.nextSibling) {
+				content.nextSibling.remove();
+			}
 		} else {
 			existingContentParent.appendChild(content);
 		}
