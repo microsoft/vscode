@@ -64,11 +64,9 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 
 const $ = DOM.$;
 
@@ -768,7 +766,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@IConfigurationService protected readonly _configService: IConfigurationService,
-		@IExtensionManagementService protected readonly _extensionManagementService: IExtensionManagementService,
+		@IExtensionService protected readonly _extensionsService: IExtensionService,
 		@IExtensionsWorkbenchService protected readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService protected readonly _productService: IProductService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
@@ -887,7 +885,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
 
 		const titleTooltip = setting.key + (element.isConfigured ? ' - Modified' : '');
-		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
+		template.categoryElement.textContent = element.displayCategory ? (element.displayCategory + ': ') : '';
 		template.categoryElement.title = titleTooltip;
 
 		template.labelElement.text = element.displayLabel;
@@ -1892,17 +1890,11 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 	}
 }
 
-type ExtensionToggleSettingTelemetryClassification = {
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of action performed by the setting button' };
+type ManageExtensionClickTelemetryClassification = {
+	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension the user went to manage.' };
 	owner: 'rzhao271';
-	comment: 'Event used to gain insights into when users are using an experimental extension toggle setting';
+	comment: 'Event used to gain insights into when users are using an experimental extension management setting';
 };
-
-interface ExtensionEnablementState {
-	extension: IExtension | undefined;
-	installed: boolean;
-	enabled: boolean;
-}
 
 export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExtensionToggleItemTemplate> {
 	templateId = SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID;
@@ -1911,10 +1903,11 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 		const common = super.renderCommonTemplate(null, _container, 'extension-toggle');
 
 		const actionButton = new Button(common.containerElement, {
-			title: true,
+			title: false,
 			...defaultButtonStyles
 		});
 		actionButton.element.classList.add('setting-item-extension-toggle-button');
+		actionButton.label = localize('manageExtension', "Manage extension");
 
 		const template: ISettingExtensionToggleItemTemplate = {
 			...common,
@@ -1930,76 +1923,33 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	private getExtensionEnablementState(extensionName: string, insidersExtensionName: string): ExtensionEnablementState {
-		const isStable = this._productService.quality === 'stable';
-		let extensionQuery = isStable ? extensionName : insidersExtensionName;
-		let extension: IExtension | undefined = this._extensionsWorkbenchService.installed.find(e => e.identifier.id === extensionQuery);
-		if (!extension) {
-			extensionQuery = isStable ? insidersExtensionName : extensionName;
-			extension = this._extensionsWorkbenchService.installed.find(e => e.identifier.id === extensionQuery);
-		}
-		const installed = !!extension;
-		const enabled = extension?.enablementState === EnablementState.EnabledGlobally;
-		return { extension, installed, enabled };
-	}
-
-	private renderControls(actionButton: Button, enablementState: ExtensionEnablementState, requiresReloadOnDisable: boolean): void {
-		const extensionName = enablementState.extension?.displayName ??
-			enablementState.extension?.identifier.id ?? '';
-		if (!enablementState.installed) {
-			actionButton.element.textContent = localize('installButtonText', "Install {0}", extensionName);
-		} else if (!enablementState.enabled) {
-			actionButton.element.textContent = localize('enableButtonText', "Enable {0}", extensionName);
-		} else {
-			actionButton.element.textContent = requiresReloadOnDisable ?
-				localize('disableAndReloadButtonText', "Disable {0} and reload", extensionName) :
-				localize('disableButtonText', "Disable {0}", extensionName);
-		}
-		actionButton.element.title = actionButton.element.textContent;
-		actionButton.label = actionButton.element.textContent;
+	renderButton(extensionId: string, actionButton: Button): void {
+		this._extensionsService.getExtension(extensionId).then(extension => {
+			if (extension) {
+				actionButton.label = localize('manageNamedExtension', "Manage {0}", extension.displayName || extension.name);
+			}
+		});
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExtensionToggleItemTemplate, onChange: (_: undefined) => void): void {
 		template.elementDisposables.clear();
-		const extensionId = dataElement.setting?.extensionName ?? '';
-		const nightlyExtensionId = dataElement.setting?.nightlyExtensionName ?? '';
-		const requiresReloadOnDisable = dataElement.setting?.requiresReloadOnDisable ?? false;
+		const extensionId = (this._productService.quality === 'stable') ?
+			(dataElement.setting?.extensionName ?? '') :
+			(dataElement.setting?.nightlyExtensionName ?? '');
+		if (extensionId) {
+			template.elementDisposables.add(template.actionButton.onDidClick(async () => {
+				this._telemetryService.publicLog2<{ extensionId: String }, ManageExtensionClickTelemetryClassification>('ManageExtensionClick', { extensionId });
+				this._commandService.executeCommand('extension.open', extensionId);
+			}));
+		}
 
 		template.elementDisposables.add(this._extensionsWorkbenchService.onChange((e) => {
-			const changedId = e?.identifier.id ?? '';
-			if (changedId && [extensionId, nightlyExtensionId].includes(changedId)) {
-				const enablementState = this.getExtensionEnablementState(extensionId, nightlyExtensionId);
-				this.renderControls(template.actionButton, enablementState, requiresReloadOnDisable);
+			if (e?.identifier.id === extensionId) {
+				this.renderButton(extensionId, template.actionButton);
 			}
 		}));
 
-		template.elementDisposables.add(template.actionButton.onDidClick(async () => {
-			let enablementState = this.getExtensionEnablementState(extensionId, nightlyExtensionId);
-			let action = '';
-			if (!enablementState.installed) {
-				action = 'install';
-				await this._commandService.executeCommand('workbench.extensions.installExtension',
-					this._productService.quality !== 'stable' ? nightlyExtensionId : extensionId);
-			} else if (!enablementState.extension) {
-				action = 'error';
-			} else if (!enablementState.enabled) {
-				action = 'enable';
-				await this._extensionsWorkbenchService.setEnablement(enablementState.extension, EnablementState.EnabledGlobally);
-			} else {
-				action = 'disable';
-				await this._extensionsWorkbenchService.setEnablement(enablementState.extension, EnablementState.DisabledGlobally);
-				if (requiresReloadOnDisable) {
-					await this._commandService.executeCommand('workbench.action.reloadWindow');
-				}
-			}
-			this._telemetryService.publicLog2<{ action: string }, ExtensionToggleSettingTelemetryClassification>('ExtensionToggleClick', { action });
-
-			enablementState = this.getExtensionEnablementState(extensionId, nightlyExtensionId);
-			this.renderControls(template.actionButton, enablementState, requiresReloadOnDisable);
-		}));
-
-		const enablementState = this.getExtensionEnablementState(extensionId, nightlyExtensionId);
-		this.renderControls(template.actionButton, enablementState, requiresReloadOnDisable);
+		this.renderButton(extensionId, template.actionButton);
 	}
 }
 

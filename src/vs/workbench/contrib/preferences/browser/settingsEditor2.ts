@@ -46,7 +46,7 @@ import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/p
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG, getExperimentalExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel, nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -1193,9 +1193,46 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
+	private async toggleExtensionGroupSetting(setting: ISetting, groups: ISettingsGroup[]): Promise<void> {
+		const isStable = this.productService.quality === 'stable';
+		const extensionId = (isStable ? setting.extensionName : setting.nightlyExtensionName)!;
+		const extension = await this.extensionService.getExtension(extensionId);
+		const extensionDisplayName = extension?.displayName || extension?.name || extensionId;
+		const extensionGroups = groups.filter(g => g.extensionInfo?.id.toLowerCase() === extensionId);
+		if (!extensionGroups.length) {
+			const newGroup: ISettingsGroup = {
+				id: extensionId,
+				range: nullRange,
+				title: setting.extensionGroupTitle!,
+				titleRange: nullRange,
+				sections: [{
+					settings: [setting],
+				}],
+				extensionInfo: {
+					id: extensionId,
+					displayName: extensionDisplayName,
+				}
+			};
+			groups.push(newGroup);
+		} else if (extensionGroups.length >= 2) {
+			// Remove the current group
+			const ind = extensionGroups.findIndex(g => {
+				const firstSectionSettings = g.sections[0].settings;
+				return firstSectionSettings?.length === 1 && firstSectionSettings[0].key === setting.key;
+			});
+			if (ind !== -1) {
+				extensionGroups.splice(ind, 1);
+			}
+		}
+	}
+
 	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, schemaChange = false): Promise<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
+		}
+
+		if (!this.defaultSettingsEditorModel) {
+			return;
 		}
 
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
@@ -1212,14 +1249,14 @@ export class SettingsEditor2 extends EditorPane {
 					description: [props.description],
 					descriptionIsMarkdown: props.descriptionIsMarkdown ?? false,
 					descriptionRanges: [],
+					title: props.title,
 					scope: ConfigurationScope.APPLICATION,
 					type: 'null',
 					extensionName: props.extensionName,
 					nightlyExtensionName: props.nightlyExtensionName || props.extensionName,
-					requiresReloadOnDisable: props.requiresReloadOnDisable
+					extensionGroupTitle: props.extensionGroupTitle,
 				};
-				const groupId = key.split('.')[0];
-				groups.find(group => group.id === groupId)?.sections[0].settings.push(toggleSetting);
+				await this.toggleExtensionGroupSetting(toggleSetting, groups);
 			}
 		}
 
@@ -1238,11 +1275,11 @@ export class SettingsEditor2 extends EditorPane {
 			this.hasWarnedMissingSettings = true;
 		}
 
-		const commonlyUsedDataToUse = await getCommonlyUsedData(this.workbenchAssignmentService, this.productService);
-		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, dividedGroups.core, this.logService);
-		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
-
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, dividedGroups.extension || []));
+
+		const commonlyUsedDataToUse = await getCommonlyUsedData(this.workbenchAssignmentService, this.productService);
+		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, groups, this.logService);
+		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
 		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
 			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.viewState.languageFilter, this.configurationService);

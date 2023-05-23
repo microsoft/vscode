@@ -99,11 +99,8 @@ export interface ISetting {
 	// For ExtensionToggle settings
 	extensionName?: string;
 	nightlyExtensionName?: string;
-	installButtonText?: string;
-	enableButtonText?: string;
-	disableButtonText?: string;
-	requiresReloadOnDisable?: boolean;
-	requiresReloadOnEnable?: boolean;
+	title?: string;
+	extensionGroupTitle?: string;
 }
 
 export interface IExtensionSetting extends ISetting {

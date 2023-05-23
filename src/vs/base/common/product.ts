@@ -45,11 +45,12 @@ export type ConfigurationSyncStore = {
 };
 
 type ExtensionToggleConfigurationSetting = {
+	readonly extensionGroupTitle: string;
+	readonly title: string;
 	readonly description: string;
 	readonly descriptionIsMarkdown?: boolean;
 	readonly extensionName: string;
 	readonly nightlyExtensionName?: string;
-	readonly requiresReloadOnDisable: boolean;
 };
 
 export type ExtensionToggleConfiguration = {
