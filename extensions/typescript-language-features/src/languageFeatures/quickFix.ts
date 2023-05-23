@@ -36,11 +36,9 @@ class ApplyCodeActionCommand implements Command {
 	) { }
 
 	private findEndLine(startLine: number, navigationTree: Proto.NavigationTree[]): number {
-
 		for (const node of navigationTree) {
 			const nodeStartLine = node.spans[0].start.line;
 			const nodeEndLine = node.spans[0].end.line;
-
 			if (nodeStartLine === startLine) {
 				return nodeEndLine;
 			} else if (startLine > nodeStartLine && startLine <= nodeEndLine && node.childItems) {
@@ -60,7 +58,6 @@ class ApplyCodeActionCommand implements Command {
 				]
 			}
 		*/
-
 		this.telemetryReporter.logTelemetry('quickFix.execute', {
 			fixName: action.fixName
 		});
@@ -258,8 +255,6 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		private readonly diagnosticsManager: DiagnosticsManager,
 		telemetryReporter: TelemetryReporter
 	) {
-		console.log('Inside of the quick fix provider for TypeScript');
-
 		commandManager.register(new ApplyCodeActionCommand(client, diagnosticsManager, telemetryReporter));
 		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
 
@@ -272,9 +267,6 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<VsCodeCodeAction[] | undefined> {
-
-		console.log('inside of provideCodeActions');
-
 		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
@@ -310,9 +302,6 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 	}
 
 	public async resolveCodeAction(codeAction: VsCodeCodeAction, token: vscode.CancellationToken): Promise<VsCodeCodeAction> {
-
-		console.log('inside of resolveCodeAction');
-
 		if (!(codeAction instanceof VsCodeFixAllCodeAction) || !codeAction.tsAction.fixId) {
 			return codeAction;
 		}
@@ -341,14 +330,10 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		results: CodeActionSet,
 		token: vscode.CancellationToken,
 	): Promise<CodeActionSet> {
-
-		console.log('inside of getFixesForDiagnostic');
-
 		const args: Proto.CodeFixRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
 			errorCodes: [+(diagnostic.code!)]
 		};
-		// TODO: point of interest
 		const response = await this.client.execute('getCodeFixes', args, token);
 		if (response.type !== 'response' || !response.body) {
 			return results;
@@ -367,9 +352,6 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): CodeActionSet {
-
-		console.log('inside of addAllFixesForTsCodeAction');
-
 		results.addAction(this.getSingleFixForTsCodeAction(document.uri, diagnostic, tsAction));
 		this.addFixAllForTsCodeAction(results, document.uri, file, diagnostic, tsAction as Proto.CodeFixAction);
 		return results;
@@ -380,9 +362,6 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): VsCodeCodeAction {
-
-		console.log('inside of getSingleFixForTsCodeAction');
-
 		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
 		codeAction.diagnostics = [diagnostic];
@@ -401,9 +380,6 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction,
 	): CodeActionSet {
-
-		console.log('inside of addFixAllForTsCodeAction');
-
 		if (!tsAction.fixId || results.hasFixAllAction(tsAction.fixId)) {
 			return results;
 		}
