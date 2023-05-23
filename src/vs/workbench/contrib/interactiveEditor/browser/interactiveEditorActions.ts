@@ -56,8 +56,6 @@ export class StartSessionAction extends EditorAction2 {
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
-		console.log('inside of the case when running the interactive editor start command');
-
 		let options: InteractiveEditorRunOptions | undefined;
 		const arg = _args[0];
 		if (arg && this._isInteractivEditorOptions(arg)) {
