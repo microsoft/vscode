@@ -356,7 +356,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	protected _terminalProcessDisposables: { [id: number]: IDisposable } = {};
 	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal | undefined> } = {};
-	protected _environmentVariableCollections: Map<string, EnvironmentVariableCollection> = new Map();
+	protected _environmentVariableCollections: Map<string, UnifiedEnvironmentVariableCollection> = new Map();
 	private _defaultProfile: ITerminalProfile | undefined;
 	private _defaultAutomationProfile: ITerminalProfile | undefined;
 
@@ -827,13 +827,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection {
 		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 		if (!collection) {
-			collection = new EnvironmentVariableCollection(extension);
+			collection = new UnifiedEnvironmentVariableCollection(extension);
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
 		return collection.getScopedEnvironmentVariableCollection(undefined);
 	}
 
-	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
+	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: UnifiedEnvironmentVariableCollection): void {
 		const serialized = serializeEnvironmentVariableCollection(collection.map);
 		const serializedDescription = serializeEnvironmentDescriptionMap(collection.descriptionMap);
 		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, collection.persistent, serialized.length === 0 ? undefined : serialized, serializedDescription);
@@ -842,7 +842,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
 		collections.forEach(entry => {
 			const extensionIdentifier = entry[0];
-			const collection = new EnvironmentVariableCollection(undefined, entry[1]);
+			const collection = new UnifiedEnvironmentVariableCollection(undefined, entry[1]);
 			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
 		});
 	}
@@ -856,7 +856,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 	}
 
-	private _setEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
+	private _setEnvironmentVariableCollection(extensionIdentifier: string, collection: UnifiedEnvironmentVariableCollection): void {
 		this._environmentVariableCollections.set(extensionIdentifier, collection);
 		collection.onDidChangeCollection(() => {
 			// When any collection value changes send this immediately, this is done to ensure
@@ -868,7 +868,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 }
 
-class EnvironmentVariableCollection {
+/**
+ * Unified environment variable collection carrying information for all scopes, for a specific extension.
+ */
+class UnifiedEnvironmentVariableCollection {
 	readonly map: Map<string, IEnvironmentVariableMutator> = new Map();
 	private readonly scopedCollections: Map<string, ScopedEnvironmentVariableCollection> = new Map();
 	readonly descriptionMap: Map<string, IEnvironmentDescriptionMutator> = new Map();
@@ -929,9 +932,6 @@ class EnvironmentVariableCollection {
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator & { scope: vscode.EnvironmentVariableScope | undefined }): void {
 		if (mutator.options && mutator.options.applyAtProcessCreation === false && !mutator.options.applyAtShellIntegration) {
 			throw new Error('EnvironmentVariableMutatorOptions must apply at either process creation or shell integration');
-		}
-		if (!mutator.scope) {
-			delete (mutator as any).scope; // Convenient for tests
 		}
 		const key = this.getKey(variable, mutator.scope);
 		const current = this.map.get(key);
@@ -1032,13 +1032,13 @@ class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableC
 	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
 
 	constructor(
-		private readonly collection: EnvironmentVariableCollection,
+		private readonly collection: UnifiedEnvironmentVariableCollection,
 		private readonly scope: vscode.EnvironmentVariableScope | undefined
 	) {
 	}
 
-	getScopedEnvironmentVariableCollection() {
-		return this.collection.getScopedEnvironmentVariableCollection(this.scope);
+	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined) {
+		return this.collection.getScopedEnvironmentVariableCollection(scope);
 	}
 
 	replace(variable: string, value: string, options?: vscode.EnvironmentVariableMutatorOptions | undefined): void {
@@ -1120,7 +1120,7 @@ function asTerminalColor(color?: vscode.ThemeColor): ThemeColor | undefined {
 
 function convertMutator(mutator: IEnvironmentVariableMutator): vscode.EnvironmentVariableMutator {
 	const newMutator = { ...mutator };
-	newMutator.scope = newMutator.scope ?? undefined;
+	delete newMutator.scope;
 	newMutator.options = newMutator.options ?? undefined;
 	delete (newMutator as any).variable;
 	return newMutator as vscode.EnvironmentVariableMutator;

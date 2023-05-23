@@ -74,7 +74,8 @@ export interface IMergedEnvironmentVariableCollection {
 	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 	/**
 	 * Gets the description map for a given scope.
-	 * @param scope The scope to get the description map for. If undefined, the global scope is used.
+	 * @param scope The scope to get the description map for. If undefined, description map for the
+	 * global scope is returned.
 	 */
 	getDescriptionMap(scope: EnvironmentVariableScope | undefined): Map<string, string | undefined>;
 	/**
