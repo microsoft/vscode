@@ -31,6 +31,7 @@ export async function applyCodeAction(
 	return applyCodeActionCommands(client, action.commands, token);
 }
 
+// TODO: point of interest
 export async function applyCodeActionCommands(
 	client: ITypeScriptServiceClient,
 	commands: ReadonlyArray<{}> | undefined,
