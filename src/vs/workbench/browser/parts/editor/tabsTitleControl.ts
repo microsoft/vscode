@@ -570,15 +570,15 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	closeEditor(editor: EditorInput, index: number | undefined): void {
-		this.handleClosedEditors(index);
+	closeEditor(editor: EditorInput): void {
+		this.handleClosedEditors();
 	}
 
 	closeEditors(editors: EditorInput[]): void {
 		this.handleClosedEditors();
 	}
 
-	private handleClosedEditors(index?: number): void {
+	private handleClosedEditors(): void {
 
 		// There are tabs to show
 		if (this.group.activeEditor) {
