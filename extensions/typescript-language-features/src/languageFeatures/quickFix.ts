@@ -20,10 +20,10 @@ import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 type ApplyCodeActionCommand_args = {
-	readonly resource: vscode.Uri;
+	readonly document: vscode.TextDocument;
 	readonly diagnostic: vscode.Diagnostic;
 	readonly action: Proto.CodeFixAction;
-	readonly followupAction: (resource: vscode.Uri, diagnostic: vscode.Diagnostic, action: Proto.CodeFixAction, client: ITypeScriptServiceClient) => Promise<void> | undefined;
+	readonly followupAction: (document: vscode.TextDocument, diagnostic: vscode.Diagnostic, action: Proto.CodeFixAction, client: ITypeScriptServiceClient) => Promise<void> | undefined;
 };
 
 class ApplyCodeActionCommand implements Command {
@@ -36,7 +36,7 @@ class ApplyCodeActionCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute({ resource, action, diagnostic, followupAction }: ApplyCodeActionCommand_args): Promise<boolean> {
+	public async execute({ document, action, diagnostic, followupAction }: ApplyCodeActionCommand_args): Promise<boolean> {
 		/* __GDPR__
 			"quickFix.execute" : {
 				"owner": "mjbvz",
@@ -46,19 +46,14 @@ class ApplyCodeActionCommand implements Command {
 				]
 			}
 		*/
-
-		console.log('resource : ', resource);
-		console.log('action : ', action);
-		console.log('diagnostic : ', diagnostic);
-
 		this.telemetryReporter.logTelemetry('quickFix.execute', {
 			fixName: action.fixName
 		});
 
-		this.diagnosticManager.deleteDiagnostic(resource, diagnostic);
+		this.diagnosticManager.deleteDiagnostic(document.uri, diagnostic);
 		const codeActionResult = await applyCodeActionCommands(this.client, action.commands, nulToken);
 		if (followupAction) {
-			await followupAction(resource, diagnostic, action, this.client);
+			await followupAction(document, diagnostic, action, this.client);
 		}
 		return codeActionResult;
 	}
@@ -323,12 +318,12 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): CodeActionSet {
-		results.addAction(this.getSingleFixForTsCodeAction(document.uri, diagnostic, tsAction));
+		results.addAction(this.getSingleFixForTsCodeAction(document, diagnostic, tsAction));
 		this.addFixAllForTsCodeAction(results, document.uri, file, diagnostic, tsAction as Proto.CodeFixAction);
 		return results;
 	}
 
-	private async classIncorrectlyImplementsInterfaceFollowupAction(_resource: vscode.Uri, diagnostic: vscode.Diagnostic, action: Proto.CodeFixAction, client: ITypeScriptServiceClient): Promise<void> {
+	private async classIncorrectlyImplementsInterfaceFollowupAction(document: vscode.TextDocument, diagnostic: vscode.Diagnostic, _action: Proto.CodeFixAction, client: ITypeScriptServiceClient): Promise<void> {
 
 		const findScopeEndLine = (startLine: number, navigationTree: Proto.NavigationTree[]): number => {
 			for (const node of navigationTree) {
@@ -342,42 +337,28 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			}
 			return -1;
 		};
-
-		console.log('inside of classIncorrectlyImplementsInterfaceFollowupAction');
-
-		if (action.fixName === 'fixClassIncorrectlyImplementsInterface') {
-
-			const diagnosticStartLine = diagnostic.range.start.line + 1;
-			const document = vscode.window.activeTextEditor?.document;
-
-			if (document) {
-				const filepath = client.toOpenTsFilePath(document);
-
-				if (filepath) {
-					const cancellationTokenSource = new vscode.CancellationTokenSource();
-					const response = await client.execute('navtree', { file: filepath }, cancellationTokenSource.token);
-
-					if (response.type === 'response' && response.body?.childItems) {
-
-						const endLineFound = findScopeEndLine(diagnosticStartLine, response.body.childItems);
-						const endLine = endLineFound !== -1 ? endLineFound : vscode.window.activeTextEditor?.document.lineCount;
-						const startLine = endLineFound !== -1 ? diagnosticStartLine : 0;
-
-						await vscode.commands.executeCommand('interactiveEditor.start', { initialRange: { startLineNumber: startLine, endLineNumber: endLine, startColumn: 0, endColumn: 0 }, message: 'Implement the class using the interface', autoSend: true });
-					}
-				}
-			}
+		const filepath = client.toOpenTsFilePath(document);
+		if (!filepath) {
+			return;
 		}
+		const response = await client.execute('navtree', { file: filepath }, (new vscode.CancellationTokenSource()).token);
+		if (response.type !== 'response' || !response.body?.childItems) {
+			return;
+		}
+		const diagnosticStartLine = diagnostic.range.start.line + 1;
+		const endLineFound = findScopeEndLine(diagnosticStartLine, response.body.childItems);
+		const endLine = endLineFound !== -1 ? endLineFound : document.lineCount;
+		const startLine = endLineFound !== -1 ? diagnosticStartLine : 0;
+		await vscode.commands.executeCommand('interactiveEditor.start', { initialRange: { startLineNumber: startLine, endLineNumber: endLine, startColumn: 0, endColumn: 0 }, message: 'Implement the class using the interface', autoSend: true });
 	}
 
 	private getSingleFixForTsCodeAction(
-		resource: vscode.Uri,
+		document: vscode.TextDocument,
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): VsCodeCodeAction {
 		let followupAction;
-		const fixName = tsAction.fixName;
-		switch (fixName) {
+		switch (tsAction.fixName) {
 			case 'fixClassIncorrectlyImplementsInterface':
 				followupAction = this.classIncorrectlyImplementsInterfaceFollowupAction;
 		}
@@ -386,7 +367,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		codeAction.diagnostics = [diagnostic];
 		codeAction.command = {
 			command: ApplyCodeActionCommand.ID,
-			arguments: [<ApplyCodeActionCommand_args>{ action: tsAction, diagnostic, resource, followupAction }],
+			arguments: [<ApplyCodeActionCommand_args>{ action: tsAction, diagnostic, document, followupAction }],
 			title: ''
 		};
 		return codeAction;
