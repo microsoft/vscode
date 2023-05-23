@@ -8,11 +8,11 @@ import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentV
 
 type VariableResolver = (str: string) => Promise<string>;
 
-// const mutatorTypeToLabelMap: Map<EnvironmentVariableMutatorType, string> = new Map([
-// 	[EnvironmentVariableMutatorType.Append, 'APPEND'],
-// 	[EnvironmentVariableMutatorType.Prepend, 'PREPEND'],
-// 	[EnvironmentVariableMutatorType.Replace, 'REPLACE']
-// ]);
+const mutatorTypeToLabelMap: Map<EnvironmentVariableMutatorType, string> = new Map([
+	[EnvironmentVariableMutatorType.Append, 'APPEND'],
+	[EnvironmentVariableMutatorType.Prepend, 'PREPEND'],
+	[EnvironmentVariableMutatorType.Replace, 'REPLACE']
+]);
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
 	private readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
@@ -46,7 +46,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 					value: mutator.value,
 					type: mutator.type,
 					scope: mutator.scope,
-					variable: mutator.variable
+					variable: mutator.variable,
+					options: mutator.options
 				};
 				if (!extensionMutator.scope) {
 					delete extensionMutator.scope; // Convenient for tests
@@ -69,24 +70,31 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			for (const mutator of mutators) {
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
-				// if (mutator.timing === EnvironmentVariableMutatorTiming.AfterShellIntegration) {
-				// 	const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
-				// 	env[key] = (env[key] ? env[key] + ':' : '') + variable + '=' + value;
-				// 	continue;
-				// }
-				switch (mutator.type) {
-					case EnvironmentVariableMutatorType.Append:
-						env[actualVariable] = (env[actualVariable] || '') + value;
-						break;
-					case EnvironmentVariableMutatorType.Prepend:
-						env[actualVariable] = value + (env[actualVariable] || '');
-						break;
-					case EnvironmentVariableMutatorType.Replace:
-						env[actualVariable] = value;
-						break;
+				// Default: true
+				if (mutator.options?.applyAtProcessCreation ?? true) {
+					switch (mutator.type) {
+						case EnvironmentVariableMutatorType.Append:
+							env[actualVariable] = (env[actualVariable] || '') + value;
+							break;
+						case EnvironmentVariableMutatorType.Prepend:
+							env[actualVariable] = value + (env[actualVariable] || '');
+							break;
+						case EnvironmentVariableMutatorType.Replace:
+							env[actualVariable] = value;
+							break;
+					}
+				}
+				// Default: false
+				if (mutator.options?.applyAtShellIntegration ?? false) {
+					const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
+					env[key] = (env[key] ? env[key] + ':' : '') + variable + '=' + this._encodeColons(value);
 				}
 			}
 		}
+	}
+
+	private _encodeColons(value: string): string {
+		return value.replaceAll(':', '\\x3a');
 	}
 
 	diff(other: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined): IMergedEnvironmentVariableCollectionDiff | undefined {
