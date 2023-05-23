@@ -526,6 +526,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.widget.updateStatus('');
 			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.widget.updateToolbar(true);
+			this._zone.widget.updateMarkdownMessageExpansionState(this._activeSession.lastExpansionState);
 
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
@@ -625,7 +626,10 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	updateExpansionState(expand: boolean) {
-		this._zone.widget.updateToggleState(expand);
+		if (this._activeSession) {
+			this._zone.widget.updateMarkdownMessageExpansionState(expand);
+			this._activeSession.lastExpansionState = expand;
+		}
 	}
 
 	feedbackLast(helpful: boolean) {

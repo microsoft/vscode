@@ -444,7 +444,7 @@ export class InteractiveEditorWidget {
 		this._inputEditor.focus();
 	}
 
-	updateToggleState(expand: boolean) {
+	updateMarkdownMessageExpansionState(expand: boolean) {
 		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
 		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
 		this._onDidChangeHeight.fire();
