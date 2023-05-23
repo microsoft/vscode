@@ -479,9 +479,18 @@ pub enum CodeError {
 	PrerequisitesFailed { name: &'static str, bullets: String },
 	#[error("failed to spawn process: {0:?}")]
 	ProcessSpawnFailed(std::io::Error),
-
+	#[error("failed to handshake spawned process: {0:?}")]
+	ProcessSpawnHandshakeFailed(std::io::Error),
 	#[error("download appears corrupted, please retry ({0})")]
 	CorruptDownload(&'static str),
+	#[error("port forwarding is not available in this context")]
+	PortForwardingNotAvailable,
+	#[error("'auth' call required")]
+	ServerAuthRequired,
+	#[error("challenge not yet issued")]
+	AuthChallengeNotIssued,
+	#[error("unauthorized client refused")]
+	AuthMismatch,
 }
 
 makeAnyError!(

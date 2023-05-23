@@ -38,7 +38,7 @@ import { NOTEBOOK_WEBVIEW_BOUNDARY } from 'vs/workbench/contrib/notebook/browser
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellUri, INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, ICellOutput, INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -1422,6 +1422,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		createOutput();
 	}
 
+	private createMetadata(output: ICellOutput, mimeType: string) {
+		if (mimeType.startsWith('image')) {
+			const buffer = output.outputs.find(out => out.mime === 'text/plain')?.data.buffer;
+			if (buffer?.length && buffer?.length > 0) {
+				const altText = new TextDecoder().decode(buffer);
+				return { ...output.metadata, vscode_altText: altText };
+			}
+		}
+		return output.metadata;
+	}
+
 	private _createOutputCreationMessage(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createOnIdle: boolean, initiallyHidden: boolean): { readonly message: ICreationRequestMessage; readonly renderer: INotebookRendererInfo | undefined; transfer: readonly ArrayBuffer[] } {
 		const messageBase = {
 			type: 'html',
@@ -1442,7 +1453,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			const output = content.source.model;
 			renderer = content.renderer;
 			const first = output.outputs.find(op => op.mime === content.mimeType)!;
-
+			const metadata = this.createMetadata(output, content.mimeType);
 			const valueBytes = copyBufferIfNeeded(first.data.buffer, transfer);
 			message = {
 				...messageBase,
@@ -1451,7 +1462,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				content: {
 					type: RenderOutputType.Extension,
 					outputId: output.outputId,
-					metadata: output.metadata,
+					metadata: metadata,
 					output: {
 						mime: first.mime,
 						valueBytes,

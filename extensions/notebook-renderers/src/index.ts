@@ -33,6 +33,10 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 
 	const image = document.createElement('img');
 	image.src = src;
+	const alt = getAltText(outputInfo);
+	if (alt) {
+		image.alt = alt;
+	}
 	const display = document.createElement('div');
 	display.classList.add('display');
 	display.appendChild(image);
@@ -64,12 +68,33 @@ const domEval = (container: Element) => {
 	}
 };
 
+function getAltText(outputInfo: OutputItem) {
+	const metadata = outputInfo.metadata;
+	if (typeof metadata === 'object' && metadata && 'vscode_altText' in metadata && typeof metadata.vscode_altText === 'string') {
+		return metadata.vscode_altText;
+	}
+	return undefined;
+}
+
+function injectTitleForSvg(outputInfo: OutputItem, element: HTMLElement) {
+	if (outputInfo.mime.indexOf('svg') > -1) {
+		const svgElement = element.querySelector('svg');
+		const altText = getAltText(outputInfo);
+		if (svgElement && altText) {
+			const title = document.createElement('title');
+			title.innerText = altText;
+			svgElement.prepend(title);
+		}
+	}
+}
+
 async function renderHTML(outputInfo: OutputItem, container: HTMLElement, signal: AbortSignal, hooks: Iterable<HtmlRenderingHook>): Promise<void> {
 	clearContainer(container);
 	let element: HTMLElement = document.createElement('div');
 	const htmlContent = outputInfo.text();
 	const trustedHtml = ttPolicy?.createHTML(htmlContent) ?? htmlContent;
 	element.innerHTML = trustedHtml as string;
+	injectTitleForSvg(outputInfo, element);
 
 	for (const hook of hooks) {
 		element = (await hook.postRender(outputInfo, element, signal)) ?? element;

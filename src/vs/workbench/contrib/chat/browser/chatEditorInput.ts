@@ -18,13 +18,15 @@ import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export class ChatEditorInput extends EditorInput {
-	static readonly TypeID: string = 'workbench.input.interactiveSession';
-	static readonly EditorID: string = 'workbench.editor.interactiveSession';
+	static readonly TypeID: string = 'workbench.input.chatSession';
+	static readonly EditorID: string = 'workbench.editor.chatSession';
 	static count = 0;
 
 	private readonly inputCount: number;
 	public sessionId: string | undefined;
 	public providerId: string | undefined;
+
+	private model: IChatModel | undefined;
 
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
@@ -40,7 +42,7 @@ export class ChatEditorInput extends EditorInput {
 
 		const parsed = ChatUri.parse(resource);
 		if (typeof parsed?.handle !== 'number') {
-			throw new Error('Invalid interactive session URI');
+			throw new Error('Invalid chat URI');
 		}
 
 		this.sessionId = 'sessionId' in options.target ? options.target.sessionId : undefined;
@@ -65,26 +67,31 @@ export class ChatEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		return this.model?.title || nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+	}
+
+	override getLabelExtraClasses(): string[] {
+		return ['chat-editor-label'];
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
-		let model: IChatModel | undefined;
 		if (typeof this.sessionId === 'string') {
-			model = this.chatService.getOrRestoreSession(this.sessionId);
+			this.model = this.chatService.getOrRestoreSession(this.sessionId);
 		} else if (typeof this.providerId === 'string') {
-			model = this.chatService.startSession(this.providerId, CancellationToken.None);
+			this.model = this.chatService.startSession(this.providerId, CancellationToken.None);
 		} else if ('data' in this.options.target) {
-			model = this.chatService.loadSessionFromContent(this.options.target.data);
+			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
-		if (!model) {
+		if (!this.model) {
 			return null;
 		}
 
-		this.sessionId = model.sessionId;
-		await model.waitForInitialization();
-		return this._register(new ChatEditorModel(model));
+		this.sessionId = this.model.sessionId;
+		await this.model.waitForInitialization();
+		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
+
+		return this._register(new ChatEditorModel(this.model));
 	}
 
 	override dispose(): void {
@@ -126,11 +133,11 @@ export class ChatEditorModel extends Disposable implements IEditorModel {
 
 export namespace ChatUri {
 
-	export const scheme = Schemas.vscodeInteractiveSesssion;
+	export const scheme = Schemas.vscodeChatSesssion;
 
 
 	export function generate(handle: number): URI {
-		return URI.from({ scheme, path: `interactiveSession-${handle}` });
+		return URI.from({ scheme, path: `chat-${handle}` });
 	}
 
 	export function parse(resource: URI): { handle: number } | undefined {
@@ -138,7 +145,7 @@ export namespace ChatUri {
 			return undefined;
 		}
 
-		const match = resource.path.match(/interactiveSession-(\d+)/);
+		const match = resource.path.match(/chat-(\d+)/);
 		const handleStr = match?.[1];
 		if (typeof handleStr !== 'string') {
 			return undefined;

@@ -37,7 +37,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Schemas } from 'vs/base/common/network';
@@ -367,6 +367,48 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const resource = toResource.call(this, '/path/custom.txt');
 		const customWorkingCopy = new TestBackupWorkingCopy(resource);
 		customWorkingCopy.setDirty(true);
+
+		const event = new TestBeforeShutdownEvent();
+		event.reason = ShutdownReason.QUIT;
+		accessor.lifecycleService.fireBeforeShutdown(event);
+
+		const veto = await event.value;
+		assert.ok(veto);
+
+		const finalVeto = await event.finalValue?.();
+		assert.ok(finalVeto); // assert the tracker uses the internal finalVeto API
+
+		await cleanup();
+	});
+
+	test('onWillShutdown - scratchpads - veto if backup fails', async function () {
+		const { accessor, cleanup } = await createTracker();
+
+		class TestBackupWorkingCopy extends TestWorkingCopy {
+
+			constructor(resource: URI) {
+				super(resource);
+
+				accessor.workingCopyService.registerWorkingCopy(this);
+			}
+
+			override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
+
+			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+				throw new Error('unable to backup');
+			}
+
+			override isDirty(): boolean {
+				return false;
+			}
+
+			override isModified(): boolean {
+				return true;
+			}
+		}
+
+		const resource = toResource.call(this, '/path/custom.txt');
+		new TestBackupWorkingCopy(resource);
 
 		const event = new TestBeforeShutdownEvent();
 		event.reason = ShutdownReason.QUIT;
