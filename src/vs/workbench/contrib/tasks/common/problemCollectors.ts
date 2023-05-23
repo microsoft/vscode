@@ -446,6 +446,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 					for (const line of oldLines) {
 						await this.processLineInternal(line);
 					}
+					this.forceDelivery();
 				});
 			setTimeout(async () => {
 				markerChanged?.dispose();
