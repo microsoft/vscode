@@ -292,6 +292,7 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 		if (existing) {
 			existing.replaceWith(content);
 			while (content.nextSibling) {
+				// clear out any stale content if we had previously combined streaming outputs into this one
 				content.nextSibling.remove();
 			}
 		} else {
