@@ -216,6 +216,8 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		private readonly diagnosticsManager: DiagnosticsManager,
 		telemetryReporter: TelemetryReporter
 	) {
+		console.log('Inside of the quick fix provider for TypeScript');
+
 		commandManager.register(new ApplyCodeActionCommand(client, diagnosticsManager, telemetryReporter));
 		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
 
