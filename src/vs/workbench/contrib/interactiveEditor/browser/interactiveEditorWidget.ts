@@ -48,7 +48,6 @@ import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { once } from 'vs/base/common/functional';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -490,7 +489,29 @@ export class InteractiveEditorWidget {
 		this._previewDiffEditor.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lineRangeAsRange), 'diff-hidden');
 		this._previewDiffEditor.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');
 		this._previewDiffEditor.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
-
+		// This should not be needed once Henning has done the DiffReview refactor
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			const disposable = this._previewDiffEditor.onDidUpdateDiff(() => {
+				const modified = this._previewDiffEditor.getModifiedEditor().getDomNode();
+				const original = this._previewDiffEditor.getOriginalEditor().getDomNode();
+				const container = this._previewDiffEditor.getContainerDomNode();
+				if (!modified || !original) {
+					return;
+				}
+				// prevent escape from focusing the underlying editors
+				this._previewDiffEditor.getContainerDomNode().classList.add('screen-reader-interactive-editor-widget');
+				// prevent the user from having to tab through the underlying editors
+				modified.querySelector('.previewDiff textarea.inputarea')?.setAttribute('disabled', '');
+				original.querySelector('.previewDiff textarea.inputarea')?.setAttribute('disabled', '');
+				// open the diff review
+				this._previewDiffEditor.diffReviewNext();
+				// remove the X button because going back to the underlying editors is not an accessible experience
+				container.querySelector('div > div.diff-review-actions > div > ul > li > a')?.remove();
+				// go back to the input so the placeholder text is read
+				this._inputEditor.focus();
+				disposable.dispose();
+			});
+		}
 		this._onDidChangeHeight.fire();
 	}
 
@@ -513,28 +534,6 @@ export class InteractiveEditorWidget {
 		this._previewCreateModel.value = model;
 		this._previewCreateEditor.setModel(model);
 		this._onDidChangeHeight.fire();
-		// This should not be needed once Henning has done the DiffReview refactor
-		if (this._accessibilityService.isScreenReaderOptimized()) {
-			once(() => this._previewDiffEditor.onDidUpdateDiff(() => {
-				const modified = this._previewDiffEditor.getModifiedEditor().getDomNode();
-				const original = this._previewDiffEditor.getOriginalEditor().getDomNode();
-				const container = this._previewDiffEditor.getContainerDomNode();
-				if (!modified || !original) {
-					return;
-				}
-				// prevent escape from focusing the underlying editors
-				this._previewDiffEditor.getContainerDomNode().classList.add('screen-reader-interactive-editor-widget');
-				// prevent the user from having to tab through the underlying editors
-				modified.querySelector('.previewDiff textarea.inputarea')?.setAttribute('disabled', '');
-				original.querySelector('.previewDiff textarea.inputarea')?.setAttribute('disabled', '');
-				// open the diff review
-				this._previewDiffEditor.diffReviewNext();
-				// remove the X button because going back to the underlying editors is not an accessible experience
-				container.querySelector('div > div.diff-review-actions > div > ul > li > a')?.remove();
-				// go back to the input so the placeholder text is read
-				this._inputEditor.focus();
-			}));
-		}
 	}
 
 	hideCreatePreview() {
