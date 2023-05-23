@@ -103,6 +103,7 @@ import { ExtHostNotebookDocumentSaveParticipant } from 'vs/workbench/api/common/
 import { ExtHostSemanticSimilarity } from 'vs/workbench/api/common/extHostSemanticSimilarity';
 import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReporter';
 import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
+import { ExtHostShare } from 'vs/workbench/api/common/extHostShare';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -186,6 +187,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, createExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
 	const extHostQuickDiff = rpcProtocol.set(ExtHostContext.ExtHostQuickDiff, new ExtHostQuickDiff(rpcProtocol, uriTransformer));
+	const extHostShare = rpcProtocol.set(ExtHostContext.ExtHostShare, new ExtHostShare(rpcProtocol, uriTransformer));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, createExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
@@ -842,6 +844,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get tabGroups(): vscode.TabGroups {
 				return extHostEditorTabs.tabGroups;
+			},
+			registerShareProvider(selector: vscode.DocumentSelector, provider: vscode.ShareProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'shareProvider');
+				return extHostShare.registerShareProvider(checkSelector(selector), provider);
 			}
 		};
 
@@ -1286,6 +1292,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostChat.sendInteractiveRequestToProvider(providerId, message);
 			},
 			get onDidPerformUserAction() {
+				// TODO this needs to be staged with a copilot chat update
+				// checkProposedApiEnabled(extension, 'interactiveUserActions');
 				return extHostChat.onDidPerformUserAction;
 			}
 		};

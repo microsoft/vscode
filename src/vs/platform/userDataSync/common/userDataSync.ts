@@ -363,6 +363,7 @@ export interface IGlobalState {
 export interface IWorkspaceState {
 	folders: IWorkspaceStateFolder[];
 	storage: IStringDictionary<string>;
+	version: number;
 }
 
 export interface IWorkspaceStateFolder {
