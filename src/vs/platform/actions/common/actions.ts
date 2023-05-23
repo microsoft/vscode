@@ -98,9 +98,11 @@ export class MenuId {
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
 	static readonly MenubarHomeMenu = new MenuId('MenubarHomeMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
+	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
+	static readonly SCMResourceContextShare = new MenuId('SCMResourceContextShare');
 	static readonly SCMResourceFolderContext = new MenuId('SCMResourceFolderContext');
 	static readonly SCMResourceGroupContext = new MenuId('SCMResourceGroupContext');
 	static readonly SCMSourceControl = new MenuId('SCMSourceControl');

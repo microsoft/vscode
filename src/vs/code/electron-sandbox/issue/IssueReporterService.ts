@@ -991,7 +991,7 @@ export class IssueReporter extends Disposable {
 					const remoteDataTable = $('table', undefined,
 						$('tr', undefined,
 							$('td', undefined, 'Remote'),
-							$('td', undefined, remote.hostName)
+							$('td', undefined, remote.latency ? `${remote.hostName} (latency: ${remote.latency.current.toFixed(2)}ms last, ${remote.latency.average.toFixed(2)}ms average)` : remote.hostName)
 						),
 						$('tr', undefined,
 							$('td', undefined, 'OS'),
