@@ -583,21 +583,13 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (response) {
 			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
 			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
-			const cropState = response.cropState;
-
-			if (cropState) {
-				this._ctxMessageCropState.set(cropState);
-				this._zone.widget.updateToggleState(cropState === MarkdownResponseCropState.EXPANDED);
-			} else {
-				if (this._zone.widget.isMarkdownMessageOverflowing()) {
-					this._ctxMessageCropState.set('cropped');
-					response.cropState = MarkdownResponseCropState.CROPPED;
-				} else {
-					this._ctxMessageCropState.set('not_cropped');
-					response.cropState = MarkdownResponseCropState.NOT_CROPPED;
-				}
-				this._zone.widget.updateToggleState(false);
+			let cropState = response.cropState;
+			if (!cropState) {
+				cropState = this._zone.widget.isMarkdownMessageOverflowing() ? MarkdownResponseCropState.CROPPED : MarkdownResponseCropState.NOT_CROPPED;
 			}
+			this._ctxMessageCropState.set(cropState);
+			response.cropState = cropState;
+			this._zone.widget.updateToggleState(cropState === MarkdownResponseCropState.EXPANDED);
 		} else {
 			this._zone.widget.updateMarkdownMessage(undefined);
 			this._ctxMessageCropState.reset();
