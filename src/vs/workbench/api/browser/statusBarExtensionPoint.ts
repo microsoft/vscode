@@ -139,15 +139,15 @@ const statusBarItemSchema: IJSONSchema = {
 	properties: {
 		id: {
 			type: 'string',
-			description: localize('id', 'The unique identifier of the status bar entry.')
+			markdownDescription: localize('id', 'The identifier of the status bar entry. Must be unique within the extension. The same value must be used when calling the `vscode.window.createStatusBarItem(id, ...)`-API')
 		},
 		name: {
 			type: 'string',
-			description: localize('name', 'The name of the status bar entry.')
+			description: localize('name', 'The name of the entry, like \'Python Language Indicator\', \'Git Status\' etc. Try to keep the length of the name short, yet descriptive enough that users can understand what the status bar item is about.')
 		},
 		text: {
 			type: 'string',
-			description: localize('text', 'The text to display in the status bar entry.')
+			description: localize('text', 'The text to show for the entry. You can embed icons in the text by leveraging the `$(<name>)`-syntax, like \'Hello $(globe)!\'')
 		},
 		command: {
 			type: 'string',
@@ -160,7 +160,7 @@ const statusBarItemSchema: IJSONSchema = {
 		},
 		priority: {
 			type: 'number',
-			description: localize('priority', 'The priority of the status bar entry.')
+			description: localize('priority', 'The priority of the status bar entry. Higher value means the item should be shown more to the left.')
 		}
 	}
 };

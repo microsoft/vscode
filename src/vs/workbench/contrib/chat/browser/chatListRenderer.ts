@@ -58,6 +58,8 @@ import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/work
 import { IChatReplyFollowup, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const $ = dom.$;
 
@@ -416,7 +418,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}));
 
 				if (isResponseVM(element)) {
-					const info = {
+					const info: IChatCodeBlockInfo = {
 						codeBlockIndex: data.codeBlockIndex,
 						element,
 						focus() {
@@ -582,10 +584,11 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.element = $('.interactive-result-editor-wrapper');
-
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		this.toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.ChatCodeBlock, {
@@ -594,6 +597,13 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			}
 		}));
 
+		this._configureForScreenReader();
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectedKeys.has(AccessibilityVerbositySettingId.Chat)) {
+				this._configureForScreenReader();
+			}
+		}));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.editor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, editorElement, {
 			...getSimpleEditorOptions(),
@@ -608,6 +618,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			scrollbar: {
 				alwaysConsumeMouseWheel: false
 			},
+			ariaLabel: localize('chat.codeBlockHelp', 'Code block'),
 			...this.getEditorOptionsFromConfig()
 		}, {
 			isSimpleWidget: true,
@@ -637,9 +648,11 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			}
 		}));
 		this._register(this.editor.onDidBlurEditorWidget(() => {
+			this.element.classList.remove('focused');
 			WordHighlighterContribution.get(this.editor)?.stopHighlighting();
 		}));
 		this._register(this.editor.onDidFocusEditorWidget(() => {
+			this.element.classList.add('focused');
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
 		}));
 
@@ -660,6 +673,17 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			Math.max(defaultCodeblockPadding - scrollbarHeight, 2) :
 			defaultCodeblockPadding;
 		this.editor.updateOptions({ padding: { top: defaultCodeblockPadding, bottom: bottomPadding } });
+	}
+
+	private _configureForScreenReader(): void {
+		const toolbarElt = this.toolbar.getElement();
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			toolbarElt.style.display = 'block';
+			toolbarElt.ariaLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
+		} else {
+			toolbarElt.style.display = '';
+		}
+
 	}
 
 	private getEditorOptionsFromConfig(): IEditorOptions {
