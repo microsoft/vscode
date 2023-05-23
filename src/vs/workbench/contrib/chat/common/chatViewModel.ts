@@ -79,6 +79,8 @@ export interface IChatResponseViewModel {
 	readonly commandFollowups?: IChatResponseCommandFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
+	codeBlockCount?: number;
+	codeBlockIndex?: number;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
@@ -257,6 +259,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;
+
+	codeBlockCount: number | undefined;
 
 	currentRenderedHeight: number | undefined;
 

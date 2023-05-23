@@ -425,6 +425,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							ref.object.focus();
 						}
 					};
+					element.codeBlockIndex = info.codeBlockIndex;
 					codeblocks.push(info);
 					this.codeBlocksByEditorUri.set(ref.object.textModel.uri, info);
 					disposables.add(toDisposable(() => this.codeBlocksByEditorUri.delete(ref.object.textModel.uri)));
@@ -435,6 +436,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		if (isResponseVM(element)) {
+			element.codeBlockCount = codeblocks.length;
 			this.codeBlocksByResponseId.set(element.id, codeblocks);
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 		}
@@ -534,7 +536,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		}
 
 		if (isResponseVM(element)) {
-			return element.response.value;
+			return this._getLabelWithCodeBlockCount(element);
 		}
 
 		if (isWelcomeVM(element)) {
@@ -542,6 +544,18 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		}
 
 		return '';
+	}
+
+	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
+		const codeBlockCount = element.codeBlockCount ?? 0;
+		switch (codeBlockCount) {
+			case 0:
+				return element.response.value;
+			case 1:
+				return localize('singleCodeBlock', "1 code block, {0}", element.response.value);
+			default:
+				return localize('multiCodeBlock', "{0} code blocks, {0}", codeBlockCount, element.response.value);
+		}
 	}
 }
 
@@ -634,7 +648,6 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			])
 		}));
 
-
 		this._register(this.options.onDidChange(() => {
 			this.editor.updateOptions(this.getEditorOptionsFromConfig());
 		}));
@@ -723,7 +736,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		this.setLanguage(vscodeLanguageId);
 
 		this.layout(width);
-
+		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1) });
 		this.toolbar.context = <IChatCodeBlockActionContext>{
 			code: data.text,
 			codeBlockIndex: data.codeBlockIndex,
