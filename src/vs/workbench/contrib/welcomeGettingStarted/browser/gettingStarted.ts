@@ -305,7 +305,6 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
-		await this.lifecycleService.when(LifecyclePhase.Restored);
 		await this.buildCategoriesSlide();
 		if (this.shouldAnimate()) {
 			setTimeout(() => this.container.classList.add('animatable'), 0);
@@ -728,6 +727,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async buildCategoriesSlide() {
+
+		// Delay fetching welcome page content on startup until all services are ready.
+		await this.lifecycleService.when(LifecyclePhase.Restored);
 
 		this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
 		this.gettingStartedCategories = await this.gettingStartedService.getWalkthroughs();
