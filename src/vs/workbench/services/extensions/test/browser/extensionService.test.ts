@@ -256,7 +256,7 @@ suite('ExtensionService', () => {
 
 	test('issue #152204: Remote extension host not disposed after closing vscode client', async () => {
 		await extService.startExtensionHosts();
-		extService.stopExtensionHosts('foo');
+		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
 	});
 
