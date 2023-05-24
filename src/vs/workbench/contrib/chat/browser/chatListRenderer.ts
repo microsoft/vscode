@@ -545,7 +545,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
-		const codeBlockCount = countCodeBlocks(element.response.value);
+		const codeBlockCount = marked.lexer(element.response.value).filter(token => token.type === 'code')?.length ?? 0;
 		switch (codeBlockCount) {
 			case 0:
 				return element.response.value;
@@ -555,10 +555,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				return localize('multiCodeBlock', "{0} code blocks, {1}", codeBlockCount, element.response.value);
 		}
 	}
-}
 
-function countCodeBlocks(markdown: string): number {
-	return marked.lexer(markdown).filter(token => token.type === 'code')?.length ?? 0;
 }
 
 interface IChatResultCodeBlockData {
