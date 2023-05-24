@@ -163,7 +163,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/interactiveSession",
+			"name": "vs/workbench/contrib/chat",
 			"project": "vscode-workbench"
 		},
 		{
@@ -323,10 +323,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/offline",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/remoteTunnel",
 			"project": "vscode-workbench"
 		},
@@ -384,6 +380,10 @@
 		},
 		{
 			"name": "vs/workbench/services/history",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/hover",
 			"project": "vscode-workbench"
 		},
 		{
@@ -508,6 +508,14 @@
 		},
 		{
 			"name": "vs/workbench/services/localization",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/share",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/accessibility",
 			"project": "vscode-workbench"
 		}
 	]

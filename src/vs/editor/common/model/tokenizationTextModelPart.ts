@@ -3,27 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { equals } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
+import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableMap, MutableDisposable } from 'vs/base/common/lifecycle';
+import { countEOL } from 'vs/editor/common/core/eolCounter';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { Range } from 'vs/editor/common/core/range';
+import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { IAttachedView } from 'vs/editor/common/model';
+import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
+import { AttachedViews, IAttachedViewState, TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
-import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
+import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { ContiguousTokensStore } from 'vs/editor/common/tokens/contiguousTokensStore';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
-import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
-import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
+	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
+
 	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
 	public readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeLanguage.event;
 
@@ -33,181 +44,130 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	private readonly _tokens: ContiguousTokensStore;
-	private readonly _semanticTokens: SparseTokensStore;
-	private readonly _tokenization: TextModelTokenization;
+	private readonly grammarTokens = this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
 
 	constructor(
 		private readonly _languageService: ILanguageService,
 		private readonly _languageConfigurationService: ILanguageConfigurationService,
 		private readonly _textModel: TextModel,
-		private readonly bracketPairsTextModelPart: BracketPairsTextModelPart,
+		private readonly _bracketPairsTextModelPart: BracketPairsTextModelPart,
 		private _languageId: string,
+		private readonly _attachedViews: AttachedViews,
 	) {
 		super();
 
-		this._tokens = new ContiguousTokensStore(
-			this._languageService.languageIdCodec
-		);
-		this._semanticTokens = new SparseTokensStore(
-			this._languageService.languageIdCodec
-		);
-		this._tokenization = this._register(new TextModelTokenization(
-			_textModel,
-			this,
-			this._languageService.languageIdCodec
-		));
-
-		this._register(this._languageConfigurationService.onDidChange(
-			e => {
-				if (e.affects(this._languageId)) {
-					this._onDidChangeLanguageConfiguration.fire({});
-				}
+		this._register(this._languageConfigurationService.onDidChange(e => {
+			if (e.affects(this._languageId)) {
+				this._onDidChangeLanguageConfiguration.fire({});
 			}
-		));
+		}));
+
+		this._register(this.grammarTokens.onDidChangeTokens(e => {
+			this._emitModelTokensChangedEvent(e);
+		}));
+
+		this._register(this.grammarTokens.onDidChangeBackgroundTokenizationState(e => {
+			this._bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
+		}));
 	}
 
 	_hasListeners(): boolean {
-		return (
-			this._onDidChangeLanguage.hasListeners()
+		return (this._onDidChangeLanguage.hasListeners()
 			|| this._onDidChangeLanguageConfiguration.hasListeners()
-			|| this._onDidChangeTokens.hasListeners()
-		);
+			|| this._onDidChangeTokens.hasListeners());
 	}
 
-	public acceptEdit(
-		range: IRange,
-		text: string,
-		eolCount: number,
-		firstLineLength: number,
-		lastLineLength: number
-	): void {
-		this._tokens.acceptEdit(range, eolCount, firstLineLength);
-		this._semanticTokens.acceptEdit(
-			range,
-			eolCount,
-			firstLineLength,
-			lastLineLength,
-			text.length > 0 ? text.charCodeAt(0) : CharCode.Null
-		);
+	public handleDidChangeContent(e: IModelContentChangedEvent): void {
+		if (e.isFlush) {
+			this._semanticTokens.flush();
+		} else if (!e.isEolChange) { // We don't have to do anything on an EOL change
+			for (const c of e.changes) {
+				const [eolCount, firstLineLength, lastLineLength] = countEOL(c.text);
+
+				this._semanticTokens.acceptEdit(
+					c.range,
+					eolCount,
+					firstLineLength,
+					lastLineLength,
+					c.text.length > 0 ? c.text.charCodeAt(0) : CharCode.Null
+				);
+			}
+		}
+
+		this.grammarTokens.handleDidChangeContent(e);
 	}
 
 	public handleDidChangeAttached(): void {
-		this._tokenization.handleDidChangeAttached();
+		this.grammarTokens.handleDidChangeAttached();
 	}
 
-	public flush(): void {
-		this._tokens.flush();
-		this._semanticTokens.flush();
+	/**
+	 * Includes grammar and semantic tokens.
+	 */
+	public getLineTokens(lineNumber: number): LineTokens {
+		this.validateLineNumber(lineNumber);
+		const syntacticTokens = this.grammarTokens.getLineTokens(lineNumber);
+		return this._semanticTokens.addSparseTokens(lineNumber, syntacticTokens);
 	}
 
-	// TODO@hediet TODO@alexdima what is the difference between this and acceptEdit?
-	public handleDidChangeContent(change: IModelContentChangedEvent): void {
-		this._tokenization.handleDidChangeContent(change);
+	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
+		if (!this._textModel._isDisposing()) {
+			this._bracketPairsTextModelPart.handleDidChangeTokens(e);
+			this._onDidChangeTokens.fire(e);
+		}
 	}
 
-	private _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
-	public get backgroundTokenizationState(): BackgroundTokenizationState {
-		return this._backgroundTokenizationState;
-	}
+	// #region Grammar Tokens
 
-	public setLineTokens(
-		lineNumber: number,
-		tokens: Uint32Array | ArrayBuffer | null
-	): void {
+	private validateLineNumber(lineNumber: number): void {
 		if (lineNumber < 1 || lineNumber > this._textModel.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
+			throw new BugIndicatingError('Illegal value for lineNumber');
 		}
-
-		this._tokens.setTokens(
-			this._languageId,
-			lineNumber - 1,
-			this._textModel.getLineLength(lineNumber),
-			tokens,
-			false
-		);
-	}
-
-	public handleBackgroundTokenizationFinished(): void {
-		if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
-			// We already did a full tokenization and don't go back to progressing.
-			return;
-		}
-		const newState = BackgroundTokenizationState.Completed;
-		this._backgroundTokenizationState = newState;
-		this.bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
 	}
 
 	public get hasTokens(): boolean {
-		return this._tokens.hasTokens;
+		return this.grammarTokens.hasTokens;
 	}
 
-	public setTokens(tokens: ContiguousMultilineTokens[]): void {
-		if (tokens.length === 0) {
-			return;
-		}
-
-		const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
-
-		for (let i = 0, len = tokens.length; i < len; i++) {
-			const element = tokens[i];
-			let minChangedLineNumber = 0;
-			let maxChangedLineNumber = 0;
-			let hasChange = false;
-			for (
-				let lineNumber = element.startLineNumber;
-				lineNumber <= element.endLineNumber;
-				lineNumber++
-			) {
-				if (hasChange) {
-					this._tokens.setTokens(
-						this._languageId,
-						lineNumber - 1,
-						this._textModel.getLineLength(lineNumber),
-						element.getLineTokens(lineNumber),
-						false
-					);
-					maxChangedLineNumber = lineNumber;
-				} else {
-					const lineHasChange = this._tokens.setTokens(
-						this._languageId,
-						lineNumber - 1,
-						this._textModel.getLineLength(lineNumber),
-						element.getLineTokens(lineNumber),
-						true
-					);
-					if (lineHasChange) {
-						hasChange = true;
-						minChangedLineNumber = lineNumber;
-						maxChangedLineNumber = lineNumber;
-					}
-				}
-			}
-			if (hasChange) {
-				ranges.push({
-					fromLineNumber: minChangedLineNumber,
-					toLineNumber: maxChangedLineNumber,
-				});
-			}
-		}
-
-		if (ranges.length > 0) {
-			this._emitModelTokensChangedEvent({
-				tokenizationSupportChanged: false,
-				semanticTokensApplied: false,
-				ranges: ranges,
-			});
-		}
+	public resetTokenization() {
+		this.grammarTokens.resetTokenization();
 	}
 
-	public setSemanticTokens(
-		tokens: SparseMultilineTokens[] | null,
-		isComplete: boolean
-	): void {
+	public get backgroundTokenizationState() {
+		return this.grammarTokens.backgroundTokenizationState;
+	}
+
+	public forceTokenization(lineNumber: number): void {
+		this.validateLineNumber(lineNumber);
+		this.grammarTokens.forceTokenization(lineNumber);
+	}
+
+	public isCheapToTokenize(lineNumber: number): boolean {
+		this.validateLineNumber(lineNumber);
+		return this.grammarTokens.isCheapToTokenize(lineNumber);
+	}
+
+	public tokenizeIfCheap(lineNumber: number): void {
+		this.validateLineNumber(lineNumber);
+		this.grammarTokens.tokenizeIfCheap(lineNumber);
+	}
+
+	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
+		return this.grammarTokens.getTokenTypeIfInsertingCharacter(lineNumber, column, character);
+	}
+
+	public tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
+		return this.grammarTokens.tokenizeLineWithEdit(position, length, newText);
+	}
+
+	// #endregion
+
+	// #region Semantic Tokens
+
+	public setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void {
 		this._semanticTokens.set(tokens, isComplete);
 
 		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: false,
 			semanticTokensApplied: tokens !== null,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this._textModel.getLineCount() }],
 		});
@@ -221,10 +181,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return !this._semanticTokens.isEmpty();
 	}
 
-	public setPartialSemanticTokens(
-		range: Range,
-		tokens: SparseMultilineTokens[]
-	): void {
+	public setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[]): void {
 		if (this.hasCompleteSemanticTokens()) {
 			return;
 		}
@@ -233,7 +190,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		);
 
 		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: false,
 			semanticTokensApplied: true,
 			ranges: [
 				{
@@ -244,138 +200,23 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		});
 	}
 
-	public tokenizeViewport(
-		startLineNumber: number,
-		endLineNumber: number
-	): void {
-		startLineNumber = Math.max(1, startLineNumber);
-		endLineNumber = Math.min(this._textModel.getLineCount(), endLineNumber);
-		this._tokenization.tokenizeViewport(startLineNumber, endLineNumber);
-	}
+	// #endregion
 
-	public clearTokens(): void {
-		this._tokens.flush();
-		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: true,
-			semanticTokensApplied: false,
-			ranges: [
-				{
-					fromLineNumber: 1,
-					toLineNumber: this._textModel.getLineCount(),
-				},
-			],
-		});
-	}
-
-	public clearSemanticTokens(): void {
-		this._semanticTokens.flush();
-
-		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: false,
-			semanticTokensApplied: false,
-			ranges: [{ fromLineNumber: 1, toLineNumber: this._textModel.getLineCount() }],
-		});
-	}
-
-	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
-		if (!this._textModel._isDisposing()) {
-			this.bracketPairsTextModelPart.handleDidChangeTokens(e);
-			this._onDidChangeTokens.fire(e);
-		}
-	}
-
-	public resetTokenization(): void {
-		this._tokenization.reset();
-	}
-
-	public forceTokenization(lineNumber: number): void {
-		if (lineNumber < 1 || lineNumber > this._textModel.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
-		}
-
-		this._tokenization.forceTokenization(lineNumber);
-	}
-
-	public isCheapToTokenize(lineNumber: number): boolean {
-		return this._tokenization.isCheapToTokenize(lineNumber);
-	}
-
-	public tokenizeIfCheap(lineNumber: number): void {
-		if (this.isCheapToTokenize(lineNumber)) {
-			this.forceTokenization(lineNumber);
-		}
-	}
-
-	public getLineTokens(lineNumber: number): LineTokens {
-		if (lineNumber < 1 || lineNumber > this._textModel.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
-		}
-
-		return this._getLineTokens(lineNumber);
-	}
-
-	private _getLineTokens(lineNumber: number): LineTokens {
-		const lineText = this._textModel.getLineContent(lineNumber);
-		const syntacticTokens = this._tokens.getTokens(
-			this._languageId,
-			lineNumber - 1,
-			lineText
-		);
-		return this._semanticTokens.addSparseTokens(lineNumber, syntacticTokens);
-	}
-
-	public getTokenTypeIfInsertingCharacter(
-		lineNumber: number,
-		column: number,
-		character: string
-	): StandardTokenType {
-		const position = this._textModel.validatePosition(new Position(lineNumber, column));
-		return this._tokenization.getTokenTypeIfInsertingCharacter(
-			position,
-			character
-		);
-	}
-
-	public tokenizeLineWithEdit(
-		position: IPosition,
-		length: number,
-		newText: string
-	): LineTokens | null {
-		const validatedPosition = this._textModel.validatePosition(position);
-		return this._tokenization.tokenizeLineWithEdit(
-			validatedPosition,
-			length,
-			newText
-		);
-	}
-
-	private getLanguageConfiguration(
-		languageId: string
-	): ResolvedLanguageConfiguration {
-		return this._languageConfigurationService.getLanguageConfiguration(
-			languageId
-		);
-	}
-
-	// Having tokens allows implementing additional helper methods
+	// #region Utility Methods
 
 	public getWordAtPosition(_position: IPosition): IWordAtPosition | null {
 		this.assertNotDisposed();
+
 		const position = this._textModel.validatePosition(_position);
 		const lineContent = this._textModel.getLineContent(position.lineNumber);
-		const lineTokens = this._getLineTokens(position.lineNumber);
+		const lineTokens = this.getLineTokens(position.lineNumber);
 		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
 
 		// (1). First try checking right biased word
-		const [rbStartOffset, rbEndOffset] = TokenizationTextModelPart._findLanguageBoundaries(
-			lineTokens,
-			tokenIndex
-		);
+		const [rbStartOffset, rbEndOffset] = TokenizationTextModelPart._findLanguageBoundaries(lineTokens, tokenIndex);
 		const rightBiasedWord = getWordAtText(
 			position.column,
-			this.getLanguageConfiguration(
-				lineTokens.getLanguageId(tokenIndex)
-			).getWordDefinition(),
+			this.getLanguageConfiguration(lineTokens.getLanguageId(tokenIndex)).getWordDefinition(),
 			lineContent.substring(rbStartOffset, rbEndOffset),
 			rbStartOffset
 		);
@@ -397,9 +238,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			);
 			const leftBiasedWord = getWordAtText(
 				position.column,
-				this.getLanguageConfiguration(
-					lineTokens.getLanguageId(tokenIndex - 1)
-				).getWordDefinition(),
+				this.getLanguageConfiguration(lineTokens.getLanguageId(tokenIndex - 1)).getWordDefinition(),
 				lineContent.substring(lbStartOffset, lbEndOffset),
 				lbStartOffset
 			);
@@ -416,19 +255,16 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return null;
 	}
 
-	private static _findLanguageBoundaries(
-		lineTokens: LineTokens,
-		tokenIndex: number
-	): [number, number] {
+	private getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
+		return this._languageConfigurationService.getLanguageConfiguration(languageId);
+	}
+
+	private static _findLanguageBoundaries(lineTokens: LineTokens, tokenIndex: number): [number, number] {
 		const languageId = lineTokens.getLanguageId(tokenIndex);
 
 		// go left until a different language is hit
 		let startOffset = 0;
-		for (
-			let i = tokenIndex;
-			i >= 0 && lineTokens.getLanguageId(i) === languageId;
-			i--
-		) {
+		for (let i = tokenIndex; i >= 0 && lineTokens.getLanguageId(i) === languageId; i--) {
 			startOffset = lineTokens.getStartOffset(i);
 		}
 
@@ -448,21 +284,18 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	public getWordUntilPosition(position: IPosition): IWordAtPosition {
 		const wordAtPosition = this.getWordAtPosition(position);
 		if (!wordAtPosition) {
-			return {
-				word: '',
-				startColumn: position.column,
-				endColumn: position.column,
-			};
+			return { word: '', startColumn: position.column, endColumn: position.column, };
 		}
 		return {
-			word: wordAtPosition.word.substr(
-				0,
-				position.column - wordAtPosition.startColumn
-			),
+			word: wordAtPosition.word.substr(0, position.column - wordAtPosition.startColumn),
 			startColumn: wordAtPosition.startColumn,
 			endColumn: position.column,
 		};
 	}
+
+	// #endregion
+
+	// #region Language Id handling
 
 	public getLanguageId(): string {
 		return this._languageId;
@@ -488,9 +321,341 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 
 		this._languageId = languageId;
 
-		this.bracketPairsTextModelPart.handleDidChangeLanguage(e);
-		this._tokenization.handleDidChangeLanguage(e);
+		this._bracketPairsTextModelPart.handleDidChangeLanguage(e);
+		this.grammarTokens.resetTokenization();
 		this._onDidChangeLanguage.fire(e);
 		this._onDidChangeLanguageConfiguration.fire({});
+	}
+
+	// #endregion
+}
+
+class GrammarTokens extends Disposable {
+	private _tokenizer: TokenizerWithStateStoreAndTextModel | null = null;
+	private _defaultBackgroundTokenizer: DefaultBackgroundTokenizer | null = null;
+	private readonly _backgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
+
+	private readonly _tokens = new ContiguousTokensStore(this._languageIdCodec);
+	private _debugBackgroundTokens: ContiguousTokensStore | undefined;
+	private _debugBackgroundStates: TrackingTokenizationStateStore<IState> | undefined;
+
+	private readonly _debugBackgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
+
+	private _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
+	public get backgroundTokenizationState(): BackgroundTokenizationState {
+		return this._backgroundTokenizationState;
+	}
+
+	private readonly _onDidChangeBackgroundTokenizationState = this._register(new Emitter<void>());
+	/** @internal, should not be exposed by the text model! */
+	public readonly onDidChangeBackgroundTokenizationState: Event<void> = this._onDidChangeBackgroundTokenizationState.event;
+
+	private readonly _onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
+	/** @internal, should not be exposed by the text model! */
+	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
+
+	private readonly _attachedViewStates = this._register(new DisposableMap<IAttachedView, AttachedViewHandler>());
+
+	constructor(
+		private readonly _languageIdCodec: ILanguageIdCodec,
+		private readonly _textModel: TextModel,
+		private getLanguageId: () => string,
+		attachedViews: AttachedViews,
+	) {
+		super();
+
+		this._register(TokenizationRegistry.onDidChange((e) => {
+			const languageId = this.getLanguageId();
+			if (e.changedLanguages.indexOf(languageId) === -1) {
+				return;
+			}
+			this.resetTokenization();
+		}));
+
+		this.resetTokenization();
+
+		this._register(attachedViews.onDidChangeVisibleRanges(({ view, state }) => {
+			if (state) {
+				let existing = this._attachedViewStates.get(view);
+				if (!existing) {
+					existing = new AttachedViewHandler(() => this.refreshRanges(existing!.lineRanges));
+					this._attachedViewStates.set(view, existing);
+				}
+				existing.handleStateChange(state);
+			} else {
+				this._attachedViewStates.deleteAndDispose(view);
+			}
+		}));
+	}
+
+	public resetTokenization(fireTokenChangeEvent: boolean = true): void {
+		this._tokens.flush();
+		this._debugBackgroundTokens?.flush();
+		if (this._debugBackgroundStates) {
+			this._debugBackgroundStates = new TrackingTokenizationStateStore(this._textModel.getLineCount());
+		}
+		if (fireTokenChangeEvent) {
+			this._onDidChangeTokens.fire({
+				semanticTokensApplied: false,
+				ranges: [
+					{
+						fromLineNumber: 1,
+						toLineNumber: this._textModel.getLineCount(),
+					},
+				],
+			});
+		}
+
+		const initializeTokenization = (): [ITokenizationSupport, IState] | [null, null] => {
+			if (this._textModel.isTooLargeForTokenization()) {
+				return [null, null];
+			}
+			const tokenizationSupport = TokenizationRegistry.get(this.getLanguageId());
+			if (!tokenizationSupport) {
+				return [null, null];
+			}
+			let initialState: IState;
+			try {
+				initialState = tokenizationSupport.getInitialState();
+			} catch (e) {
+				onUnexpectedError(e);
+				return [null, null];
+			}
+			return [tokenizationSupport, initialState];
+		};
+
+		const [tokenizationSupport, initialState] = initializeTokenization();
+		if (tokenizationSupport && initialState) {
+			this._tokenizer = new TokenizerWithStateStoreAndTextModel(this._textModel.getLineCount(), tokenizationSupport, this._textModel, this._languageIdCodec);
+		} else {
+			this._tokenizer = null;
+		}
+
+		this._backgroundTokenizer.clear();
+
+		this._defaultBackgroundTokenizer = null;
+		if (this._tokenizer) {
+			const b: IBackgroundTokenizationStore = {
+				setTokens: (tokens) => {
+					this.setTokens(tokens);
+				},
+				backgroundTokenizationFinished: () => {
+					if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
+						// We already did a full tokenization and don't go back to progressing.
+						return;
+					}
+					const newState = BackgroundTokenizationState.Completed;
+					this._backgroundTokenizationState = newState;
+					this._onDidChangeBackgroundTokenizationState.fire();
+				},
+				setEndState: (lineNumber, state) => {
+					if (!state) {
+						throw new BugIndicatingError();
+					}
+					const firstInvalidEndStateLineNumber = this._tokenizer?.store.getFirstInvalidEndStateLineNumber() ?? undefined;
+					if (firstInvalidEndStateLineNumber !== undefined && lineNumber >= firstInvalidEndStateLineNumber) {
+						// Don't accept states for definitely valid states
+						this._tokenizer?.store.setEndState(lineNumber, state);
+					}
+				},
+			};
+
+			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer && !tokenizationSupport.backgroundTokenizerShouldOnlyVerifyTokens) {
+				this._backgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, b);
+			}
+			if (!this._backgroundTokenizer.value) {
+				this._backgroundTokenizer.value = this._defaultBackgroundTokenizer =
+					new DefaultBackgroundTokenizer(this._tokenizer, b);
+				this._defaultBackgroundTokenizer.handleChanges();
+			}
+
+			if (tokenizationSupport?.backgroundTokenizerShouldOnlyVerifyTokens && tokenizationSupport.createBackgroundTokenizer) {
+				this._debugBackgroundTokens = new ContiguousTokensStore(this._languageIdCodec);
+				this._debugBackgroundStates = new TrackingTokenizationStateStore(this._textModel.getLineCount());
+				this._debugBackgroundTokenizer.clear();
+				this._debugBackgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, {
+					setTokens: (tokens) => {
+						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
+					},
+					backgroundTokenizationFinished() {
+						// NO OP
+					},
+					setEndState: (lineNumber, state) => {
+						this._debugBackgroundStates?.setEndState(lineNumber, state);
+					},
+				});
+			} else {
+				this._debugBackgroundTokens = undefined;
+				this._debugBackgroundStates = undefined;
+				this._debugBackgroundTokenizer.value = undefined;
+			}
+		}
+
+		this.refreshAllVisibleLineTokens();
+	}
+
+	public handleDidChangeAttached() {
+		this._defaultBackgroundTokenizer?.handleChanges();
+	}
+
+	public handleDidChangeContent(e: IModelContentChangedEvent): void {
+		if (e.isFlush) {
+			// Don't fire the event, as the view might not have got the text change event yet
+			this.resetTokenization(false);
+		} else if (!e.isEolChange) { // We don't have to do anything on an EOL change
+			for (const c of e.changes) {
+				const [eolCount, firstLineLength] = countEOL(c.text);
+
+				this._tokens.acceptEdit(c.range, eolCount, firstLineLength);
+				this._debugBackgroundTokens?.acceptEdit(c.range, eolCount, firstLineLength);
+			}
+			this._debugBackgroundStates?.acceptChanges(e.changes);
+
+			if (this._tokenizer) {
+				this._tokenizer.store.acceptChanges(e.changes);
+			}
+			this._defaultBackgroundTokenizer?.handleChanges();
+		}
+	}
+
+	private setTokens(tokens: ContiguousMultilineTokens[]): { changes: { fromLineNumber: number; toLineNumber: number }[] } {
+		const { changes } = this._tokens.setMultilineTokens(tokens, this._textModel);
+
+		if (changes.length > 0) {
+			this._onDidChangeTokens.fire({ semanticTokensApplied: false, ranges: changes, });
+		}
+
+		return { changes: changes };
+	}
+
+	private refreshAllVisibleLineTokens(): void {
+		const ranges = LineRange.joinMany([...this._attachedViewStates].map(([_, s]) => s.lineRanges));
+		this.refreshRanges(ranges);
+	}
+
+	private refreshRanges(ranges: readonly LineRange[]): void {
+		for (const range of ranges) {
+			this.refreshRange(range.startLineNumber, range.endLineNumberExclusive - 1);
+		}
+	}
+
+	private refreshRange(startLineNumber: number, endLineNumber: number): void {
+		if (!this._tokenizer) {
+			return;
+		}
+
+		startLineNumber = Math.max(1, startLineNumber);
+		endLineNumber = Math.min(this._textModel.getLineCount(), endLineNumber);
+
+		const builder = new ContiguousMultilineTokensBuilder();
+		const { heuristicTokens } = this._tokenizer.tokenizeHeuristically(builder, startLineNumber, endLineNumber);
+		const changedTokens = this.setTokens(builder.finalize());
+
+		if (heuristicTokens) {
+			// We overrode tokens with heuristically computed ones.
+			// Because old states might get reused (thus stopping invalidation),
+			// we have to explicitly request the tokens for the changed ranges again.
+			for (const c of changedTokens.changes) {
+				this._backgroundTokenizer.value?.requestTokens(c.fromLineNumber, c.toLineNumber + 1);
+			}
+		}
+
+		this._defaultBackgroundTokenizer?.checkFinished();
+	}
+
+	public forceTokenization(lineNumber: number): void {
+		const builder = new ContiguousMultilineTokensBuilder();
+		this._tokenizer?.updateTokensUntilLine(builder, lineNumber);
+		this.setTokens(builder.finalize());
+		this._defaultBackgroundTokenizer?.checkFinished();
+	}
+
+	public isCheapToTokenize(lineNumber: number): boolean {
+		if (!this._tokenizer) {
+			return true;
+		}
+		return this._tokenizer.isCheapToTokenize(lineNumber);
+	}
+
+	public tokenizeIfCheap(lineNumber: number): void {
+		if (this.isCheapToTokenize(lineNumber)) {
+			this.forceTokenization(lineNumber);
+		}
+	}
+
+	public getLineTokens(lineNumber: number): LineTokens {
+		const lineText = this._textModel.getLineContent(lineNumber);
+		const result = this._tokens.getTokens(
+			this._textModel.getLanguageId(),
+			lineNumber - 1,
+			lineText
+		);
+		if (this._debugBackgroundTokens && this._debugBackgroundStates && this._tokenizer) {
+			if (this._debugBackgroundStates.getFirstInvalidEndStateLineNumberOrMax() > lineNumber && this._tokenizer.store.getFirstInvalidEndStateLineNumberOrMax() > lineNumber) {
+				const backgroundResult = this._debugBackgroundTokens.getTokens(
+					this._textModel.getLanguageId(),
+					lineNumber - 1,
+					lineText
+				);
+				if (!result.equals(backgroundResult) && this._debugBackgroundTokenizer.value?.reportMismatchingTokens) {
+					this._debugBackgroundTokenizer.value.reportMismatchingTokens(lineNumber);
+				}
+			}
+		}
+		return result;
+	}
+
+	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
+		if (!this._tokenizer) {
+			return StandardTokenType.Other;
+		}
+
+		const position = this._textModel.validatePosition(new Position(lineNumber, column));
+		this.forceTokenization(position.lineNumber);
+		return this._tokenizer.getTokenTypeIfInsertingCharacter(position, character);
+	}
+
+	public tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
+		if (!this._tokenizer) {
+			return null;
+		}
+
+		const validatedPosition = this._textModel.validatePosition(position);
+		this.forceTokenization(validatedPosition.lineNumber);
+		return this._tokenizer.tokenizeLineWithEdit(validatedPosition, length, newText);
+	}
+
+	public get hasTokens(): boolean {
+		return this._tokens.hasTokens;
+	}
+}
+
+class AttachedViewHandler extends Disposable {
+	private readonly runner = this._register(new RunOnceScheduler(() => this.update(), 50));
+
+	private _computedLineRanges: readonly LineRange[] = [];
+	private _lineRanges: readonly LineRange[] = [];
+	public get lineRanges(): readonly LineRange[] { return this._lineRanges; }
+
+	constructor(private readonly _refreshTokens: () => void) {
+		super();
+	}
+
+	private update(): void {
+		if (equals(this._computedLineRanges, this._lineRanges)) {
+			return;
+		}
+		this._computedLineRanges = this._lineRanges;
+		this._refreshTokens();
+	}
+
+	public handleStateChange(state: IAttachedViewState): void {
+		this._lineRanges = state.visibleLineRanges;
+		if (state.stabilized) {
+			this.runner.cancel();
+			this.update();
+		} else {
+			this.runner.schedule();
+		}
 	}
 }

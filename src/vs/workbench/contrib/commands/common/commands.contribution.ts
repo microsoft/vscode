@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 type RunnableCommand = string | { command: string; args: any[] };
@@ -36,12 +37,12 @@ class RunCommands extends Action2 {
 									type: 'array',
 									description: nls.localize('runCommands.commands', "Commands to run"),
 									items: {
-										anyOf: [  // Note: we don't allow arbitrary strings as command names as does `keybindingService.ts` - such behavior would be useful if the commands registry doesn't know about all existing commands - needs investigation
+										anyOf: [
 											{
 												$ref: 'vscode://schemas/keybindings#/definitions/commandNames'
 											},
 											{
-												type: 'string', // we support "arbitrary" strings because extension-contributed command names aren't in 'vscode://schemas/keybindings#commandNames'
+												type: 'string',
 											},
 											{
 												type: 'object',
@@ -76,17 +77,38 @@ class RunCommands extends Action2 {
 	//	- keybinding definitions don't allow running commands with several arguments
 	//  - and we want to be able to take on different other arguments in future, e.g., `runMode : 'serial' | 'concurrent'`
 	async run(accessor: ServicesAccessor, args: unknown) {
-		if (!this._isCommandArgs(args)) {
-			throw new Error('runCommands: invalid arguments');
-		}
-		const commandService = accessor.get(ICommandService);
+
 		const notificationService = accessor.get(INotificationService);
+
+		if (!this._isCommandArgs(args)) {
+			notificationService.error(nls.localize('runCommands.invalidArgs', "'runCommands' has received an argument with incorrect type. Please, review the argument passed to the command."));
+			return;
+		}
+
+		if (args.commands.length === 0) {
+			notificationService.warn(nls.localize('runCommands.noCommandsToRun', "'runCommands' has not received commands to run. Did you forget to pass commands in the 'runCommands' argument?"));
+			return;
+		}
+
+		const commandService = accessor.get(ICommandService);
+		const logService = accessor.get(ILogService);
+
+		let i = 0;
 		try {
-			for (const cmd of args.commands) {
-				await this._runCommand(commandService, cmd);
+			for (; i < args.commands.length; ++i) {
+
+				const cmd = args.commands[i];
+
+				logService.debug(`runCommands: executing ${i}-th command: ${JSON.stringify(cmd)}`);
+
+				const r = await this._runCommand(commandService, cmd);
+
+				logService.debug(`runCommands: executed ${i}-th command with return value: ${JSON.stringify(r)}`);
 			}
 		} catch (err) {
-			notificationService.warn(err);
+			logService.debug(`runCommands: executing ${i}-th command resulted in an error: ${err instanceof Error ? err.message : JSON.stringify(err)}`);
+
+			notificationService.error(err);
 		}
 	}
 
@@ -122,7 +144,7 @@ class RunCommands extends Action2 {
 		if (commandArgs === undefined) {
 			return commandService.executeCommand(commandID);
 		} else {
-			if (Array.isArray(commandArgs)) { // TODO@ulugbekna: this needs discussion - do we allow passing several arguments to command run, which isn't by the regular `keybindings.json`
+			if (Array.isArray(commandArgs)) {
 				return commandService.executeCommand(commandID, ...commandArgs);
 			} else {
 				return commandService.executeCommand(commandID, commandArgs);

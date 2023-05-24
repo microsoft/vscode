@@ -672,7 +672,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 		const roots = this.explorerService.roots;
 		let input: ExplorerItem | ExplorerItem[] = roots[0];
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].isError) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].error) {
 			// Display roots only when multi folder workspace
 			input = roots;
 		}
@@ -691,12 +691,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
 				if (!viewState || previousInput instanceof ExplorerItem) {
-					// There is no view state for this workspace (we transitioned from a folder workspace?), expand all roots.
-					await Promise.all(input.map(async item => {
+					// There is no view state for this workspace (we transitioned from a folder workspace?), expand up to five roots.
+					// If there are many roots in a workspace, expanding them all would can cause performance issues #176226
+					for (let i = 0; i < Math.min(input.length, 5); i++) {
 						try {
-							await this.tree.expand(item);
+							await this.tree.expand(input[i]);
 						} catch (e) { }
-					}));
+					}
 				}
 				// Reloaded or transitioned from an empty workspace, but only have a single folder in the workspace.
 				if (!previousInput && input.length === 1 && this.configurationService.getValue<IFilesConfiguration>().explorer.expandSingleFolderWorkspaces) {
@@ -991,7 +992,10 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const explorerView = viewsService.getViewWithId(VIEW_ID) as ExplorerView;
-		explorerView.collapseAll();
+		const view = viewsService.getViewWithId(VIEW_ID);
+		if (view !== null) {
+			const explorerView = view as ExplorerView;
+			explorerView.collapseAll();
+		}
 	}
 });

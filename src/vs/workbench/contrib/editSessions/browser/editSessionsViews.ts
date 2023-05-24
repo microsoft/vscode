@@ -10,7 +10,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { Extensions, ITreeItem, ITreeViewDataProvider, ITreeViewDescriptor, IViewsRegistry, TreeItemCollapsibleState, TreeViewItemHandleArg, ViewContainer } from 'vs/workbench/common/views';
-import { EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_TITLE, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { ChangeType, EDIT_SESSIONS_DATA_VIEW_ID, EDIT_SESSIONS_SCHEME, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_TITLE, EditSession, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { fromNow } from 'vs/base/common/date';
 import { Codicon } from 'vs/base/common/codicons';
@@ -19,6 +19,10 @@ import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/act
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { joinPath } from 'vs/base/common/resources';
+import { IFileService } from 'vs/platform/files/common/files';
+import { basename } from 'vs/base/common/path';
 
 const EDIT_SESSIONS_COUNT_KEY = 'editSessionsCount';
 const EDIT_SESSIONS_COUNT_CONTEXT_KEY = new RawContextKey<number>(EDIT_SESSIONS_COUNT_KEY, 0);
@@ -127,7 +131,7 @@ export class EditSessionsDataViews extends Disposable {
 					title: EDIT_SESSIONS_TITLE
 				});
 				if (result.confirmed) {
-					await editSessionStorageService.delete(editSessionId);
+					await editSessionStorageService.delete('editSessions', editSessionId);
 					await treeView.refresh();
 				}
 			}
@@ -156,7 +160,7 @@ export class EditSessionsDataViews extends Disposable {
 					title: EDIT_SESSIONS_TITLE
 				});
 				if (result.confirmed) {
-					await editSessionStorageService.delete(null);
+					await editSessionStorageService.delete('editSessions', null);
 					await treeView.refresh();
 				}
 			}
@@ -170,7 +174,9 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 
 	constructor(
 		@IEditSessionsStorageService private readonly editSessionsStorageService: IEditSessionsStorageService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		this.editSessionsCount = EDIT_SESSIONS_COUNT_CONTEXT_KEY.bindTo(this.contextKeyService);
 	}
@@ -192,15 +198,19 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private async getAllEditSessions(): Promise<ITreeItem[]> {
-		const allEditSessions = await this.editSessionsStorageService.list();
+		const allEditSessions = await this.editSessionsStorageService.list('editSessions');
 		this.editSessionsCount.set(allEditSessions.length);
 		const editSessions = [];
 
 		for (const session of allEditSessions) {
 			const resource = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${session.ref}` });
-			const sessionData = await this.editSessionsStorageService.read(session.ref);
-			const label = sessionData?.editSession.folders.map((folder) => folder.name).join(', ') ?? session.ref;
-			const machineId = sessionData?.editSession.machine;
+			const sessionData = await this.editSessionsStorageService.read('editSessions', session.ref);
+			if (!sessionData) {
+				continue;
+			}
+			const content: EditSession = JSON.parse(sessionData.content);
+			const label = content.folders.map((folder) => folder.name).join(', ') ?? session.ref;
+			const machineId = content.machine;
 			const machineName = machineId ? await this.editSessionsStorageService.getMachineById(machineId) : undefined;
 			const description = machineName === undefined ? fromNow(session.created, true) : `${fromNow(session.created, true)}\u00a0\u00a0\u2022\u00a0\u00a0${machineName}`;
 
@@ -218,18 +228,19 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private async getEditSession(ref: string): Promise<ITreeItem[]> {
-		const data = await this.editSessionsStorageService.read(ref);
+		const data = await this.editSessionsStorageService.read('editSessions', ref);
 
 		if (!data) {
 			return [];
 		}
+		const content: EditSession = JSON.parse(data.content);
 
-		if (data.editSession.folders.length === 1) {
-			const folder = data.editSession.folders[0];
+		if (content.folders.length === 1) {
+			const folder = content.folders[0];
 			return this.getEditSessionFolderContents(ref, folder.name);
 		}
 
-		return data.editSession.folders.map((folder) => {
+		return content.folders.map((folder) => {
 			const resource = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${data.ref}/${folder.name}` });
 			return {
 				handle: resource.toString(),
@@ -241,26 +252,59 @@ class EditSessionDataViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private async getEditSessionFolderContents(ref: string, folderName: string): Promise<ITreeItem[]> {
-		const data = await this.editSessionsStorageService.read(ref);
+		const data = await this.editSessionsStorageService.read('editSessions', ref);
 
 		if (!data) {
 			return [];
 		}
+		const content: EditSession = JSON.parse(data.content);
 
-		return (data.editSession.folders.find((folder) => folder.name === folderName)?.workingChanges ?? []).map((change) => {
-			const resource = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${data.ref}/${folderName}/${change.relativeFilePath}` });
+		const currentWorkspaceFolder = this.workspaceContextService.getWorkspace().folders.find((folder) => folder.name === folderName);
+		const editSessionFolder = content.folders.find((folder) => folder.name === folderName);
+
+		if (!editSessionFolder) {
+			return [];
+		}
+
+		return Promise.all(editSessionFolder.workingChanges.map(async (change) => {
+			const cloudChangeUri = URI.from({ scheme: EDIT_SESSIONS_SCHEME, authority: 'remote-session-content', path: `/${data.ref}/${folderName}/${change.relativeFilePath}` });
+
+			if (currentWorkspaceFolder?.uri) {
+				// find the corresponding file in the workspace
+				const localCopy = joinPath(currentWorkspaceFolder.uri, change.relativeFilePath);
+				if (change.type === ChangeType.Addition && await this.fileService.exists(localCopy)) {
+					return {
+						handle: cloudChangeUri.toString(),
+						resourceUri: cloudChangeUri,
+						collapsibleState: TreeItemCollapsibleState.None,
+						label: { label: change.relativeFilePath },
+						themeIcon: Codicon.file,
+						command: {
+							id: 'vscode.diff',
+							title: localize('compare changes', 'Compare Changes'),
+							arguments: [
+								localCopy,
+								cloudChangeUri,
+								`${basename(change.relativeFilePath)} (${localize('local copy', 'Local Copy')} \u2194 ${localize('cloud changes', 'Cloud Changes')})`,
+								undefined
+							]
+						}
+					};
+				}
+			}
+
 			return {
-				handle: resource.toString(),
-				resourceUri: resource,
+				handle: cloudChangeUri.toString(),
+				resourceUri: cloudChangeUri,
 				collapsibleState: TreeItemCollapsibleState.None,
 				label: { label: change.relativeFilePath },
 				themeIcon: Codicon.file,
 				command: {
 					id: API_OPEN_EDITOR_COMMAND_ID,
 					title: localize('open file', 'Open File'),
-					arguments: [resource, undefined, undefined]
+					arguments: [cloudChangeUri, undefined, undefined]
 				}
 			};
-		});
+		}));
 	}
 }

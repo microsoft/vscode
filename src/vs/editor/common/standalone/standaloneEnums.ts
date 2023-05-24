@@ -255,65 +255,67 @@ export enum EditorOption {
 	overviewRulerBorder = 79,
 	overviewRulerLanes = 80,
 	padding = 81,
-	parameterHints = 82,
-	peekWidgetDefaultFocus = 83,
-	definitionLinkOpensInPeek = 84,
-	quickSuggestions = 85,
-	quickSuggestionsDelay = 86,
-	readOnly = 87,
-	renameOnType = 88,
-	renderControlCharacters = 89,
-	renderFinalNewline = 90,
-	renderLineHighlight = 91,
-	renderLineHighlightOnlyWhenFocus = 92,
-	renderValidationDecorations = 93,
-	renderWhitespace = 94,
-	revealHorizontalRightPadding = 95,
-	roundedSelection = 96,
-	rulers = 97,
-	scrollbar = 98,
-	scrollBeyondLastColumn = 99,
-	scrollBeyondLastLine = 100,
-	scrollPredominantAxis = 101,
-	selectionClipboard = 102,
-	selectionHighlight = 103,
-	selectOnLineNumbers = 104,
-	showFoldingControls = 105,
-	showUnused = 106,
-	snippetSuggestions = 107,
-	smartSelect = 108,
-	smoothScrolling = 109,
-	stickyScroll = 110,
-	stickyTabStops = 111,
-	stopRenderingLineAfter = 112,
-	suggest = 113,
-	suggestFontSize = 114,
-	suggestLineHeight = 115,
-	suggestOnTriggerCharacters = 116,
-	suggestSelection = 117,
-	tabCompletion = 118,
-	tabIndex = 119,
-	unicodeHighlighting = 120,
-	unusualLineTerminators = 121,
-	useShadowDOM = 122,
-	useTabStops = 123,
-	wordBreak = 124,
-	wordSeparators = 125,
-	wordWrap = 126,
-	wordWrapBreakAfterCharacters = 127,
-	wordWrapBreakBeforeCharacters = 128,
-	wordWrapColumn = 129,
-	wordWrapOverride1 = 130,
-	wordWrapOverride2 = 131,
-	wrappingIndent = 132,
-	wrappingStrategy = 133,
-	showDeprecated = 134,
-	inlayHints = 135,
-	editorClassName = 136,
-	pixelRatio = 137,
-	tabFocusMode = 138,
-	layoutInfo = 139,
-	wrappingInfo = 140
+	pasteAs = 82,
+	parameterHints = 83,
+	peekWidgetDefaultFocus = 84,
+	definitionLinkOpensInPeek = 85,
+	quickSuggestions = 86,
+	quickSuggestionsDelay = 87,
+	readOnly = 88,
+	renameOnType = 89,
+	renderControlCharacters = 90,
+	renderFinalNewline = 91,
+	renderLineHighlight = 92,
+	renderLineHighlightOnlyWhenFocus = 93,
+	renderValidationDecorations = 94,
+	renderWhitespace = 95,
+	revealHorizontalRightPadding = 96,
+	roundedSelection = 97,
+	rulers = 98,
+	scrollbar = 99,
+	scrollBeyondLastColumn = 100,
+	scrollBeyondLastLine = 101,
+	scrollPredominantAxis = 102,
+	selectionClipboard = 103,
+	selectionHighlight = 104,
+	selectOnLineNumbers = 105,
+	showFoldingControls = 106,
+	showUnused = 107,
+	snippetSuggestions = 108,
+	smartSelect = 109,
+	smoothScrolling = 110,
+	stickyScroll = 111,
+	stickyTabStops = 112,
+	stopRenderingLineAfter = 113,
+	suggest = 114,
+	suggestFontSize = 115,
+	suggestLineHeight = 116,
+	suggestOnTriggerCharacters = 117,
+	suggestSelection = 118,
+	tabCompletion = 119,
+	tabIndex = 120,
+	unicodeHighlighting = 121,
+	unusualLineTerminators = 122,
+	useShadowDOM = 123,
+	useTabStops = 124,
+	wordBreak = 125,
+	wordSeparators = 126,
+	wordWrap = 127,
+	wordWrapBreakAfterCharacters = 128,
+	wordWrapBreakBeforeCharacters = 129,
+	wordWrapColumn = 130,
+	wordWrapOverride1 = 131,
+	wordWrapOverride2 = 132,
+	wrappingIndent = 133,
+	wrappingStrategy = 134,
+	showDeprecated = 135,
+	inlayHints = 136,
+	editorClassName = 137,
+	pixelRatio = 138,
+	tabFocusMode = 139,
+	layoutInfo = 140,
+	wrappingInfo = 141,
+	defaultColorDecorators = 142
 }
 
 /**
@@ -346,6 +348,14 @@ export enum EndOfLineSequence {
 	 * Use carriage return and line feed (\r\n) as the end of line character.
 	 */
 	CRLF = 1
+}
+
+/**
+ * Vertical Lane in the glyph margin of the editor.
+ */
+export enum GlyphMarginLane {
+	Left = 1,
+	Right = 2
 }
 
 /**
@@ -487,116 +497,121 @@ export enum KeyCode {
 	F17 = 75,
 	F18 = 76,
 	F19 = 77,
-	NumLock = 78,
-	ScrollLock = 79,
+	F20 = 78,
+	F21 = 79,
+	F22 = 80,
+	F23 = 81,
+	F24 = 82,
+	NumLock = 83,
+	ScrollLock = 84,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ';:' key
 	 */
-	Semicolon = 80,
+	Semicolon = 85,
 	/**
 	 * For any country/region, the '+' key
 	 * For the US standard keyboard, the '=+' key
 	 */
-	Equal = 81,
+	Equal = 86,
 	/**
 	 * For any country/region, the ',' key
 	 * For the US standard keyboard, the ',<' key
 	 */
-	Comma = 82,
+	Comma = 87,
 	/**
 	 * For any country/region, the '-' key
 	 * For the US standard keyboard, the '-_' key
 	 */
-	Minus = 83,
+	Minus = 88,
 	/**
 	 * For any country/region, the '.' key
 	 * For the US standard keyboard, the '.>' key
 	 */
-	Period = 84,
+	Period = 89,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '/?' key
 	 */
-	Slash = 85,
+	Slash = 90,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '`~' key
 	 */
-	Backquote = 86,
+	Backquote = 91,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '[{' key
 	 */
-	BracketLeft = 87,
+	BracketLeft = 92,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '\|' key
 	 */
-	Backslash = 88,
+	Backslash = 93,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ']}' key
 	 */
-	BracketRight = 89,
+	BracketRight = 94,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ''"' key
 	 */
-	Quote = 90,
+	Quote = 95,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 */
-	OEM_8 = 91,
+	OEM_8 = 96,
 	/**
 	 * Either the angle bracket key or the backslash key on the RT 102-key keyboard.
 	 */
-	IntlBackslash = 92,
-	Numpad0 = 93,
-	Numpad1 = 94,
-	Numpad2 = 95,
-	Numpad3 = 96,
-	Numpad4 = 97,
-	Numpad5 = 98,
-	Numpad6 = 99,
-	Numpad7 = 100,
-	Numpad8 = 101,
-	Numpad9 = 102,
-	NumpadMultiply = 103,
-	NumpadAdd = 104,
-	NUMPAD_SEPARATOR = 105,
-	NumpadSubtract = 106,
-	NumpadDecimal = 107,
-	NumpadDivide = 108,
+	IntlBackslash = 97,
+	Numpad0 = 98,
+	Numpad1 = 99,
+	Numpad2 = 100,
+	Numpad3 = 101,
+	Numpad4 = 102,
+	Numpad5 = 103,
+	Numpad6 = 104,
+	Numpad7 = 105,
+	Numpad8 = 106,
+	Numpad9 = 107,
+	NumpadMultiply = 108,
+	NumpadAdd = 109,
+	NUMPAD_SEPARATOR = 110,
+	NumpadSubtract = 111,
+	NumpadDecimal = 112,
+	NumpadDivide = 113,
 	/**
 	 * Cover all key codes when IME is processing input.
 	 */
-	KEY_IN_COMPOSITION = 109,
-	ABNT_C1 = 110,
-	ABNT_C2 = 111,
-	AudioVolumeMute = 112,
-	AudioVolumeUp = 113,
-	AudioVolumeDown = 114,
-	BrowserSearch = 115,
-	BrowserHome = 116,
-	BrowserBack = 117,
-	BrowserForward = 118,
-	MediaTrackNext = 119,
-	MediaTrackPrevious = 120,
-	MediaStop = 121,
-	MediaPlayPause = 122,
-	LaunchMediaPlayer = 123,
-	LaunchMail = 124,
-	LaunchApp2 = 125,
+	KEY_IN_COMPOSITION = 114,
+	ABNT_C1 = 115,
+	ABNT_C2 = 116,
+	AudioVolumeMute = 117,
+	AudioVolumeUp = 118,
+	AudioVolumeDown = 119,
+	BrowserSearch = 120,
+	BrowserHome = 121,
+	BrowserBack = 122,
+	BrowserForward = 123,
+	MediaTrackNext = 124,
+	MediaTrackPrevious = 125,
+	MediaStop = 126,
+	MediaPlayPause = 127,
+	LaunchMediaPlayer = 128,
+	LaunchMail = 129,
+	LaunchApp2 = 130,
 	/**
 	 * VK_CLEAR, 0x0C, CLEAR key
 	 */
-	Clear = 126,
+	Clear = 131,
 	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
-	MAX_VALUE = 127
+	MAX_VALUE = 132
 }
 
 export enum MarkerSeverity {

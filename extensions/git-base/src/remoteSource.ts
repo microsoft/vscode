@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { QuickPickItem, window, QuickPick, QuickPickItemKind, l10n } from 'vscode';
-import { RemoteSourceProvider, RemoteSource, PickRemoteSourceOptions, PickRemoteSourceResult } from './api/git-base';
+import { RemoteSourceProvider, RemoteSource, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceAction } from './api/git-base';
 import { Model } from './model';
 import { throttle, debounce } from './decorators';
 
@@ -81,11 +81,24 @@ class RemoteSourceProviderQuickPick {
 	}
 }
 
+export async function getRemoteSourceActions(model: Model, url: string): Promise<RemoteSourceAction[]> {
+	const providers = model.getRemoteProviders();
+
+	const remoteSourceActions = [];
+	for (const provider of providers) {
+		const providerActions = await provider.getRemoteSourceActions?.(url);
+		if (providerActions?.length) {
+			remoteSourceActions.push(...providerActions);
+		}
+	}
+
+	return remoteSourceActions;
+}
+
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch: true }): Promise<PickRemoteSourceResult | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {
 	const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider; url?: string })>();
-	quickpick.ignoreFocusOut = true;
 	quickpick.title = options.title;
 
 	if (options.providerName) {

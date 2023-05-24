@@ -1033,8 +1033,14 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 		// Grab its rect
 		const rect = el.getBoundingClientRect();
 
-		// And its font
-		const font = window.getComputedStyle(el, null).getPropertyValue('font');
+		// And its font (the computed shorthand font property might be empty, see #3217)
+		const fontStyle = window.getComputedStyle(el, null).getPropertyValue('font-style');
+		const fontVariant = window.getComputedStyle(el, null).getPropertyValue('font-variant');
+		const fontWeight = window.getComputedStyle(el, null).getPropertyValue('font-weight');
+		const fontSize = window.getComputedStyle(el, null).getPropertyValue('font-size');
+		const lineHeight = window.getComputedStyle(el, null).getPropertyValue('line-height');
+		const fontFamily = window.getComputedStyle(el, null).getPropertyValue('font-family');
+		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
 		// And also its txt content
 		const text = (el as any).innerText;

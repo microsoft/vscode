@@ -59,6 +59,8 @@ import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeatu
 import { assertType } from 'vs/base/common/types';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -143,6 +145,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 		services.set(ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService));
 		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
+		services.set(IConfigurationService, new TestConfigurationService());
 
 		const insta = new InstantiationService(services);
 

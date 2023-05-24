@@ -17,13 +17,15 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { rendererLogId, showWindowLogActionId } from 'vs/workbench/common/logConstants';
+import { windowLogId, showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
 import { createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CounterSet } from 'vs/base/common/map';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { Schemas } from 'vs/base/common/network';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -62,6 +64,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		@ILoggerService private readonly loggerService: ILoggerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IFileService private readonly fileService: IFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		const contextKey = CONTEXT_LOG_LEVEL.bindTo(contextKeyService);
@@ -138,14 +141,24 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerLogChannel(logger: ILoggerResource): void {
-		if (this.outputChannelRegistry.getChannel(logger.id)) {
+		const channel = this.outputChannelRegistry.getChannel(logger.id);
+		if (channel && this.uriIdentityService.extUri.isEqual(channel.file, logger.resource)) {
 			return;
 		}
 		const promise = createCancelablePromise(async token => {
 			await whenProviderRegistered(logger.resource, this.fileService);
 			try {
 				await this.whenFileExists(logger.resource, 1, token);
-				this.outputChannelRegistry.registerChannel({ id: logger.id, label: logger.name ?? logger.id, file: logger.resource, log: true, extensionId: logger.extensionId });
+				const channel = this.outputChannelRegistry.getChannel(logger.id);
+				if (channel?.file?.scheme === Schemas.vscodeRemote) {
+					// Re-register the channel with new id and name
+					this.outputChannelRegistry.removeChannel(channel.id);
+					this.outputChannelRegistry.registerChannel({ id: `${channel.id}.remote`, label: nls.localize('remote name', "{0} (Remote)", channel.label), file: channel.file, log: channel.log, extensionId: channel.extensionId });
+				}
+				const hasToAppendRemote = channel && logger.resource.scheme === Schemas.vscodeRemote;
+				const id = hasToAppendRemote ? `${logger.id}.remote` : logger.id;
+				const label = hasToAppendRemote ? nls.localize('remote name', "{0} (Remote)", logger.name ?? logger.id) : logger.name ?? logger.id;
+				this.outputChannelRegistry.registerChannel({ id, label, file: logger.resource, log: true, extensionId: logger.extensionId });
 			} catch (error) {
 				if (!isCancellationError(error)) {
 					this.logService.error('Error while registering log channel', logger.resource.toString(), getErrorMessage(error));
@@ -183,7 +196,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 			}
 			async run(servicesAccessor: ServicesAccessor): Promise<void> {
 				const outputService = servicesAccessor.get(IOutputService);
-				outputService.showChannel(rendererLogId);
+				outputService.showChannel(windowLogId);
 			}
 		});
 	}

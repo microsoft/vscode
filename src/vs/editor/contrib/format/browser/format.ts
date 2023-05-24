@@ -217,31 +217,44 @@ export async function formatDocumentRangesWithProvider(
 	const allEdits: TextEdit[] = [];
 	const rawEditsList: TextEdit[][] = [];
 	try {
-		for (const range of ranges) {
-			if (cts.token.isCancellationRequested) {
-				return true;
-			}
-			rawEditsList.push(await computeEdits(range));
-		}
+		if (typeof provider.provideDocumentRangesFormattingEdits === 'function') {
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (request)`, provider.extensionId?.value, ranges);
+			const result = (await provider.provideDocumentRangesFormattingEdits(
+				model,
+				ranges,
+				model.getFormattingOptions(),
+				cts.token
+			)) || [];
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (response)`, provider.extensionId?.value, result);
+			rawEditsList.push(result);
+		} else {
 
-		for (let i = 0; i < ranges.length; ++i) {
-			for (let j = i + 1; j < ranges.length; ++j) {
+			for (const range of ranges) {
 				if (cts.token.isCancellationRequested) {
 					return true;
 				}
-				if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
-					// Merge ranges i and j into a single range, recompute the associated edits
-					const mergedRange = Range.plusRange(ranges[i], ranges[j]);
-					const edits = await computeEdits(mergedRange);
-					ranges.splice(j, 1);
-					ranges.splice(i, 1);
-					ranges.push(mergedRange);
-					rawEditsList.splice(j, 1);
-					rawEditsList.splice(i, 1);
-					rawEditsList.push(edits);
-					// Restart scanning
-					i = 0;
-					j = 0;
+				rawEditsList.push(await computeEdits(range));
+			}
+
+			for (let i = 0; i < ranges.length; ++i) {
+				for (let j = i + 1; j < ranges.length; ++j) {
+					if (cts.token.isCancellationRequested) {
+						return true;
+					}
+					if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
+						// Merge ranges i and j into a single range, recompute the associated edits
+						const mergedRange = Range.plusRange(ranges[i], ranges[j]);
+						const edits = await computeEdits(mergedRange);
+						ranges.splice(j, 1);
+						ranges.splice(i, 1);
+						ranges.push(mergedRange);
+						rawEditsList.splice(j, 1);
+						rawEditsList.splice(i, 1);
+						rawEditsList.push(edits);
+						// Restart scanning
+						i = 0;
+						j = 0;
+					}
 				}
 			}
 		}

@@ -277,13 +277,16 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 	constructor(
 		action: SubmenuItemAction,
 		options: IDropdownMenuActionViewItemOptions | undefined,
+		@IKeybindingService protected _keybindingService: IKeybindingService,
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
 		@IThemeService protected _themeService: IThemeService
 	) {
-		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
+		const dropdownOptions: IDropdownMenuActionViewItemOptions = {
+			...options,
 			menuAsChild: options?.menuAsChild ?? false,
 			classNames: options?.classNames ?? (ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined),
-		});
+			keybindingProvider: options?.keybindingProvider ?? (action => _keybindingService.lookupKeybinding(action.id))
+		};
 
 		super(action, { getActions: () => action.actions }, _contextMenuService, dropdownOptions);
 	}
@@ -317,14 +320,15 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 
 export interface IDropdownWithDefaultActionViewItemOptions extends IDropdownMenuActionViewItemOptions {
 	renderKeybindingWithDefaultActionLabel?: boolean;
+	persistLastActionId?: boolean;
 }
 
 export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	private readonly _options: IDropdownWithDefaultActionViewItemOptions | undefined;
 	private _defaultAction: ActionViewItem;
-	private _dropdown: DropdownMenuActionViewItem;
+	private readonly _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
-	private _storageKey: string;
+	private readonly _storageKey: string;
 
 	get onDidChangeDropdownVisibility(): Event<boolean> {
 		return this._dropdown.onDidChangeVisibility;
@@ -346,7 +350,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		// determine default action
 		let defaultAction: IAction | undefined;
-		const defaultActionId = _storageService.get(this._storageKey, StorageScope.WORKSPACE);
+		const defaultActionId = options?.persistLastActionId ? _storageService.get(this._storageKey, StorageScope.WORKSPACE) : undefined;
 		if (defaultActionId) {
 			defaultAction = submenuAction.actions.find(a => defaultActionId === a.id);
 		}
@@ -356,11 +360,13 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, { keybinding: this._getDefaultActionKeybindingLabel(defaultAction) });
 
-		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
+		const dropdownOptions: IDropdownMenuActionViewItemOptions = {
+			keybindingProvider: action => this._keybindingService.lookupKeybinding(action.id),
+			...options,
 			menuAsChild: options?.menuAsChild ?? true,
 			classNames: options?.classNames ?? ['codicon', 'codicon-chevron-down'],
-			actionRunner: options?.actionRunner ?? new ActionRunner()
-		});
+			actionRunner: options?.actionRunner ?? new ActionRunner(),
+		};
 
 		this._dropdown = new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions);
 		this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
@@ -371,7 +377,9 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	}
 
 	private update(lastAction: MenuItemAction): void {
-		this._storageService.store(this._storageKey, lastAction.id, StorageScope.WORKSPACE, StorageTarget.USER);
+		if (this._options?.persistLastActionId) {
+			this._storageService.store(this._storageKey, lastAction.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 
 		this._defaultAction.dispose();
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction) });
@@ -502,7 +510,7 @@ export function createActionViewItem(instaService: IInstantiationService, action
 			return instaService.createInstance(SubmenuEntrySelectActionViewItem, action);
 		} else {
 			if (action.item.rememberDefaultAction) {
-				return instaService.createInstance(DropdownWithDefaultActionViewItem, action, options);
+				return instaService.createInstance(DropdownWithDefaultActionViewItem, action, { ...options, persistLastActionId: true });
 			} else {
 				return instaService.createInstance(SubmenuEntryActionViewItem, action, options);
 			}

@@ -84,7 +84,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 	public serializeNotebookToString(data: vscode.NotebookData): string {
 		const notebookContent = getNotebookMetadata(data);
 		// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
-		const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells[0].languageId;
+		const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === vscode.NotebookCellKind.Code)?.languageId;
 
 		notebookContent.cells = data.cells
 			.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
@@ -93,7 +93,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
 			data.metadata.indentAmount :
 			' ';
-		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecesary changes, resulting from a missing trailing new line).
+		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
 		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount) + '\n';
 	}
 }

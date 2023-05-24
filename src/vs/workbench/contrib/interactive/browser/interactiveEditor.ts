@@ -52,7 +52,7 @@ import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError'
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ITextEditorOptions, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -148,13 +148,13 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookExecutionStateService = notebookExecutionStateService;
 		this.#extensionService = extensionService;
 
-		this.#notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, { cellToolbarInteraction: 'hover', globalToolbar: true, dragAndDropEnabled: false });
+		this.#notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, true, { cellToolbarInteraction: 'hover', globalToolbar: true, dragAndDropEnabled: false });
 		this.#editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
-		this._register(this.#notebookExecutionStateService.onDidChangeCellExecution((e) => {
-			if (isEqual(e.notebook, this.#notebookWidget.value?.viewModel?.notebookDocument.uri)) {
+		this._register(this.#notebookExecutionStateService.onDidChangeExecution((e) => {
+			if (e.type === NotebookExecutionType.cell && isEqual(e.notebook, this.#notebookWidget.value?.viewModel?.notebookDocument.uri)) {
 				const cell = this.#notebookWidget.value?.getCellByHandle(e.cellHandle);
 				if (cell && e.changed?.state) {
 					this.#scrollIfNecessary(cell);

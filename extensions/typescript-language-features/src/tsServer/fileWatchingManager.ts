@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
+import { Schemes } from '../configuration/schemes';
 import { disposeAll, IDisposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
-import { Schemes } from '../utils/schemes';
 
 type DirWatcherEntry = {
 	readonly uri: vscode.Uri;

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import { createHash } from 'crypto';
-import type { Server as NetServer, Socket } from 'net';
-// import { tmpdir } from 'os';
-import type * as zlib from 'zlib';
+import { createHash } from 'crypto';
+import { Server as NetServer, Socket, createServer, createConnection } from 'net';
+import { tmpdir } from 'os';
+import { createDeflateRaw, ZlibOptions, InflateRaw, DeflateRaw, createInflateRaw } from 'zlib';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -16,16 +16,6 @@ import { Platform, platform } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-
-// TODO@bpasero remove me once electron utility process has landed
-function getNodeDependencies() {
-	return {
-		crypto: globalThis._VSCODE_NODE_MODULES.crypto,
-		zlib: globalThis._VSCODE_NODE_MODULES.zlib,
-		net: globalThis._VSCODE_NODE_MODULES.net,
-		os: globalThis._VSCODE_NODE_MODULES.os,
-	};
-}
 
 export class NodeSocket implements ISocket {
 
@@ -626,7 +616,7 @@ class ZlibInflateStream extends Disposable {
 	private readonly _onError = this._register(new Emitter<Error>());
 	public readonly onError = this._onError.event;
 
-	private readonly _zlibInflate: zlib.InflateRaw;
+	private readonly _zlibInflate: InflateRaw;
 	private readonly _recordedInflateBytes: VSBuffer[] = [];
 	private readonly _pendingInflateData: VSBuffer[] = [];
 
@@ -641,10 +631,10 @@ class ZlibInflateStream extends Disposable {
 		private readonly _tracer: ISocketTracer,
 		private readonly _recordInflateBytes: boolean,
 		inflateBytes: VSBuffer | null,
-		options: zlib.ZlibOptions
+		options: ZlibOptions
 	) {
 		super();
-		this._zlibInflate = getNodeDependencies().zlib.createInflateRaw(options);
+		this._zlibInflate = createInflateRaw(options);
 		this._zlibInflate.on('error', (err) => {
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (<any>err)?.code });
 			this._onError.fire(err);
@@ -686,16 +676,16 @@ class ZlibDeflateStream extends Disposable {
 	private readonly _onError = this._register(new Emitter<Error>());
 	public readonly onError = this._onError.event;
 
-	private readonly _zlibDeflate: zlib.DeflateRaw;
+	private readonly _zlibDeflate: DeflateRaw;
 	private readonly _pendingDeflateData: VSBuffer[] = [];
 
 	constructor(
 		private readonly _tracer: ISocketTracer,
-		options: zlib.ZlibOptions
+		options: ZlibOptions
 	) {
 		super();
 
-		this._zlibDeflate = getNodeDependencies().zlib.createDeflateRaw({
+		this._zlibDeflate = createDeflateRaw({
 			windowBits: 15
 		});
 		this._zlibDeflate.on('error', (err) => {
@@ -756,8 +746,7 @@ function unmask(buffer: VSBuffer, mask: number): void {
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/microsoft/vscode/issues/30624
-// TODO@bpasero revert me once electron utility process has landed
-export const XDG_RUNTIME_DIR = typeof process !== 'undefined' ? <string | undefined>process.env['XDG_RUNTIME_DIR'] : undefined;
+export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {
 	[Platform.Linux]: 107,
@@ -774,7 +763,7 @@ export function createRandomIPCHandle(): string {
 
 	// Mac & Unix: Use socket file
 	// Unix: Prefer XDG_RUNTIME_DIR over user data path
-	const basePath = process.platform !== 'darwin' && XDG_RUNTIME_DIR ? XDG_RUNTIME_DIR : getNodeDependencies().os.tmpdir();
+	const basePath = process.platform !== 'darwin' && XDG_RUNTIME_DIR ? XDG_RUNTIME_DIR : tmpdir();
 	const result = join(basePath, `vscode-ipc-${randomSuffix}.sock`);
 
 	// Validate length
@@ -784,7 +773,7 @@ export function createRandomIPCHandle(): string {
 }
 
 export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
-	const scope = getNodeDependencies().crypto.createHash('md5').update(directoryPath).digest('hex');
+	const scope = createHash('md5').update(directoryPath).digest('hex');
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
@@ -852,7 +841,7 @@ export function serve(port: number): Promise<Server>;
 export function serve(namedPipe: string): Promise<Server>;
 export function serve(hook: any): Promise<Server> {
 	return new Promise<Server>((c, e) => {
-		const server = getNodeDependencies().net.createServer();
+		const server = createServer();
 
 		server.on('error', e);
 		server.listen(hook, () => {
@@ -867,7 +856,7 @@ export function connect(port: number, clientId: string): Promise<Client>;
 export function connect(namedPipe: string, clientId: string): Promise<Client>;
 export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
-		const socket = getNodeDependencies().net.createConnection(hook, () => {
+		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
 			c(Client.fromSocket(new NodeSocket(socket, `ipc-client${clientId}`), clientId));
 		});

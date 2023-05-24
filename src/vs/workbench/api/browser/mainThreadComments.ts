@@ -381,7 +381,8 @@ export class MainThreadCommentController implements ICommentController {
 				threads: [],
 				commentingRanges: {
 					resource: resource,
-					ranges: []
+					ranges: [],
+					fileComments: false
 				}
 			};
 		}
@@ -402,7 +403,8 @@ export class MainThreadCommentController implements ICommentController {
 			threads: ret,
 			commentingRanges: {
 				resource: resource,
-				ranges: commentingRanges || []
+				ranges: commentingRanges?.ranges || [],
+				fileComments: commentingRanges?.fileComments
 			}
 		};
 	}
@@ -431,11 +433,6 @@ export class MainThreadCommentController implements ICommentController {
 		};
 	}
 
-	async getCommentingRanges(resource: URI, token: CancellationToken): Promise<IRange[]> {
-		const commentingRanges = await this._proxy.$provideCommentingRanges(this.handle, resource, token);
-		return commentingRanges || [];
-	}
-
 	async toggleReaction(uri: URI, thread: languages.CommentThread, comment: languages.Comment, reaction: languages.CommentReaction, token: CancellationToken): Promise<void> {
 		return this._proxy.$toggleReaction(this._handle, thread.commentThreadHandle, uri, comment, reaction);
 	}
@@ -449,7 +446,7 @@ export class MainThreadCommentController implements ICommentController {
 		return ret;
 	}
 
-	createCommentThreadTemplate(resource: UriComponents, range: IRange): void {
+	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): void {
 		this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
 	}
 
@@ -489,6 +486,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
+		this._commentService.unregisterCommentController();
 
 		this._register(this._commentService.onDidChangeActiveCommentThread(async thread => {
 			const handle = (thread as MainThreadCommentThread<IRange | ICellRange>).controllerHandle;

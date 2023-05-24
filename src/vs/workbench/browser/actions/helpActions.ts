@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import product from 'vs/platform/product/common/product';
-import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, language, isWeb } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
@@ -124,7 +124,7 @@ class OpenTipsAndTricksUrlAction extends Action2 {
 class OpenDocumentationUrlAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openDocumentationUrl';
-	static readonly AVAILABLE = !!product.documentationUrl;
+	static readonly AVAILABLE = !!(isWeb ? product.serverDocumentationUrl : product.documentationUrl);
 
 	constructor() {
 		super({
@@ -147,9 +147,10 @@ class OpenDocumentationUrlAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
+		const url = isWeb ? productService.serverDocumentationUrl : productService.documentationUrl;
 
-		if (productService.documentationUrl) {
-			openerService.open(URI.parse(productService.documentationUrl));
+		if (url) {
+			openerService.open(URI.parse(url));
 		}
 	}
 }
@@ -245,7 +246,7 @@ class OpenRequestFeatureUrlAction extends Action2 {
 class OpenLicenseUrlAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openLicenseUrl';
-	static readonly AVAILABLE = !!product.licenseUrl;
+	static readonly AVAILABLE = !!(isWeb ? product.serverLicense : product.licenseUrl);
 
 	constructor() {
 		super({
@@ -268,13 +269,14 @@ class OpenLicenseUrlAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
+		const url = isWeb ? productService.serverLicenseUrl : productService.licenseUrl;
 
-		if (productService.licenseUrl) {
+		if (url) {
 			if (language) {
-				const queryArgChar = productService.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-				openerService.open(URI.parse(`${productService.licenseUrl}${queryArgChar}lang=${language}`));
+				const queryArgChar = url.indexOf('?') > 0 ? '&' : '?';
+				openerService.open(URI.parse(`${url}${queryArgChar}lang=${language}`));
 			} else {
-				openerService.open(URI.parse(productService.licenseUrl));
+				openerService.open(URI.parse(url));
 			}
 		}
 	}

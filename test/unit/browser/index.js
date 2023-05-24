@@ -67,7 +67,7 @@ function ensureIsArray(a) {
 
 const testModules = (async function () {
 
-	const excludeGlob = '**/{node,electron-sandbox,electron-browser,electron-main}/**/*.test.js';
+	const excludeGlob = '**/{node,electron-sandbox,electron-main}/**/*.test.js';
 	let isDefaultModules = true;
 	let promise;
 
@@ -131,7 +131,13 @@ async function runTestsInBrowser(testModules, browserType) {
 	const page = await context.newPage();
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
 	if (argv.build) {
-		target.search = `?build=true`;
+		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+			target.search = `?build=true&ci=true`;
+		} else {
+			target.search = `?build=true`;
+		}
+	} else if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+		target.search = `?ci=true`;
 	}
 
 	const emitter = new events.EventEmitter();

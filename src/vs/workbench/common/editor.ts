@@ -733,7 +733,7 @@ export const enum EditorInputCapabilities {
 	CanSplitInGroup = 1 << 5,
 
 	/**
-	 * Signals that the editor wants it's description to be
+	 * Signals that the editor wants its description to be
 	 * visible when presented to the user. By default, a UI
 	 * component may decide to hide the description portion
 	 * for brevity.
@@ -750,7 +750,13 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor is composed of multiple editors
 	 * within.
 	 */
-	MultipleEditors = 1 << 8
+	MultipleEditors = 1 << 8,
+
+	/**
+	 * Signals that the editor cannot be in a dirty state
+	 * and may still have unsaved changes
+	 */
+	Scratchpad = 1 << 9
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -1094,7 +1100,8 @@ interface IEditorPartConfiguration {
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
-	tabSizing?: 'fit' | 'shrink';
+	tabSizing?: 'fit' | 'shrink' | 'fixed';
+	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;

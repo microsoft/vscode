@@ -187,9 +187,13 @@ function hygiene(some, linting = true) {
 				)
 		);
 		streams.push(
-			result.pipe(filter(stylelintFilter)).pipe(gulpstylelint((error => {
-				console.error(error);
+			result.pipe(filter(stylelintFilter)).pipe(gulpstylelint(((message, isError) => {
+				if (isError) {
+					console.error(message);
 				errorCount++;
+				} else {
+					console.warn(message);
+				}
 			})))
 		);
 	}

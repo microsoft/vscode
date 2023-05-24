@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "const childEndsAfterEnd = lengthGreaterThanEqual(nodeOffsetEnd, endOffset);\nif (childEndsAfterEnd) {\n    // No child after this child in the requested window, don't recurse\n    node = child;\n    level++;\n    continue whileLoop;\n}\n\nconst shouldContinue = collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, push, level + 1, levelPerBracketType);\nif (!shouldContinue) {\n    return false;\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "const childEndsAfterEnd = lengthGreaterThanEqual(nodeOffsetEnd, endOffset);\nif (childEndsAfterEnd) {\n    // No child after this child in the requested window, don't recurse\n    node = child;\n    level++;\n    continue whileLoop;\n}\n\nconst shouldContinue = collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, push, level + 1, levelPerBracket + 1, levelPerBracketType);\nif (!shouldContinue) {\n    return false;\n}",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[9,10)",
+			"modifiedRange": "[9,10)",
+			"innerChanges": [
+				{
+					"originalRange": "[9,135 -> 9,135]",
+					"modifiedRange": "[9,135 -> 9,156]"
+				}
+			]
+		}
+	]
+}

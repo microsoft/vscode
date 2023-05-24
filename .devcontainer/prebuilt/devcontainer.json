@@ -1,5 +1,5 @@
 {
-	"name": "Code - OSS",
+	"name": "Code - OSS with VNC",
 
 	// Image contents: https://github.com/microsoft/vscode-dev-containers/blob/master/repository-containers/images/github.com/microsoft/vscode/.devcontainer/base.Dockerfile
 	"image": "mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:branch-main",

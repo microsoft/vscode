@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
-import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkProviderService';
+import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
+import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
 import { Terminal as RawXtermTerminal } from 'xterm';
 
 registerSingleton(ITerminalLinkProviderService, TerminalLinkProviderService, InstantiationType.Delayed);
@@ -104,59 +103,32 @@ registerTerminalContribution(TerminalLinkContribution.ID, TerminalLinkContributi
 
 const category = terminalStrings.actionCategory;
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: TerminalCommandId.OpenDetectedLink,
-			title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
-			f1: true,
-			category,
-			precondition: TerminalContextKeys.terminalHasBeenCreated,
-			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
-				weight: KeybindingWeight.WorkbenchContrib + 1,
-				when: TerminalContextKeys.focus,
-			}
-		});
-	}
-	run(accessor: ServicesAccessor) {
-		const instance = accessor.get(ITerminalService).activeInstance;
-		if (instance) {
-			TerminalLinkContribution.get(instance)?.showLinkQuickpick();
-		}
-	}
+registerActiveInstanceAction({
+	id: TerminalCommandId.OpenDetectedLink,
+	title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
+	f1: true,
+	category,
+	precondition: TerminalContextKeys.terminalHasBeenCreated,
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: TerminalContextKeys.focus,
+	},
+	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.showLinkQuickpick()
 });
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: TerminalCommandId.OpenWebLink,
-			title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last Url Link"), original: 'Open Last Url Link' },
-			f1: true,
-			category,
-			precondition: TerminalContextKeys.terminalHasBeenCreated,
-		});
-	}
-	run(accessor: ServicesAccessor) {
-		const instance = accessor.get(ITerminalService).activeInstance;
-		if (instance) {
-			TerminalLinkContribution.get(instance)?.openRecentLink('url');
-		}
-	}
+registerActiveInstanceAction({
+	id: TerminalCommandId.OpenWebLink,
+	title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last URL Link"), original: 'Open Last URL Link' },
+	f1: true,
+	category,
+	precondition: TerminalContextKeys.terminalHasBeenCreated,
+	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.openRecentLink('url')
 });
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: TerminalCommandId.OpenFileLink,
-			title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
-			f1: true,
-			category,
-			precondition: TerminalContextKeys.terminalHasBeenCreated,
-		});
-	}
-	run(accessor: ServicesAccessor) {
-		const instance = accessor.get(ITerminalService).activeInstance;
-		if (instance) {
-			TerminalLinkContribution.get(instance)?.openRecentLink('localFile');
-		}
-	}
+registerActiveInstanceAction({
+	id: TerminalCommandId.OpenFileLink,
+	title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
+	f1: true,
+	category,
+	precondition: TerminalContextKeys.terminalHasBeenCreated,
+	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.openRecentLink('localFile')
 });

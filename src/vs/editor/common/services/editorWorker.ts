@@ -14,7 +14,7 @@ import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleW
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
-export type DiffAlgorithmName = 'smart' | 'experimental';
+export type DiffAlgorithmName = 'legacy' | 'advanced';
 
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
@@ -29,6 +29,7 @@ export interface IEditorWorkerService {
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
 
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean): Promise<TextEdit[] | undefined>;
+	computeHumanReadableDiff(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;
