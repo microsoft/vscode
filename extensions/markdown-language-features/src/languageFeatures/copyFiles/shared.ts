@@ -14,6 +14,7 @@ import { getDocumentDir } from '../../util/document';
 enum MediaKind {
 	Image,
 	Video,
+	Audio,
 }
 
 export const mediaFileExtensions = new Map<string, MediaKind>([
@@ -35,6 +36,11 @@ export const mediaFileExtensions = new Map<string, MediaKind>([
 	// Videos
 	['ogg', MediaKind.Video],
 	['mp4', MediaKind.Video],
+
+	// Audio Files
+	['mp3', MediaKind.Audio],
+	['aac', MediaKind.Audio],
+	['wav', MediaKind.Audio],
 ]);
 
 export const mediaMimes = new Set([
@@ -45,6 +51,9 @@ export const mediaMimes = new Set([
 	'image/webp',
 	'video/mp4',
 	'video/ogg',
+	'audio/mpeg',
+	'audio/aac',
+	'audio/x-wav',
 ]);
 
 
@@ -104,12 +113,18 @@ export function createUriListSnippet(
 		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
 		const insertAsMedia = typeof options?.insertAsMedia === 'undefined' ? mediaFileExtensions.has(ext) : !!options.insertAsMedia;
 		const insertAsVideo = mediaFileExtensions.get(ext) === MediaKind.Video;
+		const insertAsAudio = mediaFileExtensions.get(ext) === MediaKind.Audio;
 
 		if (insertAsVideo) {
 			insertedImageCount++;
 			snippet.appendText(`<video src="${mdPath}" controls title="`);
 			snippet.appendPlaceholder('Title');
 			snippet.appendText('"></video>');
+		} else if (insertAsAudio) {
+			insertedImageCount++;
+			snippet.appendText(`<audio src="${mdPath}" controls title="`);
+			snippet.appendPlaceholder('Title');
+			snippet.appendText('"></audio>');
 		} else {
 			if (insertAsMedia) {
 				insertedImageCount++;
