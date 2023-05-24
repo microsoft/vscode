@@ -50,7 +50,6 @@ const time = async <T>(name: string, task: () => Promise<T> | T) => {
 /**
  * Called on the worker side
  * @internal
- * @skipMangle
  */
 export function create(host: ILocalFileSearchSimpleWorkerHost): IRequestHandler {
 	return new LocalFileSearchSimpleWorker(host);

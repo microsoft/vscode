@@ -296,6 +296,7 @@ const skippedExportMangledFiles = [
 	'editorOptions',
 	'editorZoom',
 	'standaloneEditor',
+	'standaloneEnums',
 	'standaloneLanguages',
 
 	// Generated
@@ -306,6 +307,7 @@ const skippedExportMangledFiles = [
 
 	// entry points
 	...[
+		buildfile.entrypoint('vs/server/node/server.main.ts', []),
 		buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
 		buildfile.base,
 		buildfile.workerExtensionHost,
@@ -342,7 +344,7 @@ class DeclarationData {
 
 	constructor(
 		readonly fileName: string,
-		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.EnumMember | ts.VariableDeclaration,
+		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.VariableDeclaration,
 		private readonly service: ts.LanguageService,
 	) {
 		// Todo: generate replacement names based on usage count, with more used names getting shorter identifiers
@@ -434,7 +436,7 @@ export class Mangler {
 				this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 			}
 
-			// Find exported classes, functions, and enums
+			// Find exported classes, functions, and vars
 			if (
 				(
 					// Exported class
@@ -448,18 +450,22 @@ export class Mangler {
 					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
 					&& node.name && node.body // On named function and not on the overload
 				) || (
+					// Exported variable
+					ts.isVariableDeclaration(node)
+					&& hasModifier(node.parent.parent, ts.SyntaxKind.ExportKeyword) // Variable statement is exported
+					&& ts.isSourceFile(node.parent.parent.parent)
+				)
+
+				// Disabled for now because we need to figure out how to handle
+				// enums that are used in monaco or extHost interfaces.
+				/* || (
 					// Exported enum
 					ts.isEnumDeclaration(node)
 					&& ts.isSourceFile(node.parent)
 					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
 					&& !hasModifier(node, ts.SyntaxKind.ConstKeyword) // Don't bother mangling const enums because these are inlined
 					&& node.name
-				) || (
-					// Exported variable
-					ts.isVariableDeclaration(node)
-					&& hasModifier(node.parent.parent, ts.SyntaxKind.ExportKeyword) // Variable statement is exported
-					&& ts.isSourceFile(node.parent.parent.parent)
-				)
+				*/
 			) {
 				if (isInAmbientContext(node)) {
 					return;
