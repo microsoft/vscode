@@ -555,7 +555,6 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				return localize('multiCodeBlock', "{0} code blocks, {1}", codeBlockCount, element.response.value);
 		}
 	}
-
 }
 
 interface IChatResultCodeBlockData {
