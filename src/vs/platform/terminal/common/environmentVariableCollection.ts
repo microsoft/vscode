@@ -8,11 +8,11 @@ import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentV
 
 type VariableResolver = (str: string) => Promise<string>;
 
-// const mutatorTypeToLabelMap: Map<EnvironmentVariableMutatorType, string> = new Map([
-// 	[EnvironmentVariableMutatorType.Append, 'APPEND'],
-// 	[EnvironmentVariableMutatorType.Prepend, 'PREPEND'],
-// 	[EnvironmentVariableMutatorType.Replace, 'REPLACE']
-// ]);
+const mutatorTypeToLabelMap: Map<EnvironmentVariableMutatorType, string> = new Map([
+	[EnvironmentVariableMutatorType.Append, 'APPEND'],
+	[EnvironmentVariableMutatorType.Prepend, 'PREPEND'],
+	[EnvironmentVariableMutatorType.Replace, 'REPLACE']
+]);
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
 	private readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
@@ -46,7 +46,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 					value: mutator.value,
 					type: mutator.type,
 					scope: mutator.scope,
-					variable: mutator.variable
+					variable: mutator.variable,
+					options: mutator.options
 				};
 				if (!extensionMutator.scope) {
 					delete extensionMutator.scope; // Convenient for tests
@@ -69,24 +70,31 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			for (const mutator of mutators) {
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
-				// if (mutator.timing === EnvironmentVariableMutatorTiming.AfterShellIntegration) {
-				// 	const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
-				// 	env[key] = (env[key] ? env[key] + ':' : '') + variable + '=' + value;
-				// 	continue;
-				// }
-				switch (mutator.type) {
-					case EnvironmentVariableMutatorType.Append:
-						env[actualVariable] = (env[actualVariable] || '') + value;
-						break;
-					case EnvironmentVariableMutatorType.Prepend:
-						env[actualVariable] = value + (env[actualVariable] || '');
-						break;
-					case EnvironmentVariableMutatorType.Replace:
-						env[actualVariable] = value;
-						break;
+				// Default: true
+				if (mutator.options?.applyAtProcessCreation ?? true) {
+					switch (mutator.type) {
+						case EnvironmentVariableMutatorType.Append:
+							env[actualVariable] = (env[actualVariable] || '') + value;
+							break;
+						case EnvironmentVariableMutatorType.Prepend:
+							env[actualVariable] = value + (env[actualVariable] || '');
+							break;
+						case EnvironmentVariableMutatorType.Replace:
+							env[actualVariable] = value;
+							break;
+					}
+				}
+				// Default: false
+				if (mutator.options?.applyAtShellIntegration ?? false) {
+					const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
+					env[key] = (env[key] ? env[key] + ':' : '') + variable + '=' + this._encodeColons(value);
 				}
 			}
 		}
+	}
+
+	private _encodeColons(value: string): string {
+		return value.replaceAll(':', '\\x3a');
 	}
 
 	diff(other: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined): IMergedEnvironmentVariableCollectionDiff | undefined {
@@ -143,7 +151,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	getDescriptionMap(scope: EnvironmentVariableScope | undefined): Map<string, string | undefined> {
 		const result = new Map<string, string | undefined>();
 		this.descriptionMap.forEach((mutators, _key) => {
-			const filteredMutators = mutators.filter(m => filterScope(m, scope));
+			const filteredMutators = mutators.filter(m => filterScope(m, scope, true));
 			if (filteredMutators.length > 0) {
 				// There should be exactly one description per extension per scope.
 				result.set(filteredMutators[0].extensionIdentifier, filteredMutators[0].description);
@@ -182,11 +190,22 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	}
 }
 
+/**
+ * Returns whether a mutator matches with the scope provided.
+ * @param mutator Mutator to filter
+ * @param scope Scope to be used for querying
+ * @param strictFilter If true, mutators with global scope is not returned when querying for workspace scope.
+ * i.e whether mutator scope should always exactly match with query scope.
+ */
 function filterScope(
 	mutator: IExtensionOwnedEnvironmentVariableMutator | IExtensionOwnedEnvironmentDescriptionMutator,
-	scope: EnvironmentVariableScope | undefined
+	scope: EnvironmentVariableScope | undefined,
+	strictFilter = false
 ): boolean {
 	if (!mutator.scope) {
+		if (strictFilter) {
+			return scope === mutator.scope;
+		}
 		return true;
 	}
 	// If a mutator is scoped to a workspace folder, only apply it if the workspace

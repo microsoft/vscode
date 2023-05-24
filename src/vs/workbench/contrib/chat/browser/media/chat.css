@@ -73,6 +73,10 @@
 	display: none;
 }
 
+.interactive-item-container .header .monaco-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
 .interactive-item-container .header .monaco-toolbar .action-label {
 	border: 1px solid transparent;
 	padding: 2px;
@@ -201,8 +205,7 @@
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	position: absolute;
 	height: 22px;
-
-	right: 3px;
+	right: 6px;
 	bottom: 6px;
 }
 

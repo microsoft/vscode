@@ -290,6 +290,7 @@ export class InteractiveEditorWidget {
 			}
 		};
 		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, workbenchToolbarOptions);
+		this._store.add(statusToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusToolbar);
 
 		// preview editors
@@ -301,6 +302,7 @@ export class InteractiveEditorWidget {
 		this._elements.message.tabIndex = 0;
 		this._elements.statusLabel.tabIndex = 0;
 		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
+		this._store.add(markdownMessageToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(markdownMessageToolbar);
 	}
 
@@ -444,7 +446,7 @@ export class InteractiveEditorWidget {
 		this._inputEditor.focus();
 	}
 
-	updateToggleState(expand: boolean) {
+	updateMarkdownMessageExpansionState(expand: boolean) {
 		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
 		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
 		this._onDidChangeHeight.fire();
