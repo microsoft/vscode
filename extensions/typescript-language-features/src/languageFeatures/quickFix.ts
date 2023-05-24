@@ -324,15 +324,14 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 	}
 
 	private async classIncorrectlyImplementsInterfaceFollowupAction(document: vscode.TextDocument, diagnostic: vscode.Diagnostic, _action: Proto.CodeFixAction, client: ITypeScriptServiceClient): Promise<void> {
-
-		const findScopeEndLine = (startLine: number, navigationTree: Proto.NavigationTree[]): number => {
+		const findScopeEndLineFromNavTree = (startLine: number, navigationTree: Proto.NavigationTree[]): number => {
 			for (const node of navigationTree) {
 				const nodeStartLine = node.spans[0].start.line;
 				const nodeEndLine = node.spans[0].end.line;
-				if (nodeStartLine === startLine) {
+				if (startLine === nodeStartLine) {
 					return nodeEndLine;
 				} else if (startLine > nodeStartLine && startLine <= nodeEndLine && node.childItems) {
-					return findScopeEndLine(startLine, node.childItems);
+					return findScopeEndLineFromNavTree(startLine, node.childItems);
 				}
 			}
 			return -1;
@@ -346,7 +345,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			return;
 		}
 		const diagnosticStartLine = diagnostic.range.start.line + 1;
-		const endLineFound = findScopeEndLine(diagnosticStartLine, response.body.childItems);
+		const endLineFound = findScopeEndLineFromNavTree(diagnosticStartLine, response.body.childItems);
 		const endLine = endLineFound !== -1 ? endLineFound : document.lineCount;
 		const startLine = endLineFound !== -1 ? diagnosticStartLine : 0;
 		await vscode.commands.executeCommand('interactiveEditor.start', { initialRange: { startLineNumber: startLine, endLineNumber: endLine, startColumn: 0, endColumn: 0 }, message: 'Implement the class using the interface', autoSend: true });
