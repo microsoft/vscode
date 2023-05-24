@@ -307,7 +307,7 @@ const skippedExportMangledFiles = [
 
 	// entry points
 	...[
-		buildfile.entrypoint('vs/server/node/server.main.ts', []),
+		buildfile.entrypoint('vs/server/node/server.main', []),
 		buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
 		buildfile.base,
 		buildfile.workerExtensionHost,
