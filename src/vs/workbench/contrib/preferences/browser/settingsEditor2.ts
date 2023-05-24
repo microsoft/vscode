@@ -66,7 +66,6 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -1196,7 +1195,7 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
-	private async addManageExtensionSetting(setting: ISetting, extension: IGalleryExtension | Readonly<IRelaxedExtensionDescription>, extensionSettingGroups: ISettingsGroup[]): Promise<void> {
+	private async addManageExtensionSetting(setting: ISetting, extension: IGalleryExtension, extensionSettingGroups: ISettingsGroup[]): Promise<void> {
 		const extensionId = setting.extensionId!;
 		const entry = extensionSettingGroups.find(g => g.extensionInfo?.id.toLowerCase() === extensionId.toLowerCase());
 		if (!entry) {
@@ -1247,19 +1246,26 @@ export class SettingsEditor2 extends EditorPane {
 		if (toggleData) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const prerelease = toggleData.settingsEditorRecommendedExtensions[key].onSettingsEditorOpen!.prerelease;
-				const groupTitle = toggleData.settingsEditorRecommendedExtensions[key].onSettingsEditorOpen!.groupTitle;
+
 				const extensionId = (typeof prerelease === 'string' && this.productService.quality !== 'stable') ? prerelease : key;
-				let extension: IGalleryExtension | Readonly<IRelaxedExtensionDescription> | undefined = await this.extensionService.getExtension(extensionId);
+				const galleryExtensions = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
+				const extension = galleryExtensions.find(extension => extension.identifier.id.toLowerCase() === extensionId.toLowerCase());
 				if (!extension) {
-					const galleryExtensions = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
-					extension = galleryExtensions.find(extension => extension.identifier.id.toLowerCase() === extensionId.toLowerCase());
-					if (!extension) {
-						continue;
-					}
+					continue;
 				}
+
+				let groupTitle: string | undefined;
+				const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
+				const contributesConfiguration = manifest?.contributes?.configuration;
+				if (!Array.isArray(contributesConfiguration)) {
+					groupTitle = contributesConfiguration?.title;
+				} else if (contributesConfiguration.length === 1) {
+					groupTitle = contributesConfiguration[0].title;
+				}
+
 				const extensionName = extension?.displayName ?? extension?.name ?? extensionId;
 				const settingKey = `${key}.manageExtension`;
-				const toggleSetting: ISetting = {
+				const setting: ISetting = {
 					range: nullRange,
 					key: settingKey,
 					keyRange: nullRange,
@@ -1269,12 +1275,12 @@ export class SettingsEditor2 extends EditorPane {
 					descriptionIsMarkdown: false,
 					descriptionRanges: [],
 					title: localize('manageExtension', "Manage {0}", extensionName),
-					scope: ConfigurationScope.APPLICATION,
+					scope: ConfigurationScope.WINDOW,
 					type: 'null',
 					extensionId: extensionId,
-					extensionGroupTitle: groupTitle
+					extensionGroupTitle: groupTitle ?? extensionName
 				};
-				await this.addManageExtensionSetting(toggleSetting, extension, groups);
+				await this.addManageExtensionSetting(setting, extension, groups);
 			}
 		}
 

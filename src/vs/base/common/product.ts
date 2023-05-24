@@ -208,7 +208,6 @@ export interface IExtensionRecommendations {
 
 export interface ISettingsEditorOpenCondition {
 	readonly prerelease: boolean | string;
-	readonly groupTitle: string;
 }
 
 export interface IExtensionRecommendationCondition {

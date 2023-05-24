@@ -1923,14 +1923,6 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	renderButton(extensionId: string, actionButton: Button): void {
-		this._extensionsService.getExtension(extensionId).then(extension => {
-			if (extension) {
-				actionButton.label = localize('manageNamedExtension', "Manage {0}", extension.displayName || extension.name);
-			}
-		});
-	}
-
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExtensionToggleItemTemplate, onChange: (_: undefined) => void): void {
 		template.elementDisposables.clear();
 
@@ -1939,14 +1931,6 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 			this._telemetryService.publicLog2<{ extensionId: String }, ManageExtensionClickTelemetryClassification>('ManageExtensionClick', { extensionId });
 			this._commandService.executeCommand('extension.open', extensionId);
 		}));
-
-		template.elementDisposables.add(this._extensionsWorkbenchService.onChange((e) => {
-			if (e?.identifier.id === extensionId) {
-				this.renderButton(extensionId, template.actionButton);
-			}
-		}));
-
-		this.renderButton(extensionId, template.actionButton);
 	}
 }
 
