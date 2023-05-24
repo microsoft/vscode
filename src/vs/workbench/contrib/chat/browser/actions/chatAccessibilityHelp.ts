@@ -13,7 +13,8 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditMode } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_ACCESSIBILTY_HELP_VISIBLE, EditMode } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat' | 'editor', currentInput?: string): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -56,6 +57,8 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 
 export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor, type: 'chat' | 'editor'): Promise<void> {
 	const widgetService = accessor.get(IChatWidgetService);
+	const contextKeyService = accessor.get(IContextKeyService);
+	const contextKey = type === 'editor' ? CTX_INTERACTIVE_EDITOR_ACCESSIBILTY_HELP_VISIBLE.bindTo(contextKeyService) : undefined;
 	const inputEditor: ICodeEditor | undefined = type === 'chat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
 	const editorUri = editor.getModel()?.uri;
 
@@ -71,6 +74,9 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type, type === 'editor' ? cachedInput : undefined);
+	if (contextKey) {
+		contextKey.set(true);
+	}
 	inputEditor.setValue(helpText);
 	inputEditor.updateOptions({ readOnly: true });
 	inputEditor.focus();
@@ -79,6 +85,9 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 			return;
 		}
 		if (e.keyCode === KeyCode.Escape && inputEditor.getValue() === helpText) {
+			if (contextKey) {
+				contextKey.reset();
+			}
 			inputEditor.updateOptions({ readOnly: false });
 			inputEditor.setValue(cachedInput);
 			if (cachedPosition) {
