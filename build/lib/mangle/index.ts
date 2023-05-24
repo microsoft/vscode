@@ -28,7 +28,7 @@ class ShortIdent {
 		private readonly prefix: string
 	) { }
 
-	next(isNameTaken: (name: string) => boolean): string {
+	next(isNameTaken?: (name: string) => boolean): string {
 		const candidate = this.prefix + ShortIdent.convert(this._value);
 		this._value++;
 		if (ShortIdent._keywords.has(candidate) || /^[_0-9]/.test(candidate) || isNameTaken?.(candidate)) {
@@ -281,8 +281,8 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 const fileIdents = new class {
 	private readonly idents = new ShortIdent('$');
 
-	next(file: ts.SourceFile) {
-		return this.idents.next(name => isNameTakenInFile(file, name));
+	next() {
+		return this.idents.next();
 	}
 };
 
@@ -342,12 +342,22 @@ class DeclarationData {
 
 	constructor(
 		readonly fileName: string,
-		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration
+		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.EnumMember | ts.VariableDeclaration,
+		private readonly service: ts.LanguageService,
 	) {
-		this.replacementName = fileIdents.next(node.getSourceFile());
+		// Todo: generate replacement names based on usage count, with more used names getting shorter identifiers
+		this.replacementName = fileIdents.next();
 	}
 
 	get locations(): Iterable<{ fileName: string; offset: number }> {
+		if (ts.isVariableDeclaration(this.node)) {
+			// If the const aliases any types, we need to rename those too
+			const definitionResult = this.service.getDefinitionAndBoundSpan(this.fileName, this.node.name.getStart());
+			if (definitionResult?.definitions && definitionResult.definitions.length > 1) {
+				return definitionResult.definitions.map(x => ({ fileName: x.fileName, offset: x.textSpan.start }));
+			}
+		}
+
 		return [{
 			fileName: this.fileName,
 			offset: this.node.name!.getStart()
@@ -374,49 +384,6 @@ class DeclarationData {
 	}
 }
 
-class ConstData {
-
-	readonly replacementName: string;
-
-	constructor(
-		readonly fileName: string,
-		readonly statement: ts.VariableStatement,
-		readonly decl: ts.VariableDeclaration,
-		private readonly service: ts.LanguageService,
-	) {
-		this.replacementName = fileIdents.next(statement.getSourceFile());
-	}
-
-	get locations(): Iterable<{ fileName: string; offset: number }> {
-		// If the const aliases any types, we need to rename those too
-		const definitionResult = this.service.getDefinitionAndBoundSpan(this.decl.getSourceFile().fileName, this.decl.name.getStart());
-		if (definitionResult?.definitions && definitionResult.definitions.length > 1) {
-			return definitionResult.definitions.map(x => ({ fileName: x.fileName, offset: x.textSpan.start }));
-		}
-
-		return [{ fileName: this.fileName, offset: this.decl.name.getStart() }];
-	}
-
-	shouldMangle(newName: string): boolean {
-		const currentName = this.decl.name.getText();
-		if (currentName.startsWith('$') || skippedExportMangledSymbols.includes(currentName)) {
-			return false;
-		}
-
-		// New name is longer the existing one :'(
-		if (newName.length >= currentName.length) {
-			return false;
-		}
-
-		// Don't mangle functions we've explicitly opted out
-		if (this.statement.getFullText().includes('@skipMangle')) {
-			return false;
-		}
-
-		return true;
-	}
-}
-
 export interface MangleOutput {
 	out: string;
 	sourceMap?: string;
@@ -434,7 +401,7 @@ export interface MangleOutput {
 export class Mangler {
 
 	private readonly allClassDataByKey = new Map<string, ClassData>();
-	private readonly allExportsByKey = new Map<string, DeclarationData | ConstData>();
+	private readonly allExportedSymbols = new Set<DeclarationData>();
 
 	private readonly service: ts.LanguageService;
 	private readonly renameWorkerPool: workerpool.WorkerPool;
@@ -453,7 +420,9 @@ export class Mangler {
 
 	async computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Promise<Map<string, MangleOutput>> {
 
-		// STEP: Find all classes and their field info. Find exported symbols.
+		// STEP:
+		// - Find all classes and their field info.
+		// - Find exported symbols.
 
 		const visit = (node: ts.Node): void => {
 			if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
@@ -465,6 +434,7 @@ export class Mangler {
 				this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 			}
 
+			// Find exported classes, functions, and enums
 			if (
 				(
 					// Exported class
@@ -472,40 +442,30 @@ export class Mangler {
 					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
 					&& node.name
 				) || (
-					// Or exported function
+					// Exported function
 					ts.isFunctionDeclaration(node)
 					&& ts.isSourceFile(node.parent)
 					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
 					&& node.name && node.body // On named function and not on the overload
+				) || (
+					// Exported enum
+					ts.isEnumDeclaration(node)
+					&& ts.isSourceFile(node.parent)
+					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+					&& !hasModifier(node, ts.SyntaxKind.ConstKeyword) // Don't bother mangling const enums because these are inlined
+					&& node.name
+				) || (
+					// Exported variable
+					ts.isVariableDeclaration(node)
+					&& hasModifier(node.parent.parent, ts.SyntaxKind.ExportKeyword) // Variable statement is exported
+					&& ts.isSourceFile(node.parent.parent.parent)
 				)
 			) {
-				// Do not mangle symbols in ambient contexts
-				for (let p = node.parent; p; p = p.parent) {
-					if (ts.isModuleDeclaration(p)) {
-						return;
-					}
+				if (isInAmbientContext(node)) {
+					return;
 				}
 
-				const anchor = node.name;
-				const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
-				if (this.allExportsByKey.has(key)) {
-					throw new Error('DUPE?');
-				}
-				this.allExportsByKey.set(key, new DeclarationData(node.getSourceFile().fileName, node));
-			}
-
-			// Exported variable
-			if (ts.isVariableStatement(node)
-				&& ts.isSourceFile(node.parent)
-				&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
-			) {
-				for (const decl of node.declarationList.declarations) {
-					const key = `${decl.getSourceFile().fileName}|${decl.name.getStart()}`;
-					if (this.allExportsByKey.has(key)) {
-						throw new Error('DUPE?');
-					}
-					this.allExportsByKey.set(key, new ConstData(node.getSourceFile().fileName, node, decl, this.service));
-				}
+				this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, this.service));
 			}
 
 			ts.forEachChild(node, visit);
@@ -516,7 +476,7 @@ export class Mangler {
 				ts.forEachChild(file, visit);
 			}
 		}
-		this.log(`Done collecting. Classes: ${this.allClassDataByKey.size}. Exported const/fn: ${this.allExportsByKey.size}`);
+		this.log(`Done collecting. Classes: ${this.allClassDataByKey.size}. Exported symbols: ${this.allExportedSymbols.size}`);
 
 
 		//  STEP: connect sub and super-types
@@ -640,7 +600,7 @@ export class Mangler {
 			}
 		}
 
-		for (const data of this.allExportsByKey.values()) {
+		for (const data of this.allExportedSymbols.values()) {
 			if (data.fileName.endsWith('.d.ts')
 				|| skippedExportMangledProjects.some(proj => data.fileName.includes(proj))
 				|| skippedExportMangledFiles.some(file => data.fileName.endsWith(file + '.ts'))
@@ -756,8 +716,6 @@ export class Mangler {
 
 		this.log(`Done: ${savedBytes / 1000}kb saved`);
 		return result;
-
-
 	}
 }
 
@@ -766,6 +724,15 @@ export class Mangler {
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind) {
 	const modifiers = ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined;
 	return Boolean(modifiers?.find(mode => mode.kind === kind));
+}
+
+function isInAmbientContext(node: ts.Node): boolean {
+	for (let p = node.parent; p; p = p.parent) {
+		if (ts.isModuleDeclaration(p)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function normalize(path: string): string {
