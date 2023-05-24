@@ -64,12 +64,10 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 		this._chords = null;
 		this._inputValue = '';
-
-		this._reset();
 	}
 
 	override clear(): void {
-		this._reset();
+		this._chords = null;
 		super.clear();
 	}
 
@@ -83,17 +81,13 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	}
 
 	stopRecordingKeys(): void {
-		this._reset();
+		this._chords = null;
 		this.recordDisposables.clear();
 	}
 
 	setInputValue(value: string): void {
 		this._inputValue = value;
 		this.inputBox.value = this._inputValue;
-	}
-
-	private _reset() {
-		this._chords = null;
 	}
 
 	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
