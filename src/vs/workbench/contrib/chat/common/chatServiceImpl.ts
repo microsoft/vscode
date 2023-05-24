@@ -357,7 +357,7 @@ export class ChatService extends Disposable implements IChatService {
 				if ('content' in progress) {
 					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.length} chars`);
 				} else {
-					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.responseId}`);
+					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}
 
 				model.acceptResponseProgress(request, progress);
@@ -412,6 +412,22 @@ export class ChatService extends Disposable implements IChatService {
 			this._pendingRequests.delete(model.sessionId);
 		});
 		return rawResponsePromise;
+	}
+
+	async removeRequest(sessionId: string, requestId: string): Promise<void> {
+		const model = this._sessionModels.get(sessionId);
+		if (!model) {
+			throw new Error(`Unknown session: ${sessionId}`);
+		}
+
+		await model.waitForInitialization();
+		const provider = this._providers.get(model.providerId);
+		if (!provider) {
+			throw new Error(`Unknown provider: ${model.providerId}`);
+		}
+
+		model.removeRequest(requestId);
+		provider.removeRequest?.(model.session!, requestId);
 	}
 
 	private async handleSlashCommand(sessionId: string, command: string): Promise<string> {
