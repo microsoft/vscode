@@ -156,6 +156,10 @@ export interface FetchOptions {
 	depth?: number;
 }
 
+export interface InitOptions {
+	defaultBranch?: string;
+}
+
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
@@ -307,7 +311,7 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
-	init(root: Uri): Promise<Repository | null>;
+	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
