@@ -11,7 +11,7 @@ import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IExtensionStatusBarItemService } from 'vs/workbench/api/browser/statusBarExtensionPoint';
-import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntry, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
@@ -27,17 +27,27 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		// once, at startup read existing items and send them over
 		const entries: StatusBarItemDto[] = [];
 		for (const [entryId, item] of statusbarService.getEntries()) {
-			entries.push({
+			entries.push(asDto(entryId, item));
+		}
+
+		proxy.$acceptStaticEntries(entries);
+
+		statusbarService.onDidChange(e => {
+			if (e.added) {
+				proxy.$acceptStaticEntries([asDto(e.added[0], e.added[1])]);
+			}
+		});
+
+		function asDto(entryId: string, item: { entry: IStatusbarEntry; alignment: StatusbarAlignment; priority: number }): StatusBarItemDto {
+			return {
 				entryId,
 				name: item.entry.name,
 				text: item.entry.text,
 				command: typeof item.entry.command === 'string' ? item.entry.command : undefined,
 				priority: item.priority,
 				alignLeft: item.alignment === StatusbarAlignment.LEFT
-			});
+			};
 		}
-
-		proxy.$acceptStaticEntries(entries);
 	}
 
 	dispose(): void {
