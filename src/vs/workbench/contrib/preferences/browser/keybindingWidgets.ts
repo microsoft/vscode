@@ -59,7 +59,9 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(parent, options, contextViewService, instantiationService, contextKeyService, keybindingService);
+
 		this._register(toDisposable(() => this.stopRecordingKeys()));
+
 		this._chords = null;
 		this._inputValue = '';
 
@@ -247,11 +249,8 @@ export class DefineKeybindingWidget extends Widget {
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
 
-
-
 		const firstLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
 		firstLabel.set(withNullAsUndefined(this._chords?.[0]));
-
 
 		if (this._chords) {
 			for (let i = 1; i < this._chords.length; i++) {
@@ -259,7 +258,6 @@ export class DefineKeybindingWidget extends Widget {
 				const chordLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
 				chordLabel.set(this._chords[i]);
 			}
-
 		}
 
 		const label = this.getUserSettingsLabel();
