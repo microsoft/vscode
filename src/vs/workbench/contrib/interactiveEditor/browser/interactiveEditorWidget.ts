@@ -48,6 +48,7 @@ import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -232,6 +233,7 @@ export class InteractiveEditorWidget {
 			const hasFocus = this._inputEditor.hasWidgetFocus();
 			ctxInputEditorFocused.set(hasFocus);
 			this._elements.content.classList.toggle('synthetic-focus', hasFocus);
+			this.readPlaceholder();
 		};
 		this._store.add(this._inputEditor.onDidFocusEditorWidget(updateFocused));
 		this._store.add(this._inputEditor.onDidBlurEditorWidget(updateFocused));
@@ -252,6 +254,7 @@ export class InteractiveEditorWidget {
 			const hasText = this._inputModel.getValueLength() > 0;
 			this._elements.placeholder.classList.toggle('hidden', hasText);
 			this._ctxInputEmpty.set(!hasText);
+			this.readPlaceholder();
 
 			const contentHeight = this._inputEditor.getContentHeight();
 			if (contentHeight !== currentContentHeight && this._lastDim) {
@@ -385,6 +388,13 @@ export class InteractiveEditorWidget {
 
 	set placeholder(value: string) {
 		this._elements.placeholder.innerText = value;
+	}
+
+	readPlaceholder(): void {
+		const hasText = this._inputModel.getValueLength() > 0;
+		if (!hasText) {
+			aria.status(this._elements.placeholder.innerText);
+		}
 	}
 
 	updateToolbar(show: boolean) {
