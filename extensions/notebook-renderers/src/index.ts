@@ -435,6 +435,12 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.traceback .code-underline {
 		text-decoration: underline;
 	}
+	.screenreader {
+		position: absolute !important;
+		height: 1px; width: 1px;
+		overflow: hidden;
+		clip: rect(1px, 1px, 1px, 1px);
+	}
 	`;
 	document.body.appendChild(style);
 
@@ -503,10 +509,15 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				default:
 					break;
 			}
-			if (element.querySelector('div')) {
-				element.querySelector('div')!.tabIndex = 0;
+			const container = element.querySelector('div');
+			if (container) {
+				container.tabIndex = 0;
+				const beginningMarker = document.createElement('span');
+				beginningMarker.innerText = 'begin cell output';
+				beginningMarker.classList.add('screenreader');
+				element.ariaLabel = 'Cell Output';
+				container.prepend(beginningMarker);
 			}
-
 		},
 		disposeOutputItem: (id: string | undefined) => {
 			if (id) {
