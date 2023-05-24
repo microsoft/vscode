@@ -55,6 +55,7 @@ suite('Untitled text editors', () => {
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Readonly));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.Scratchpad));
 
 		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		assert.strictEqual(service.get(input2.resource), input2.model);
@@ -613,5 +614,49 @@ suite('Untitled text editors', () => {
 
 		input.dispose();
 		model.dispose();
+	});
+
+	test('Untitled scrapbook', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create({ isScratchpad: true }));
+
+		assert.ok(input.hasCapability(EditorInputCapabilities.Untitled));
+		assert.ok(input.hasCapability(EditorInputCapabilities.Scratchpad));
+		assert.ok(!service.isUntitledWithAssociatedResource(input.resource));
+
+		let dirtyCounter = 0;
+		let modifiedCounter = 0;
+
+		const model = await input.resolve();
+		model.onDidChangeDirty(() => dirtyCounter++);
+		model.onDidChangeContent(() => modifiedCounter++);
+
+		assert.ok(!model.isDirty());
+		assert.ok(!model.isModified());
+
+		model.textEditorModel?.setValue('foo');
+
+		assert.ok(!model.isDirty());
+		assert.ok(model.isModified());
+
+		assert.strictEqual(dirtyCounter, 0);
+		assert.strictEqual(modifiedCounter, 1);
+
+		model.textEditorModel?.setValue('bar');
+
+		assert.strictEqual(dirtyCounter, 0);
+		assert.strictEqual(modifiedCounter, 2);
+
+		const inputWithContents = instantiationService.createInstance(UntitledTextEditorInput, service.create({ isScratchpad: true, initialValue: 'foo' }));
+
+		const modelWithContents = await input.resolve();
+
+		assert.ok(!modelWithContents.isDirty());
+		assert.ok(modelWithContents.isModified());
+
+		input.dispose();
+		inputWithContents.dispose();
+		model.dispose();
+		modelWithContents.dispose();
 	});
 });
