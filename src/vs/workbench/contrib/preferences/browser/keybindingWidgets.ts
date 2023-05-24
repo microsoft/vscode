@@ -177,7 +177,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._keybindingInputWidget.startRecordingKeys();
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
-		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
+		this._register(this._keybindingInputWidget.onEscape(() => this.clearOrHide()));
 		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
 
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
@@ -271,6 +271,17 @@ export class DefineKeybindingWidget extends Widget {
 	private onCancel(): void {
 		this._chords = null;
 		this.hide();
+	}
+
+	private clearOrHide(): void {
+		if (this._chords === null) {
+			this.hide();
+		} else {
+			this._chords = null;
+			this._keybindingInputWidget.clear();
+			dom.clearNode(this._outputNode);
+			dom.clearNode(this._showExistingKeybindingsNode);
+		}
 	}
 
 	private hide(): void {
