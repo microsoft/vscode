@@ -25,6 +25,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { fromNow } from 'vs/base/common/date';
 import { IInteractiveEditorSessionService, Recording } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 
 
 export class StartSessionAction extends EditorAction2 {
@@ -157,7 +158,7 @@ export class ArrowOutUpAction extends AbstractInteractiveEditorAction {
 		super({
 			id: 'interactiveEditor.arrowOutUp',
 			title: localize('arrowUp', 'Cursor Up'),
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, EditorContextKeys.isEmbeddedDiffEditor.negate()),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
 				primary: KeyCode.UpArrow
@@ -175,7 +176,7 @@ export class ArrowOutDownAction extends AbstractInteractiveEditorAction {
 		super({
 			id: 'interactiveEditor.arrowOutDown',
 			title: localize('arrowDown', 'Cursor Down'),
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, EditorContextKeys.isEmbeddedDiffEditor.negate()),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
 				primary: KeyCode.DownArrow
@@ -195,7 +196,7 @@ export class FocusInteractiveEditor extends EditorAction2 {
 			id: 'interactiveEditor.focus',
 			title: localize('focus', 'Focus'),
 			category: AbstractInteractiveEditorAction.category,
-			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_FOCUSED.negate()),
+			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_FOCUSED.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: [{
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
 				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION.isEqualTo('above'), EditorContextKeys.isEmbeddedDiffEditor.negate()),
