@@ -35,16 +35,16 @@ class EditorChatFollowUp implements Command {
 	}
 
 	async execute() {
-		const findScopeEndLineFromNavTree = (startLine: number, navigationTree: Proto.NavigationTree[]): number => {
+		const findScopeEndLineFromNavTree = (startLine: number, navigationTree: Proto.NavigationTree[]): vscode.Range | undefined => {
 			for (const node of navigationTree) {
-				const { start: { line: nodeStartLine }, end: { line: nodeEndLine } } = typeConverters.Range.fromTextSpan(node.spans[0]);
-				if (startLine === nodeStartLine) {
-					return nodeEndLine;
-				} else if (startLine > nodeStartLine && startLine <= nodeEndLine && node.childItems) {
+				const range = typeConverters.Range.fromTextSpan(node.spans[0]);
+				if (startLine === range.start.line) {
+					return range;
+				} else if (startLine > range.start.line && startLine <= range.end.line && node.childItems) {
 					return findScopeEndLineFromNavTree(startLine, node.childItems);
 				}
 			}
-			return -1;
+			return undefined;
 		};
 		const filepath = this.client.toOpenTsFilePath(this.document);
 		if (!filepath) {
@@ -54,12 +54,12 @@ class EditorChatFollowUp implements Command {
 		if (response.type !== 'response' || !response.body?.childItems) {
 			return;
 		}
-		const startLine = this.range.start.line + 1;
-		const endLine = findScopeEndLineFromNavTree(startLine, response.body.childItems);
-		if (endLine === -1) {
+		const startLine = this.range.start.line;
+		const enclosingRange = findScopeEndLineFromNavTree(startLine, response.body.childItems);
+		if (!enclosingRange) {
 			return;
 		}
-		await vscode.commands.executeCommand('interactiveEditor.start', { initialRange: { startLineNumber: startLine, startColumn: 1, endLineNumber: endLine, endColumn: 1 }, message: this.prompt, autoSend: true });
+		await vscode.commands.executeCommand('vscode.editorChat.start', { initialRange: enclosingRange, message: this.prompt, autoSend: true });
 	}
 }
 
