@@ -1148,7 +1148,7 @@ class ViewModel {
 		this._onDidChangeMode.fire(mode);
 		this.modeContextKey.set(mode);
 
-		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
@@ -1164,7 +1164,7 @@ class ViewModel {
 		this.sortKeyContextKey.set(sortKey);
 
 		if (this._mode === ViewModelMode.List) {
-			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 	}
 
@@ -1242,6 +1242,20 @@ class ViewModel {
 		this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				this.storageService.store(`scm.viewState`, JSON.stringify(this.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			}
+
+			this.mode = this.getViewModelMode();
+			this.sortKey = this.getViewModelSortKey();
+		});
+
+		this.storageService.onDidChangeValue(e => {
+			switch (e.key) {
+				case 'scm.viewMode':
+					this.mode = this.getViewModelMode();
+					break;
+				case 'scm.viewSortKey':
+					this.sortKey = this.getViewModelSortKey();
+					break;
 			}
 		});
 	}

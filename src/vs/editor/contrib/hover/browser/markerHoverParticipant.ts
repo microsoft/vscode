@@ -228,8 +228,8 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						// context menu as well when using keyboard navigation
 						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
-							x: elementPosition.left + 6,
-							y: elementPosition.top + elementPosition.height + 6,
+							x: elementPosition.left,
+							y: elementPosition.top,
 							width: elementPosition.width,
 							height: elementPosition.height
 						});

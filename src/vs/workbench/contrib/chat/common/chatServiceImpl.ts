@@ -309,12 +309,12 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(data.providerId, data, CancellationToken.None);
 	}
 
-	async sendRequest(sessionId: string, request: string | IChatReplyFollowup): Promise<boolean> {
+	async sendRequest(sessionId: string, request: string | IChatReplyFollowup): Promise<{ responseCompletePromise: Promise<void> } | undefined> {
 		const messageText = typeof request === 'string' ? request : request.message;
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${messageText.substring(0, 20)}${messageText.length > 20 ? '[...]' : ''}}`);
 		if (!messageText.trim()) {
 			this.trace('sendRequest', 'Rejected empty message');
-			return false;
+			return;
 		}
 
 		const model = this._sessionModels.get(sessionId);
@@ -330,12 +330,11 @@ export class ChatService extends Disposable implements IChatService {
 
 		if (this._pendingRequests.has(sessionId)) {
 			this.trace('sendRequest', `Session ${sessionId} already has a pending request`);
-			return false;
+			return;
 		}
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
-		this._sendRequestAsync(model, provider, request);
-		return true;
+		return { responseCompletePromise: this._sendRequestAsync(model, provider, request) };
 	}
 
 	private async _sendRequestAsync(model: ChatModel, provider: IChatProvider, message: string | IChatReplyFollowup): Promise<void> {
@@ -412,6 +411,7 @@ export class ChatService extends Disposable implements IChatService {
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.delete(model.sessionId);
 		});
+		return rawResponsePromise;
 	}
 
 	private async handleSlashCommand(sessionId: string, command: string): Promise<string> {
@@ -467,30 +467,30 @@ export class ChatService extends Disposable implements IChatService {
 		const model = Iterable.first(this._sessionModels.values());
 		if (!model) {
 			// If no session, create one- how and is the service the right place to decide this?
-			this.trace('addInteractiveRequest', 'No session available');
+			this.trace('addRequest', 'No session available');
 			return;
 		}
 
 		const provider = this._providers.get(model.providerId);
 		if (!provider || !provider.resolveRequest) {
-			this.trace('addInteractiveRequest', 'No provider available');
+			this.trace('addRequest', 'No provider available');
 			return undefined;
 		}
 
-		this.trace('addInteractiveRequest', `Calling resolveRequest for session ${model.sessionId}`);
+		this.trace('addRequest', `Calling resolveRequest for session ${model.sessionId}`);
 		const request = await provider.resolveRequest(model.session!, context, CancellationToken.None);
 		if (!request) {
-			this.trace('addInteractiveRequest', `Provider returned no request for session ${model.sessionId}`);
+			this.trace('addRequest', `Provider returned no request for session ${model.sessionId}`);
 			return;
 		}
 
 		// Maybe this API should queue a request after the current one?
-		this.trace('addInteractiveRequest', `Sending resolved request for session ${model.sessionId}`);
+		this.trace('addRequest', `Sending resolved request for session ${model.sessionId}`);
 		this.sendRequest(model.sessionId, request.message);
 	}
 
 	async sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): Promise<void> {
-		this.trace('sendInteractiveRequestToProvider', `sessionId: ${sessionId}`);
+		this.trace('sendRequestToProvider', `sessionId: ${sessionId}`);
 		await this.sendRequest(sessionId, message.message);
 	}
 

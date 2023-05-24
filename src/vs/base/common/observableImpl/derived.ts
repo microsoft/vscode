@@ -239,16 +239,21 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	public override addObserver(observer: IObserver): void {
-		if (!this.observers.has(observer) && this.updateCount > 0) {
+		const shouldCallBeginUpdate = !this.observers.has(observer) && this.updateCount > 0;
+		super.addObserver(observer);
+
+		if (shouldCallBeginUpdate) {
 			observer.beginUpdate(this);
 		}
-		super.addObserver(observer);
 	}
 
 	public override removeObserver(observer: IObserver): void {
-		if (this.observers.has(observer) && this.updateCount > 0) {
+		const shouldCallEndUpdate = this.observers.has(observer) && this.updateCount > 0;
+		super.removeObserver(observer);
+
+		if (shouldCallEndUpdate) {
+			// Calling end update after removing the observer makes sure endUpdate cannot be called twice here.
 			observer.endUpdate(this);
 		}
-		super.removeObserver(observer);
 	}
 }

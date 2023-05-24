@@ -39,7 +39,7 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-const enum State {
+export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
 	INIT_UI = 'INIT_UI',
 	WAIT_FOR_INPUT = 'WAIT_FOR_INPUT',
@@ -177,11 +177,11 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	// ---- state machine
 
-	private async _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {
+	protected async _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {
 		this._logService.trace('[IE] setState to ', state);
 		const nextState = await this[state](options);
 		if (nextState) {
-			this._nextState(nextState, options);
+			await this._nextState(nextState, options);
 		}
 	}
 
@@ -220,11 +220,12 @@ export class InteractiveEditorController implements IEditorContribution {
 			case EditMode.Live:
 				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.widget);
 				break;
-			case EditMode.LivePreview:
-				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.widget);
-				break;
 			case EditMode.Preview:
 				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.widget);
+				break;
+			case EditMode.LivePreview:
+			default:
+				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.widget);
 				break;
 		}
 
@@ -525,6 +526,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.widget.updateStatus('');
 			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.widget.updateToolbar(true);
+			this._zone.widget.updateMarkdownMessageExpansionState(this._activeSession.lastExpansionState);
 
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
@@ -555,7 +557,11 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxLastFeedbackKind.reset();
 
 		this._zone.hide();
-		this._editor.focus();
+
+		// Return focus to the editor only if the current focus is within the editor widget
+		if (this._editor.hasWidgetFocus()) {
+			this._editor.focus();
+		}
 
 		this._sessionStore?.dispose();
 		this._sessionStore = undefined;
@@ -620,7 +626,10 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	updateExpansionState(expand: boolean) {
-		this._zone.widget.updateToggleState(expand);
+		if (this._activeSession) {
+			this._zone.widget.updateMarkdownMessageExpansionState(expand);
+			this._activeSession.lastExpansionState = expand;
+		}
 	}
 
 	feedbackLast(helpful: boolean) {

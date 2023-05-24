@@ -926,8 +926,12 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: {
 				type: 'boolean'
 			},
-			tags: ['notebookLayout'],
 			default: {}
+		},
+		[NotebookSetting.formatOnCellExecution]: {
+			markdownDescription: nls.localize('notebook.formatOnCellExecution', "Format a notebook cell upon execution. A formatter must be available."),
+			type: 'boolean',
+			default: false
 		},
 		[NotebookSetting.confirmDeleteRunningCell]: {
 			markdownDescription: nls.localize('notebook.confirmDeleteRunningCell', "Control whether a confirmation prompt is required to delete a running cell."),

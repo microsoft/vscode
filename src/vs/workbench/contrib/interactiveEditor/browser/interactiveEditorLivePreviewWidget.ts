@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, h } from 'vs/base/browser/dom';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -38,6 +38,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 	private readonly _elements = h('div.interactive-editor-diff-widget@domNode');
 
+	private readonly _sessionStore = this._disposables.add(new DisposableStore());
 	private readonly _diffEditor: IDiffEditor;
 	private readonly _inlineDiffDecorations: IEditorDecorationsCollection;
 	private _dim: Dimension | undefined;
@@ -129,6 +130,20 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 	override show(): void {
 		assertType(this.editor.hasModel());
+		this._sessionStore.clear();
+
+		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
+			const result = this._diffEditor.getDiffComputationResult();
+			const hasFocus = this._diffEditor.hasTextFocus();
+			this._updateFromChanges(this._session.wholeRange, result?.changes2 ?? []);
+			// TODO@jrieken find a better fix for this. this is the challenge:
+			// the _doShowForChanges method invokes show of the zone widget which removes and adds the
+			// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
+			// focus
+			if (hasFocus) {
+				this._diffEditor.focus();
+			}
+		}));
 		this._updateFromChanges(this._session.wholeRange, this._session.lastTextModelChanges);
 		this._isVisible = true;
 	}
