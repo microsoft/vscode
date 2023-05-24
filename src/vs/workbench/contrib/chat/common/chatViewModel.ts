@@ -258,8 +258,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	renderData: IChatResponseRenderData | undefined = undefined;
 
-	codeBlockCount: number | undefined;
-
 	currentRenderedHeight: number | undefined;
 
 	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
