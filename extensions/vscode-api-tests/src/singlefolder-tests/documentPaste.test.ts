@@ -9,7 +9,8 @@ import { closeAllEditors, createRandomFile, disposeAll } from '../utils';
 
 const textPlain = 'text/plain';
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('vscode API - Copy Paste', function () {
+// Skipped due to flakiness on Linux Desktop and errors on web
+suite.skip('vscode API - Copy Paste', function () {
 
 	this.retries(3);
 

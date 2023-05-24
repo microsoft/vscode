@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Dimension } from 'vs/base/browser/dom';
+import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
@@ -37,7 +37,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
  * been initialized.
  */
 export interface ITerminalContribution extends IDisposable {
-	layout?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
+	layout?(xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void;
 	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 }
 
@@ -185,7 +185,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
 	revealActiveTerminal(): Promise<void>;
 	moveToEditor(source: ITerminalInstance): void;
-	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
+	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
 	/**
@@ -237,7 +237,6 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void>;
-	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
@@ -435,7 +434,7 @@ export interface ITerminalInstance {
 	readonly maxRows: number;
 	readonly fixedCols?: number;
 	readonly fixedRows?: number;
-	readonly container?: HTMLElement;
+	readonly domElement: HTMLElement;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 	readonly reconnectionProperties?: IReconnectionProperties;
@@ -938,22 +937,13 @@ export interface ITerminalInstance {
 	resetScrollbarVisibility(): void;
 
 	/**
-	 * Register a child element to the terminal instance's container.
-	 */
-	registerChildElement(element: ITerminalChildElement): IDisposable;
-
-	/**
 	 * Gets a terminal contribution by its ID.
 	 */
 	getContribution<T extends ITerminalContribution>(id: string): T | null;
 }
 
-// NOTE: This interface is very similar to the widget manager internal to TerminalInstance, in the
-// future these should probably be consolidated.
-export interface ITerminalChildElement {
-	element: HTMLElement;
-	layout?(dimension: Dimension): void;
-	xtermReady?(xterm: IXtermTerminal): void;
+export const enum XtermTerminalConstants {
+	SearchHighlightLimit = 1000
 }
 
 export interface IXtermTerminal {
@@ -969,7 +959,7 @@ export interface IXtermTerminal {
 	readonly shellIntegration: IShellIntegration;
 
 	readonly onDidChangeSelection: Event<void>;
-	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
+	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number }>;
 
 	/**
 	 * Gets a view of the current texture atlas used by the renderers.

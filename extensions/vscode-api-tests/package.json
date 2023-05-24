@@ -44,7 +44,9 @@
     "treeItemCheckbox",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "windowActivity",
+    "interactiveUserActions"
   ],
   "private": true,
   "activationEvents": [],

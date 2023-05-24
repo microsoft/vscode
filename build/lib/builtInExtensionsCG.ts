@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import got from 'got';
+import fetch from 'node-fetch';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as url from 'url';
@@ -25,22 +25,23 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 	const repository = url.parse(extension.repo).path!.substr(1);
 	const repositoryContentBaseUrl = `https://${token ? `${token}@` : ''}${contentBasePath}/${repository}/v${extension.version}`;
 
-	const promises = [];
-	for (const fileName of contentFileNames) {
-		promises.push(new Promise<{ fileName: string; body: Buffer | undefined | null }>(resolve => {
-			got(`${repositoryContentBaseUrl}/${fileName}`)
-				.then(response => {
-					resolve({ fileName, body: response.rawBody });
-				})
-				.catch(error => {
-					if (error.response.statusCode === 404) {
-						resolve({ fileName, body: undefined });
-					} else {
-						resolve({ fileName, body: null });
-					}
-				});
-		}));
+
+	async function getContent(fileName: string): Promise<{ fileName: string; body: Buffer | undefined | null }> {
+		try {
+			const response = await fetch(`${repositoryContentBaseUrl}/${fileName}`);
+			if (response.ok) {
+				return { fileName, body: await response.buffer() };
+			} else if (response.status === 404) {
+				return { fileName, body: undefined };
+			} else {
+				return { fileName, body: null };
+			}
+		} catch (e) {
+			return { fileName, body: null };
+		}
 	}
+
+	const promises = contentFileNames.map(getContent);
 
 	console.log(extensionLabel);
 	const results = await Promise.all(promises);

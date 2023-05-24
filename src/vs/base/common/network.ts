@@ -69,7 +69,7 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
-	export const vscodeInteractiveSesssion = 'vscode-chat-editor';
+	export const vscodeChatSesssion = 'vscode-chat-editor';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
