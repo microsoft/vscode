@@ -42,11 +42,13 @@ export class ElementSizeObserver extends Disposable {
 	public startObserving(): void {
 		if (!this._resizeObserver && this._referenceDomElement) {
 			this._resizeObserver = new ResizeObserver((entries) => {
-				if (entries && entries[0] && entries[0].contentRect) {
-					this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
-				} else {
-					this.observe();
-				}
+				requestAnimationFrame(() => {
+					if (entries && entries[0] && entries[0].contentRect) {
+						this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
+					} else {
+						this.observe();
+					}
+				});
 			});
 			this._resizeObserver.observe(this._referenceDomElement);
 		}
