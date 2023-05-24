@@ -1195,10 +1195,10 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
-	private async addManageExtensionSetting(setting: ISetting, extension: IGalleryExtension, extensionSettingGroups: ISettingsGroup[]): Promise<void> {
+	private addOrRemoveManageExtensionSetting(setting: ISetting, extension: IGalleryExtension, groups: ISettingsGroup[]): ISettingsGroup | undefined {
 		const extensionId = setting.extensionId!;
-		const entry = extensionSettingGroups.find(g => g.extensionInfo?.id.toLowerCase() === extensionId.toLowerCase());
-		if (!entry) {
+		const matchingGroups = groups.filter(g => g.extensionInfo?.id.toLowerCase() === extensionId.toLowerCase());
+		if (!matchingGroups.length) {
 			const newGroup: ISettingsGroup = {
 				sections: [{
 					settings: [setting],
@@ -1212,8 +1212,17 @@ export class SettingsEditor2 extends EditorPane {
 					displayName: extension?.displayName,
 				}
 			};
-			extensionSettingGroups.push(newGroup);
+			groups.push(newGroup);
+			return newGroup;
+		} else if (matchingGroups.length >= 2) {
+			// Remove the group with the manage extension setting.
+			const matchingGroupIndex = matchingGroups.findIndex(group =>
+				group.sections.length === 1 && group.sections[0].settings.length === 1 && group.sections[0].settings[0].extensionId);
+			if (matchingGroupIndex !== -1) {
+				groups.splice(matchingGroupIndex, 1);
+			}
 		}
+		return undefined;
 	}
 
 	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, schemaChange = false): Promise<void> {
@@ -1242,8 +1251,9 @@ export class SettingsEditor2 extends EditorPane {
 			this.hasWarnedMissingSettings = true;
 		}
 
+		const additionalGroups: ISettingsGroup[] = [];
 		const toggleData = await getExperimentalExtensionToggleData(this.workbenchAssignmentService, this.environmentService, this.productService);
-		if (toggleData) {
+		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const prerelease = toggleData.settingsEditorRecommendedExtensions[key].onSettingsEditorOpen!.prerelease;
 
@@ -1280,16 +1290,23 @@ export class SettingsEditor2 extends EditorPane {
 					extensionId: extensionId,
 					extensionGroupTitle: groupTitle ?? extensionName
 				};
-				await this.addManageExtensionSetting(setting, extension, groups);
+				const additionalGroup = this.addOrRemoveManageExtensionSetting(setting, extension, groups);
+				if (additionalGroup) {
+					additionalGroups.push(additionalGroup);
+				}
 			}
 		}
 
-		const extensionSettings = groups.filter(g => g.extensionInfo);
-		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettings));
+		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, groups.filter(g => g.extensionInfo)));
 
 		const commonlyUsedDataToUse = await getCommonlyUsedData(this.workbenchAssignmentService, this.environmentService, this.productService);
 		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, groups, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
+
+		if (toggleData) {
+			// Add the additional groups to the model to help with searching.
+			this.defaultSettingsEditorModel.setAdditionalGroups(additionalGroups);
+		}
 
 		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
 			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.viewState.languageFilter, this.configurationService);

@@ -256,6 +256,7 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
+	private additionalGroups: ISettingsGroup[] | undefined;
 	private dirty = false;
 
 	constructor(
@@ -276,15 +277,23 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 		}));
 	}
 
+	/** Doesn't include the "Commonly Used" group */
 	protected override get filterGroups(): ISettingsGroup[] {
-		// Don't filter "commonly used"
 		return this.settingsGroups.slice(1);
 	}
 
 	get settingsGroups(): ISettingsGroup[] {
 		const groups = this._defaultSettings.getSettingsGroups(this.dirty);
+		if (this.additionalGroups?.length) {
+			groups.push(...this.additionalGroups);
+		}
 		this.dirty = false;
 		return groups;
+	}
+
+	/** For programmatically added groups outside of registered configurations */
+	setAdditionalGroups(groups: ISettingsGroup[]) {
+		this.additionalGroups = groups;
 	}
 
 	findValueMatches(filter: string, setting: ISetting): IRange[] {
