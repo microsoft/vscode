@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { IExtensionRecommendations } from 'vs/base/common/product';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionToggleConfiguration } from 'vs/base/common/product';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -95,21 +97,35 @@ export const ENABLE_LANGUAGE_FILTER = true;
 export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
 
 type ExtensionToggleData = {
-	configuration: ExtensionToggleConfiguration;
+	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
 	commonlyUsed: string[];
 };
 
-export async function getExperimentalExtensionToggleData(workbenchAssignmentService: IWorkbenchAssignmentService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
+let cachedExtensionToggleData: ExtensionToggleData | undefined;
+
+export async function getExperimentalExtensionToggleData(workbenchAssignmentService: IWorkbenchAssignmentService, environmentService: IEnvironmentService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
 	if (!ENABLE_EXTENSION_TOGGLE_SETTINGS) {
 		return undefined;
 	}
 
+	if (cachedExtensionToggleData) {
+		return cachedExtensionToggleData;
+	}
+
 	const isTreatment = await workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings');
-	if ((isTreatment || !productService.quality) && productService.extensionToggleConfiguration && productService.commonlyUsedSettings) {
-		return {
-			configuration: productService.extensionToggleConfiguration,
+	if ((isTreatment || !environmentService.isBuilt) && productService.extensionRecommendations && productService.commonlyUsedSettings) {
+		const settingsEditorRecommendedExtensions: Record<string, IExtensionRecommendations> = {};
+		Object.keys(productService.extensionRecommendations).forEach(key => {
+			const value = productService.extensionRecommendations![key];
+			if (value.onSettingsEditorOpen) {
+				settingsEditorRecommendedExtensions[key] = value;
+			}
+		});
+		cachedExtensionToggleData = {
+			settingsEditorRecommendedExtensions,
 			commonlyUsed: productService.commonlyUsedSettings
 		};
+		return cachedExtensionToggleData;
 	}
 	return undefined;
 }

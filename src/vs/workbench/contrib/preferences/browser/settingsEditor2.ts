@@ -12,7 +12,6 @@ import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
 import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as collections from 'vs/base/common/collections';
 import { fromNow } from 'vs/base/common/date';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -59,13 +58,15 @@ import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/spl
 import { Color } from 'vs/base/common/color';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SettingsSearchFilterDropdownMenuActionViewItem } from 'vs/workbench/contrib/preferences/browser/settingsSearchMenu';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ISettingOverrideClickEvent } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -233,7 +234,9 @@ export class SettingsEditor2 extends EditorPane {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -1193,36 +1196,24 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
-	private async toggleExtensionGroupSetting(setting: ISetting, groups: ISettingsGroup[]): Promise<void> {
-		const isStable = this.productService.quality === 'stable';
-		const extensionId = (isStable ? setting.extensionName : setting.nightlyExtensionName)!;
-		const extension = await this.extensionService.getExtension(extensionId);
-		const extensionDisplayName = extension?.displayName || extension?.name || extensionId;
-		const extensionGroups = groups.filter(g => g.extensionInfo?.id.toLowerCase() === extensionId);
-		if (!extensionGroups.length) {
+	private async addManageExtensionSetting(setting: ISetting, extension: IGalleryExtension | Readonly<IRelaxedExtensionDescription>, extensionSettingGroups: ISettingsGroup[]): Promise<void> {
+		const extensionId = setting.extensionId!;
+		const entry = extensionSettingGroups.find(g => g.extensionInfo?.id.toLowerCase() === extensionId.toLowerCase());
+		if (!entry) {
 			const newGroup: ISettingsGroup = {
-				id: extensionId,
-				range: nullRange,
-				title: setting.extensionGroupTitle!,
-				titleRange: nullRange,
 				sections: [{
 					settings: [setting],
 				}],
+				id: extensionId,
+				title: setting.extensionGroupTitle!,
+				titleRange: nullRange,
+				range: nullRange,
 				extensionInfo: {
 					id: extensionId,
-					displayName: extensionDisplayName,
+					displayName: extension?.displayName,
 				}
 			};
-			groups.push(newGroup);
-		} else if (extensionGroups.length >= 2) {
-			// Remove the current group
-			const ind = extensionGroups.findIndex(g => {
-				const firstSectionSettings = g.sections[0].settings;
-				return firstSectionSettings?.length === 1 && firstSectionSettings[0].key === setting.key;
-			});
-			if (ind !== -1) {
-				extensionGroups.splice(ind, 1);
-			}
+			extensionSettingGroups.push(newGroup);
 		}
 	}
 
@@ -1236,32 +1227,9 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
-		const toggleData = await getExperimentalExtensionToggleData(this.workbenchAssignmentService, this.productService);
-		if (toggleData) {
-			for (const key in toggleData.configuration.properties) {
-				const props = toggleData.configuration.properties[key];
-				const toggleSetting: ISetting = {
-					range: nullRange,
-					key,
-					keyRange: nullRange,
-					value: null,
-					valueRange: nullRange,
-					description: [props.description],
-					descriptionIsMarkdown: props.descriptionIsMarkdown ?? false,
-					descriptionRanges: [],
-					title: props.title,
-					scope: ConfigurationScope.APPLICATION,
-					type: 'null',
-					extensionName: props.extensionName,
-					nightlyExtensionName: props.nightlyExtensionName || props.extensionName,
-					extensionGroupTitle: props.extensionGroupTitle,
-				};
-				await this.toggleExtensionGroupSetting(toggleSetting, groups);
-			}
-		}
 
-		const dividedGroups = collections.groupBy(groups, g => g.extensionInfo ? 'extension' : 'core');
-		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core, this.logService);
+		const coreSettings = groups.filter(g => !g.extensionInfo);
+		const settingsResult = resolveSettingsTree(tocData, coreSettings, this.logService);
 		const resolvedSettingsRoot = settingsResult.tree;
 
 		// Warn for settings not included in layout
@@ -1275,9 +1243,45 @@ export class SettingsEditor2 extends EditorPane {
 			this.hasWarnedMissingSettings = true;
 		}
 
-		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, dividedGroups.extension || []));
+		const toggleData = await getExperimentalExtensionToggleData(this.workbenchAssignmentService, this.environmentService, this.productService);
+		if (toggleData) {
+			for (const key in toggleData.settingsEditorRecommendedExtensions) {
+				const prerelease = toggleData.settingsEditorRecommendedExtensions[key].onSettingsEditorOpen!.prerelease;
+				const groupTitle = toggleData.settingsEditorRecommendedExtensions[key].onSettingsEditorOpen!.groupTitle;
+				const extensionId = (typeof prerelease === 'string' && this.productService.quality !== 'stable') ? prerelease : key;
+				let extension: IGalleryExtension | Readonly<IRelaxedExtensionDescription> | undefined = await this.extensionService.getExtension(extensionId);
+				if (!extension) {
+					const galleryExtensions = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
+					extension = galleryExtensions.find(extension => extension.identifier.id.toLowerCase() === extensionId.toLowerCase());
+					if (!extension) {
+						continue;
+					}
+				}
+				const extensionName = extension?.displayName ?? extension?.name ?? extensionId;
+				const settingKey = `${key}.manageExtension`;
+				const toggleSetting: ISetting = {
+					range: nullRange,
+					key: settingKey,
+					keyRange: nullRange,
+					value: null,
+					valueRange: nullRange,
+					description: [extension?.description || ''],
+					descriptionIsMarkdown: false,
+					descriptionRanges: [],
+					title: localize('manageExtension', "Manage {0}", extensionName),
+					scope: ConfigurationScope.APPLICATION,
+					type: 'null',
+					extensionId: extensionId,
+					extensionGroupTitle: groupTitle
+				};
+				await this.addManageExtensionSetting(toggleSetting, extension, groups);
+			}
+		}
 
-		const commonlyUsedDataToUse = await getCommonlyUsedData(this.workbenchAssignmentService, this.productService);
+		const extensionSettings = groups.filter(g => g.extensionInfo);
+		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettings));
+
+		const commonlyUsedDataToUse = await getCommonlyUsedData(this.workbenchAssignmentService, this.environmentService, this.productService);
 		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, groups, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 

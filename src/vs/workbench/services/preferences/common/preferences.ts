@@ -97,8 +97,7 @@ export interface ISetting {
 	categoryLabel?: string;
 
 	// For ExtensionToggle settings
-	extensionName?: string;
-	nightlyExtensionName?: string;
+	extensionId?: string;
 	title?: string;
 	extensionGroupTitle?: string;
 }

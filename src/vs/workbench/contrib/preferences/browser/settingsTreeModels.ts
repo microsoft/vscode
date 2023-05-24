@@ -310,9 +310,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.description = this.setting.description.join('\n');
 		}
 
-		if (ENABLE_EXTENSION_TOGGLE_SETTINGS &&
-			this.productService.extensionToggleConfiguration &&
-			this.setting.key in this.productService.extensionToggleConfiguration.properties) {
+		if (isExtensionToggleSetting(this.setting, this.productService)) {
 			this.valueType = SettingValueType.ExtensionToggle;
 		} else if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = SettingValueType.Enum;
@@ -749,7 +747,13 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 	return trimmed;
 }
 
-export function isExcludeSetting(setting: ISetting): boolean {
+function isExtensionToggleSetting(setting: ISetting, productService: IProductService): boolean {
+	return ENABLE_EXTENSION_TOGGLE_SETTINGS &&
+		!!productService.extensionRecommendations &&
+		!!setting.extensionId;
+}
+
+function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
 		setting.key === 'workbench.localHistory.exclude' ||
@@ -758,7 +762,7 @@ export function isExcludeSetting(setting: ISetting): boolean {
 		setting.key === 'files.watcherExclude';
 }
 
-export function isIncludeSetting(setting: ISetting): boolean {
+function isIncludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.readonlyInclude';
 }
 

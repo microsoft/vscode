@@ -44,19 +44,6 @@ export type ConfigurationSyncStore = {
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
 };
 
-type ExtensionToggleConfigurationSetting = {
-	readonly extensionGroupTitle: string;
-	readonly title: string;
-	readonly description: string;
-	readonly descriptionIsMarkdown?: boolean;
-	readonly extensionName: string;
-	readonly nightlyExtensionName?: string;
-};
-
-export type ExtensionToggleConfiguration = {
-	readonly properties: Record<string, ExtensionToggleConfigurationSetting>;
-};
-
 export type ExtensionUntrustedWorkspaceSupport = {
 	readonly default?: boolean | 'limited';
 	readonly override?: boolean | 'limited';
@@ -205,7 +192,6 @@ export interface IProductConfiguration {
 	readonly darwinUniversalAssetId?: string;
 	readonly profileTemplatesUrl?: string;
 
-	readonly extensionToggleConfiguration?: ExtensionToggleConfiguration;
 	readonly commonlyUsedSettings?: string[];
 }
 
@@ -217,6 +203,12 @@ export interface ITunnelApplicationConfig {
 
 export interface IExtensionRecommendations {
 	readonly onFileOpen: IFileOpenCondition[];
+	readonly onSettingsEditorOpen?: ISettingsEditorOpenCondition;
+}
+
+export interface ISettingsEditorOpenCondition {
+	readonly prerelease: boolean | string;
+	readonly groupTitle: string;
 }
 
 export interface IExtensionRecommendationCondition {

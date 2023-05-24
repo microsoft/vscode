@@ -1933,15 +1933,12 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExtensionToggleItemTemplate, onChange: (_: undefined) => void): void {
 		template.elementDisposables.clear();
-		const extensionId = (this._productService.quality === 'stable') ?
-			(dataElement.setting?.extensionName ?? '') :
-			(dataElement.setting?.nightlyExtensionName ?? '');
-		if (extensionId) {
-			template.elementDisposables.add(template.actionButton.onDidClick(async () => {
-				this._telemetryService.publicLog2<{ extensionId: String }, ManageExtensionClickTelemetryClassification>('ManageExtensionClick', { extensionId });
-				this._commandService.executeCommand('extension.open', extensionId);
-			}));
-		}
+
+		const extensionId = dataElement.setting.extensionId!;
+		template.elementDisposables.add(template.actionButton.onDidClick(async () => {
+			this._telemetryService.publicLog2<{ extensionId: String }, ManageExtensionClickTelemetryClassification>('ManageExtensionClick', { extensionId });
+			this._commandService.executeCommand('extension.open', extensionId);
+		}));
 
 		template.elementDisposables.add(this._extensionsWorkbenchService.onChange((e) => {
 			if (e?.identifier.id === extensionId) {
