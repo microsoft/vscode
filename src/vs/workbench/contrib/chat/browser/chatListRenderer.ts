@@ -60,6 +60,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewM
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { marked } from 'vs/base/common/marked/marked';
 
 const $ = dom.$;
 
@@ -116,7 +117,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly chatService: IChatService,
+		@IChatService private readonly chatService: IChatService
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -515,7 +516,6 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 }
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
-
 	getWidgetRole(): AriaRole {
 		return 'list';
 	}
@@ -534,7 +534,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		}
 
 		if (isResponseVM(element)) {
-			return element.response.value;
+			return this._getLabelWithCodeBlockCount(element);
 		}
 
 		if (isWelcomeVM(element)) {
@@ -542,6 +542,18 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		}
 
 		return '';
+	}
+
+	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
+		const codeBlockCount = marked.lexer(element.response.value).filter(token => token.type === 'code')?.length ?? 0;
+		switch (codeBlockCount) {
+			case 0:
+				return element.response.value;
+			case 1:
+				return localize('singleCodeBlock', "1 code block, {0}", element.response.value);
+			default:
+				return localize('multiCodeBlock', "{0} code blocks, {1}", codeBlockCount, element.response.value);
+		}
 	}
 }
 
@@ -634,7 +646,6 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 			])
 		}));
 
-
 		this._register(this.options.onDidChange(() => {
 			this.editor.updateOptions(this.getEditorOptionsFromConfig());
 		}));
@@ -723,7 +734,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 		this.setLanguage(vscodeLanguageId);
 
 		this.layout(width);
-
+		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1) });
 		this.toolbar.context = <IChatCodeBlockActionContext>{
 			code: data.text,
 			codeBlockIndex: data.codeBlockIndex,
