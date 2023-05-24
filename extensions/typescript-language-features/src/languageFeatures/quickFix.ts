@@ -363,8 +363,9 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): VsCodeCodeAction {
+		const aiQuickFixEnabled = vscode.workspace.getConfiguration('typescript').get('experimental.aiQuickFix');
 		let followupAction: Command | undefined;
-		if (tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
+		if (aiQuickFixEnabled && tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
 			followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
 		}
 		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
