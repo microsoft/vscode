@@ -43,6 +43,7 @@
     "tokenInformation",
     "treeItemCheckbox",
     "treeViewReveal",
+    "testInvalidateResults",
     "workspaceTrust",
     "telemetry",
     "windowActivity",
