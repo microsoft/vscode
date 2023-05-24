@@ -1265,7 +1265,7 @@ export interface MainThreadSearchShape extends IDisposable {
 }
 
 export interface MainThreadShareShape extends IDisposable {
-	$registerShareProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string): void;
+	$registerShareProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string, priority: number): void;
 	$unregisterShareProvider(handle: number): void;
 }
 
