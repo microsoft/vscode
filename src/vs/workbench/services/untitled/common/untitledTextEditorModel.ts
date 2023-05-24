@@ -103,7 +103,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	readonly typeId = NO_TYPE_ID; // IMPORTANT: never change this to not break existing assumptions (e.g. backups)
 
-	readonly capabilities = WorkingCopyCapabilities.Untitled;
+	readonly capabilities = this.isScratchpad ? WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad : WorkingCopyCapabilities.Untitled;
 
 	//#region Name
 
@@ -128,6 +128,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	constructor(
 		readonly resource: URI,
 		readonly hasAssociatedFilePath: boolean,
+		private readonly isScratchpad: boolean,
 		private readonly initialValue: string | undefined,
 		private preferredLanguageId: string | undefined,
 		private preferredEncoding: string | undefined,
@@ -235,25 +236,27 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-	//#region Dirty
+	//#region Modified/Dirty
 
-	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
+	private modified = this.hasAssociatedFilePath || !!this.initialValue;
 
 	isDirty(): boolean {
-		return this.dirty;
+		return this.modified && !this.isScratchpad; // Scratchpad untitled models are never dirty
 	}
 
 	isModified(): boolean {
-		return this.isDirty();
+		return this.modified;
 	}
 
-	private setDirty(dirty: boolean): void {
-		if (this.dirty === dirty) {
+	private setModified(modified: boolean): void {
+		if (this.modified === modified) {
 			return;
 		}
 
-		this.dirty = dirty;
-		this._onDidChangeDirty.fire();
+		this.modified = modified;
+		if (!this.isScratchpad) {
+			this._onDidChangeDirty.fire();
+		}
 	}
 
 	//#endregion
@@ -272,7 +275,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	async revert(): Promise<void> {
-		this.setDirty(false);
+
+		// No longer modified
+		this.setModified(false);
 
 		// Emit as event
 		this._onDidRevert.fire();
@@ -352,8 +357,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 				this.updateNameFromFirstLine(textEditorModel);
 			}
 
-			// Untitled associated to file path are dirty right away as well as untitled with content
-			this.setDirty(this.hasAssociatedFilePath || !!hasBackup || !!this.initialValue);
+			// Untitled associated to file path are modified right away as well as untitled with content
+			this.setModified(this.hasAssociatedFilePath || !!hasBackup || !!this.initialValue);
 
 			// If we have initial contents, make sure to emit this
 			// as the appropiate events to the outside.
@@ -374,15 +379,15 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {
 
-		// mark the untitled text editor as non-dirty once its content becomes empty and we do
+		// mark the untitled text editor as non-modified once its content becomes empty and we do
 		// not have an associated path set. we never want dirty indicator in that case.
 		if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineContent(1) === '') {
-			this.setDirty(false);
+			this.setModified(false);
 		}
 
-		// turn dirty otherwise
+		// turn modified otherwise
 		else {
-			this.setDirty(true);
+			this.setModified(true);
 		}
 
 		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH columns

@@ -171,8 +171,10 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 		}
 
 		// Handle untitled resource
-		else if (options.untitledResource?.scheme === Schemas.untitled) {
-			massagedOptions.untitledResource = options.untitledResource;
+		else {
+			if (options.untitledResource?.scheme === Schemas.untitled) {
+				massagedOptions.untitledResource = options.untitledResource;
+			}
 			massagedOptions.isScratchpad = options.isScratchpad;
 		}
 

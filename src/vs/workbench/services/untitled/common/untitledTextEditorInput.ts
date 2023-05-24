@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { DEFAULT_EDITOR_ASSOCIATION, findViewStateForEditor, GroupIdentifier, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, findViewStateForEditor, GroupIdentifier, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
@@ -17,6 +17,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -31,6 +32,16 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	override get editorId(): string | undefined {
 		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		const capabilities = super.capabilities;
+
+		if (this.model.capabilities & WorkingCopyCapabilities.Scratchpad) {
+			return capabilities | EditorInputCapabilities.Scratchpad;
+		}
+
+		return capabilities;
 	}
 
 	private modelResolve: Promise<void> | undefined = undefined;
@@ -132,6 +143,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		const untypedInput: IUntitledTextResourceEditorInput & { resource: URI | undefined; options: ITextEditorOptions } = {
 			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : this.resource,
 			forceUntitled: true,
+			isScratchpad: this.hasCapability(EditorInputCapabilities.Scratchpad),
 			options: {
 				override: this.editorId
 			}

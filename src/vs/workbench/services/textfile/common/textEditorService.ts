@@ -132,7 +132,8 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 			const untitledOptions: Partial<INewUntitledTextEditorOptions> = {
 				languageId: untitledInput.languageId,
 				initialValue: untitledInput.contents,
-				encoding: untitledInput.encoding
+				encoding: untitledInput.encoding,
+				isScratchpad: untitledInput.isScratchpad
 			};
 
 			// Untitled resource: use as hint for an existing untitled editor

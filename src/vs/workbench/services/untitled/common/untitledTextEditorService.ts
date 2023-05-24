@@ -33,6 +33,12 @@ export interface INewUntitledTextEditorOptions {
 	 * Preferred encoding to use when saving the untitled editor.
 	 */
 	encoding?: string;
+
+	/**
+	 * A flag that will prevent the untitled editor from appearing dirty in the UI
+	 * and not show a confirmation dialog when closed with unsaved content.
+	 */
+	isScratchpad?: boolean;
 }
 
 export interface IExistingUntitledTextEditorOptions extends INewUntitledTextEditorOptions {
@@ -112,6 +118,11 @@ export interface IUntitledTextEditorModelManager {
 	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
 	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel>;
 	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
+
+	/**
+	 * Figures out if the given resource has an associated resource or not.
+	 */
+	isUntitledWithAssociatedResource(resource: URI): boolean;
 }
 
 export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
@@ -122,6 +133,8 @@ export interface IUntitledTextEditorService extends IUntitledTextEditorModelMana
 export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private static readonly UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX = /(Untitled|Scratchpad)-\d+/;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -192,6 +205,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 			if (options.untitledResource?.scheme === Schemas.untitled) {
 				massagedOptions.untitledResource = options.untitledResource;
 			}
+			massagedOptions.isScratchpad = options.isScratchpad;
 		}
 
 		// Language id
@@ -218,13 +232,13 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		if (!untitledResource) {
 			let counter = 1;
 			do {
-				untitledResource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
+				untitledResource = URI.from({ scheme: Schemas.untitled, path: options.isScratchpad ? `Scratchpad-${counter}` : `Untitled-${counter}` });
 				counter++;
 			} while (this.mapResourceToModel.has(untitledResource));
 		}
 
 		// Create new model with provided options
-		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, untitledResource, !!options.associatedResource, options.initialValue, options.languageId, options.encoding));
+		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, untitledResource, !!options.associatedResource, !!options.isScratchpad, options.initialValue, options.languageId, options.encoding));
 
 		this.registerModel(model);
 
@@ -258,6 +272,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		if (model.isDirty()) {
 			this._onDidChangeDirty.fire(model);
 		}
+	}
+
+	isUntitledWithAssociatedResource(resource: URI): boolean {
+		return resource.scheme === Schemas.untitled && resource.path.length > 1 && !UntitledTextEditorService.UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX.test(resource.path);
 	}
 }
 

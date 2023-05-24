@@ -444,6 +444,12 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 	 * - they will not ask for a file path when saving but use the associated path
 	 */
 	readonly resource: URI | undefined;
+
+	/**
+	 * A flag that will prevent the untitled editor from appearing dirty in the UI
+	 * and not show a confirmation dialog when closed with unsaved content.
+	 */
+	readonly isScratchpad?: boolean;
 }
 
 /**
@@ -565,12 +571,6 @@ export function isUntitledResourceEditorInput(editor: unknown): editor is IUntit
 	}
 
 	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
-}
-
-const UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX = /Untitled-\d+/;
-
-export function isUntitledWithAssociatedResource(resource: URI): boolean {
-	return resource.scheme === Schemas.untitled && resource.path.length > 1 && !UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX.test(resource.path);
 }
 
 export function isResourceMergeEditorInput(editor: unknown): editor is IResourceMergeEditorInput {

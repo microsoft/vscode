@@ -47,7 +47,7 @@ import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants';
+import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID, NEW_SCRATCHPAD_FILE_COMMAND_ID } from './fileConstants';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { OpenEditorsView } from 'vs/workbench/contrib/files/browser/views/openEditorsView';
@@ -663,8 +663,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		args: [
 			{
 				isOptional: true,
-				name: 'New Untitled Text File args',
-				description: 'The editor view type, language ID, or resource path if known',
+				name: 'New Untitled Text File arguments',
+				description: 'The editor view type or language ID if known',
 				schema: {
 					'type': 'object',
 					'properties': {
@@ -673,7 +673,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						},
 						'languageId': {
 							'type': 'string'
-						},
+						}
 					}
 				}
 			}
@@ -688,7 +688,41 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				override: args?.viewType,
 				pinned: true
 			},
-			languageId: args?.languageId,
+			languageId: args?.languageId
+		});
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: NEW_SCRATCHPAD_FILE_COMMAND_ID,
+	description: {
+		description: NEW_UNTITLED_FILE_LABEL,
+		args: [
+			{
+				isOptional: true,
+				name: 'New Scratchpad Text File arguments',
+				description: 'The editor language ID if known',
+				schema: {
+					'type': 'object',
+					'properties': {
+						'languageId': {
+							'type': 'string'
+						}
+					}
+				}
+			}
+		]
+	},
+	handler: async (accessor, args?: { languageId?: string }) => {
+		const editorService = accessor.get(IEditorService);
+
+		await editorService.openEditor({
+			resource: undefined,
+			isScratchpad: true,
+			options: {
+				pinned: true
+			},
+			languageId: args?.languageId
 		});
 	}
 });
