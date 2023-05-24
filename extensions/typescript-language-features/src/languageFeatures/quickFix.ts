@@ -23,8 +23,45 @@ type ApplyCodeActionCommand_args = {
 	readonly document: vscode.TextDocument;
 	readonly diagnostic: vscode.Diagnostic;
 	readonly action: Proto.CodeFixAction;
-	readonly followupAction: (document: vscode.TextDocument, diagnostic: vscode.Diagnostic, action: Proto.CodeFixAction, client: ITypeScriptServiceClient) => Promise<void> | undefined;
+	readonly followupAction?: Command;
 };
+
+class EditorChatFollowUp implements Command {
+
+	id: string = 'needsBetterName.editorChateFollowUp';
+
+	constructor(private readonly prompt: string, private readonly document: vscode.TextDocument, private readonly range: vscode.Range, private readonly client: ITypeScriptServiceClient) {
+
+	}
+
+	async execute() {
+		const findScopeEndLineFromNavTree = (startLine: number, navigationTree: Proto.NavigationTree[]): number => {
+			for (const node of navigationTree) {
+				const { start: { line: nodeStartLine }, end: { line: nodeEndLine } } = typeConverters.Range.fromTextSpan(node.spans[0]);
+				if (startLine === nodeStartLine) {
+					return nodeEndLine;
+				} else if (startLine > nodeStartLine && startLine <= nodeEndLine && node.childItems) {
+					return findScopeEndLineFromNavTree(startLine, node.childItems);
+				}
+			}
+			return -1;
+		};
+		const filepath = this.client.toOpenTsFilePath(this.document);
+		if (!filepath) {
+			return;
+		}
+		const response = await this.client.execute('navtree', { file: filepath }, (new vscode.CancellationTokenSource()).token);
+		if (response.type !== 'response' || !response.body?.childItems) {
+			return;
+		}
+		const startLine = this.range.start.line + 1;
+		const endLine = findScopeEndLineFromNavTree(startLine, response.body.childItems);
+		if (endLine === -1) {
+			return;
+		}
+		await vscode.commands.executeCommand('interactiveEditor.start', { initialRange: { startLineNumber: startLine, startColumn: 1, endLineNumber: endLine, endColumn: 1 }, message: this.prompt, autoSend: true });
+	}
+}
 
 class ApplyCodeActionCommand implements Command {
 	public static readonly ID = '_typescript.applyCodeActionCommand';
@@ -52,9 +89,7 @@ class ApplyCodeActionCommand implements Command {
 
 		this.diagnosticManager.deleteDiagnostic(document.uri, diagnostic);
 		const codeActionResult = await applyCodeActionCommands(this.client, action.commands, nulToken);
-		if (followupAction) {
-			await followupAction(document, diagnostic, action, this.client);
-		}
+		await followupAction?.execute();
 		return codeActionResult;
 	}
 }
@@ -323,43 +358,14 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		return results;
 	}
 
-	private async classIncorrectlyImplementsInterfaceFollowupAction(document: vscode.TextDocument, diagnostic: vscode.Diagnostic, _action: Proto.CodeFixAction, client: ITypeScriptServiceClient): Promise<void> {
-		const findScopeEndLineFromNavTree = (startLine: number, navigationTree: Proto.NavigationTree[]): number => {
-			for (const node of navigationTree) {
-				const nodeStartLine = node.spans[0].start.line;
-				const nodeEndLine = node.spans[0].end.line;
-				if (startLine === nodeStartLine) {
-					return nodeEndLine;
-				} else if (startLine > nodeStartLine && startLine <= nodeEndLine && node.childItems) {
-					return findScopeEndLineFromNavTree(startLine, node.childItems);
-				}
-			}
-			return -1;
-		};
-		const filepath = client.toOpenTsFilePath(document);
-		if (!filepath) {
-			return;
-		}
-		const response = await client.execute('navtree', { file: filepath }, (new vscode.CancellationTokenSource()).token);
-		if (response.type !== 'response' || !response.body?.childItems) {
-			return;
-		}
-		const diagnosticStartLine = diagnostic.range.start.line + 1;
-		const endLineFound = findScopeEndLineFromNavTree(diagnosticStartLine, response.body.childItems);
-		const endLine = endLineFound !== -1 ? endLineFound : document.lineCount;
-		const startLine = endLineFound !== -1 ? diagnosticStartLine : 0;
-		await vscode.commands.executeCommand('interactiveEditor.start', { initialRange: { startLineNumber: startLine, endLineNumber: endLine, startColumn: 0, endColumn: 0 }, message: 'Implement the class using the interface', autoSend: true });
-	}
-
 	private getSingleFixForTsCodeAction(
 		document: vscode.TextDocument,
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): VsCodeCodeAction {
-		let followupAction;
-		switch (tsAction.fixName) {
-			case 'fixClassIncorrectlyImplementsInterface':
-				followupAction = this.classIncorrectlyImplementsInterfaceFollowupAction;
+		let followupAction: Command | undefined;
+		if (tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
+			followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
 		}
 		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
