@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./share';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -78,19 +80,23 @@ class ShareWorkbenchContribution {
 
 				const uri = await shareService.provideShare({ resourceUri }, new CancellationTokenSource().token);
 				if (uri) {
-					await clipboardService.writeText(uri.toString());
-					const result = await dialogService.input(
+					const uriText = uri.toString();
+					await clipboardService.writeText(uriText);
+					dialogService.prompt(
 						{
 							type: Severity.Info,
-							inputs: [{ type: 'text', value: uri.toString() }],
 							message: localize('shareSuccess', 'Copied link to clipboard!'),
-							custom: { icon: Codicon.check },
-							primaryButton: localize('open link', 'Open Link')
+							custom: {
+								icon: Codicon.check,
+								markdownDetails: [{
+									markdown: new MarkdownString(`<div aria-label='${uriText}'>${uriText}</div>`, { supportHtml: true }),
+									classes: ['share-dialog-input']
+								}]
+							},
+							cancelButton: localize('close', 'Close'),
+							buttons: [{ label: localize('open link', 'Open Link'), run: () => { urlService.open(uri, { openExternal: true }); } }]
 						}
 					);
-					if (result.confirmed) {
-						urlService.open(uri, { openExternal: true });
-					}
 				}
 			}
 		});
