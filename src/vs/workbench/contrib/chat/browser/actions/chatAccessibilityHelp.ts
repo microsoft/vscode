@@ -25,11 +25,11 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 		content.push(descriptionForCommand('chat.action.focus', localize('workbench.action.chat.focus', 'The Focus Chat command ({0}) focuses the chat request/response list, which can be navigated with UpArrow/DownArrow.',), localize('workbench.action.chat.focusNoKb', 'The Focus Chat List command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow and is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.chat.focusInput', localize('workbench.action.chat.focusInput', 'The Focus Chat Input command ({0}) focuses the input box for chat requests.'), localize('workbench.action.interactiveSession.focusInputNoKb', 'Focus Chat Input command focuses the input box for chat requests and is currently not triggerable by a keybinding.'), keybindingService));
 	} else {
-		content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request."));
 		const regex = /^(\/fix|\/explain)/;
 		const match = currentInput?.match(regex);
 		const command = match && match.length ? match[0].substring(1) : undefined;
 		if (command === 'fix') {
+			content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request."));
 			const editMode = configurationService.getValue('interactiveEditor.editMode');
 			if (editMode === EditMode.Preview) {
 				const keybinding = keybindingService.lookupKeybinding('editor.action.diffReview.next')?.getAriaLabel();
@@ -37,11 +37,11 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 				content.push(localize('interactiveSession.acceptReject', "Tab again to reach the action bar, which can be navigated with Left/RightArrow."));
 			}
 		} else if (command === 'explain') {
+			content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request."));
 			content.push(localize('interactiveSession.explain', "/explain commands will be run in the chat view."));
 			content.push(localize('interactiveSession.chatViewFocus', "To focus the chat view, run the GitHub Copilot: Focus on GitHub Copilot View command, which will focus the input box."));
 		} else {
-			content.push(localize('interactiveSession.toolbar', "Tab again to reach the action bar, if any, which can be navigated with Left/RightArrow."));
-			content.push(localize('interactiveSession.toolbarButtons', "Tab again to focus the response."));
+			content.push(localize('interactiveSession.toolbar', "Use tab to reach conditional parts like commands, status message, message responses and more"));
 		}
 	}
 	return content.join('\n');
