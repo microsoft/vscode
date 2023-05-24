@@ -106,6 +106,7 @@ export function createUriListSnippet(
 
 	let insertedLinkCount = 0;
 	let insertedImageCount = 0;
+	let insertedAudioVideoCount = 0;
 
 	uris.forEach((uri, i) => {
 		const mdPath = getMdPath(dir, uri);
@@ -116,12 +117,12 @@ export function createUriListSnippet(
 		const insertAsAudio = mediaFileExtensions.get(ext) === MediaKind.Audio;
 
 		if (insertAsVideo) {
-			insertedImageCount++;
+			insertedAudioVideoCount++;
 			snippet.appendText(`<video src="${mdPath}" controls title="`);
 			snippet.appendPlaceholder('Title');
 			snippet.appendText('"></video>');
 		} else if (insertAsAudio) {
-			insertedImageCount++;
+			insertedAudioVideoCount++;
 			snippet.appendText(`<audio src="${mdPath}" controls title="`);
 			snippet.appendPlaceholder('Title');
 			snippet.appendText('"></audio>');
@@ -147,7 +148,13 @@ export function createUriListSnippet(
 	});
 
 	let label: string;
-	if (insertedImageCount > 0 && insertedLinkCount > 0) {
+	if (insertedAudioVideoCount > 0) {
+		if (insertedLinkCount > 0) {
+			label = vscode.l10n.t('Insert Markdown Media and Links');
+		} else {
+			label = vscode.l10n.t('Insert Markdown Media');
+		}
+	} else if (insertedImageCount > 0 && insertedLinkCount > 0) {
 		label = vscode.l10n.t('Insert Markdown Images and Links');
 	} else if (insertedImageCount > 0) {
 		label = insertedImageCount > 1
