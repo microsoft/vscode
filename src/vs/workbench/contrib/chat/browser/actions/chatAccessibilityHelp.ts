@@ -74,9 +74,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type, type === 'editor' ? cachedInput : undefined);
-	if (contextKey) {
-		contextKey.set(true);
-	}
+	contextKey?.set(true);
 	inputEditor.setValue(helpText);
 	inputEditor.updateOptions({ readOnly: true });
 	inputEditor.focus();
@@ -85,9 +83,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 			return;
 		}
 		if (e.keyCode === KeyCode.Escape && inputEditor.getValue() === helpText) {
-			if (contextKey) {
-				contextKey.reset();
-			}
+			contextKey?.reset();
 			inputEditor.updateOptions({ readOnly: false });
 			inputEditor.setValue(cachedInput);
 			if (cachedPosition) {
