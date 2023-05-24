@@ -133,9 +133,9 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			return undefined;
 		}
 
-		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
+		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => !CodeActionKind.Notebook.contains(x));
+		const notebookCodeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => CodeActionKind.Notebook.contains(x));
 
-		// TODO: potentially modify to account for new `Notebook` code action kind
 		// prioritize `source.fixAll` code actions
 		if (!Array.isArray(setting)) {
 			codeActionsOnSave.sort((a, b) => {
@@ -152,6 +152,9 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			});
 		}
 
+
+
+
 		if (!codeActionsOnSave.length) {
 			return undefined;
 		}
@@ -162,9 +165,28 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 				.filter(x => setting[x] === false)
 				.map(x => new CodeActionKind(x));
 
+		const nbDisposable = new DisposableStore();
 
-		progress.report({ message: localize('notebookSaveParticipants.codeActions', "Running code actions") });
+		// run notebook code actions
+		progress.report({ message: localize('notebookSaveParticipants.notebookCodeActions', "Running 'Notebook' code actions") });
+		try {
+			const cell = notebookModel.cells[0];
+			const ref = await this.textModelService.createModelReference(cell.uri);
+			nbDisposable.add(ref);
+
+			const textEditorModel = ref.object.textEditorModel;
+
+			await this.applyOnSaveActions(textEditorModel, notebookCodeActionsOnSave, excludedActions, progress, token);
+		} catch {
+			this.logService.error('Failed to apply notebook code action on save');
+		} finally {
+			progress.report({ increment: 100 });
+			nbDisposable.dispose();
+		}
+
+		// run cell level code actions
 		const disposable = new DisposableStore();
+		progress.report({ message: localize('notebookSaveParticipants.cellCodeActions', "Running code actions") });
 		try {
 			await Promise.all(notebookModel.cells.map(async cell => {
 				const ref = await this.textModelService.createModelReference(cell.uri);
