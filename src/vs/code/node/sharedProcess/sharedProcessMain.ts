@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* eslint-disable local/code-layering, local/code-import-patterns */
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-
 import { hostname, release } from 'os';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -59,8 +57,6 @@ import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogA
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
-import { LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
@@ -113,6 +109,9 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataA
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { RemoteStorageService } from 'vs/platform/storage/common/storageService';
+import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 
 class SharedProcessMain extends Disposable {
 
@@ -338,27 +337,13 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataProfileStorageService, new SyncDescriptor(NativeUserDataProfileStorageService, undefined, true));
 		services.set(IUserDataSyncResourceProviderService, new SyncDescriptor(UserDataSyncResourceProviderService, undefined, true));
 
-		// Terminal
-
-		const ptyHostService = new PtyHostService({
-			graceTime: LocalReconnectConstants.GraceTime,
-			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
-			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		},
-			false,
-			configurationService,
-			environmentService,
-			logService,
-			loggerService
-		);
-		ptyHostService.initialize();
-
-		services.set(ILocalPtyService, this._register(ptyHostService));
-
 		// Signing
 		services.set(ISignService, new SyncDescriptor(SignService, undefined, false /* proxied to other processes */));
 
 		// Tunnel
+		const remoteSocketFactoryService = new RemoteSocketFactoryService();
+		services.set(IRemoteSocketFactoryService, remoteSocketFactoryService);
+		remoteSocketFactoryService.register(RemoteConnectionType.WebSocket, nodeSocketFactory);
 		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 
@@ -414,11 +399,6 @@ class SharedProcessMain extends Disposable {
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));
 		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
-
-		// Terminal
-		const localPtyService = accessor.get(ILocalPtyService);
-		const localPtyChannel = ProxyChannel.fromService(localPtyService);
-		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
 
 		// Tunnel
 		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));

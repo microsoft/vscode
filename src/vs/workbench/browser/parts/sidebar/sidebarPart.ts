@@ -219,7 +219,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 	}
 
 	getLastActivePaneCompositeId(): string {
-		return this.getLastActiveCompositetId();
+		return this.getLastActiveCompositeId();
 	}
 
 	hideActivePaneComposite(): void {

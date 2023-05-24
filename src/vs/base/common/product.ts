@@ -89,7 +89,6 @@ export interface IProductConfiguration {
 	readonly tasConfig?: {
 		endpoint: string;
 		telemetryEventName: string;
-		featuresTelemetryPropertyName: string;
 		assignmentContextTelemetryPropertyName: string;
 	};
 
@@ -191,6 +190,7 @@ export interface IProductConfiguration {
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+	readonly profileTemplatesUrl?: string;
 }
 
 export interface ITunnelApplicationConfig {
@@ -252,14 +252,24 @@ export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
-	showInStartEntry?: boolean;
+	startEntry?: {
+		helpLink: string;
+		startConnectLabel: string;
+		startCommand: string;
+		priority: number;
+	};
 }
 
 export interface IVirtualWorkspaceExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
-	showInStartEntry?: boolean;
+	startEntry: {
+		helpLink: string;
+		startConnectLabel: string;
+		startCommand: string;
+		priority: number;
+	};
 }
 
 export interface ISurveyData {

@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationHandle, INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationHandle, INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -55,7 +55,10 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
 					}
 				}],
-				{ sticky: true }
+				{
+					sticky: true,
+					priority: NotificationPriority.URGENT
+				}
 			);
 
 			Event.once(this.screenReaderNotification.onDidClose)(() => this.screenReaderNotification = null);

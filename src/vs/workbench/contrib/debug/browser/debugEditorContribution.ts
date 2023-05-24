@@ -373,12 +373,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	async showHover(position: Position, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
-		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
+		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
 			const result = await this.hoverWidget.showAt(position, focus);
 			if (result === ShowDebugHoverResult.NOT_AVAILABLE) {
 				// When no expression available fallback to editor hover
 				this.showEditorHover(position, focus);
 			}
+		} else {
+			this.showEditorHover(position, focus);
 		}
 	}
 
@@ -406,7 +408,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get showHoverScheduler(): RunOnceScheduler {
 		const hoverOption = this.editor.getOption(EditorOption.hover);
 		const scheduler = new RunOnceScheduler(() => {
-			if (this.hoverPosition) {
+			if (this.hoverPosition && !this.altPressed) {
 				this.showHover(this.hoverPosition, false);
 			}
 		}, hoverOption.delay * 2);

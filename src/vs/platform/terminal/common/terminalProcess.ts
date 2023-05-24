@@ -66,6 +66,7 @@ export interface IProcessDetails {
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
 	hasChildProcesses: boolean;
+	shellIntegrationNonce: string;
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;

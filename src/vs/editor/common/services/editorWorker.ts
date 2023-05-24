@@ -14,7 +14,7 @@ import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleW
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
-export type DiffAlgorithmName = 'smart' | 'experimental';
+export type DiffAlgorithmName = 'legacy' | 'advanced';
 
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;

@@ -12,12 +12,12 @@ import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
@@ -46,8 +46,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
-		@IFileService private readonly _fileService: IFileService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -76,6 +76,18 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return Boolean(this._workingCopy?.model?.notebookModel);
 	}
 
+	async canDispose(): Promise<boolean> {
+		if (!this._workingCopy) {
+			return true;
+		}
+
+		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
+			return this._workingCopyManager.stored.canDispose(this._workingCopy);
+		} else {
+			return true;
+		}
+	}
+
 	isDirty(): boolean {
 		return this._workingCopy?.isDirty() ?? false;
 	}
@@ -90,8 +102,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	isReadonly(): boolean {
 		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
-			return this._workingCopy.isReadonly();
-		} else if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+			return this._workingCopy?.isReadonly();
+		} else if (this._filesConfigurationService.isReadonly(this.resource)) {
 			return true;
 		} else {
 			return false;
@@ -109,8 +121,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
-
-		if (!this._workingCopy) {
+		if (!this._workingCopy || !this._workingCopy.model) {
 			if (this.resource.scheme === Schemas.untitled) {
 				if (this._hasAssociatedFilePath) {
 					this._workingCopy = await this._workingCopyManager.resolve({ associatedResource: this.resource });
@@ -168,7 +179,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 	constructor(
 		private readonly _notebookModel: NotebookTextModel,
-		private readonly _notebookSerializer: INotebookSerializer
+		private readonly _notebookService: INotebookService
 	) {
 		super();
 
@@ -202,9 +213,10 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+		const serializer = await this.getNotebookSerializer();
 
 		const data: NotebookData = {
-			metadata: filter(this._notebookModel.metadata, key => !this._notebookSerializer.options.transientDocumentMetadata[key]),
+			metadata: filter(this._notebookModel.metadata, key => !serializer.options.transientDocumentMetadata[key]),
 			cells: [],
 		};
 
@@ -218,13 +230,13 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				internalMetadata: cell.internalMetadata
 			};
 
-			cellData.outputs = !this._notebookSerializer.options.transientOutputs ? cell.outputs : [];
-			cellData.metadata = filter(cell.metadata, key => !this._notebookSerializer.options.transientCellMetadata[key]);
+			cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
+			cellData.metadata = filter(cell.metadata, key => !serializer.options.transientCellMetadata[key]);
 
 			data.cells.push(cellData);
 		}
 
-		const bytes = await this._notebookSerializer.notebookToData(data);
+		const bytes = await serializer.notebookToData(data);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -232,14 +244,24 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 
 	async update(stream: VSBufferReadableStream, token: CancellationToken): Promise<void> {
+		const serializer = await this.getNotebookSerializer();
 
 		const bytes = await streamToBuffer(stream);
-		const data = await this._notebookSerializer.dataToNotebook(bytes);
+		const data = await serializer.dataToNotebook(bytes);
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		this._notebookModel.reset(data.cells, data.metadata, this._notebookSerializer.options);
+		this._notebookModel.reset(data.cells, data.metadata, serializer.options);
+	}
+
+	async getNotebookSerializer(): Promise<INotebookSerializer> {
+		const info = await this._notebookService.withNotebookDataProvider(this.notebookModel.viewType);
+		if (!(info instanceof SimpleNotebookProviderInfo)) {
+			throw new Error('CANNOT open file notebook with this provider');
+		}
+
+		return info.serializer;
 	}
 
 	get versionId() {
@@ -279,7 +301,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 		}
 
 		const notebookModel = this._notebookService.createNotebookTextModel(info.viewType, resource, data, info.serializer.options);
-		return new NotebookFileWorkingCopyModel(notebookModel, info.serializer);
+		return new NotebookFileWorkingCopyModel(notebookModel, this._notebookService);
 	}
 }
 

@@ -5,9 +5,8 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
-import { listenStream } from 'vs/base/common/stream';
 import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -28,7 +27,7 @@ export interface ITestingOutputTerminalService {
 	 * Opens a terminal for the given test's output. Optionally, scrolls to and
 	 * selects the given marker in the test results.
 	 */
-	open(result: ITestResult, marker?: number): Promise<void>;
+	open(result: ITestResult, taskIndex: number, marker?: number): Promise<void>;
 }
 
 const friendlyDate = (date: number) => {
@@ -36,10 +35,17 @@ const friendlyDate = (date: number) => {
 	return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
 };
 
-const getTitle = (result: ITestResult | undefined) => {
-	return result
-		? localize('testOutputTerminalTitleWithDate', 'Test Output at {0}', friendlyDate(result.completedAt ?? Date.now()))
-		: genericTitle;
+const getTitle = (result: ITestResult | undefined, taskIndex: number | undefined) => {
+	if (!result || taskIndex === undefined) {
+		return genericTitle;
+	}
+
+	const task = result.tasks[taskIndex];
+	if (result.tasks.length < 2 || !task?.name) {
+		return localize('testOutputTerminalTitleWithDate', 'Test Output at {0}', friendlyDate(result.completedAt ?? Date.now()));
+	}
+
+	return localize('testOutputTerminalTitleWithDateAndTaskName', '{0} at {1}', task.name, friendlyDate(result.completedAt ?? Date.now()));
 };
 
 const genericTitle = localize('testOutputTerminalTitle', 'Test Output');
@@ -58,30 +64,39 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		@ITestResultService resultService: ITestResultService,
 		@IViewsService private viewsService: IViewsService,
 	) {
+
+		const newTaskListener = new MutableDisposable();
+
 		// If a result terminal is currently active and we start a new test run,
 		// stream live results there automatically.
 		resultService.onResultsChanged(evt => {
-			const active = this.terminalService.activeInstance;
-			if (!('started' in evt) || !active) {
+			if (!('started' in evt)) {
 				return;
 			}
 
-			const pane = this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
-			if (!pane) {
-				return;
-			}
+			newTaskListener.value = evt.started.onNewTask(taskIndex => {
+				const active = this.terminalService.activeInstance;
+				if (!active) {
+					return;
+				}
 
-			const output = this.outputTerminals.get(active);
-			if (output && output.ended) {
-				this.showResultsInTerminal(active, output, evt.started);
-			}
+				const pane = this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
+				if (!pane) {
+					return;
+				}
+
+				const output = this.outputTerminals.get(active);
+				if (output && output.ended) {
+					this.showResultsInTerminal(active, output, evt.started, taskIndex);
+				}
+			});
 		});
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public async open(result: ITestResult | undefined, marker?: number): Promise<void> {
+	public async open(result: ITestResult | undefined, taskIndex: number | undefined, marker?: number): Promise<void> {
 		const testOutputPtys = this.terminalService.instances
 			.map(t => {
 				const output = this.outputTerminals.get(t);
@@ -90,7 +105,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 			.filter(isDefined);
 
 		// If there's an existing terminal for the attempted reveal, show that instead.
-		const existing = testOutputPtys.find(([, o]) => o.resultId === result?.id);
+		const existing = testOutputPtys.find(([, o]) => o.resultId === result?.id && o.taskIndex === taskIndex);
 		if (existing) {
 			this.terminalService.setActiveInstance(existing[0]);
 			if (existing[0].target === TerminalLocation.Editor) {
@@ -107,7 +122,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		const ended = testOutputPtys.find(([, o]) => o.ended);
 		if (ended) {
 			ended[1].clear();
-			this.showResultsInTerminal(ended[0], ended[1], result);
+			this.showResultsInTerminal(ended[0], ended[1], result, taskIndex);
 			return;
 		}
 
@@ -117,14 +132,17 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 				isFeatureTerminal: true,
 				icon: testingViewIcon,
 				customPtyImplementation: () => output,
-				name: getTitle(result),
+				name: getTitle(result, taskIndex),
 			},
-		}), output, result, marker);
+		}), output, result, taskIndex, marker);
 	}
 
-	private async showResultsInTerminal(terminal: ITerminalInstance, output: TestOutputProcess, result: ITestResult | undefined, thenSelectMarker?: number) {
+	private async showResultsInTerminal(terminal: ITerminalInstance, output: TestOutputProcess, result: ITestResult | undefined, taskIndex: number | undefined, thenSelectMarker?: number) {
 		this.outputTerminals.set(terminal, output);
-		output.resetFor(result?.id, getTitle(result));
+		const title = getTitle(result, taskIndex);
+		output.resetFor(result?.id, taskIndex, title);
+		terminal.rename(title);
+
 		this.terminalService.setActiveInstance(terminal);
 		if (terminal.target === TerminalLocation.Editor) {
 			this.terminalEditorService.revealActiveEditor();
@@ -132,33 +150,49 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 			this.terminalGroupService.showPanel();
 		}
 
-		if (!result) {
+		await output.started;
+
+		if (!result || taskIndex === undefined) {
 			// seems like it takes a tick for listeners to be registered
 			output.ended = true;
 			setTimeout(() => output.pushData(localize('testNoRunYet', '\r\nNo tests have been run, yet.\r\n')));
 			return;
 		}
 
-		const [stream] = await Promise.all([result.getOutput(), output.started]);
-		let hadData = false;
-		listenStream(stream, {
-			onData: d => {
-				hadData = true;
-				output.pushData(d.toString());
-			},
-			onError: err => output.pushData(`\r\n\r\n${err.stack || err.message}`),
-			onEnd: () => {
-				if (!hadData) {
-					output.pushData(`\x1b[2m${localize('runNoOutout', 'The test run did not record any output.')}\x1b[0m`);
-				}
 
-				const completedAt = result.completedAt ? new Date(result.completedAt) : new Date();
-				const text = localize('runFinished', 'Test run finished at {0}', completedAt.toLocaleString(language));
-				output.pushData(`\r\n\r\n\x1b[1m> ${text} <\x1b[0m\r\n\r\n`);
-				output.ended = true;
-				this.revealMarker(terminal, thenSelectMarker);
-			},
+		const testOutput = result.tasks[taskIndex].output;
+
+		let hadData = false;
+		for (const d of testOutput.buffers) {
+			hadData = true;
+			output.pushData(d.toString());
+		}
+
+		const disposable = new DisposableStore();
+		disposable.add(testOutput.onDidWriteData(d => {
+			hadData = true;
+			output.pushData(d.toString());
+		}));
+
+		testOutput.endPromise.then(() => {
+			if (disposable.isDisposed) {
+				return;
+			}
+			if (!hadData) {
+				output.pushData(`\x1b[2m${localize('runNoOutout', 'The test run did not record any output.')}\x1b[0m`);
+			}
+
+			const completedAt = result.completedAt ? new Date(result.completedAt) : new Date();
+			const text = localize('runFinished', 'Test run finished at {0}', completedAt.toLocaleString(language));
+			output.pushData(`\r\n\r\n\x1b[1m> ${text} <\x1b[0m\r\n\r\n`);
+			output.ended = true;
+			this.revealMarker(terminal, thenSelectMarker);
+			disposable.dispose();
 		});
+
+		disposable.add(terminal.onDisposed(() => {
+			disposable.dispose();
+		}));
 	}
 
 	private revealMarker(terminal: ITerminalInstance, marker?: number) {
@@ -174,12 +208,13 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
 	onDidChangeProperty = Event.None;
 	private processDataEmitter = this._register(new Emitter<string | IProcessDataEvent>());
-	private titleEmitter = this._register(new Emitter<string>());
 	private readonly startedDeferred = new DeferredPromise<void>();
 	/** Whether the associated test has ended (indicating the terminal can be reused) */
 	public ended = true;
 	/** Result currently being displayed */
 	public resultId: string | undefined;
+	/** Task currently being displayed */
+	public taskIndex: number | undefined;
 	/** Promise resolved when the terminal is ready to take data */
 	public readonly started = this.startedDeferred.p;
 
@@ -191,10 +226,10 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 		this.processDataEmitter.fire('\x1bc');
 	}
 
-	public resetFor(resultId: string | undefined, title: string) {
+	public resetFor(resultId: string | undefined, taskIndex: number | undefined, title: string) {
 		this.ended = false;
 		this.resultId = resultId;
-		this.titleEmitter.fire(title);
+		this.taskIndex = taskIndex;
 	}
 
 	//#region implementation
@@ -205,7 +240,6 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	public readonly onProcessExit = this._register(new Emitter<number | undefined>()).event;
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number; cwd: string }>());
 	public readonly onProcessReady = this._onProcessReady.event;
-	public readonly onProcessTitleChanged = this.titleEmitter.event;
 	public readonly onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>()).event;
 
 	public start(): Promise<ITerminalLaunchError | undefined> {

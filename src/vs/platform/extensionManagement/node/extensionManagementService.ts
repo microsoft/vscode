@@ -531,7 +531,7 @@ export class ExtensionsScanner extends Disposable {
 
 	async removeExtension(extension: ILocalExtension | IScannedExtension, type: string): Promise<void> {
 		this.logService.trace(`Deleting ${type} extension from disk`, extension.identifier.id, extension.location.fsPath);
-		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(extension.location), `.${generateUuid()}`);
+		const renamedLocation = this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(extension.location), `._${generateUuid()}`);
 		await this.rename(extension.identifier, extension.location.fsPath, renamedLocation.fsPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
 		await this.fileService.del(renamedLocation, { recursive: true });
 		this.logService.info('Deleted from disk', extension.identifier.id, extension.location.fsPath);
@@ -706,7 +706,7 @@ export class ExtensionsScanner extends Disposable {
 			}
 		}
 		for (const child of stat?.children ?? []) {
-			if (child.isDirectory && child.name.startsWith('.') && isUUID(child.name.substring(1))) {
+			if (child.isDirectory && child.name.startsWith('._') && isUUID(child.name.substring(2))) {
 				promises.push((async () => {
 					this.logService.trace('Deleting the generated extension folder', child.resource.toString());
 					try {

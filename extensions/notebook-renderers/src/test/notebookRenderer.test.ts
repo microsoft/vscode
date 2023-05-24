@@ -146,7 +146,7 @@ suite('Notebook builtin output renderer', () => {
 
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
-			assert.ok(!outputElement.classList.contains('remove-padding'), `Padding should not be removed for non-scrollable outputs: ${outputElement.classList}`);
+			assert.ok(outputElement.classList.contains('remove-padding'), `Padding should be removed for non-scrollable outputs: ${outputElement.classList}`);
 			assert.ok(!inserted.classList.contains('word-wrap') && !inserted.classList.contains('scrollable'),
 				`output content classList should not contain word-wrap and scrollable ${inserted.classList}`);
 			assert.ok(inserted.innerHTML.indexOf('>content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
@@ -224,6 +224,31 @@ suite('Notebook builtin output renderer', () => {
 		assert.ok(inserted.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>second stream content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>third stream content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
+	});
+
+	test(`Multiple adjacent streaming outputs, rerendering the first should erase the rest`, async () => {
+		const context = createContext();
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputHtml = new OutputHtml();
+		const outputElement = outputHtml.getFirstOuputElement();
+		const outputItem1 = createOutputItem('first stream content', stdoutMimeType, '1');
+		const outputItem2 = createOutputItem('second stream content', stdoutMimeType, '2');
+		const outputItem3 = createOutputItem('third stream content', stderrMimeType, '3');
+		await renderer!.renderOutputItem(outputItem1, outputElement);
+		await renderer!.renderOutputItem(outputItem2, outputHtml.appendOutputElement());
+		await renderer!.renderOutputItem(outputItem3, outputHtml.appendOutputElement());
+		const newOutputItem1 = createOutputItem('replaced content', stderrMimeType, '1');
+		await renderer!.renderOutputItem(newOutputItem1, outputElement);
+
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>replaced content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>first stream content</') === -1, `Content was not cleared: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>second stream content</') === -1, `Content was not cleared: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>third stream content</') === -1, `Content was not cleared: ${outputElement.innerHTML}`);
 	});
 });
 

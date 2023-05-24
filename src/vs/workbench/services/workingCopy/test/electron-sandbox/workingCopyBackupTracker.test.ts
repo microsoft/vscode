@@ -28,7 +28,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -37,13 +37,14 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 suite('WorkingCopyBackupTracker (native)', function () {
 
@@ -152,7 +153,10 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
-			new TestContextService(TestWorkspace)
+			new TestContextService(TestWorkspace),
+			TestEnvironmentService,
+			new UriIdentityService(new TestFileService()),
+			new TestFileService()
 		));
 
 		const part = await createEditorPart(instantiationService, disposables);
@@ -363,6 +367,48 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const resource = toResource.call(this, '/path/custom.txt');
 		const customWorkingCopy = new TestBackupWorkingCopy(resource);
 		customWorkingCopy.setDirty(true);
+
+		const event = new TestBeforeShutdownEvent();
+		event.reason = ShutdownReason.QUIT;
+		accessor.lifecycleService.fireBeforeShutdown(event);
+
+		const veto = await event.value;
+		assert.ok(veto);
+
+		const finalVeto = await event.finalValue?.();
+		assert.ok(finalVeto); // assert the tracker uses the internal finalVeto API
+
+		await cleanup();
+	});
+
+	test('onWillShutdown - scratchpads - veto if backup fails', async function () {
+		const { accessor, cleanup } = await createTracker();
+
+		class TestBackupWorkingCopy extends TestWorkingCopy {
+
+			constructor(resource: URI) {
+				super(resource);
+
+				accessor.workingCopyService.registerWorkingCopy(this);
+			}
+
+			override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
+
+			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+				throw new Error('unable to backup');
+			}
+
+			override isDirty(): boolean {
+				return false;
+			}
+
+			override isModified(): boolean {
+				return true;
+			}
+		}
+
+		const resource = toResource.call(this, '/path/custom.txt');
+		new TestBackupWorkingCopy(resource);
 
 		const event = new TestBeforeShutdownEvent();
 		event.reason = ShutdownReason.QUIT;

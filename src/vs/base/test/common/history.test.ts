@@ -72,7 +72,7 @@ suite('History Navigator', () => {
 		assert.strictEqual(testObject.isLast(), true);
 		assert.strictEqual(testObject.current(), '4');
 		assert.strictEqual(testObject.next(), null);
-		assert.strictEqual(testObject.isLast(), true);
+		assert.strictEqual(testObject.isLast(), false); // Stepping past the last element, is no longer "last"
 	});
 
 	test('previous on first element returns null and remains on first', () => {
@@ -109,8 +109,9 @@ suite('History Navigator', () => {
 		testObject.add('5');
 
 		assert.strictEqual(testObject.previous(), '5');
-		assert.strictEqual(testObject.next(), null);
 		assert.strictEqual(testObject.isLast(), true);
+		assert.strictEqual(testObject.next(), null);
+		assert.strictEqual(testObject.isLast(), false);
 	});
 
 	test('adding an existing item changes the order', () => {
@@ -144,8 +145,9 @@ suite('History Navigator', () => {
 
 		testObject.last();
 
-		assert.deepStrictEqual(testObject.next(), null);
 		assert.strictEqual(testObject.isLast(), true);
+		assert.deepStrictEqual(testObject.next(), null);
+		assert.strictEqual(testObject.isLast(), false);
 	});
 
 	test('next returns object if the current position is not the last one', () => {

@@ -14,20 +14,17 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalAction, revealActiveTerminal } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AccessibilityHelpWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
-import { AccessibleBufferWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
+import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
 import { Terminal } from 'xterm';
 
-const category = terminalStrings.actionCategory;
-
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
-	static readonly ID: 'terminal.accessible-buffer';
+	static readonly ID = 'terminal.accessible-buffer';
 	static get(instance: ITerminalInstance): AccessibleBufferContribution | null {
 		return instance.getContribution<AccessibleBufferContribution>(AccessibleBufferContribution.ID);
 	}
@@ -53,6 +50,10 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	async createCommandQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
 		return this._accessibleBufferWidget?.createQuickPick();
 	}
+
+	navigateToCommand(type: NavigationType): void {
+		return this._accessibleBufferWidget?.navigateToCommand(type);
+	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
 
@@ -71,20 +72,18 @@ registerTerminalAction({
 	run: async (c, accessor: ServicesAccessor) => {
 		const instantiationService = accessor.get(IInstantiationService);
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
-		const widget = instantiationService.createInstance(AccessibilityHelpWidget, instance);
-		instance.registerChildElement({
-			element: widget.element
-		});
-		widget.show();
+		await c.service.revealActiveTerminal();
+		const terminal = instance?.xterm;
+		if (!terminal) {
+			return;
+		}
+		await instantiationService.createInstance(AccessibilityHelpWidget, instance, terminal).show();
 	}
 });
 
 registerTerminalAction({
 	id: TerminalCommandId.FocusAccessibleBuffer,
 	title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
-	f1: true,
-	category,
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	keybinding: [
 		{
@@ -95,7 +94,7 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}
@@ -106,8 +105,6 @@ registerTerminalAction({
 registerTerminalAction({
 	id: TerminalCommandId.NavigateAccessibleBuffer,
 	title: { value: localize('workbench.action.terminal.navigateAccessibleBuffer', 'Navigate Accessible Buffer'), original: 'Navigate Accessible Buffer' },
-	f1: true,
-	category,
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	keybinding: [
 		{
@@ -118,11 +115,54 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}
 		const quickPick = await AccessibleBufferContribution.get(instance)?.createCommandQuickPick();
 		quickPick?.show();
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.AccessibleBufferGoToNextCommand,
+	title: { value: localize('workbench.action.terminal.accessibleBufferGoToNextCommand', 'Accessible Buffer Go to Next Command'), original: 'Accessible Buffer Go to Next Command' },
+	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, TerminalContextKeys.accessibleBufferFocus),
+	keybinding: [
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+			weight: KeybindingWeight.WorkbenchContrib + 2,
+			when: TerminalContextKeys.accessibleBufferFocus
+		}
+	],
+	run: async (c) => {
+		const instance = await c.service.getActiveOrCreateInstance();
+		await c.service.revealActiveTerminal();
+		if (!instance) {
+			return;
+		}
+		await AccessibleBufferContribution.get(instance)?.navigateToCommand(NavigationType.Next);
+	}
+});
+
+
+registerTerminalAction({
+	id: TerminalCommandId.AccessibleBufferGoToPreviousCommand,
+	title: { value: localize('workbench.action.terminal.accessibleBufferGoToPreviousCommand', 'Accessible Buffer Go to Previous Command'), original: 'Accessible Buffer Go to Previous Command' },
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.accessibleBufferFocus),
+	keybinding: [
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+			weight: KeybindingWeight.WorkbenchContrib + 2,
+			when: TerminalContextKeys.accessibleBufferFocus
+		}
+	],
+	run: async (c) => {
+		const instance = await c.service.getActiveOrCreateInstance();
+		await c.service.revealActiveTerminal();
+		if (!instance) {
+			return;
+		}
+		await AccessibleBufferContribution.get(instance)?.navigateToCommand(NavigationType.Previous);
 	}
 });

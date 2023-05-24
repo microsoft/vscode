@@ -111,7 +111,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private _isPromptingAfterCrash = false;
 	private isRestarting: boolean = false;
 	private hasServerFatallyCrashedTooManyTimes = false;
-	private readonly loadingIndicator = new ServerInitializingIndicator();
+	private readonly loadingIndicator = this._register(new ServerInitializingIndicator());
 
 	public readonly telemetryReporter: TelemetryReporter;
 	public readonly bufferSyncSupport: BufferSyncSupport;
@@ -258,7 +258,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
 	private isProjectWideIntellisenseOnWebEnabled(): boolean {
-		return isWebAndHasSharedArrayBuffers() && this._configuration.enableProjectWideIntellisenseOnWeb;
+		return isWebAndHasSharedArrayBuffers() && this._configuration.webProjectWideIntellisenseEnabled;
 	}
 
 	private cancelInflightRequestsForResource(resource: vscode.Uri): void {
@@ -469,10 +469,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		});
 
 		handle.onEvent(event => this.dispatchEvent(event));
-
-		if (apiVersion.gte(API.v300) && this.capabilities.has(ClientCapability.Semantic)) {
-			this.loadingIndicator.startedLoadingProject(undefined /* projectName */);
-		}
 
 		this.serviceStarted(resendModels);
 
@@ -906,7 +902,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				const diagnosticEvent = event as Proto.DiagnosticEvent;
 				if (diagnosticEvent.body?.diagnostics) {
 					this._onDiagnosticsReceived.fire({
-						kind: getDignosticsKind(event),
+						kind: getDiagnosticsKind(event),
 						resource: this.toResource(diagnosticEvent.body.file),
 						diagnostics: diagnosticEvent.body.diagnostics
 					});
@@ -1093,7 +1089,7 @@ ${error.serverStack}
 	};
 }
 
-function getDignosticsKind(event: Proto.Event) {
+function getDiagnosticsKind(event: Proto.Event) {
 	switch (event.event) {
 		case 'syntaxDiag': return DiagnosticKind.Syntax;
 		case 'semanticDiag': return DiagnosticKind.Semantic;

@@ -69,6 +69,11 @@
         "command": "imagePreview.zoomOut",
         "title": "%command.zoomOut%",
         "category": "Image Preview"
+      },
+      {
+        "command": "imagePreview.copyImage",
+        "title": "%command.copyImage%",
+        "category": "Image Preview"
       }
     ],
     "menus": {
@@ -82,6 +87,16 @@
           "command": "imagePreview.zoomOut",
           "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
           "group": "1_imagePreview"
+        },
+        {
+          "command": "imagePreview.copyImage",
+          "when": "false"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "imagePreview.copyImage",
+          "when": "webviewId == 'imagePreview.previewEditor'"
         }
       ]
     }
