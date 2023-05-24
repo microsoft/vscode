@@ -57,6 +57,7 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 		let processedBytes = 0;
 		let processedCells = 0;
 		let matchCount = 0;
+		let deserializeTime = 0;
 		const start = Date.now();
 		const pattern = 'start_index';
 		let i = 0;
@@ -65,6 +66,7 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 				break;
 			}
 			i++;
+			const deserializeStart = Date.now();
 			const uri = fileMatch.resource;
 			const content = await fileService.readFileStream(uri);
 			try {
@@ -83,7 +85,8 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 					_data = await info.serializer.dataToNotebook(bytes);
 				}
 
-
+				const deserializeEnd = Date.now();
+				deserializeTime += deserializeEnd - deserializeStart;
 				_data.cells.forEach((cell, index) => {
 					const input = cell.source;
 					const matches = this.getMatches(input, uri, index, pattern);
@@ -101,7 +104,7 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 		const end = Date.now();
 		logService.info(`${matchCount} matches found`);
 		logService.info(`notebook deserialize END | ${end - start}ms | ${((processedBytes / 1024) / 1024).toFixed(2)}MB | Number of Files: ${processedFiles} | Number of Cells: ${processedCells}`);
-
+		logService.info(`notebook deserialize time | ${deserializeTime}ms | ${(deserializeTime / (end - start)) * 100}% of total time`);
 	}
 
 	getMatches(source: string, uri: URI, cellIndex: number, target: string) {

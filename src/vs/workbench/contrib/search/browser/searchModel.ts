@@ -1927,6 +1927,7 @@ export class SearchModel extends Disposable {
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
+	private _notebookDataCache: NotebookDataCache;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -1935,12 +1936,11 @@ export class SearchModel extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
-		@INotebookService private readonly notebookService: INotebookService,
-		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
+		this._notebookDataCache = this.instantiationService.createInstance(NotebookDataCache);
 	}
 
 	isReplaceActive(): boolean {
@@ -1986,6 +1986,8 @@ export class SearchModel extends Disposable {
 			folderQueries: textQuery.folderQueries
 		};
 
+		let deserializeTime = 0;
+		const start = Date.now();
 
 		const searchComplete = await this.searchService.fileSearch(
 			query,
@@ -1996,22 +1998,12 @@ export class SearchModel extends Disposable {
 		for (const fileMatch of filesToSearch) {
 			const cellMatches: ICellMatch[] = [];
 			const uri = fileMatch.resource;
-			const content = await this.fileService.readFileStream(uri);
+
 			try {
-				const info = await this.notebookService.withNotebookDataProvider('jupyter-notebook');
-				if (!(info instanceof SimpleNotebookProviderInfo)) {
-					throw new Error('CANNOT open file notebook with this provider');
-				}
-
-				let _data: NotebookData = {
-					metadata: {},
-					cells: []
-				};
-				if (uri.scheme !== Schemas.vscodeInteractive) {
-					const bytes = await streamToBuffer(content.value);
-					_data = await info.serializer.dataToNotebook(bytes);
-				}
-
+				const deserializeStart = Date.now();
+				const _data = await this._notebookDataCache.getNotebookData(uri);
+				const deserializeEnd = Date.now();
+				deserializeTime += deserializeEnd - deserializeStart;
 
 				_data.cells.forEach((cell, index) => {
 					const source = cell.source;
@@ -2042,6 +2034,11 @@ export class SearchModel extends Disposable {
 				continue;
 			}
 		}
+
+		const end = Date.now();
+		this.logService.info(`query: ${textQuery.contentPattern.pattern}`);
+		this.logService.info(`notebook deserialize END | ${end - start}ms`);
+		this.logService.info(`notebook deserialize time | ${deserializeTime}ms | ${(deserializeTime / (end - start)) * 100}% of total time`);
 
 		return {
 			results: results,
@@ -2388,6 +2385,52 @@ export class RangeHighlightDecorations implements IDisposable {
 	});
 }
 
+interface INotebookDataEditInfo {
+	notebookData: NotebookData;
+	mTime: number;
+}
+class NotebookDataCache {
+	private _entries: ResourceMap<INotebookDataEditInfo>;
+
+	constructor(
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFileService private readonly fileService: IFileService,
+		@INotebookService private readonly notebookService: INotebookService,
+	) {
+		this._entries = new ResourceMap<INotebookDataEditInfo>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	}
+
+	async getNotebookData(notebookUri: URI): Promise<NotebookData> {
+		if (notebookUri.scheme === Schemas.vscodeInteractive) {
+			//unsupported
+			throw new Error(`CANNOT parse notebook uri ${notebookUri.toString()}`);
+		}
+		const mTime = (await this.fileService.stat(notebookUri)).mtime;
+
+		const entry = this._entries.get(notebookUri);
+
+		if (entry && entry.mTime === mTime) {
+			return entry.notebookData;
+		} else {
+			const info = await this.notebookService.withNotebookDataProvider('jupyter-notebook');
+			if (!(info instanceof SimpleNotebookProviderInfo)) {
+				throw new Error('CANNOT open file notebook with this provider');
+			}
+
+			let _data: NotebookData = {
+				metadata: {},
+				cells: []
+			};
+
+			const content = await this.fileService.readFileStream(notebookUri);
+			const bytes = await streamToBuffer(content.value);
+			_data = await info.serializer.dataToNotebook(bytes);
+			this._entries.set(notebookUri, { notebookData: _data, mTime });
+			return _data;
+		}
+	}
+
+}
 function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMatch): Match[] {
 	const previewLines = rawMatch.preview.text.split('\n');
 	if (Array.isArray(rawMatch.ranges)) {
