@@ -425,7 +425,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							ref.object.focus();
 						}
 					};
-					element.codeBlockIndex = info.codeBlockIndex;
 					codeblocks.push(info);
 					this.codeBlocksByEditorUri.set(ref.object.textModel.uri, info);
 					disposables.add(toDisposable(() => this.codeBlocksByEditorUri.delete(ref.object.textModel.uri)));
@@ -436,7 +435,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		if (isResponseVM(element)) {
-			element.codeBlockCount = codeblocks.length;
 			this.codeBlocksByResponseId.set(element.id, codeblocks);
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 		}
@@ -517,7 +515,9 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 }
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
+	constructor(private readonly _renderer: ChatListItemRenderer) {
 
+	}
 	getWidgetRole(): AriaRole {
 		return 'list';
 	}
@@ -547,7 +547,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
-		const codeBlockCount = element.codeBlockCount ?? 0;
+		const codeBlockCount = this._renderer.getCodeBlockInfosForResponse(element).length;
 		switch (codeBlockCount) {
 			case 0:
 				return element.response.value;

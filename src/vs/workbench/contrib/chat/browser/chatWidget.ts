@@ -266,7 +266,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
-				accessibilityProvider: new ChatAccessibilityProvider(),
+				accessibilityProvider: new ChatAccessibilityProvider(this.renderer),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: ChatTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
 				overrideStyles: {
