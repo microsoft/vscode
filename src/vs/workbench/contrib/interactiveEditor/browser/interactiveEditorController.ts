@@ -32,7 +32,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorStrategies';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_ACCESSIBILTY_HELP_VISIBLE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -106,14 +106,14 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IModelService private readonly _modelService: IModelService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
-		this._ctxDidEdit = CTX_INTERACTIVE_EDITOR_DID_EDIT.bindTo(contextKeyService);
-		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
-		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.bindTo(contextKeyService);
+		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(_contextKeyService);
+		this._ctxDidEdit = CTX_INTERACTIVE_EDITOR_DID_EDIT.bindTo(_contextKeyService);
+		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(_contextKeyService);
+		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.bindTo(_contextKeyService);
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
@@ -412,7 +412,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		});
 
 		const typeListener = this._zone.widget.onDidChangeInput(() => {
-			if (CTX_INTERACTIVE_EDITOR_ACCESSIBILTY_HELP_VISIBLE.negate()) {
+			if (this._contextKeyService.getContextKeyValue('interactiveEditorAccessibilityHelpVisible') === false) {
 				requestCts.cancel();
 			}
 		});
