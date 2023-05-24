@@ -60,6 +60,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewM
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { marked } from 'vs/base/common/marked/marked';
 
 const $ = dom.$;
 
@@ -107,7 +108,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private _currentLayoutWidth: number = 0;
 	private _isVisible = true;
-	private readonly _accessibilityProvider: ChatAccessibilityProvider;
 
 	constructor(
 		private readonly editorOptions: ChatEditorOptions,
@@ -122,7 +122,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
-		this._accessibilityProvider = new ChatAccessibilityProvider(this);
 	}
 
 	get templateId(): string {
@@ -438,7 +437,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		if (isResponseVM(element)) {
 			this.codeBlocksByResponseId.set(element.id, codeblocks);
-			result.element.ariaLabel = this._accessibilityProvider.getAriaLabel(element);
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 		}
 
@@ -518,9 +516,6 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 }
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
-	constructor(private readonly _renderer: ChatListItemRenderer) {
-
-	}
 	getWidgetRole(): AriaRole {
 		return 'list';
 	}
@@ -550,7 +545,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	private _getLabelWithCodeBlockCount(element: IChatResponseViewModel): string {
-		const codeBlockCount = this._renderer.getCodeBlockInfosForResponse(element).length;
+		const codeBlockCount = countCodeBlocks(element.response.value);
 		switch (codeBlockCount) {
 			case 0:
 				return element.response.value;
@@ -560,6 +555,10 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				return localize('multiCodeBlock', "{0} code blocks, {1}", codeBlockCount, element.response.value);
 		}
 	}
+}
+
+function countCodeBlocks(markdown: string): number {
+	return marked.lexer(markdown).filter(token => token.type === 'code')?.length ?? 0;
 }
 
 interface IChatResultCodeBlockData {
