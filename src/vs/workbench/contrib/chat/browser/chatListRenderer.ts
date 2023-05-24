@@ -107,6 +107,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private _currentLayoutWidth: number = 0;
 	private _isVisible = true;
+	private readonly _accessibilityProvider: ChatAccessibilityProvider;
 
 	constructor(
 		private readonly editorOptions: ChatEditorOptions,
@@ -116,11 +117,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly chatService: IChatService,
+		@IChatService private readonly chatService: IChatService
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
+		this._accessibilityProvider = new ChatAccessibilityProvider(this);
 	}
 
 	get templateId(): string {
@@ -278,6 +280,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
 		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
 		dom.clearNode(templateData.value);
+		result.element.ariaLabel = this._accessibilityProvider.getAriaLabel(element);
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
 
