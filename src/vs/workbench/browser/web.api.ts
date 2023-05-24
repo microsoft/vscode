@@ -220,7 +220,7 @@ export interface IWorkbenchConstructionOptions {
 	 * 	- an extension in the Marketplace
 	 * 	- location of the extension where it is hosted.
 	 */
-	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
+	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents | HostedExtension)[];
 
 	/**
 	 * List of extensions to be enabled if they are installed.
@@ -373,6 +373,14 @@ export interface IResourceUriProvider {
 export type ExtensionId = string;
 
 export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
+export interface HostedExtension {
+	readonly location: UriComponents;
+	readonly preRelease?: boolean;
+	readonly packageNLSUris?: Map<string, UriComponents>;
+	readonly fallbackPackageNLSUri?: UriComponents;
+	readonly readmeUri?: UriComponents;
+	readonly changelogUri?: UriComponents;
+}
 
 export interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
