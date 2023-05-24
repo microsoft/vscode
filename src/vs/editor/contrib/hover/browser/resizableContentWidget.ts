@@ -26,18 +26,18 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 	private resizing: boolean = false;
 
 	constructor(
-		initalSize: dom.IDimension = new dom.Dimension(100, 100),
+		initialSize: dom.IDimension = new dom.Dimension(100, 100),
 		private readonly persistingOptions: IPersistingOptions,
 		protected readonly editor: ICodeEditor
 	) {
 		super();
 		this._contentNode = document.createElement('div');
-		this._contentNode.style.width = `${initalSize.width}px`;
-		this._contentNode.style.height = `${initalSize.height}px`;
+		this._contentNode.style.width = `${initialSize.width}px`;
+		this._contentNode.style.height = `${initialSize.height}px`;
 		this._resizableNode.domNode.appendChild(this._contentNode);
 		this._resizableNode.minSize = new dom.Dimension(10, 10);
 		this._resizableNode.enableSashes(true, true, true, true);
-		this._resizableNode.layout(initalSize.height, initalSize.width);
+		this._resizableNode.layout(initialSize.height, initialSize.width);
 		this._register(this._resizableNode.onDidResize(e => {
 			this._contentNode.style.width = `${e.dimension.width}px`;
 			this._contentNode.style.height = `${e.dimension.height}px`;
@@ -60,17 +60,14 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 	abstract getId(): string;
 
 	getDomNode(): HTMLElement {
-		console.log('Inside of getDomNode of ExampleResizableContentWidget : ', this._resizableNode.domNode);
 		return this._resizableNode.domNode;
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		console.log('Inside of getPosition, this._contentPosition : ', this._contentPosition);
 		return this._contentPosition;
 	}
 
 	setPosition(value: IContentWidgetPosition | null): void {
-		console.log('Inside of setPosition, value : ', value);
 		// TODO: compute boxed above/below if applicable
 		this._contentPosition = value;
 	}
