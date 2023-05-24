@@ -72,7 +72,6 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 
 	const cachedInput = inputEditor.getValue();
 	const cachedPosition = inputEditor.getPosition();
-	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type, type === 'editor' ? cachedInput : undefined);
 	contextKey?.set(true);
 	inputEditor.setValue(helpText);
