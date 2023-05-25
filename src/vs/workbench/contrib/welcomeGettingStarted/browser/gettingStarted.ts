@@ -73,7 +73,6 @@ import { IFeaturedExtensionsService } from 'vs/workbench/contrib/welcomeGettingS
 import { IFeaturedExtension } from 'vs/base/common/product';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -190,9 +189,7 @@ export class GettingStartedPage extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-	) {
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService) {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
 
@@ -305,7 +302,6 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
-		await this.lifecycleService.when(LifecyclePhase.Restored);
 		await this.buildCategoriesSlide();
 		if (this.shouldAnimate()) {
 			setTimeout(() => this.container.classList.add('animatable'), 0);
@@ -728,6 +724,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async buildCategoriesSlide() {
+
+		// Delay fetching welcome page content on startup until all extensions are ready.
+		await this.extensionService.whenInstalledExtensionsRegistered();
 
 		this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
 		this.gettingStartedCategories = await this.gettingStartedService.getWalkthroughs();

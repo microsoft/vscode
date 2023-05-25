@@ -233,7 +233,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return []; // TODO@sbatten add CLI argument (https://github.com/microsoft/vscode-internalbacklog/issues/2855)
 		}
 
-		const experimentsUrl = this.configurationService.getValue<string>('_workbench.experimentsUrl') || this.productService.experimentsUrl;
+		const experimentsUrl = this.productService.experimentsUrl;
 		if (!experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return [];
 		}

@@ -19,6 +19,7 @@ export interface IShareableItem {
 export interface IShareProvider {
 	readonly id: string;
 	readonly label: string;
+	readonly priority: number;
 	readonly selector: LanguageSelector;
 	prepareShare?(item: IShareableItem, token: CancellationToken): Thenable<boolean | undefined>;
 	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | undefined>;
