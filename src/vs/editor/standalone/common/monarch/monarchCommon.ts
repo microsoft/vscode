@@ -67,8 +67,6 @@ export function isIAction(what: FuzzyAction): what is IAction {
 	return !isString(what);
 }
 
-export type DynamicRegExp = (state: string) => RegExp;
-
 export interface IRule {
 	action: FuzzyAction;
 	matchOnlyAtLineStart: boolean;
