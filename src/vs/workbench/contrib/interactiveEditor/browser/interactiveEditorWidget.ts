@@ -173,7 +173,7 @@ export class InteractiveEditorWidget {
 	private _isLayouting: boolean = false;
 
 	constructor(
-		parentEditor: ICodeEditor,
+		private readonly parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -193,7 +193,7 @@ export class InteractiveEditorWidget {
 			])
 		};
 
-		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, parentEditor);
+		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, this.parentEditor);
 		this._updateAriaLabel();
 		this._store.add(this._inputEditor);
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
@@ -397,7 +397,6 @@ export class InteractiveEditorWidget {
 		if (!message) {
 			this._ctxMessageCropState.reset();
 			reset(this._elements.message);
-
 		} else {
 			reset(this._elements.message, message);
 			if (this._elements.message.scrollHeight > this._elements.message.clientHeight) {
@@ -448,6 +447,13 @@ export class InteractiveEditorWidget {
 
 	updateMarkdownMessageExpansionState(expand: boolean) {
 		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
+		// find number of lines visible,
+		// then find 1/6th then 1/3rd of it
+		// this.parentEditor.getContentHeight();
+		// TODO: find total height below the cursor to the bottom of the viewport
+		// TODO: find the equivalent number of lines there should be below
+		// TODO: remove around 4 which is the approximate height of the status bar
+		// TODO: find 1/3rd and 1/6th of these numbers, set as the values for the line clamp
 		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
 		this._onDidChangeHeight.fire();
 	}
