@@ -16,6 +16,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { WelcomeWidget } from 'vs/workbench/contrib/welcomeDialog/browser/welcomeWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { IFileService } from 'vs/platform/files/common/files';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 
 const configurationKey = 'welcome.experimental.dialog';
 
@@ -31,7 +39,13 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 		@ICodeEditorService readonly codeEditorService: ICodeEditorService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@ICommandService readonly commandService: ICommandService,
-		@ITelemetryService readonly telemetryService: ITelemetryService
+		@ITelemetryService readonly telemetryService: ITelemetryService,
+		@IOpenerService readonly openerService: IOpenerService,
+		@IWebviewService readonly webviewService: IWebviewService,
+		@IFileService readonly fileService: IFileService,
+		@INotificationService readonly notificationService: INotificationService,
+		@IExtensionService readonly extensionService: IExtensionService,
+		@ILanguageService readonly languageService: LanguageService
 	) {
 		super();
 
@@ -56,12 +70,24 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 				Array.from(this.contextKeysToWatch).every(value => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(value)))) {
 				const codeEditor = this.codeEditorService.getActiveCodeEditor();
 				if (codeEditor?.hasModel()) {
-					const welcomeWidget = new WelcomeWidget(codeEditor, instantiationService, commandService, telemetryService);
+
+					const detailsRenderer = new GettingStartedDetailsRenderer(fileService, notificationService, extensionService, languageService);
+
+					const welcomeWidget = new WelcomeWidget(
+						codeEditor,
+						instantiationService,
+						commandService,
+						telemetryService,
+						openerService,
+						webviewService,
+						detailsRenderer);
+
 					welcomeWidget.render(welcomeDialog.title,
 						welcomeDialog.message,
 						welcomeDialog.buttonText,
 						welcomeDialog.buttonCommand,
 						welcomeDialog.media);
+
 					this.contextKeysToWatch.delete(welcomeDialog.when);
 				}
 			}

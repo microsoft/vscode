@@ -6,7 +6,7 @@
 import 'vs/css!./media/welcomeWidget';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { $, hide } from 'vs/base/browser/dom'; import { RunOnceScheduler } from 'vs/base/common/async';
+import { $, append, hide } from 'vs/base/browser/dom'; import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,8 +20,20 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
+import { LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
+import { Link } from 'vs/platform/opener/browser/link';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { generateUuid } from 'vs/base/common/uuid';
+import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
+import { FileAccess } from 'vs/base/common/network';
+import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 
 export class WelcomeWidget extends Disposable implements IOverlayWidget {
+
+	private static readonly WIDGET_TIMEOUT: number = 15000;
+	private static readonly WELCOME_MEDIA_PATH = 'vs/workbench/contrib/welcomeGettingStarted/common/media/';
 
 	private readonly _rootDomNode: HTMLElement;
 	private readonly element: HTMLElement;
@@ -33,6 +45,9 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		private readonly instantiationService: IInstantiationService,
 		private readonly commandService: ICommandService,
 		private readonly telemetryService: ITelemetryService,
+		private readonly openerService: IOpenerService,
+		private readonly webviewService: IWebviewService,
+		private readonly detailsRenderer: GettingStartedDetailsRenderer
 	) {
 		super();
 		this._rootDomNode = document.createElement('div');
@@ -82,10 +97,9 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		}));
 		actionBar.push(action, { icon: true, label: false });
 
-
-		const messageTitleElement = this.messageContainer.appendChild($('.dialog-message-title'));
-		messageTitleElement.style.display = 'contents';
-		messageTitleElement.style.alignContent = 'start';
+		if (media) {
+			this.buildSVGMediaComponent(media.path);
+		}
 
 		const renderBody = (message: string): MarkdownString => {
 			const mds = new MarkdownString(undefined, { supportHtml: true });
@@ -97,9 +111,7 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		const titleElementMdt = this.markdownRenderer.render(renderBody(title));
 		titleElement.appendChild(titleElementMdt.element);
 
-		const messageElement = this.messageContainer.appendChild($('#monaco-dialog-message-detail.dialog-message-detail-message'));
-		const messageElementMd = this.markdownRenderer.render(renderBody(message));
-		messageElement.appendChild(messageElementMd.element);
+		this.buildStepMarkdownDescription(this.messageContainer, message.split('\n').filter(x => x).map(text => parseLinkedText(text)));
 
 		const buttonsRowElement = this.messageContainer.appendChild($('.dialog-buttons-row'));
 		const buttonContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
@@ -116,6 +128,49 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		this.applyStyles();
 	}
 
+	private buildStepMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
+		for (const linkedText of text) {
+			const p = append(container, $('p'));
+			for (const node of linkedText.nodes) {
+				if (typeof node === 'string') {
+					const labelWithIcon = renderLabelWithIcons(node);
+					for (const element of labelWithIcon) {
+						if (typeof element === 'string') {
+							p.appendChild(renderFormattedText(element, { inline: true, renderCodeSegments: true }));
+						} else {
+							p.appendChild(element);
+						}
+					}
+				} else {
+					const link = this.instantiationService.createInstance(Link, p, node, {
+						opener: (href: string) => {
+							this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+								id: 'welcomeWidetLinkAction',
+								from: 'welcomeWidget'
+							});
+							this.openerService.open(href, { allowCommands: true });
+						}
+					});
+					this._register(link);
+				}
+			}
+		}
+		return container;
+	}
+
+	private buildSVGMediaComponent(path: string) {
+
+		const mediaContainer = this.messageContainer.appendChild($('.dialog-image-container'));
+		mediaContainer.id = generateUuid();
+
+		const webview = this._register(this.webviewService.createWebviewElement({ title: undefined, options: {}, contentOptions: {}, extension: undefined }));
+		webview.mountTo(mediaContainer);
+
+		this.detailsRenderer.renderSVG(FileAccess.asFileUri(`${WelcomeWidget.WELCOME_MEDIA_PATH}${path}`)).then(body => {
+			webview.setHtml(body);
+		});
+	}
+
 	getId(): string {
 		return 'editor.contrib.welcomeWidget';
 	}
@@ -130,7 +185,7 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		};
 	}
 
-	private _hideSoon = this._register(new RunOnceScheduler(() => this._hide(false), 30000));
+	private _hideSoon = this._register(new RunOnceScheduler(() => this._hide(false), WelcomeWidget.WIDGET_TIMEOUT));
 	private _isVisible: boolean = false;
 
 	private _revealTemporarily(): void {
