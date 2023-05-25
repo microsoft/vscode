@@ -48,8 +48,9 @@ type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrate
 interface HostedExtensionInfo {
 	readonly location: UriComponents;
 	readonly preRelease?: boolean;
-	readonly packageNLSUris?: Map<string, UriComponents>;
-	readonly fallbackPackageNLSUri?: UriComponents;
+	readonly packageJSON?: IExtensionManifest;
+	readonly defaultPackageTranslations?: ITranslations | null;
+	readonly packagetNLSUris?: Map<string, UriComponents>;
 	readonly readmeUri?: UriComponents;
 	readonly changelogUri?: UriComponents;
 }
@@ -66,7 +67,8 @@ function isHostedExtensionInfo(obj: unknown): obj is HostedExtensionInfo {
 	const hostedExtensionInfo = obj as HostedExtensionInfo | undefined;
 	return isUriComponents(hostedExtensionInfo?.location)
 		&& (hostedExtensionInfo?.preRelease === undefined || typeof hostedExtensionInfo.preRelease === 'boolean')
-		&& (hostedExtensionInfo?.fallbackPackageNLSUri === undefined || isUriComponents(hostedExtensionInfo?.fallbackPackageNLSUri))
+		&& (hostedExtensionInfo?.packageJSON === undefined || typeof hostedExtensionInfo.packageJSON === 'object')
+		&& (hostedExtensionInfo?.defaultPackageTranslations === undefined || hostedExtensionInfo?.defaultPackageTranslations === null || typeof hostedExtensionInfo.defaultPackageTranslations === 'object')
 		&& (hostedExtensionInfo?.changelogUri === undefined || isUriComponents(hostedExtensionInfo?.changelogUri))
 		&& (hostedExtensionInfo?.readmeUri === undefined || isUriComponents(hostedExtensionInfo?.readmeUri));
 }
@@ -241,11 +243,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			return [];
 		}
 		const result: IScannedExtension[] = [];
-		await Promise.allSettled(extensionLocations.map(async ({ location, preRelease, packageNLSUris, fallbackPackageNLSUri, readmeUri, changelogUri }) => {
+		await Promise.allSettled(extensionLocations.map(async ({ location, preRelease, packagetNLSUris, packageJSON, defaultPackageTranslations, readmeUri, changelogUri }) => {
 			try {
 				const webExtension = await this.toWebExtension(URI.revive(location), undefined,
-					packageNLSUris ? [...packageNLSUris.entries()].reduce((result, [key, value]) => { result.set(key, URI.revive(value)); return result; }, new Map<string, URI>()) : undefined,
-					URI.revive(fallbackPackageNLSUri),
+					packageJSON,
+					packagetNLSUris ? [...packagetNLSUris.entries()].reduce((result, [key, value]) => { result.set(key, URI.revive(value)); return result; }, new Map<string, URI>()) : undefined,
+					defaultPackageTranslations,
 					URI.revive(readmeUri),
 					URI.revive(changelogUri),
 					{ preRelease });
@@ -472,7 +475,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	async addExtension(location: URI, metadata: Metadata, profileLocation: URI): Promise<IScannedExtension> {
-		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, metadata);
+		const webExtension = await this.toWebExtension(location, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
 		const extension = await this.toScannedExtension(webExtension, false);
 		await this.addToInstalledExtensions([webExtension], profileLocation);
 		return extension;
@@ -611,6 +614,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return this.toWebExtension(
 			extensionLocation,
 			galleryExtension.identifier,
+			undefined,
 			packageNLSResources,
 			fallbackPackageNLSResource ? URI.parse(fallbackPackageNLSResource) : null,
 			galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
@@ -630,12 +634,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return packageNLSResources;
 	}
 
-	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, packageNLSUris?: Map<string, URI>, fallbackPackageNLSUri?: URI | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
-		let manifest: IExtensionManifest;
-		try {
-			manifest = await this.getExtensionManifest(extensionLocation);
-		} catch (error) {
-			throw new Error(`Error while fetching manifest from the location '${extensionLocation.toString()}'. ${getErrorMessage(error)}`);
+	private async toWebExtension(extensionLocation: URI, identifier?: IExtensionIdentifier, manifest?: IExtensionManifest, packageNLSUris?: Map<string, URI>, fallbackPackageNLSUri?: URI | ITranslations | null, readmeUri?: URI, changelogUri?: URI, metadata?: Metadata): Promise<IWebExtension> {
+		if (!manifest) {
+			try {
+				manifest = await this.getExtensionManifest(extensionLocation);
+			} catch (error) {
+				throw new Error(`Error while fetching manifest from the location '${extensionLocation.toString()}'. ${getErrorMessage(error)}`);
+			}
 		}
 
 		if (!this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
@@ -650,7 +655,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				fallbackPackageNLSUri = undefined;
 			}
 		}
-		const defaultManifestTranslations: ITranslations | null | undefined = fallbackPackageNLSUri ? await this.getTranslations(fallbackPackageNLSUri) : null;
+		const defaultManifestTranslations: ITranslations | null | undefined = fallbackPackageNLSUri ? URI.isUri(fallbackPackageNLSUri) ? await this.getTranslations(fallbackPackageNLSUri) : fallbackPackageNLSUri : null;
 
 		return {
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: identifier?.uuid },
@@ -660,7 +665,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			readmeUri,
 			changelogUri,
 			packageNLSUris,
-			fallbackPackageNLSUri: fallbackPackageNLSUri ? fallbackPackageNLSUri : undefined,
+			fallbackPackageNLSUri: URI.isUri(fallbackPackageNLSUri) ? fallbackPackageNLSUri : undefined,
 			defaultManifestTranslations,
 			metadata,
 		};
