@@ -704,7 +704,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	// called by ext host
 	registerCanonicalUriProvider(scheme: string, provider: vscode.CanonicalUriProvider) {
 		if (this._canonicalUriProviders.has(scheme)) {
-			throw new Error(`A provider has already been registered for scheme ${scheme}`);
+			this._logService.error(`A canonical URI provider has already been registered for scheme ${scheme}`);
+			return;
 		}
 
 		this._canonicalUriProviders.set(scheme, provider);
