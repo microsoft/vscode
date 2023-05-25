@@ -50,7 +50,7 @@ interface HostedExtensionInfo {
 	readonly preRelease?: boolean;
 	readonly packageJSON?: IExtensionManifest;
 	readonly defaultPackageTranslations?: ITranslations | null;
-	readonly packagetNLSUris?: Map<string, UriComponents>;
+	readonly packageNLSUris?: Map<string, UriComponents>;
 	readonly readmeUri?: UriComponents;
 	readonly changelogUri?: UriComponents;
 }
@@ -243,15 +243,15 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			return [];
 		}
 		const result: IScannedExtension[] = [];
-		await Promise.allSettled(extensionLocations.map(async ({ location, preRelease, packagetNLSUris, packageJSON, defaultPackageTranslations, readmeUri, changelogUri }) => {
+		await Promise.allSettled(extensionLocations.map(async ({ location, preRelease, packageNLSUris, packageJSON, defaultPackageTranslations, readmeUri, changelogUri }) => {
 			try {
 				const webExtension = await this.toWebExtension(URI.revive(location), undefined,
 					packageJSON,
-					packagetNLSUris ? [...packagetNLSUris.entries()].reduce((result, [key, value]) => { result.set(key, URI.revive(value)); return result; }, new Map<string, URI>()) : undefined,
+					packageNLSUris ? [...packageNLSUris.entries()].reduce((result, [key, value]) => { result.set(key, URI.revive(value)); return result; }, new Map<string, URI>()) : undefined,
 					defaultPackageTranslations,
 					URI.revive(readmeUri),
 					URI.revive(changelogUri),
-					{ preRelease });
+					{ isPreReleaseVersion: preRelease });
 				const extension = await this.toScannedExtension(webExtension, true);
 				if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 					result.push(extension);
