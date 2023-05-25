@@ -475,7 +475,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 				identityProvider: { getId: (e: IKeybindingItemEntry) => e.id },
 				horizontalScrolling: false,
 				accessibilityProvider: new AccessibilityProvider(),
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IKeybindingItemEntry) => e.keybindingItem.commandLabel || e.keybindingItem.command },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IKeybindingItemEntry) => localize('keyboard shortcuts arial label', "Command: {0}, Use space or enter to change the keybinding", e.keybindingItem.commandLabel || e.keybindingItem.command) },
 				overrideStyles: {
 					listBackground: editorBackground
 				},
