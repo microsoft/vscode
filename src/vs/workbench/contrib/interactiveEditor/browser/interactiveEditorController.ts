@@ -433,7 +433,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		const request: IInteractiveEditorRequest = {
 			prompt: this._activeSession.lastInput,
 			selection: this._editor.getSelection(),
-			wholeRange: this._activeSession.wholeRange
+			wholeRange: this._activeSession.wholeRange,
+			attempt: 0,
 		};
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, requestCts.token);
 		this._logService.trace('[IE] request started', this._activeSession.provider.debugName, this._activeSession.session, request);

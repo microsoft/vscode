@@ -37,6 +37,7 @@ export interface IInteractiveEditorRequest {
 	prompt: string;
 	selection: ISelection;
 	wholeRange: IRange;
+	attempt: number;
 }
 
 export type IInteractiveEditorResponse = IInteractiveEditorEditResponse | IInteractiveEditorBulkEditResponse | IInteractiveEditorMessageResponse;
