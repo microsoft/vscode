@@ -9,7 +9,7 @@ import { parse } from 'vs/base/common/marshalling';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, isEqualAuthority } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { request } from 'vs/base/parts/request/browser/request';
 import product from 'vs/platform/product/common/product';
@@ -288,6 +288,12 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 	}
 }
 
+interface IWorkspaceOpenOptions {
+	reuse?: boolean;
+	payload?: object;
+	remoteAuthority?: string | null;
+}
+
 class WorkspaceProvider implements IWorkspaceProvider {
 
 	private static QUERY_PARAM_EMPTY_WINDOW = 'ew';
@@ -370,8 +376,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	) {
 	}
 
-	async open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean> {
-		if (options?.reuse && !options.payload && this.isSame(this.workspace, workspace)) {
+	async open(workspace: IWorkspace, options?: IWorkspaceOpenOptions): Promise<boolean> {
+		if (options?.reuse && !options.payload && this.isSame(this.workspace, workspace) && isEqualAuthority(this.config.remoteAuthority, this.getRemoteAuthority(options))) {
 			return true; // return early if workspace and environment is not changing and we are reusing window
 		}
 
@@ -394,26 +400,27 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		return false;
 	}
 
-	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): string | undefined {
+	private createTargetUrl(workspace: IWorkspace, options?: IWorkspaceOpenOptions): string | undefined {
+
+		const remoteAuthority = this.getRemoteAuthority(options);
 
 		// Empty
 		let targetHref: string | undefined = undefined;
 		if (!workspace) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW}=true`;
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW}=${remoteAuthority ?? 'true'}`;
 		}
 
 		// Folder
 		else if (isFolderToOpen(workspace)) {
-			const queryParamFolder = this.encodeWorkspacePath(workspace.folderUri);
+			const queryParamFolder = this.encodeWorkspacePath(workspace.folderUri, remoteAuthority);
 			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${queryParamFolder}`;
 		}
 
 		// Workspace
 		else if (isWorkspaceToOpen(workspace)) {
-			const queryParamWorkspace = this.encodeWorkspacePath(workspace.workspaceUri);
+			const queryParamWorkspace = this.encodeWorkspacePath(workspace.workspaceUri, remoteAuthority);
 			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${queryParamWorkspace}`;
 		}
-
 		// Append payload if any
 		if (options?.payload) {
 			targetHref += `&${WorkspaceProvider.QUERY_PARAM_PAYLOAD}=${encodeURIComponent(JSON.stringify(options.payload))}`;
@@ -422,8 +429,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		return targetHref;
 	}
 
-	private encodeWorkspacePath(uri: URI): string {
-		if (this.config.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
+	private encodeWorkspacePath(uri: URI, remoteAuthority: string | undefined): string {
+		if (uri.scheme === Schemas.vscodeRemote && isEqualAuthority(this.config.remoteAuthority, remoteAuthority)) {
 
 			// when connected to a remote and having a folder
 			// or workspace for that remote, only use the path
@@ -466,6 +473,14 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		}
 
 		return true;
+	}
+
+	getRemoteAuthority(options?: IWorkspaceOpenOptions): string | undefined {
+		// if the remote authority is not set, use the current one
+		if (!options || options.remoteAuthority === undefined) {
+			return this.config.remoteAuthority;
+		}
+		return options.remoteAuthority ?? undefined;
 	}
 }
 
