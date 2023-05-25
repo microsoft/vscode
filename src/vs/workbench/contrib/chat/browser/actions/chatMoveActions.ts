@@ -34,7 +34,7 @@ const getMoveToEditorChatActionDescriptorForViewTitle = (viewId: string, provide
 	viewId,
 	menu: {
 		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.deserialize('config.chat.experimiental.moveIcons')),
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.deserialize('config.chat.experimental.moveIcons')),
 		group: 'navigation',
 		order: 0
 	},
