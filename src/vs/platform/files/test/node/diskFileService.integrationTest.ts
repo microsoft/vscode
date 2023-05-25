@@ -16,7 +16,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from 'vs/platform/files/common/files';
+import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError, IFileAtomicOptions } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -71,6 +71,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileWriteUnlock |
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
+				FileSystemProviderCapabilities.FileAtomicDelete |
 				FileSystemProviderCapabilities.FileClone;
 
 			if (isLinux) {
@@ -570,14 +571,18 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('deleteFolder (recursive)', async () => {
-		return testDeleteFolderRecursive(false);
+		return testDeleteFolderRecursive(false, false);
+	});
+
+	test('deleteFolder (recursive, atomic)', async () => {
+		return testDeleteFolderRecursive(false, { postfix: '.vsctmp' });
 	});
 
 	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFolder (recursive, useTrash)', async () => {
-		return testDeleteFolderRecursive(true);
+		return testDeleteFolderRecursive(true, false);
 	});
 
-	async function testDeleteFolderRecursive(useTrash: boolean): Promise<void> {
+	async function testDeleteFolderRecursive(useTrash: boolean, atomic: IFileAtomicOptions | false): Promise<void> {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
@@ -585,7 +590,7 @@ flakySuite('Disk File Service', function () {
 		const source = await service.resolve(resource);
 
 		assert.strictEqual(await service.canDelete(source.resource, { recursive: true, useTrash }), true);
-		await service.del(source.resource, { recursive: true, useTrash });
+		await service.del(source.resource, { recursive: true, useTrash, atomic });
 
 		assert.strictEqual(existsSync(source.resource.fsPath), false);
 		assert.ok(event!);

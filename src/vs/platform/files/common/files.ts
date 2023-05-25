@@ -286,6 +286,21 @@ export interface IFileAtomicReadOptions {
 	readonly atomic: boolean;
 }
 
+export interface IFileAtomicOptions {
+
+	/**
+	 * The postfix is used to create a temporary file based
+	 * on the original resource. The resulting temporary
+	 * file will be in the same folder as the resource and
+	 * have `postfix` appended to the resource name.
+	 *
+	 * Example: given a file resource `file:///some/path/foo.txt`
+	 * and a postfix `.vsctmp`, the temporary file will be
+	 * created as `file:///some/path/foo.txt.vsctmp`.
+	 */
+	readonly postfix: string;
+}
+
 export interface IFileAtomicWriteOptions {
 
 	/**
@@ -294,20 +309,17 @@ export interface IFileAtomicWriteOptions {
 	 * by first writing to a temporary file in the same folder
 	 * and then renaming it over the target.
 	 */
-	readonly atomic: {
+	readonly atomic: IFileAtomicOptions | false;
+}
 
-		/**
-		 * The postfix is used to create a temporary file based
-		 * on the original resource. The resulting temporary
-		 * file will be in the same folder as the resource and
-		 * have `postfix` appended to the resource name.
-		 *
-		 * Example: given a file resource `file:///some/path/foo.txt`
-		 * and a postfix `.vsctmp`, the temporary file will be
-		 * created as `file:///some/path/foo.txt.vsctmp`.
-		 */
-		readonly postfix: string;
-	} | false;
+export interface IFileAtomicDeleteOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `delete` method deletes the target atomically by
+	 * first renaming it to a temporary resource and then deleting it.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
 }
 
 export interface IFileReadLimits {
@@ -386,6 +398,13 @@ export interface IFileDeleteOptions {
 	 * option maybe not be supported on all providers.
 	 */
 	readonly useTrash: boolean;
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `delete` method deletes the target atomically by
+	 * first renaming it to a temporary resource and then deleting it.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
 }
 
 export enum FileType {
@@ -546,9 +565,14 @@ export const enum FileSystemProviderCapabilities {
 	FileAtomicWrite = 1 << 15,
 
 	/**
+	 * Provider support to delete atomically.
+	 */
+	FileAtomicDelete = 1 << 16,
+
+	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 16,
+	FileClone = 1 << 17
 }
 
 export interface IFileSystemProvider {
@@ -647,6 +671,14 @@ export function hasFileAtomicWriteCapability(provider: IFileSystemProvider): pro
 	}
 
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite);
+}
+
+export interface IFileSystemProviderWithFileAtomicDeleteCapability extends IFileSystemProvider {
+	delete(resource: URI, opts: IFileAtomicDeleteOptions): Promise<void>;
+}
+
+export function hasFileAtomicDeleteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicDeleteCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicDelete);
 }
 
 export enum FileSystemProviderErrorCode {
@@ -1195,20 +1227,7 @@ export interface IWriteFileOptions {
 	 * by first writing to a temporary file in the same folder
 	 * and then renaming it over the target.
 	 */
-	readonly atomic?: {
-
-		/**
-		 * The postfix is used to create a temporary file based
-		 * on the original resource. The resulting temporary
-		 * file will be in the same folder as the resource and
-		 * have `postfix` appended to the resource name.
-		 *
-		 * Example: given a file resource `file:///some/path/foo.txt`
-		 * and a postfix `.vsctmp`, the temporary file will be
-		 * created as `file:///some/path/foo.txt.vsctmp`.
-		 */
-		readonly postfix: string;
-	} | false;
+	readonly atomic?: IFileAtomicOptions | false;
 }
 
 export interface IResolveFileOptions {

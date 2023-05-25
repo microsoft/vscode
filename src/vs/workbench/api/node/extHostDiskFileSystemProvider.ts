@@ -59,7 +59,7 @@ class DiskFileSystemProviderAdapter implements vscode.FileSystemProvider {
 	}
 
 	delete(uri: vscode.Uri, options: { readonly recursive: boolean }): Promise<void> {
-		return this.impl.delete(uri, { ...options, useTrash: false });
+		return this.impl.delete(uri, { ...options, useTrash: false, atomic: false });
 	}
 
 	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { readonly overwrite: boolean }): Promise<void> {

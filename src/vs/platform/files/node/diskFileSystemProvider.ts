@@ -12,14 +12,14 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { isEqual } from 'vs/base/common/extpath';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { basename, dirname } from 'vs/base/common/path';
+import { basename, dirname, join } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase, joinPath, basename as resourcesBasename, dirname as resourcesDirname } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -47,6 +47,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileFolderCopyCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileAtomicWriteCapability,
+	IFileSystemProviderWithFileAtomicDeleteCapability,
 	IFileSystemProviderWithFileCloneCapability {
 
 	private static TRACE_LOG_RESOURCE_LOCKS = false; // not enabled by default because very spammy
@@ -73,6 +74,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileWriteUnlock |
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
+				FileSystemProviderCapabilities.FileAtomicDelete |
 				FileSystemProviderCapabilities.FileClone;
 
 			if (isLinux) {
@@ -261,7 +263,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} catch (error) {
 
 			// Cleanup in case of rename error
-			await this.delete(tempResource, { recursive: false, useTrash: false });
+			await this.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
 
 			throw error;
 		}
@@ -581,7 +583,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 			const filePath = this.toFilePath(resource);
 			if (opts.recursive) {
-				await Promises.rm(filePath, RimRafMode.MOVE);
+				let atomicDeleteTarget: string | undefined = undefined;
+				if (opts?.atomic !== false && opts.atomic.postfix) {
+					atomicDeleteTarget = join(dirname(filePath), `${basename(filePath)}${opts.atomic.postfix}`);
+				}
+
+				await Promises.rm(filePath, RimRafMode.MOVE, atomicDeleteTarget);
 			} else {
 				try {
 					await Promises.unlink(filePath);
@@ -717,7 +724,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		if ((fromStat.type & FileType.File) !== 0 && (toStat.type & FileType.File) !== 0) {
 			return; // node.js can move/copy a file over an existing file without having to delete it first
 		} else {
-			await this.delete(to, { recursive: true, useTrash: false });
+			await this.delete(to, { recursive: true, useTrash: false, atomic: false });
 		}
 	}
 

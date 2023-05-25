@@ -981,6 +981,12 @@ export class FileService extends Disposable implements IFileService {
 			throw new Error(localize('deleteFailedTrashUnsupported', "Unable to delete file '{0}' via trash because provider does not support it.", this.resourceForError(resource)));
 		}
 
+		// Validate atomic support
+		const atomic = options?.atomic;
+		if (atomic && !(provider.capabilities & FileSystemProviderCapabilities.FileAtomicDelete)) {
+			throw new Error(localize('deleteFailedAtomicUnsupported', "Unable to delete file '{0}' atomically because provider does not support it.", this.resourceForError(resource)));
+		}
+
 		// Validate delete
 		let stat: IStat | undefined = undefined;
 		try {
@@ -1012,9 +1018,10 @@ export class FileService extends Disposable implements IFileService {
 
 		const useTrash = !!options?.useTrash;
 		const recursive = !!options?.recursive;
+		const atomic = options?.atomic ?? false;
 
 		// Delete through provider
-		await provider.delete(resource, { recursive, useTrash });
+		await provider.delete(resource, { recursive, useTrash, atomic });
 
 		// Events
 		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
@@ -1156,7 +1163,7 @@ export class FileService extends Disposable implements IFileService {
 		} catch (error) {
 
 			// Cleanup in case of rename error
-			await provider.delete(resource, { recursive: false, useTrash: false });
+			await provider.delete(resource, { recursive: false, useTrash: false, atomic: false });
 
 			throw error;
 		}
