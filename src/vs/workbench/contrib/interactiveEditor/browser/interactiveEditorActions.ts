@@ -222,7 +222,8 @@ export class FocusInteractiveEditor extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'interactiveEditor.focus',
-			title: localize('focus', 'Focus'),
+			title: { value: localize('focus', 'Focus Input'), original: 'Focus Input' },
+			f1: true,
 			category: AbstractInteractiveEditorAction.category,
 			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_FOCUSED.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: [{
