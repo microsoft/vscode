@@ -18,6 +18,8 @@ import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IPro
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ITranslations } from 'vs/platform/extensionManagement/common/extensionNls';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -376,8 +378,9 @@ export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; pre
 export interface HostedExtension {
 	readonly location: UriComponents;
 	readonly preRelease?: boolean;
-	readonly packageNLSUris?: Map<string, UriComponents>;
-	readonly fallbackPackageNLSUri?: UriComponents;
+	readonly manifest?: IExtensionManifest;
+	readonly defaultManifestTranslations?: ITranslations | null;
+	readonly manifestNLSUris?: Map<string, UriComponents>;
 	readonly readmeUri?: UriComponents;
 	readonly changelogUri?: UriComponents;
 }
