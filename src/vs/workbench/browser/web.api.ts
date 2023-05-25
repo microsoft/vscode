@@ -18,6 +18,8 @@ import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IPro
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ITranslations } from 'vs/platform/extensionManagement/common/extensionNls';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -220,7 +222,7 @@ export interface IWorkbenchConstructionOptions {
 	 * 	- an extension in the Marketplace
 	 * 	- location of the extension where it is hosted.
 	 */
-	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
+	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents | HostedExtension)[];
 
 	/**
 	 * List of extensions to be enabled if they are installed.
@@ -373,6 +375,15 @@ export interface IResourceUriProvider {
 export type ExtensionId = string;
 
 export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
+export interface HostedExtension {
+	readonly location: UriComponents;
+	readonly preRelease?: boolean;
+	readonly packageJSON?: IExtensionManifest;
+	readonly defaultPackageTranslations?: ITranslations | null;
+	readonly packageNLSUris?: Map<string, UriComponents>;
+	readonly readmeUri?: UriComponents;
+	readonly changelogUri?: UriComponents;
+}
 
 export interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };

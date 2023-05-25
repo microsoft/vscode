@@ -265,6 +265,11 @@ function scrollingEnabled(output: OutputItem, options: RenderOptions) {
 		metadata.scrollable : options.outputScrolling;
 }
 
+//  div.cell_container
+//    div.output_container
+//      div.output.output-stream		<-- outputElement parameter
+//        div.scrollable? tabindex="0" 	<-- contentParent
+//          div output-item-id="{guid}"	<-- content from outputItem parameter
 function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
@@ -272,39 +277,50 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 	outputElement.classList.add('output-stream');
 
 	const text = outputInfo.text();
-	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
-	content.setAttribute('output-item-id', outputInfo.id);
+	const newContent = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
+	newContent.setAttribute('output-item-id', outputInfo.id);
 	if (error) {
-		content.classList.add('error');
+		newContent.classList.add('error');
 	}
 
 	const scrollTop = outputScrolling ? findScrolledHeight(outputElement) : undefined;
 
+	const existingContent = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+	const previousOutputParent = getPreviousMatchingContentGroup(outputElement);
+
 	// If the previous output item for the same cell was also a stream, append this output to the previous
-	const existingContentParent = getPreviousMatchingContentGroup(outputElement);
-	if (existingContentParent) {
-		const existing = existingContentParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
-		if (existing) {
-			existing.replaceWith(content);
+	if (previousOutputParent) {
+		if (existingContent) {
+			existingContent.replaceWith(newContent);
+
 		} else {
-			existingContentParent.appendChild(content);
+			previousOutputParent.appendChild(newContent);
 		}
-		existingContentParent.classList.toggle('scrollbar-visible', existingContentParent.scrollHeight > existingContentParent.clientHeight);
-		existingContentParent.scrollTop = scrollTop !== undefined ? scrollTop : existingContentParent.scrollHeight;
+		previousOutputParent.classList.toggle('scrollbar-visible', previousOutputParent.scrollHeight > previousOutputParent.clientHeight);
+		previousOutputParent.scrollTop = scrollTop !== undefined ? scrollTop : previousOutputParent.scrollHeight;
 	} else {
-		const contentParent = document.createElement('div');
-		contentParent.appendChild(content);
+		let contentParent = existingContent?.parentElement;
+		if (existingContent && contentParent) {
+			existingContent.replaceWith(newContent);
+			while (newContent.nextSibling) {
+				// clear out any stale content if we had previously combined streaming outputs into this one
+				newContent.nextSibling.remove();
+			}
+		} else {
+			contentParent = document.createElement('div');
+			contentParent.appendChild(newContent);
+			while (outputElement.firstChild) {
+				outputElement.removeChild(outputElement.firstChild);
+			}
+			outputElement.appendChild(contentParent);
+		}
+
 		contentParent.classList.toggle('scrollable', outputScrolling);
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
+			contentParent!.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
 
-
-		while (outputElement.firstChild) {
-			outputElement.removeChild(outputElement.firstChild);
-		}
-		outputElement.appendChild(contentParent);
 		initializeScroll(contentParent, disposableStore, scrollTop);
 	}
 

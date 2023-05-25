@@ -16,6 +16,7 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
 import { hash } from 'vs/base/common/hash';
+import { Event, Emitter } from 'vs/base/common/event';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Iterable } from 'vs/base/common/iterator';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -27,16 +28,24 @@ import { asStatusBarItemIdentifier } from 'vs/workbench/api/common/extHostTypes'
 export const IExtensionStatusBarItemService = createDecorator<IExtensionStatusBarItemService>('IExtensionStatusBarItemService');
 
 export interface IExtensionStatusBarItemChangeEvent {
-	readonly added?: Readonly<{ entryId: string } & IStatusbarEntry>;
+	readonly added?: ExtensionStatusBarEntry;
 	readonly removed?: string;
 }
+
+export type ExtensionStatusBarEntry = [string, {
+	entry: IStatusbarEntry;
+	alignment: MainThreadStatusBarAlignment;
+	priority: number;
+}];
 
 export interface IExtensionStatusBarItemService {
 	readonly _serviceBrand: undefined;
 
+	onDidChange: Event<IExtensionStatusBarItemChangeEvent>;
+
 	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): IDisposable;
 
-	getEntries(): Iterable<[string, { entry: IStatusbarEntry; alignment: MainThreadStatusBarAlignment; priority: number }]>;
+	getEntries(): Iterable<ExtensionStatusBarEntry>;
 }
 
 
@@ -46,7 +55,16 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 
 	private readonly _entries: Map<string, { accessor: IStatusbarEntryAccessor; entry: IStatusbarEntry; alignment: MainThreadStatusBarAlignment; priority: number }> = new Map();
 
+	private readonly _onDidChange = new Emitter<IExtensionStatusBarItemChangeEvent>();
+	readonly onDidChange: Event<IExtensionStatusBarItemChangeEvent> = this._onDidChange.event;
+
 	constructor(@IStatusbarService private readonly _statusbarService: IStatusbarService) { }
+
+	dispose(): void {
+		this._entries.forEach(entry => entry.accessor.dispose());
+		this._entries.clear();
+		this._onDidChange.dispose();
+	}
 
 	setOrUpdateEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): IDisposable {
 		// if there are icons in the text use the tooltip for the aria label
@@ -98,6 +116,8 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 				priority
 			});
 
+			this._onDidChange.fire({ added: [entryId, { entry, alignment, priority }] });
+
 		} else {
 			// Otherwise update
 			existingEntry.accessor.update(entry);
@@ -109,6 +129,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 			if (entry) {
 				entry.accessor.dispose();
 				this._entries.delete(entryId);
+				this._onDidChange.fire({ removed: entryId });
 			}
 		});
 	}
