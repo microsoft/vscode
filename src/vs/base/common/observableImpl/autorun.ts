@@ -179,13 +179,13 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	public handlePossibleChange(observable: IObservable<any>): void {
-		if (this.state === AutorunState.upToDate && this.dependencies.has(observable)) {
+		if (this.state === AutorunState.upToDate && this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			this.state = AutorunState.dependenciesMightHaveChanged;
 		}
 	}
 
 	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
-		if (this.dependencies.has(observable)) {
+		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			const shouldReact = this._handleChange ? this._handleChange({
 				changedObservable: observable,
 				change,
