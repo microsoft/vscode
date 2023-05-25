@@ -352,7 +352,11 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 		// install a marker for the decoration range
 		const [wholeRangeDecorationId] = textModel.deltaDecorations([], [{ range: wholeRange, options: { description: 'interactiveEditor/session/wholeRange' } }]);
-		store.add(toDisposable(() => textModel.deltaDecorations([wholeRangeDecorationId], [])));
+		store.add(toDisposable(() => {
+			if (!textModel.isDisposed()) {
+				textModel.deltaDecorations([wholeRangeDecorationId], []);
+			}
+		}));
 
 		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeDecorationId);
 
