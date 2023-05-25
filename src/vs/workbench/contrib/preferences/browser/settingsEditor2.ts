@@ -1258,8 +1258,7 @@ export class SettingsEditor2 extends EditorPane {
 				const prerelease = toggleData.settingsEditorRecommendedExtensions[key].onSettingsEditorOpen!.prerelease;
 
 				const extensionId = (typeof prerelease === 'string' && this.productService.quality !== 'stable') ? prerelease : key;
-				const galleryExtensions = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
-				const extension = galleryExtensions.find(extension => extension.identifier.id.toLowerCase() === extensionId.toLowerCase());
+				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
 				if (!extension) {
 					continue;
 				}
