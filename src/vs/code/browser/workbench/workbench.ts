@@ -289,9 +289,9 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 }
 
 interface IWorkspaceOpenOptions {
-	reuse?: boolean;
-	payload?: object;
-	remoteAuthority?: string | null;
+	readonly reuse?: boolean;
+	readonly payload?: object;
+	readonly remoteAuthority?: string | null;
 }
 
 class WorkspaceProvider implements IWorkspaceProvider {
@@ -401,7 +401,6 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 
 	private createTargetUrl(workspace: IWorkspace, options?: IWorkspaceOpenOptions): string | undefined {
-
 		const remoteAuthority = this.getRemoteAuthority(options);
 
 		// Empty
@@ -421,6 +420,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 			const queryParamWorkspace = this.encodeWorkspacePath(workspace.workspaceUri, remoteAuthority);
 			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${queryParamWorkspace}`;
 		}
+
 		// Append payload if any
 		if (options?.payload) {
 			targetHref += `&${WorkspaceProvider.QUERY_PARAM_PAYLOAD}=${encodeURIComponent(JSON.stringify(options.payload))}`;
@@ -476,10 +476,10 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 
 	getRemoteAuthority(options?: IWorkspaceOpenOptions): string | undefined {
-		// if the remote authority is not set, use the current one
-		if (!options || options.remoteAuthority === undefined) {
-			return this.config.remoteAuthority;
+		if (options?.remoteAuthority === undefined) {
+			return this.config.remoteAuthority; // if the remote authority is not set, use the current one
 		}
+
 		return options.remoteAuthority ?? undefined;
 	}
 }
