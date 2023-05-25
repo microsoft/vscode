@@ -38,7 +38,7 @@ import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewM
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { CellSearchModel, ICellMatch, IFileMatchWithCells, contentMatchesToTextSearchMatches, isIFileMatchWithCells, rawCellPrefix, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
@@ -2391,6 +2391,7 @@ interface INotebookDataEditInfo {
 }
 class NotebookDataCache {
 	private _entries: ResourceMap<INotebookDataEditInfo>;
+	private _serializer: INotebookSerializer | undefined;
 
 	constructor(
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -2398,6 +2399,16 @@ class NotebookDataCache {
 		@INotebookService private readonly notebookService: INotebookService,
 	) {
 		this._entries = new ResourceMap<INotebookDataEditInfo>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		this.initSerializer();
+	}
+
+	async initSerializer() {
+		const info = await this.notebookService.withNotebookDataProvider('jupyter-notebook');
+		if (!(info instanceof SimpleNotebookProviderInfo)) {
+			throw new Error('CANNOT open file notebook with this provider');
+		}
+		this._serializer = info.serializer;
+
 	}
 
 	async getNotebookData(notebookUri: URI): Promise<NotebookData> {
@@ -2412,10 +2423,6 @@ class NotebookDataCache {
 		if (entry && entry.mTime === mTime) {
 			return entry.notebookData;
 		} else {
-			const info = await this.notebookService.withNotebookDataProvider('jupyter-notebook');
-			if (!(info instanceof SimpleNotebookProviderInfo)) {
-				throw new Error('CANNOT open file notebook with this provider');
-			}
 
 			let _data: NotebookData = {
 				metadata: {},
@@ -2424,7 +2431,11 @@ class NotebookDataCache {
 
 			const content = await this.fileService.readFileStream(notebookUri);
 			const bytes = await streamToBuffer(content.value);
-			_data = await info.serializer.dataToNotebook(bytes);
+			if (!this._serializer) {
+				//unsupported
+				throw new Error(`serializer not initialized`);
+			}
+			_data = await this._serializer.dataToNotebook(bytes);
 			this._entries.set(notebookUri, { notebookData: _data, mTime });
 			return _data;
 		}

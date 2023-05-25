@@ -52,12 +52,13 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 			query,
 			CancellationToken.None
 		);
-		logService.info('notebook deserialize START');
+		logService.info('notebook search START');
 		let processedFiles = 0;
 		let processedBytes = 0;
 		let processedCells = 0;
 		let matchCount = 0;
 		let deserializeTime = 0;
+		let readTime = 0;
 		const start = Date.now();
 		const pattern = 'start_index';
 		let i = 0;
@@ -68,6 +69,7 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 			i++;
 			const deserializeStart = Date.now();
 			const uri = fileMatch.resource;
+			const readTimeStart = Date.now();
 			const content = await fileService.readFileStream(uri);
 			try {
 				const info = await notebookService.withNotebookDataProvider('jupyter-notebook');
@@ -82,6 +84,9 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 				if (uri.scheme !== Schemas.vscodeInteractive) {
 					const bytes = await streamToBuffer(content.value);
 					processedBytes += bytes.byteLength;
+
+					const readTimeEnd = Date.now();
+					readTime += readTimeEnd - readTimeStart;
 					_data = await info.serializer.dataToNotebook(bytes);
 				}
 
@@ -103,8 +108,10 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 		}
 		const end = Date.now();
 		logService.info(`${matchCount} matches found`);
-		logService.info(`notebook deserialize END | ${end - start}ms | ${((processedBytes / 1024) / 1024).toFixed(2)}MB | Number of Files: ${processedFiles} | Number of Cells: ${processedCells}`);
+		logService.info(`notebook search | ${end - start}ms | ${((processedBytes / 1024) / 1024).toFixed(2)}MB | Number of Files: ${processedFiles} | Number of Cells: ${processedCells}`);
 		logService.info(`notebook deserialize time | ${deserializeTime}ms | ${(deserializeTime / (end - start)) * 100}% of total time`);
+		logService.info(`notebook read time | ${readTime}ms | ${(readTime / deserializeTime) * 100}% of deserialize time`);
+
 	}
 
 	getMatches(source: string, uri: URI, cellIndex: number, target: string) {
