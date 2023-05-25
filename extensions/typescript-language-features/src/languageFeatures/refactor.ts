@@ -175,7 +175,7 @@ class MoveToFileRefactorCommand implements Command {
 		if (response.type !== 'response' || !response.body) {
 			return;
 		}
-		const defaultUri = vscode.Uri.joinPath(Utils.dirname(document.uri), response.body.newFileName);
+		const defaultUri = this.client.toResource(response.body.newFileName);
 
 		const selectExistingFileItem: vscode.QuickPickItem = {
 			label: vscode.l10n.t("Select existing file..."),
