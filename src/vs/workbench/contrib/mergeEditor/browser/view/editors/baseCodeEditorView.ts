@@ -6,10 +6,8 @@
 import { h, reset } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { IObservable, autorun, autorunWithStore, derived } from 'vs/base/common/observable';
 import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -18,7 +16,7 @@ import { applyObservableDecorations } from 'vs/workbench/contrib/mergeEditor/bro
 import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
 import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
+import { CodeEditorView, TitleMenu, createSelectionsAutorun } from './codeEditorView';
 
 export class BaseCodeEditorView extends CodeEditorView {
 	constructor(
@@ -156,8 +154,4 @@ export class BaseCodeEditorView extends CodeEditorView {
 		}
 		return result;
 	});
-
-	protected override getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeLensContribution.ID);
-	}
 }

@@ -41,7 +41,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
 import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { IStateService } from 'vs/platform/state/node/state';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -59,7 +58,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IStateService private readonly stateService: IStateService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
 	) {
 		super();
@@ -775,14 +773,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.windowById(windowId);
 		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
 			window.win.webContents.sendInputEvent(event);
-		}
-	}
-
-	async enableSandbox(windowId: number | undefined, enabled: boolean): Promise<void> {
-		if (enabled) {
-			this.stateService.setItem('window.experimental.useSandbox', true);
-		} else {
-			this.stateService.removeItem('window.experimental.useSandbox');
 		}
 	}
 

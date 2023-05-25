@@ -53,7 +53,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	@memoize
 	get cachePath(): Promise<string> {
-		const result = path.join(tmpdir(), `vscode-update-${this.productService.target}-${process.arch}`);
+		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
 		return pfs.Promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
@@ -212,7 +212,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 
 		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
-		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', '/log', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore'],
 			windowsVerbatimArguments: true
@@ -241,7 +241,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		if (this.state.update.supportsFastUpdate && this.availableUpdate.updateFilePath) {
 			fs.unlinkSync(this.availableUpdate.updateFilePath);
 		} else {
-			spawn(this.availableUpdate.packagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
 				stdio: ['ignore', 'ignore', 'ignore']
 			});

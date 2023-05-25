@@ -35,7 +35,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { disposableTimeout } from 'vs/base/common/async';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -97,12 +97,9 @@ export interface IWalkthroughsService {
 	readonly onDidRemoveWalkthrough: Event<string>;
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>;
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>;
-	readonly onDidAddBuiltInWalkthrough: Event<void>;
 
-	readonly installedExtensionsRegistered: Promise<void>;
-
-	getWalkthroughs(): IResolvedWalkthrough[];
-	getWalkthrough(id: string): IResolvedWalkthrough;
+	getWalkthroughs(): Promise<IResolvedWalkthrough[]>;
+	getWalkthrough(id: string): Promise<IResolvedWalkthrough>;
 
 	registerWalkthrough(descriptor: IWalkthroughLoose): void;
 
@@ -135,9 +132,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private readonly _onDidProgressStep = new Emitter<IResolvedWalkthroughStep>();
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep> = this._onDidProgressStep.event;
 
-	private readonly _onDidAddBuiltInWalkthrough = new Emitter<void>();
-	readonly onDidAddBuiltInWalkthrough: Event<void> = this._onDidAddBuiltInWalkthrough.event;
-
 	private memento: Memento;
 	private stepProgress: Record<string, StepProgress | undefined>;
 
@@ -147,18 +141,15 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private gettingStartedContributions = new Map<string, IWalkthrough>();
 	private steps = new Map<string, IWalkthroughStep>();
 
-	private tasExperimentService?: IWorkbenchAssignmentService;
 	private sessionInstalledExtensions: Set<string> = new Set<string>();
 
 	private categoryVisibilityContextKeys = new Set<string>();
 	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
 	private stepCompletionContextKeys = new Set<string>();
 
-	private triggerInstalledExtensionsRegistered!: () => void;
-	installedExtensionsRegistered: Promise<void>;
-
 	private metadata: WalkthroughMetaDataType;
 
+	private registeredWalkthroughs: boolean = false;
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -171,12 +162,11 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchAssignmentService tasExperimentService: IWorkbenchAssignmentService,
+		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
-
-		this.tasExperimentService = tasExperimentService;
 
 		this.metadata = new Map(
 			JSON.parse(
@@ -185,23 +175,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this.memento = new Memento('gettingStartedService', this.storageService);
 		this.stepProgress = this.memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 
-		walkthroughsExtensionPoint.setHandler(async (_, { added, removed }) => {
-			await Promise.all(
-				[...added.map(e => this.registerExtensionWalkthroughContributions(e.description)),
-				...removed.map(e => this.unregisterExtensionWalkthroughContributions(e.description))]);
-			this.triggerInstalledExtensionsRegistered();
-		});
-
 		this.initCompletionEventListeners();
 
 		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
-
-		this.installedExtensionsRegistered = new Promise(r => this.triggerInstalledExtensionsRegistered = r);
-
-		this._register(disposableTimeout(() => this.registerBuiltInWalkthroughs().finally(/*do nothing*/), 0));
 	}
 
-	private async registerBuiltInWalkthroughs() {
+	private async registerWalkthroughs() {
 
 		const treatmentString = await Promise.race([
 			this.tasExperimentService?.getTreatment<string>('welcome.walkthrough.content'),
@@ -260,7 +239,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			});
 		});
 
-		this._onDidAddBuiltInWalkthrough.fire();
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		walkthroughsExtensionPoint.setHandler((_, { added, removed }) => {
+			added.map(e => this.registerExtensionWalkthroughContributions(e.description));
+			removed.map(e => this.unregisterExtensionWalkthroughContributions(e.description));
+		});
 	}
 
 	private updateWalkthroughContent(walkthrough: BuiltinGettingStartedCategory, experimentTreatment: WalkthroughTreatment): BuiltinGettingStartedCategory {
@@ -509,13 +493,23 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		});
 	}
 
-	getWalkthrough(id: string): IResolvedWalkthrough {
+	async getWalkthrough(id: string): Promise<IResolvedWalkthrough> {
+		if (!this.registeredWalkthroughs) {
+			await this.registerWalkthroughs();
+			this.registeredWalkthroughs = true;
+		}
+
 		const walkthrough = this.gettingStartedContributions.get(id);
 		if (!walkthrough) { throw Error('Trying to get unknown walkthrough: ' + id); }
 		return this.resolveWalkthrough(walkthrough);
 	}
 
-	getWalkthroughs(): IResolvedWalkthrough[] {
+	async getWalkthroughs(): Promise<IResolvedWalkthrough[]> {
+		if (!this.registeredWalkthroughs) {
+			await this.registerWalkthroughs();
+			this.registeredWalkthroughs = true;
+		}
+
 		const registeredCategories = [...this.gettingStartedContributions.values()];
 		const categoriesWithCompletion = registeredCategories
 			.map(category => {
@@ -693,9 +687,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			}
 
 			this.registerCompletionListener(event, step);
-			if (this.sessionEvents.has(event)) {
-				this.progressStep(step.id);
-			}
 		}
 	}
 

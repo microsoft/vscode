@@ -42,7 +42,6 @@ import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
 import 'vs/workbench/contrib/search/browser/searchActionsNotebook';
-import product from 'vs/platform/product/common/product';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -352,13 +351,9 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
 		},
-		'search.experimental.notebookSearch': {
-			type: 'boolean',
-			description: nls.localize('search.experimental.notebookSearch', "Controls whether to use the experimental notebook search in the global search. Please reload your VS Code instance for changes to this setting to take effect."),
-			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
-		},
 	}
-});
+}
+);
 
 CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', async function (accessor, ...args): Promise<IWorkspaceSymbol[]> {
 	const [query] = args;

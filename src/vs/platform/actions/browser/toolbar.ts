@@ -8,6 +8,7 @@ import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -283,6 +284,9 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
  */
 export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 
+	private readonly _onDidChangeMenuItems = this._store.add(new Emitter<this>());
+	readonly onDidChangeMenuItems: Event<this> = this._onDidChangeMenuItems.event;
+
 	constructor(
 		container: HTMLElement,
 		menuId: MenuId,
@@ -309,7 +313,10 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 			super.setActions(primary, secondary);
 		};
 
-		this._store.add(menu.onDidChange(updateToolbar));
+		this._store.add(menu.onDidChange(() => {
+			updateToolbar();
+			this._onDidChangeMenuItems.fire(this);
+		}));
 		updateToolbar();
 	}
 

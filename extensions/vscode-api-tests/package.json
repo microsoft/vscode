@@ -10,6 +10,7 @@
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentPaste",
     "editorInsets",
     "extensionRuntime",
     "extensionsAny",
@@ -42,8 +43,13 @@
     "tokenInformation",
     "treeItemCheckbox",
     "treeViewReveal",
+    "testInvalidateResults",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "windowActivity",
+    "interactiveUserActions",
+    "envCollectionWorkspace",
+    "envCollectionOptions"
   ],
   "private": true,
   "activationEvents": [],

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { deepClone, equals } from 'vs/base/common/objects';
+import { equals } from 'vs/base/common/objects';
 import { isAbsolute } from 'vs/base/common/path';
 import { Emitter } from 'vs/base/common/event';
 import { relativePath } from 'vs/base/common/resources';
@@ -14,6 +14,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
 import { ResourceSet } from 'vs/base/common/map';
+import { getDriveLetter } from 'vs/base/common/extpath';
 
 interface IConfiguredExpression {
 	readonly expression: IExpression;
@@ -64,11 +65,11 @@ export class ResourceGlobMatcher extends Disposable {
 			const currentExpression = this.mapFolderToConfiguredExpression.get(folderUriStr);
 
 			if (newExpression) {
-				if (!currentExpression || !equals(currentExpression.expression, newExpression)) {
+				if (!currentExpression || !equals(currentExpression.expression, newExpression.expression)) {
 					changed = true;
 
-					this.mapFolderToParsedExpression.set(folderUriStr, parse(newExpression));
-					this.mapFolderToConfiguredExpression.set(folderUriStr, this.toConfiguredExpression(newExpression));
+					this.mapFolderToParsedExpression.set(folderUriStr, parse(newExpression.expression));
+					this.mapFolderToConfiguredExpression.set(folderUriStr, newExpression);
 				}
 			} else {
 				if (currentExpression) {
@@ -99,11 +100,11 @@ export class ResourceGlobMatcher extends Disposable {
 		const globalNewExpression = this.doGetExpression(undefined);
 		const globalCurrentExpression = this.mapFolderToConfiguredExpression.get(ResourceGlobMatcher.NO_FOLDER);
 		if (globalNewExpression) {
-			if (!globalCurrentExpression || !equals(globalCurrentExpression.expression, globalNewExpression)) {
+			if (!globalCurrentExpression || !equals(globalCurrentExpression.expression, globalNewExpression.expression)) {
 				changed = true;
 
-				this.mapFolderToParsedExpression.set(ResourceGlobMatcher.NO_FOLDER, parse(globalNewExpression));
-				this.mapFolderToConfiguredExpression.set(ResourceGlobMatcher.NO_FOLDER, this.toConfiguredExpression(globalNewExpression));
+				this.mapFolderToParsedExpression.set(ResourceGlobMatcher.NO_FOLDER, parse(globalNewExpression.expression));
+				this.mapFolderToConfiguredExpression.set(ResourceGlobMatcher.NO_FOLDER, globalNewExpression);
 			}
 		} else {
 			if (globalCurrentExpression) {
@@ -119,19 +120,47 @@ export class ResourceGlobMatcher extends Disposable {
 		}
 	}
 
-	private doGetExpression(resource: URI | undefined): IExpression | undefined {
+	private doGetExpression(resource: URI | undefined): IConfiguredExpression | undefined {
 		const expression = this.getExpression(resource);
-		if (expression && Object.keys(expression).length > 0) {
-			return expression;
+		if (!expression) {
+			return undefined;
 		}
 
-		return undefined;
-	}
+		const keys = Object.keys(expression);
+		if (keys.length === 0) {
+			return undefined;
+		}
 
-	private toConfiguredExpression(expression: IExpression): IConfiguredExpression {
+		let hasAbsolutePath = false;
+
+		// Check the expression for absolute paths/globs
+		// and specifically for Windows, make sure the
+		// drive letter is lowercased, because we later
+		// check with `URI.fsPath` which is always putting
+		// the drive letter lowercased.
+
+		const massagedExpression: IExpression = Object.create(null);
+		for (const key of keys) {
+			if (!hasAbsolutePath) {
+				hasAbsolutePath = isAbsolute(key);
+			}
+
+			let massagedKey = key;
+
+			const driveLetter = getDriveLetter(massagedKey, true /* probe for windows */);
+			if (driveLetter) {
+				const driveLetterLower = driveLetter.toLowerCase();
+				if (driveLetter !== driveLetter.toLowerCase()) {
+					massagedKey = `${driveLetterLower}${massagedKey.substring(1)}`;
+				}
+			}
+
+			massagedExpression[massagedKey] = expression[key];
+		}
+
 		return {
-			expression: deepClone(expression),
-			hasAbsolutePath: Object.keys(expression).some(key => expression[key] === true && isAbsolute(key))
+			expression: massagedExpression,
+			hasAbsolutePath
 		};
 	}
 

@@ -404,34 +404,13 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		// Folder
 		else if (isFolderToOpen(workspace)) {
-			let queryParamFolder: string;
-			if (this.config.remoteAuthority && workspace.folderUri.scheme === Schemas.vscodeRemote) {
-				// when connected to a remote and having a folder
-				// for that remote, only use the path as query
-				// value to form shorter, nicer URLs.
-				// ensure paths are absolute (begin with `/`)
-				// clipboard: ltrim(workspace.folderUri.path, posix.sep)
-				queryParamFolder = `${posix.sep}${ltrim(workspace.folderUri.path, posix.sep)}`;
-			} else {
-				queryParamFolder = encodeURIComponent(workspace.folderUri.toString(true));
-			}
-
+			const queryParamFolder = this.encodeWorkspacePath(workspace.folderUri);
 			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${queryParamFolder}`;
 		}
 
 		// Workspace
 		else if (isWorkspaceToOpen(workspace)) {
-			let queryParamWorkspace: string;
-			if (this.config.remoteAuthority && workspace.workspaceUri.scheme === Schemas.vscodeRemote) {
-				// when connected to a remote and having a workspace
-				// for that remote, only use the path as query
-				// value to form shorter, nicer URLs.
-				// ensure paths are absolute (begin with `/`)
-				queryParamWorkspace = `${posix.sep}${ltrim(workspace.workspaceUri.path, posix.sep)}`;
-			} else {
-				queryParamWorkspace = encodeURIComponent(workspace.workspaceUri.toString(true));
-			}
-
+			const queryParamWorkspace = this.encodeWorkspacePath(workspace.workspaceUri);
 			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${queryParamWorkspace}`;
 		}
 
@@ -441,6 +420,22 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		}
 
 		return targetHref;
+	}
+
+	private encodeWorkspacePath(uri: URI): string {
+		if (this.config.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
+
+			// when connected to a remote and having a folder
+			// or workspace for that remote, only use the path
+			// as query value to form shorter, nicer URLs.
+			// however, we still need to `encodeURIComponent`
+			// to ensure to preserve special characters, such
+			// as `+` in the path.
+
+			return encodeURIComponent(`${posix.sep}${ltrim(uri.path, posix.sep)}`).replaceAll('%2F', '/');
+		}
+
+		return encodeURIComponent(uri.toString(true));
 	}
 
 	private isSame(workspaceA: IWorkspace, workspaceB: IWorkspace): boolean {
@@ -505,11 +500,10 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	// Create workbench
 	create(document.body, {
 		...config,
-		settingsSyncOptions: config.settingsSyncOptions ? {
-			enabled: config.settingsSyncOptions.enabled,
-		} : undefined,
+		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
+		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),
-		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider() // with a remote, we don't use a local credentials provider
+		credentialsProvider: config.remoteAuthority ? undefined /* with a remote, we don't use a local credentials provider */ : new LocalStorageCredentialsProvider()
 	});
 })();
