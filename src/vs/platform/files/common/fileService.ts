@@ -396,7 +396,18 @@ export class FileService extends Disposable implements IFileService {
 
 			// write file: buffered
 			else {
-				await this.doWriteBuffered(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream);
+				const contents = bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream;
+
+				// atomic write: write to atomic resource and then rename
+				if (options?.atomic !== false && options?.atomic?.resource) {
+					await this.doWriteBuffered(provider, options?.atomic?.resource, options, contents);
+					await this.doMoveCopy(provider, options?.atomic?.resource, provider, resource, 'move', true);
+				}
+
+				// non-atomic write: directly write to target
+				else {
+					await this.doWriteBuffered(provider, resource, options, contents);
+				}
 			}
 
 			// events
@@ -414,6 +425,12 @@ export class FileService extends Disposable implements IFileService {
 		const unlock = !!options?.unlock;
 		if (unlock && !(provider.capabilities & FileSystemProviderCapabilities.FileWriteUnlock)) {
 			throw new Error(localize('writeFailedUnlockUnsupported', "Unable to unlock file '{0}' because provider does not support it.", this.resourceForError(resource)));
+		}
+
+		// Validate atomic support
+		const atomic = !!options?.atomic;
+		if (atomic && !(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite)) {
+			throw new Error(localize('writeFailedAtomicUnsupported', "Unable to atomically write file '{0}' because provider does not support it.", this.resourceForError(resource)));
 		}
 
 		// Validate via file stat meta data
@@ -579,7 +596,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		if (error instanceof TooLargeFileOperationError) {
-			return new TooLargeFileOperationError(message, error.fileOperationResult, error.size, error.options);
+			return new TooLargeFileOperationError(message, error.fileOperationResult, error.size, error.options as IReadFileOptions);
 		}
 
 		return new FileOperationError(message, toFileOperationResult(error), options);
@@ -1237,7 +1254,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Write through the provider
-		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true, unlock: options?.unlock ?? false });
+		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true, unlock: options?.unlock ?? false, atomic: options?.atomic ?? false });
 	}
 
 	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
@@ -1291,7 +1308,7 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private async doPipeUnbufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
-		return targetProvider.writeFile(target, await sourceProvider.readFile(source), { create: true, overwrite: true, unlock: false });
+		return targetProvider.writeFile(target, await sourceProvider.readFile(source), { create: true, overwrite: true, unlock: false, atomic: false });
 	}
 
 	private async doPipeUnbufferedToBuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {

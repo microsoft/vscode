@@ -283,7 +283,26 @@ export interface IFileAtomicReadOptions {
 	 * to from a different process. If you need such atomic
 	 * operations, you better use a real database as storage.
 	 */
-	readonly atomic: true;
+	readonly atomic: boolean;
+}
+
+export interface IFileAtomicWriteOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `writeFile` method updates the target file atomically
+	 * by first writing to a resource as provided by the
+	 * options and then renaming it over the target.
+	 */
+	readonly atomic: {
+
+		/**
+		 * The resource to use as a temporary file for the
+		 * write operation. The resource must be on the same
+		 * disk partition as the target path.
+		 */
+		readonly resource: URI;
+	} | false;
 }
 
 export interface IFileReadLimits {
@@ -316,7 +335,7 @@ export interface IFileReadStreamOptions {
 	readonly limits?: IFileReadLimits;
 }
 
-export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions {
+export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions, IFileAtomicWriteOptions {
 
 	/**
 	 * Set to `true` to create a file when it does not exist. Will
@@ -516,9 +535,15 @@ export const enum FileSystemProviderCapabilities {
 	FileAtomicRead = 1 << 14,
 
 	/**
+	 * Provider support to write files atomically. This implies the
+	 * provider provides the `FileReadWrite` capability too.
+	 */
+	FileAtomicWrite = 1 << 15,
+
+	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 15
+	FileClone = 1 << 16,
 }
 
 export interface IFileSystemProvider {
@@ -605,6 +630,18 @@ export function hasFileAtomicReadCapability(provider: IFileSystemProvider): prov
 	}
 
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicRead);
+}
+
+export interface IFileSystemProviderWithFileAtomicWriteCapability extends IFileSystemProvider {
+	writeFile(resource: URI, contents: Uint8Array, opts?: IFileAtomicWriteOptions): Promise<void>;
+}
+
+export function hasFileAtomicWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicWriteCapability {
+	if (!hasReadWriteCapability(provider)) {
+		return false; // we require the `FileReadWrite` capability too
+	}
+
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite);
 }
 
 export enum FileSystemProviderErrorCode {
@@ -1146,6 +1183,22 @@ export interface IWriteFileOptions {
 	 * Whether to attempt to unlock a file before writing.
 	 */
 	readonly unlock?: boolean;
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `writeFile` method updates the target file atomically
+	 * by first writing to a resource as provided by the
+	 * options and then renaming it over the target.
+	 */
+	readonly atomic?: {
+
+		/**
+		 * The resource to use as a temporary file for the
+		 * write operation. The resource must be on the same
+		 * disk partition as the target path.
+		 */
+		readonly resource: URI;
+	} | false;
 }
 
 export interface IResolveFileOptions {
@@ -1185,7 +1238,7 @@ export class FileOperationError extends Error {
 	constructor(
 		message: string,
 		readonly fileOperationResult: FileOperationResult,
-		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
+		readonly options?: IReadFileOptions | IWriteFileOptions | ICreateFileOptions
 	) {
 		super(message);
 	}

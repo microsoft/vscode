@@ -269,7 +269,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 				const file = await fileHandle.getFile();
 				const contents = new Uint8Array(await file.arrayBuffer());
 
-				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false });
+				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false, atomic: false });
 				await this.delete(from, { recursive: false, useTrash: false });
 			}
 

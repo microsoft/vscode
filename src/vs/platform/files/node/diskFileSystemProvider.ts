@@ -19,7 +19,7 @@ import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream'
 import { URI } from 'vs/base/common/uri';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -46,6 +46,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
+	IFileSystemProviderWithFileAtomicWriteCapability,
 	IFileSystemProviderWithFileCloneCapability {
 
 	private static TRACE_LOG_RESOURCE_LOCKS = false; // not enabled by default because very spammy
@@ -71,6 +72,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
 				FileSystemProviderCapabilities.FileAtomicRead |
+				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileClone;
 
 			if (isLinux) {
@@ -231,6 +233,28 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+		if (opts.atomic) {
+			return this.doWriteFileAtomic(resource, opts.atomic.resource, content, opts);
+		} else {
+			return this.doWriteFile(resource, content, opts);
+		}
+	}
+
+	private async doWriteFileAtomic(resource: URI, tempResource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+
+		// Write to temp resource first
+		await this.doWriteFile(tempResource, content, opts);
+
+		// Still support unlock option
+		if (opts.unlock) {
+			await this.unlock(resource);
+		}
+
+		// Rename over existing to ensure atomic replace
+		await this.rename(tempResource, resource, { overwrite: opts.overwrite });
+	}
+
+	private async doWriteFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		let handle: number | undefined = undefined;
 		try {
 			const filePath = this.toFilePath(resource);
@@ -290,14 +314,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 			// Determine whether to unlock the file (write only)
 			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
-				try {
-					const { stat } = await SymlinkSupport.stat(filePath);
-					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
-						await Promises.chmod(filePath, stat.mode | 0o200);
-					}
-				} catch (error) {
-					this.logService.trace(error); // ignore any errors here and try to just write
-				}
+				await this.unlock(resource);
 			}
 
 			// Determine file flags for opening (read vs write)
@@ -384,6 +401,21 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 
 		return fd;
+	}
+
+	private async unlock(resource: URI): Promise<void> {
+		const filePath = this.toFilePath(resource);
+
+		try {
+			const { stat } = await SymlinkSupport.stat(filePath);
+			if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
+				await Promises.chmod(filePath, stat.mode | 0o200);
+			}
+		} catch (error) {
+			if (error.code !== 'ENOENT') {
+				this.logService.trace(error); // ignore any errors here and try to just write
+			}
+		}
 	}
 
 	async close(fd: number): Promise<void> {

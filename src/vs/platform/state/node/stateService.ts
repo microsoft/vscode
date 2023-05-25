@@ -5,6 +5,7 @@
 
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -139,7 +140,7 @@ export class FileStorage {
 
 		// Write to disk
 		try {
-			await this.fileService.writeFile(this.storagePath, VSBuffer.fromString(serializedDatabase));
+			await this.fileService.writeFile(this.storagePath, VSBuffer.fromString(serializedDatabase), { atomic: { resource: joinPath(dirname(this.storagePath), `${basename(this.storagePath)}.vsctmp`) } });
 			this.lastSavedStorageContents = serializedDatabase;
 		} catch (error) {
 			this.logService.error(error);

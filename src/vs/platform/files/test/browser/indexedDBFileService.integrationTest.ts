@@ -230,7 +230,7 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		let creationPromises: Promise<any> | undefined = undefined;
 		return {
 			async create() {
-				return creationPromises = Promise.all(batch.map(entry => userdataFileProvider.writeFile(entry.resource, VSBuffer.fromString(entry.contents).buffer, { create: true, overwrite: true, unlock: false })));
+				return creationPromises = Promise.all(batch.map(entry => userdataFileProvider.writeFile(entry.resource, VSBuffer.fromString(entry.contents).buffer, { create: true, overwrite: true, unlock: false, atomic: false })));
 			},
 			async assertContentsCorrect() {
 				if (!creationPromises) { throw Error('read called before create'); }

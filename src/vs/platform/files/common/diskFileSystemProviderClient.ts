@@ -53,6 +53,7 @@ export class DiskFileSystemProviderClient extends Disposable implements
 				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
 				FileSystemProviderCapabilities.FileAtomicRead |
+				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileClone;
 
 			if (this.extraCapabilities.pathCaseSensitive) {
