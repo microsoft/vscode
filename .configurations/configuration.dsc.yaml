@@ -21,7 +21,6 @@ properties:
       settings:
         Name: 'yarn'
         Global: true
-        PackageDirectory: '${WinGetConfigRoot}\..\'
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       directives:
         description: Install Python 3.10
