@@ -987,6 +987,10 @@ export class FileService extends Disposable implements IFileService {
 			throw new Error(localize('deleteFailedAtomicUnsupported', "Unable to delete file '{0}' atomically because provider does not support it.", this.resourceForError(resource)));
 		}
 
+		if (useTrash && atomic) {
+			throw new Error(localize('deleteFailedTrashAndAtomicUnsupported', "Unable to delete file '{0}' with option to use trash and atomic both enabled.", this.resourceForError(resource)));
+		}
+
 		// Validate delete
 		let stat: IStat | undefined = undefined;
 		try {

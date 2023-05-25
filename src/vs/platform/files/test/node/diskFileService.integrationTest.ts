@@ -589,7 +589,7 @@ flakySuite('Disk File Service', function () {
 		const resource = URI.file(join(testDir, 'deep'));
 		const source = await service.resolve(resource);
 
-		assert.strictEqual(await service.canDelete(source.resource, { recursive: true, useTrash }), true);
+		assert.strictEqual(await service.canDelete(source.resource, { recursive: true, useTrash, atomic }), true);
 		await service.del(source.resource, { recursive: true, useTrash, atomic });
 
 		assert.strictEqual(existsSync(source.resource.fsPath), false);

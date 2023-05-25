@@ -317,7 +317,8 @@ export interface IFileAtomicDeleteOptions {
 	/**
 	 * The optional `atomic` flag can be used to make sure
 	 * the `delete` method deletes the target atomically by
-	 * first renaming it to a temporary resource and then deleting it.
+	 * first renaming it to a temporary resource in the same
+	 * folder and then deleting it.
 	 */
 	readonly atomic: IFileAtomicOptions | false;
 }
@@ -394,15 +395,19 @@ export interface IFileDeleteOptions {
 
 	/**
 	 * Set to `true` to attempt to move the file to trash
-	 * instead of deleting it permanently from disk. This
-	 * option maybe not be supported on all providers.
+	 * instead of deleting it permanently from disk.
+	 *
+	 * This option maybe not be supported on all providers.
 	 */
 	readonly useTrash: boolean;
 
 	/**
 	 * The optional `atomic` flag can be used to make sure
 	 * the `delete` method deletes the target atomically by
-	 * first renaming it to a temporary resource and then deleting it.
+	 * first renaming it to a temporary resource in the same
+	 * folder and then deleting it.
+	 *
+	 * This option maybe not be supported on all providers.
 	 */
 	readonly atomic: IFileAtomicOptions | false;
 }

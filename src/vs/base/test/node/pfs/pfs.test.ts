@@ -91,7 +91,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(testDir));
 	});
 
-	test('rimraf - simple - move (with target)', async () => {
+	test('rimraf - simple - move (with moveToPath)', async () => {
 		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
 
