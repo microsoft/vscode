@@ -23,6 +23,41 @@ export function autorunHandleChanges<TChangeSummary>(
 	return new AutorunObserver(debugName, fn, options.createEmptyChangeSummary, options.handleChange);
 }
 
+// TODO@hediet rename to autorunWithStore
+export function autorunWithStore2(
+	debugName: string,
+	fn: (reader: IReader, store: DisposableStore) => void,
+): IDisposable {
+	return autorunWithStore(fn, debugName);
+}
+
+export function autorunWithStoreHandleChanges<TChangeSummary>(
+	debugName: string,
+	options: {
+		createEmptyChangeSummary?: () => TChangeSummary;
+		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
+	},
+	fn: (reader: IReader, changeSummary: TChangeSummary, store: DisposableStore) => void
+): IDisposable {
+	const store = new DisposableStore();
+	const disposable = autorunHandleChanges(
+		debugName,
+		{
+			createEmptyChangeSummary: options.createEmptyChangeSummary,
+			handleChange: options.handleChange,
+		},
+		(reader, changeSummary) => {
+			store.clear();
+			fn(reader, changeSummary, store);
+		}
+	);
+	return toDisposable(() => {
+		disposable.dispose();
+		store.dispose();
+	});
+}
+
+// TODO@hediet deprecate, rename to autorunWithStoreEx
 export function autorunWithStore(
 	fn: (reader: IReader, store: DisposableStore) => void,
 	debugName: string

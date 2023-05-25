@@ -198,6 +198,9 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	}
 }
 
+/**
+ * Creates a signal that can be triggered to invalidate observers.
+ */
 export function observableSignal<TDelta = void>(
 	debugName: string
 ): IObservableSignal<TDelta> {
@@ -287,6 +290,10 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
 export function keepAlive(observable: IObservable<any>, forceRecompute?: boolean): IDisposable {
 	const o = new KeepAliveObserver(forceRecompute ?? false);
 	observable.addObserver(o);
+	if (forceRecompute) {
+		observable.reportChanges();
+	}
+
 	return toDisposable(() => {
 		observable.removeObserver(o);
 	});
