@@ -255,11 +255,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		try {
 
-			// Support unlock option
-			if (opts.unlock) {
-				await this.unlock(resource);
-			}
-
 			// Rename over existing to ensure atomic replace
 			await this.rename(tempResource, resource, { overwrite: opts.overwrite });
 
@@ -332,7 +327,16 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 			// Determine whether to unlock the file (write only)
 			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
-				await this.unlock(resource);
+				try {
+					const { stat } = await SymlinkSupport.stat(filePath);
+					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
+						await Promises.chmod(filePath, stat.mode | 0o200);
+					}
+				} catch (error) {
+					if (error.code !== 'ENOENT') {
+						this.logService.trace(error); // ignore any errors here and try to just write
+					}
+				}
 			}
 
 			// Determine file flags for opening (read vs write)
@@ -419,21 +423,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 
 		return fd;
-	}
-
-	private async unlock(resource: URI): Promise<void> {
-		const filePath = this.toFilePath(resource);
-
-		try {
-			const { stat } = await SymlinkSupport.stat(filePath);
-			if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
-				await Promises.chmod(filePath, stat.mode | 0o200);
-			}
-		} catch (error) {
-			if (error.code !== 'ENOENT') {
-				this.logService.trace(error); // ignore any errors here and try to just write
-			}
-		}
 	}
 
 	async close(fd: number): Promise<void> {

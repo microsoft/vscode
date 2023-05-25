@@ -398,13 +398,12 @@ export class FileService extends Disposable implements IFileService {
 			else {
 				const contents = bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream;
 
-				// atomic write: write to atomic resource and then rename
+				// atomic write
 				if (options?.atomic !== false && options?.atomic?.resource) {
-					await this.doWriteBuffered(provider, options?.atomic?.resource, options, contents);
-					await this.doMoveCopy(provider, options?.atomic?.resource, provider, resource, 'move', true);
+					await this.doWriteBufferedAtomic(provider, resource, options.atomic.resource, options, contents);
 				}
 
-				// non-atomic write: directly write to target
+				// non-atomic write
 				else {
 					await this.doWriteBuffered(provider, resource, options, contents);
 				}
@@ -436,6 +435,10 @@ export class FileService extends Disposable implements IFileService {
 
 			if (this.getExtUri(provider).providerExtUri.isEqual(resource, options?.atomic.resource)) {
 				throw new Error(localize('writeFailedAtomicSameFile', "Unable to atomically write file '{0}' because atomic resource and target resource are the same.", this.resourceForError(resource)));
+			}
+
+			if (unlock) {
+				throw new Error(localize('writeFailedAtomicUnlock', "Unable to unlock file '{0}' because atomic write is enabled.", this.resourceForError(resource)));
 			}
 		}
 
@@ -1144,6 +1147,24 @@ export class FileService extends Disposable implements IFileService {
 	//#region Helpers
 
 	private readonly writeQueue = this._register(new ResourceQueue());
+
+	private async doWriteBufferedAtomic(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, tempResource: URI, options: IWriteFileOptions | undefined, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
+
+		// Write to temp resource first
+		await this.doWriteBuffered(provider, tempResource, options, readableOrStreamOrBufferedStream);
+
+		try {
+
+			// Rename over existing to ensure atomic replace
+			await provider.rename(tempResource, resource, { overwrite: true });
+		} catch (error) {
+
+			// Cleanup in case of rename error
+			await provider.delete(resource, { recursive: false, useTrash: false });
+
+			throw error;
+		}
+	}
 
 	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: IWriteFileOptions | undefined, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
 		return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
