@@ -118,13 +118,11 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async functio
 
 	const folderPicks: IQuickPickItem[] = folders.map(folder => {
 		const label = folder.name;
-		let description = labelService.getUriLabel(dirname(folder.uri), { relative: true });
-		if (description === label) {
-			description = '';
-		}
+		const description = labelService.getUriLabel(dirname(folder.uri), { relative: true });
+
 		return {
 			label,
-			description,
+			description: description !== label ? description : undefined, // https://github.com/microsoft/vscode/issues/183418
 			folder,
 			iconClasses: getIconClasses(modelService, languageService, folder.uri, FileKind.ROOT_FOLDER)
 		};
