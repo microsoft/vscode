@@ -18,7 +18,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants, RendererType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -130,7 +130,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 
 	private _decorationAddon: DecorationAddon;
-	private _suggestAddon: SuggestAddon;
+	private _suggestAddon?: SuggestAddon;
 
 	// Optional addons
 	private _canvasAddon?: CanvasAddonType;
@@ -181,7 +181,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		private readonly _backgroundColorProvider: IXtermColorProvider,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		shellIntegrationNonce: string,
-		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
+		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean> | undefined,
 		disableShellIntegrationReporting: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -257,12 +257,24 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 		// Load the suggest addon, this should be loaded regardless of the setting as the sequences
 		// may still come in
-		this._suggestAddon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
-		this.raw.loadAddon(this._suggestAddon);
-		this._suggestAddon.onAcceptedCompletion(async text => {
-			this._onDidRequestFocus.fire();
-			this._onDidRequestSendText.fire(text);
-		});
+		if (this._terminalSuggestWidgetVisibleContextKey) {
+			this._suggestAddon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
+			this.raw.loadAddon(this._suggestAddon);
+			this._suggestAddon.onAcceptedCompletion(async text => {
+				this._onDidRequestFocus.fire();
+				this._onDidRequestSendText.fire(text);
+			});
+		}
+	}
+
+	async getContentsAsHtml(): Promise<string> {
+		if (!this._serializeAddon) {
+			const Addon = await this._getSerializeAddonConstructor();
+			this._serializeAddon = new Addon();
+			this.raw.loadAddon(this._serializeAddon);
+		}
+
+		return this._serializeAddon.serializeAsHTML();
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -286,18 +298,18 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		return result;
 	}
 
-	attachToElement(container: HTMLElement): HTMLElement {
+	attachToElement(container: HTMLElement, enabledRenderers: RendererType = RendererType.All): HTMLElement {
 		if (!this._container) {
 			this.raw.open(container);
 		}
 		// TODO: Move before open to the DOM renderer doesn't initialize
-		if (this._shouldLoadWebgl()) {
+		if ((enabledRenderers & RendererType.WebGL) && this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
-		} else if (this._shouldLoadCanvas()) {
+		} else if ((enabledRenderers & RendererType.Canvas) && this._shouldLoadCanvas()) {
 			this._enableCanvasRenderer();
 		}
 
-		this._suggestAddon.setContainer(container);
+		this._suggestAddon?.setContainer(container);
 
 		this._container = container;
 		// Screen must be created at this point as xterm.open is called
@@ -763,4 +775,26 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	_writeText(data: string): void {
 		this.raw.write(data);
 	}
+}
+
+export function getXtermScaledDimensions(font: ITerminalFont, width: number, height: number) {
+	if (!font.charWidth || !font.charHeight) {
+		return null;
+	}
+
+	// Because xterm.js converts from CSS pixels to actual pixels through
+	// the use of canvas, window.devicePixelRatio needs to be used here in
+	// order to be precise. font.charWidth/charHeight alone as insufficient
+	// when window.devicePixelRatio changes.
+	const scaledWidthAvailable = width * window.devicePixelRatio;
+
+	const scaledCharWidth = font.charWidth * window.devicePixelRatio + font.letterSpacing;
+	const cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
+
+	const scaledHeightAvailable = height * window.devicePixelRatio;
+	const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
+	const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
+	const rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
+
+	return { rows, cols };
 }

@@ -102,6 +102,14 @@ export interface ITerminalCapabilityStore {
 	get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined;
 }
 
+export const emptyTerminalCapabilityStore: ITerminalCapabilityStore = {
+	items: [][Symbol.iterator](),
+	onDidAddCapability: Event.None,
+	onDidRemoveCapability: Event.None,
+	has: () => false,
+	get: () => undefined
+};
+
 /**
  * Maps capability types to their implementation, enabling strongly typed fetching of
  * implementations.

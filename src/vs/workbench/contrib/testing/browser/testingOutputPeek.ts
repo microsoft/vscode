@@ -34,7 +34,6 @@ import 'vs/css!./testingOutputPeek';
 import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -66,6 +65,8 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { ITerminalService, IXtermTerminal, RendererType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
@@ -723,7 +724,7 @@ class TestResultsViewContent extends Disposable {
 		this.contentProviders = [
 			this._register(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
 			this._register(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),
-			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, this.editor, messageContainer)),
+			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, messageContainer)),
 		];
 
 		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
@@ -1139,65 +1140,122 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 	}
 }
 
+
+const ttPolicy = window.trustedTypes?.createPolicy('outputTerminalData', { createHTML: value => value });
+
 class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
-	private readonly widget = this._register(new MutableDisposable<CodeEditorWidget>());
-	private readonly model = this._register(new MutableDisposable());
-	private dimension?: dom.IDimension;
+	private static lastMeasurementInfo?: { font: string; metrics: TextMetrics };
+	private static getTextMeasurements(xtermTerminal: IXtermTerminal) {
+		const opts = xtermTerminal.raw.options;
+		const font = `${opts.fontWeight || ''} ${opts.fontSize}px ${opts.fontFamily}`;
+		if (font === this.lastMeasurementInfo?.font) {
+			return this.lastMeasurementInfo.metrics;
+		}
+
+		const canvas = document.createElement('canvas');
+		const context = canvas.getContext('2d')!;
+		context.font = font;
+		// allow-any-unicode-next-line
+		const metrics = context.measureText('█');
+		PlainTextMessagePeek.lastMeasurementInfo = { font, metrics };
+		return metrics;
+	}
+
+	private dimensions?: dom.IDimension;
+
+	/** Active terminal instance. */
+	private readonly terminal = this._register(new MutableDisposable<IXtermTerminal>());
+	/** Used to display messages that get rendered to HTML statically */
+	private readonly rawDisplayNode = this._register(new MutableDisposable());
+	/** Listener for streaming result data */
+	private readonly outputDataListener = this._register(new MutableDisposable());
 
 	constructor(
-		private readonly editor: ICodeEditor | undefined,
 		private readonly container: HTMLElement,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService private readonly modelService: ITextModelService,
+		@ITestResultService private readonly resultService: ITestResultService,
+		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
 		super();
 	}
 
+	private async makeTerminal() {
+		return this.terminal.value = await this.terminalService.createDetachedXterm({ rows: 10, cols: 80 });
+	}
+
 	public async update(subject: InspectSubject) {
-		let uri: URI;
 		if (subject instanceof MessageSubject) {
 			const message = subject.messages[subject.messageIndex];
 			if (isDiffable(message) || typeof message.message !== 'string') {
 				return this.clear();
 			}
-			uri = subject.messageUri;
+			const terminal = await this.makeTerminal();
+			terminal.raw.write(message.message);
+			this.layoutTerminal(terminal);
+			this.renderTerminalToHtml(terminal);
 		} else {
-			uri = subject.outputUri;
-		}
-
-
-		const modelRef = this.model.value = await this.modelService.createModelReference(uri);
-		if (!this.widget.value) {
-			this.widget.value = this.editor ? this.instantiationService.createInstance(
-				EmbeddedCodeEditorWidget,
-				this.container,
-				commonEditorOptions,
-				{},
-				this.editor,
-			) : this.instantiationService.createInstance(
-				CodeEditorWidget,
-				this.container,
-				commonEditorOptions,
-				{ isSimpleWidget: true }
-			);
-
-			if (this.dimension) {
-				this.widget.value.layout(this.dimension);
+			const result = this.resultService.getResult(subject.resultId)?.tasks[subject.taskIndex];
+			if (!result) {
+				return this.clear();
 			}
-		}
 
-		this.widget.value.setModel(modelRef.object.textEditorModel);
-		this.widget.value.updateOptions(commonEditorOptions);
+			const terminal = await this.makeTerminal();
+			for (const buffer of result.output.buffers) {
+				terminal.raw.write(buffer.buffer);
+			}
+
+			terminal.raw.write('\x1b[?25l'); // hide cursor
+			this.layoutTerminal(terminal);
+
+			this.rawDisplayNode.clear();
+			this.container.classList.add('xterm-detached-instance');
+			terminal.attachToElement(this.container, RendererType.Dom);
+
+			this.outputDataListener.value = result.output.onDidWriteData(e => terminal.raw.write(e.buffer));
+		}
 	}
 
 	private clear() {
-		this.model.clear();
-		this.widget.clear();
+		this.outputDataListener.clear();
+		this.terminal.clear();
 	}
 
 	public layout(dimensions: dom.IDimension) {
-		this.dimension = dimensions;
-		this.widget.value?.layout(dimensions);
+		this.dimensions = dimensions;
+		if (this.terminal.value) {
+			this.layoutTerminal(this.terminal.value, dimensions.width, dimensions.height);
+		}
+	}
+
+	private async renderTerminalToHtml(xterm: IXtermTerminal) {
+		const html = await xterm.getContentsAsHtml();
+		const wrapper = document.createElement('div');
+		wrapper.innerHTML = (ttPolicy?.createHTML(html) ?? html) as string;
+		this.rawDisplayNode.value = toDisposable(() => this.container.removeChild(wrapper));
+		this.container.appendChild(wrapper);
+	}
+
+	private layoutTerminal(
+		xterm: IXtermTerminal,
+		width = this.dimensions?.width ?? this.container.clientWidth,
+		height = this.dimensions?.height ?? this.container.clientHeight
+	) {
+		width -= 10; // scrollbar width
+		const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
+
+		if (scaled) {
+			xterm.raw.resize(scaled.cols, scaled.rows);
+		} else {
+			const metrics = PlainTextMessagePeek.getTextMeasurements(xterm);
+			xterm.raw.resize(
+				Math.floor(width / metrics.width),
+				Math.floor(height / (metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent)),
+			);
+		}
+
+		// re-render the html with the width change:
+		if (this.rawDisplayNode.value) {
+			this.renderTerminalToHtml(xterm);
+		}
 	}
 }
 

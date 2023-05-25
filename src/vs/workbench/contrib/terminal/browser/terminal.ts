@@ -138,6 +138,11 @@ export const enum TerminalConnectionState {
 	Connected
 }
 
+export interface IDetachedXTermOptions {
+	cols: number;
+	rows: number;
+}
+
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
@@ -169,6 +174,13 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * profile will be used at the default target.
 	 */
 	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
+
+	/**
+	 * Creates a detached xterm instance which is not attached to the DOM or
+	 * tracked as a terminal instance.
+	 * @params options The options to create the terminal with
+	 */
+	createDetachedXterm(options: IDetachedXTermOptions): Promise<IXtermTerminal>;
 
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
@@ -946,7 +958,19 @@ export const enum XtermTerminalConstants {
 	SearchHighlightLimit = 1000
 }
 
-export interface IXtermTerminal {
+export const enum RendererType {
+	WebGL = 1 << 0,
+	Canvas = 1 << 1,
+	Dom = 1 << 2,
+	All = RendererType.Canvas | RendererType.Dom | RendererType.Canvas,
+}
+
+export interface IXtermTerminal extends IDisposable {
+	/**
+	 * Underlying xterm terminal.
+	 */
+	readonly raw: RawXtermTerminal;
+
 	/**
 	 * An object that tracks when commands are run and enables navigating and selecting between
 	 * them.
@@ -970,6 +994,13 @@ export interface IXtermTerminal {
 	 * Whether the `disableStdin` option in xterm.js is set.
 	 */
 	readonly isStdinDisabled: boolean;
+
+	/**
+	 * Attached the terminal to the given element
+	 * @param container Container the terminal will be rendered in
+	 * @param enabledRenderers Bits of renderers that are allowable in this context. Defaults to all renderers if undefined.
+	 */
+	attachToElement(container: HTMLElement, enabledRenderers?: RendererType): void;
 
 	findResult?: { resultIndex: number; resultCount: number };
 
@@ -1020,6 +1051,11 @@ export interface IXtermTerminal {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
+
+	/**
+	 * Gets the buffer contents as HTML.
+	 */
+	getContentsAsHtml(): Promise<string>;
 
 	/**
 	 * Refreshes the terminal after it has been moved.
