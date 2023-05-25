@@ -429,8 +429,14 @@ export class FileService extends Disposable implements IFileService {
 
 		// Validate atomic support
 		const atomic = !!options?.atomic;
-		if (atomic && !(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite)) {
-			throw new Error(localize('writeFailedAtomicUnsupported', "Unable to atomically write file '{0}' because provider does not support it.", this.resourceForError(resource)));
+		if (atomic) {
+			if (!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite)) {
+				throw new Error(localize('writeFailedAtomicUnsupported', "Unable to atomically write file '{0}' because provider does not support it.", this.resourceForError(resource)));
+			}
+
+			if (this.getExtUri(provider).providerExtUri.isEqual(resource, options?.atomic.resource)) {
+				throw new Error(localize('writeFailedAtomicSameFile', "Unable to atomically write file '{0}' because atomic resource and target resource are the same.", this.resourceForError(resource)));
+			}
 		}
 
 		// Validate via file stat meta data

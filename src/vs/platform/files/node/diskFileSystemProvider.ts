@@ -103,6 +103,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
+	private async statIgnoreError(resource: URI): Promise<IStat | undefined> {
+		try {
+			return await this.stat(resource);
+		} catch (error) {
+			return undefined;
+		}
+	}
+
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		try {
 			const children = await Promises.readdir(this.toFilePath(resource), { withFileTypes: true });
@@ -245,13 +253,23 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		// Write to temp resource first
 		await this.doWriteFile(tempResource, content, opts);
 
-		// Still support unlock option
-		if (opts.unlock) {
-			await this.unlock(resource);
-		}
+		try {
 
-		// Rename over existing to ensure atomic replace
-		await this.rename(tempResource, resource, { overwrite: opts.overwrite });
+			// Support unlock option
+			if (opts.unlock) {
+				await this.unlock(resource);
+			}
+
+			// Rename over existing to ensure atomic replace
+			await this.rename(tempResource, resource, { overwrite: opts.overwrite });
+
+		} catch (error) {
+
+			// Cleanup in case of rename error
+			await this.delete(tempResource, { recursive: false, useTrash: false });
+
+			throw error;
+		}
 	}
 
 	private async doWriteFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
@@ -619,8 +637,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		try {
 
-			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, 'move', opts.overwrite);
+			// Validate the move operation can perform
+			await this.validateMoveCopy(from, to, 'move', opts.overwrite);
 
 			// Move
 			await Promises.move(fromFilePath, toFilePath);
@@ -646,8 +664,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		try {
 
-			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
+			// Validate the copy operation can perform
+			await this.validateMoveCopy(from, to, 'copy', opts.overwrite);
 
 			// Copy
 			await Promises.copy(fromFilePath, toFilePath, { preserveSymlinks: true });
@@ -663,7 +681,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	private async validateTargetDeleted(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
+	private async validateMoveCopy(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
@@ -673,17 +691,43 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			isSameResourceWithDifferentPathCase = isEqual(fromFilePath, toFilePath, true /* ignore case */);
 		}
 
-		if (isSameResourceWithDifferentPathCase && mode === 'copy') {
-			throw createFileSystemProviderError(localize('fileCopyErrorPathCase', "'File cannot be copied to same path with different path case"), FileSystemProviderErrorCode.FileExists);
-		}
+		if (isSameResourceWithDifferentPathCase) {
 
-		// Handle existing target (unless this is a case change)
-		if (!isSameResourceWithDifferentPathCase && await Promises.exists(toFilePath)) {
-			if (!overwrite) {
-				throw createFileSystemProviderError(localize('fileCopyErrorExists', "File at target already exists"), FileSystemProviderErrorCode.FileExists);
+			// You cannot copy the same file to the same location with different
+			// path case unless you are on a case sensitive file system
+			if (mode === 'copy') {
+				throw createFileSystemProviderError(localize('fileCopyErrorPathCase', "File cannot be copied to same path with different path case"), FileSystemProviderErrorCode.FileExists);
 			}
 
-			// Delete target
+			// You can move the same file to the same location with different
+			// path case on case insensitive file systems
+			else if (mode === 'move') {
+				return;
+			}
+		}
+
+		// Here we have to see if the target to move/copy to exists or not.
+		// We need to respect the `overwrite` option to throw in case the
+		// target exists.
+
+		const fromStat = await this.statIgnoreError(from);
+		if (!fromStat) {
+			throw createFileSystemProviderError(localize('fileMoveCopyErrorNotFound', "File to move/copy does not exist"), FileSystemProviderErrorCode.FileNotFound);
+		}
+
+		const toStat = await this.statIgnoreError(to);
+		if (!toStat) {
+			return; // target does not exist so we are good
+		}
+
+		if (!overwrite) {
+			throw createFileSystemProviderError(localize('fileMoveCopyErrorExists', "File at target already exists and thus will not be moved/copied to unless overwrite is specified"), FileSystemProviderErrorCode.FileExists);
+		}
+
+		// Handle existing target for move/copy
+		if ((fromStat.type & FileType.File) !== 0 && (toStat.type & FileType.File) !== 0) {
+			return; // node.js can move/copy a file over an existing file without having to delete it first
+		} else {
 			await this.delete(to, { recursive: true, useTrash: false });
 		}
 	}
