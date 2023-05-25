@@ -28,7 +28,7 @@ type ApplyCodeActionCommand_args = {
 
 class EditorChatFollowUp implements Command {
 
-	id: string = '_quickFix.editorChatFollowUp';
+	id: string = '_typescript.quickFix.editorChatFollowUp';
 
 	constructor(private readonly prompt: string, private readonly document: vscode.TextDocument, private readonly range: vscode.Range, private readonly client: ITypeScriptServiceClient) {
 	}
