@@ -23,9 +23,9 @@ import type { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api
 import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 
 interface ICredential {
-	service: string;
-	account: string;
-	password: string;
+	readonly service: string;
+	readonly account: string;
+	readonly password: string;
 }
 
 class LocalStorageCredentialsProvider implements ICredentialsProvider {
@@ -397,6 +397,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				return !!result;
 			}
 		}
+
 		return false;
 	}
 
