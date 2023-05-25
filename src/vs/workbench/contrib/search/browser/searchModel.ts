@@ -1276,8 +1276,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@ILogService private readonly _logService: ILogService
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(_resource, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
@@ -1317,27 +1316,13 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		const normalizedResource = this.uriIdentityService.extUri.normalizePath(this.resource);
 		let uri = this.normalizedUriParent(rawFileMatch.resource);
 
-		const debug: string[] = ['[search model building]'];
-
-		if (this._logService.getLevel() === LogLevel.Trace) {
-			debug.push(`Starting with normalized resource ${normalizedResource}`);
-		}
-
 		while (!this.uriEquals(normalizedResource, uri)) {
 			fileMatchParentParts.unshift(uri);
 			const prevUri = uri;
 			uri = this.normalizedUriParent(uri);
-			if (this._logService.getLevel() === LogLevel.Trace) {
-				debug.push(`current uri parent ${uri} comparing with ${prevUri}`);
-			}
 			if (this.uriEquals(prevUri, uri)) {
-				this._logService.trace(debug.join('\n\n'));
-				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${normalizedResource}`);
+				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of ${normalizedResource}`);
 			}
-		}
-
-		if (this._logService.getLevel() === LogLevel.Trace) {
-			this._logService.trace(debug.join('\n\n'));
 		}
 
 		const root = this.closestRoot ?? this;
