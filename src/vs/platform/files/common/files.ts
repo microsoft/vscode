@@ -291,17 +291,22 @@ export interface IFileAtomicWriteOptions {
 	/**
 	 * The optional `atomic` flag can be used to make sure
 	 * the `writeFile` method updates the target file atomically
-	 * by first writing to a resource as provided by the
-	 * options and then renaming it over the target.
+	 * by first writing to a temporary file in the same folder
+	 * and then renaming it over the target.
 	 */
 	readonly atomic: {
 
 		/**
-		 * The resource to use as a temporary file for the
-		 * write operation. The resource must be on the same
-		 * disk partition as the target path.
+		 * The postfix is used to create a temporary file based
+		 * on the original resource. The resulting temporary
+		 * file will be in the same folder as the resource and
+		 * have `postfix` appended to the resource name.
+		 *
+		 * Example: given a file resource `file:///some/path/foo.txt`
+		 * and a postfix `.vsctmp`, the temporary file will be
+		 * created as `file:///some/path/foo.txt.vsctmp`.
 		 */
-		readonly resource: URI;
+		readonly postfix: string;
 	} | false;
 }
 
@@ -1187,17 +1192,22 @@ export interface IWriteFileOptions {
 	/**
 	 * The optional `atomic` flag can be used to make sure
 	 * the `writeFile` method updates the target file atomically
-	 * by first writing to a resource as provided by the
-	 * options and then renaming it over the target.
+	 * by first writing to a temporary file in the same folder
+	 * and then renaming it over the target.
 	 */
 	readonly atomic?: {
 
 		/**
-		 * The resource to use as a temporary file for the
-		 * write operation. The resource must be on the same
-		 * disk partition as the target path.
+		 * The postfix is used to create a temporary file based
+		 * on the original resource. The resulting temporary
+		 * file will be in the same folder as the resource and
+		 * have `postfix` appended to the resource name.
+		 *
+		 * Example: given a file resource `file:///some/path/foo.txt`
+		 * and a postfix `.vsctmp`, the temporary file will be
+		 * created as `file:///some/path/foo.txt.vsctmp`.
 		 */
-		readonly resource: URI;
+		readonly postfix: string;
 	} | false;
 }
 

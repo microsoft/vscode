@@ -12,7 +12,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { basename, dirname, join, posix } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { joinPath, dirname as resourcesDirname, basename as resourcesBasename } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -1832,7 +1832,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(content, 'Small File');
 
 		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: atomic ? { resource: joinPath(resourcesDirname(resource), `${resourcesBasename(resource)}.vsctmp`) } : false });
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: atomic ? { postfix: '.vsctmp' } : false });
 
 		assert.ok(event!);
 		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
@@ -1879,7 +1879,7 @@ flakySuite('Disk File Service', function () {
 		const content = readFileSync(resource.fsPath);
 		const newContent = content.toString() + content.toString();
 
-		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: atomic ? { resource: joinPath(resourcesDirname(resource), `${resourcesBasename(resource)}.vsctmp`) } : false });
+		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: atomic ? { postfix: '.vsctmp' } : false });
 		assert.strictEqual(fileStat.name, 'lorem.txt');
 
 		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);

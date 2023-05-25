@@ -14,7 +14,7 @@ import { isEqual } from 'vs/base/common/extpath';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, dirname } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase, joinPath } from 'vs/base/common/resources';
+import { extUriBiasedIgnorePathCase, joinPath, basename as resourcesBasename, dirname as resourcesDirname } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
@@ -241,8 +241,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		if (opts.atomic) {
-			return this.doWriteFileAtomic(resource, opts.atomic.resource, content, opts);
+		if (opts?.atomic !== false && opts?.atomic?.postfix) {
+			return this.doWriteFileAtomic(resource, joinPath(resourcesDirname(resource), `${resourcesBasename(resource)}${opts.atomic.postfix}`), content, opts);
 		} else {
 			return this.doWriteFile(resource, content, opts);
 		}

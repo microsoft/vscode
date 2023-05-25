@@ -14,7 +14,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { mark } from 'vs/base/common/performance';
-import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/common/resources';
+import { basename, dirname, extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath, joinPath } from 'vs/base/common/resources';
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -399,8 +399,8 @@ export class FileService extends Disposable implements IFileService {
 				const contents = bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream;
 
 				// atomic write
-				if (options?.atomic !== false && options?.atomic?.resource) {
-					await this.doWriteBufferedAtomic(provider, resource, options.atomic.resource, options, contents);
+				if (options?.atomic !== false && options?.atomic?.postfix) {
+					await this.doWriteBufferedAtomic(provider, resource, joinPath(dirname(resource), `${basename(resource)}${options.atomic.postfix}`), options, contents);
 				}
 
 				// non-atomic write
@@ -431,10 +431,6 @@ export class FileService extends Disposable implements IFileService {
 		if (atomic) {
 			if (!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite)) {
 				throw new Error(localize('writeFailedAtomicUnsupported', "Unable to atomically write file '{0}' because provider does not support it.", this.resourceForError(resource)));
-			}
-
-			if (this.getExtUri(provider).providerExtUri.isEqual(resource, options?.atomic.resource)) {
-				throw new Error(localize('writeFailedAtomicSameFile', "Unable to atomically write file '{0}' because atomic resource and target resource are the same.", this.resourceForError(resource)));
 			}
 
 			if (unlock) {
