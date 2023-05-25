@@ -55,7 +55,7 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 			if (e.affectsSome(this.contextKeysToWatch) &&
 				Array.from(this.contextKeysToWatch).every(value => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(value)))) {
 				const codeEditor = this.codeEditorService.getActiveCodeEditor();
-				if (codeEditor && codeEditor.hasModel() && codeEditor) {
+				if (codeEditor?.hasModel()) {
 					const welcomeWidget = new WelcomeWidget(codeEditor, instantiationService, commandService, telemetryService);
 					welcomeWidget.render(welcomeDialog.title,
 						welcomeDialog.message,
