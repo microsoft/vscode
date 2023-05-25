@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
@@ -12,7 +11,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -123,15 +122,6 @@ export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidge
 export const MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE = MenuId.for('interactiveEditorWidget.markdownMessage');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_STATUS = MenuId.for('interactiveEditorWidget.status');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD = MenuId.for('interactiveEditorWidget.undo');
-MenuRegistry.appendMenuItem(MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, {
-	submenu: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
-	title: localize('discard', "Discard..."),
-	icon: Codicon.discard,
-	group: '0_main',
-	order: 2,
-	when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.Preview),
-	rememberDefaultAction: true
-});
 
 // --- colors
 

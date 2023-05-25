@@ -276,7 +276,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._activeSession!.recordExternalEditOccurred(editIsOutsideOfWholeRange);
 
 			if (editIsOutsideOfWholeRange) {
-				this._logService.trace('[IE] text changed outside of whole range, FINISH session');
+				this._logService.info('[IE] text changed outside of whole range, FINISH session');
 				this._finishExistingSession();
 			}
 		}));
