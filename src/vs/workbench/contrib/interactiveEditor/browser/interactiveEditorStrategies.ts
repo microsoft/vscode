@@ -220,10 +220,10 @@ export class LiveStrategy extends EditModeStrategy {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
+		this._diffEnabled = _storageService.getBoolean(LiveStrategy._inlineDiffStorageKey, StorageScope.PROFILE, true);
+
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._diffEnabled);
 		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
-
-		this._diffEnabled = _storageService.getBoolean(LiveStrategy._inlineDiffStorageKey, StorageScope.PROFILE, false);
 		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
 		this._diffToggleListener = ModifierKeyEmitter.getInstance().event(e => {
@@ -235,8 +235,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override dispose(): void {
 		this._diffToggleListener.dispose();
-		this._diffEnabled = this._inlineDiffDecorations.visible;
-		this._storageService.store(LiveStrategy._inlineDiffStorageKey, this._diffEnabled, StorageScope.PROFILE, StorageTarget.USER);
 		this._inlineDiffDecorations.clear();
 		this._ctxShowingDiff.reset();
 	}
@@ -386,15 +384,13 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 
 	protected override _doToggleDiff(): void {
-		if (this._diffEnabled !== this._diffZone.isVisible) {
-			const scrollState = StableEditorScrollState.capture(this._editor);
-			if (this._diffEnabled) {
-				this._diffZone.show();
-			} else {
-				this._diffZone.hide();
-			}
-			scrollState.restore(this._editor);
+		const scrollState = StableEditorScrollState.capture(this._editor);
+		if (this._diffEnabled) {
+			this._diffZone.show();
+		} else {
+			this._diffZone.hide();
 		}
+		scrollState.restore(this._editor);
 	}
 }
 

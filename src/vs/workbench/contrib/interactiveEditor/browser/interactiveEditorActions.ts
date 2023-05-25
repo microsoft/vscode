@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InteractiveEditorController, InteractiveEditorRunOptions } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED, CTX_INTERACTIVE_EDITOR_DID_EDIT } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { IAction2Options, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -63,6 +63,34 @@ export class StartSessionAction extends EditorAction2 {
 			options = arg;
 		}
 		InteractiveEditorController.get(editor)?.run(options);
+	}
+}
+
+export class UnstashSessionAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'interactiveEditor.unstash',
+			title: { value: localize('unstash', 'Resume Last Dismissed Code Chat'), original: 'Resume Last Dismissed Code Chat' },
+			category: AbstractInteractiveEditorAction.category,
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION, EditorContextKeys.writable),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyZ,
+			}
+		});
+	}
+
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+		const ctrl = InteractiveEditorController.get(editor);
+		if (ctrl) {
+			const session = ctrl.unstashLastSession();
+			if (session) {
+				ctrl.run({
+					existingSession: session,
+					isUnstashed: true
+				});
+			}
+		}
 	}
 }
 
@@ -263,7 +291,7 @@ MenuRegistry.appendMenuItem(MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, {
 });
 
 
-export class DicardAction extends AbstractInteractiveEditorAction {
+export class DiscardAction extends AbstractInteractiveEditorAction {
 
 	constructor() {
 		super({
@@ -273,7 +301,7 @@ export class DicardAction extends AbstractInteractiveEditorAction {
 			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.CtrlCmd + KeyCode.Escape
+				primary: KeyCode.Escape
 			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
@@ -417,14 +445,9 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 			keybinding: [{
 				weight: KeybindingWeight.EditorContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-			}, {
-				weight: KeybindingWeight.EditorContrib + 10,
-				primary: KeyCode.Escape,
-				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.Preview)
 			}],
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo(EditMode.Preview),
 				group: '0_main',
 				order: 0
 			}
