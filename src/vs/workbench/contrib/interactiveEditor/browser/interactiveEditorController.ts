@@ -137,6 +137,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		this._stashedSession.clear();
 		this._finishExistingSession();
 		this._store.dispose();
 	}
