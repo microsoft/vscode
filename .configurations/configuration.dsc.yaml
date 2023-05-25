@@ -3,6 +3,13 @@
 properties:
   resources:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
+      directives:
+        description: Install Git
+        allowPrerelease: true
+      settings:
+        id: Git.Git
+        source: winget
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: npm
       directives:
         description: Install NodeJS version >=16.17.x and <17
