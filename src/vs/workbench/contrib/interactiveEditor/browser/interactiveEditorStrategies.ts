@@ -385,7 +385,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 	}
 
-	override _doToggleDiff(): void {
+	protected override _doToggleDiff(): void {
 		if (this._diffEnabled !== this._diffZone.isVisible) {
 			const scrollState = StableEditorScrollState.capture(this._editor);
 			if (this._diffEnabled) {
