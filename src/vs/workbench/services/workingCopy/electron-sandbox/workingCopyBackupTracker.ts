@@ -114,10 +114,10 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// Trigger backup if configured and enabled for shutdown reason
 		let backups: IWorkingCopy[] = [];
 		let backupError: Error | undefined = undefined;
-		const backup = await this.shouldBackupBeforeShutdown(reason);
-		if (backup) {
+		const copiesToBackup = await this.shouldBackupBeforeShutdown(reason, modifiedWorkingCopies);
+		if (copiesToBackup.length > 0) {
 			try {
-				const backupResult = await this.backupBeforeShutdown(modifiedWorkingCopies);
+				const backupResult = await this.backupBeforeShutdown(copiesToBackup);
 				backups = backupResult.backups;
 				backupError = backupResult.error;
 
@@ -162,12 +162,12 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		}
 	}
 
-	private async shouldBackupBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
-		let backup: boolean | undefined;
+	private async shouldBackupBeforeShutdown(reason: ShutdownReason, modifiedWorkingCopies: readonly IWorkingCopy[]): Promise<readonly IWorkingCopy[]> {
+
 		if (!this.filesConfigurationService.isHotExitEnabled) {
-			backup = false; // never backup when hot exit is disabled via settings
+			return []; // never backup when hot exit is disabled via settings
 		} else if (this.environmentService.isExtensionDevelopment) {
-			backup = true; // always backup closing extension development window without asking to speed up debugging
+			return modifiedWorkingCopies; // always backup closing extension development window without asking to speed up debugging
 		} else {
 
 			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
@@ -178,33 +178,29 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			switch (reason) {
 				case ShutdownReason.CLOSE:
 					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-						backup = true; // backup if a folder is open and onExitAndWindowClose is configured
+						return modifiedWorkingCopies; // backup if a folder is open and onExitAndWindowClose is configured
 					} else if (await this.nativeHostService.getWindowCount() > 1 || isMacintosh) {
-						backup = false; // do not backup if a window is closed that does not cause quitting of the application
+						if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration !== HotExitConfiguration.OFF) {
+							return modifiedWorkingCopies.filter(wc => wc.capabilities & WorkingCopyCapabilities.Scratchpad); // only backup scratchpad working copies
+						}
+						return []; // do not backup if a window is closed that does not cause quitting of the application
 					} else {
-						backup = true; // backup if last window is closed on win/linux where the application quits right after
+						return modifiedWorkingCopies; // backup if last window is closed on win/linux where the application quits right after
 					}
-					break;
-
 				case ShutdownReason.QUIT:
-					backup = true; // backup because next start we restore all backups
-					break;
+					return modifiedWorkingCopies; // backup because next start we restore all backups
 
 				case ShutdownReason.RELOAD:
-					backup = true; // backup because after window reload, backups restore
-					break;
+					return modifiedWorkingCopies; // backup because after window reload, backups restore
 
 				case ShutdownReason.LOAD:
 					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-						backup = true; // backup if a folder is open and onExitAndWindowClose is configured
+						return modifiedWorkingCopies; // backup if a folder is open and onExitAndWindowClose is configured
 					} else {
-						backup = false; // do not backup because we are switching contexts
+						return []; // do not backup because we are switching contexts
 					}
-					break;
 			}
 		}
-
-		return backup;
 	}
 
 	private showErrorDialog(msg: string, workingCopies: readonly IWorkingCopy[], error?: Error): void {
