@@ -59,6 +59,7 @@ type TelemetryDataClassification = {
 export class Session {
 
 	private _lastInput: string | undefined;
+	private _lastExpansionState: boolean | undefined;
 	private _lastTextModelChanges: LineRangeMapping[] | undefined;
 	private _lastSnapshot: ITextSnapshot | undefined;
 	private readonly _exchange: SessionExchange[] = [];
@@ -90,6 +91,14 @@ export class Session {
 
 	get lastInput() {
 		return this._lastInput;
+	}
+
+	get lastExpansionState() {
+		return this._lastExpansionState ?? false;
+	}
+
+	set lastExpansionState(state: boolean) {
+		this._lastExpansionState = state;
 	}
 
 	get lastSnapshot(): ITextSnapshot | undefined {
@@ -343,7 +352,11 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 		// install a marker for the decoration range
 		const [wholeRangeDecorationId] = textModel.deltaDecorations([], [{ range: wholeRange, options: { description: 'interactiveEditor/session/wholeRange' } }]);
-		store.add(toDisposable(() => textModel.deltaDecorations([wholeRangeDecorationId], [])));
+		store.add(toDisposable(() => {
+			if (!textModel.isDisposed()) {
+				textModel.deltaDecorations([wholeRangeDecorationId], []);
+			}
+		}));
 
 		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeDecorationId);
 

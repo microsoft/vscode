@@ -117,9 +117,9 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	resolve(options?: IStoredFileWorkingCopyResolveOptions): Promise<void>;
 
 	/**
-	 * Explicitly sets the working copy to be dirty.
+	 * Explicitly sets the working copy to be modified.
 	 */
-	markDirty(): void;
+	markModified(): void;
 
 	/**
 	 * Whether the stored file working copy is in the provided `state`
@@ -349,8 +349,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		return this.dirty;
 	}
 
-	markDirty(): void {
-		this.setDirty(true);
+	markModified(): void {
+		this.setDirty(true); // stored file working copy tracks modified via dirty
 	}
 
 	private setDirty(dirty: boolean): void {

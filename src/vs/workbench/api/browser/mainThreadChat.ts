@@ -8,10 +8,10 @@ import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtHostContext, ExtHostChatShape, IChatRequestDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatShape, ExtHostContext, IChatRequestDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChatProgress, IChatRequest, IChatResponse, IChat, IChatDynamicRequest, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChat)
@@ -134,6 +134,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			},
 			provideFollowups: (session, token) => {
 				return this._proxy.$provideFollowups(handle, session.id, token);
+			},
+			removeRequest: (session, requestId) => {
+				return this._proxy.$removeRequest(handle, session.id, requestId);
 			}
 		});
 

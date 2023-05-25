@@ -461,11 +461,6 @@ export interface IExtensionService {
 	stopExtensionHosts(reason: string): Promise<boolean>;
 
 	/**
-	 * @deprecated Use `stopExtensionHosts()` instead.
-	 */
-	stopExtensionHosts(force: true): void;
-
-	/**
 	 * Starts the extension hosts.
 	 */
 	startExtensionHosts(): Promise<void>;

@@ -21,8 +21,8 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 	const content = [];
 	content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the input via the Escape key."));
 	if (type === 'chat') {
-		content.push(descriptionForCommand('chat.action.focus', localize('workbench.action.chat.focus', 'The Focus Chat command ({0}) focuses the chat request/response list, which can be navigated with UpArrow/DownArrow.',), localize('workbench.action.chat.focusNoKb', 'The Focus Interactive Session command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow and is currently not triggerable by a keybinding.'), keybindingService));
-		content.push(descriptionForCommand('workbench.action.chat.focusInput', localize('workbench.action.chat.focusInput', 'The Focus Chat Input command ({0}) focuses the input box for chat requests.'), localize('workbench.action.interactiveSession.focusInputNoKb', 'Focus Interactive Session Input command focuses the input box for chat requests and is currently not triggerable by a keybinding.'), keybindingService));
+		content.push(descriptionForCommand('chat.action.focus', localize('workbench.action.chat.focus', 'The Focus Chat command ({0}) focuses the chat request/response list, which can be navigated with UpArrow/DownArrow.',), localize('workbench.action.chat.focusNoKb', 'The Focus Chat List command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow and is currently not triggerable by a keybinding.'), keybindingService));
+		content.push(descriptionForCommand('workbench.action.chat.focusInput', localize('workbench.action.chat.focusInput', 'The Focus Chat Input command ({0}) focuses the input box for chat requests.'), localize('workbench.action.interactiveSession.focusInputNoKb', 'Focus Chat Input command focuses the input box for chat requests and is currently not triggerable by a keybinding.'), keybindingService));
 	} else {
 		content.push(localize('interactiveSession.makeRequest', "Tab once to reach the make request button, which will re-run the request."));
 		const regex = /^(\/fix|\/explain)/;
@@ -43,7 +43,6 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 			content.push(localize('interactiveSession.toolbarButtons', "Tab again to focus the response."));
 		}
 	}
-	content.push(localize('interactiveSession.exit', "Use Escape outside of this help menu to exit the session."));
 	return content.join('\n');
 }
 

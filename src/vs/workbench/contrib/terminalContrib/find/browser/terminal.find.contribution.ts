@@ -3,65 +3,82 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDimension } from 'vs/base/browser/dom';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Lazy } from 'vs/base/common/lazy';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { findInFilesCommand } from 'vs/workbench/contrib/search/browser/searchActionsFind';
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminalContrib/find/browser/terminalFindWidget';
+import { Terminal as RawXtermTerminal } from 'xterm';
 
-const findWidgets: Map<ITerminalInstance, TerminalFindWidget> = new Map();
+class TerminalFindContribution extends Disposable implements ITerminalContribution {
+	static readonly ID = 'terminal.find';
 
-function getFindWidget(instance: ITerminalInstance | undefined, accessor: ServicesAccessor): TerminalFindWidget | undefined {
-	if (instance === undefined) {
-		return undefined;
+	static get(instance: ITerminalInstance): TerminalFindContribution | null {
+		return instance.getContribution<TerminalFindContribution>(TerminalFindContribution.ID);
 	}
-	let result = findWidgets.get(instance);
-	if (!result) {
-		const terminalService = accessor.get(ITerminalService);
-		const widget = accessor.get(IInstantiationService).createInstance(TerminalFindWidget, instance);
 
-		// Track focus and set state so we can force the scroll bar to be visible
-		let focusState = false;
-		widget.focusTracker.onDidFocus(() => {
-			focusState = true;
-			instance.forceScrollbarVisibility();
-			terminalService.setActiveInstance(instance);
-		});
-		widget.focusTracker.onDidBlur(() => {
-			focusState = false;
-			instance.resetScrollbarVisibility();
-		});
+	private _findWidget: Lazy<TerminalFindWidget>;
+	private _lastLayoutDimensions: IDimension | undefined;
 
-		// Attach the find widget and listen for layout
-		instance.registerChildElement({
-			element: widget.getDomNode(),
-			layout: dimension => widget.layout(dimension.width),
-			xtermReady: xterm => {
-				xterm.onDidChangeFindResults(() => widget.updateResultCount());
+	get findWidget(): TerminalFindWidget { return this._findWidget.value; }
+
+	constructor(
+		private readonly _instance: ITerminalInstance,
+		processManager: ITerminalProcessManager,
+		widgetManager: TerminalWidgetManager,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITerminalService terminalService: ITerminalService
+	) {
+		super();
+
+		this._findWidget = new Lazy(() => {
+			const findWidget = instantiationService.createInstance(TerminalFindWidget, this._instance);
+
+			// Track focus and set state so we can force the scroll bar to be visible
+			findWidget.focusTracker.onDidFocus(() => {
+				this._instance.forceScrollbarVisibility();
+				terminalService.setActiveInstance(this._instance);
+			});
+			findWidget.focusTracker.onDidBlur(() => {
+				this._instance.resetScrollbarVisibility();
+			});
+
+			this._instance.domElement.appendChild(findWidget.getDomNode());
+			if (this._lastLayoutDimensions) {
+				findWidget.layout(this._lastLayoutDimensions.width);
 			}
-		});
 
-		// Cache the widget while the instance exists, dispose it when the terminal is disposed
-		instance.onDisposed(e => {
-			const focusTerminal = focusState;
-			widget?.dispose();
-			findWidgets.delete(e);
-			if (focusTerminal) {
-				instance.focus();
-			}
+			return findWidget;
 		});
-
-		findWidgets.set(instance, widget);
-		result = widget;
 	}
-	return result;
+
+	layout(xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void {
+		this._lastLayoutDimensions = dimension;
+		this._findWidget.rawValue?.layout(dimension.width);
+	}
+
+	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		this._register(xterm.onDidChangeFindResults(() => this._findWidget.rawValue?.updateResultCount()));
+	}
+
+	override dispose() {
+		super.dispose();
+		this._findWidget.rawValue?.dispose();
+	}
+
 }
+registerTerminalContribution(TerminalFindContribution.ID, TerminalFindContribution);
 
 registerActiveInstanceAction({
 	id: TerminalCommandId.FindFocus,
@@ -72,8 +89,8 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-	run: (activeInstance, c, accessor) => {
-		getFindWidget(activeInstance, accessor)?.reveal();
+	run: (activeInstance) => {
+		TerminalFindContribution.get(activeInstance)?.findWidget.reveal();
 	}
 });
 
@@ -87,8 +104,8 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-	run: (activeInstance, c, accessor) => {
-		getFindWidget(activeInstance, accessor)?.hide();
+	run: (activeInstance) => {
+		TerminalFindContribution.get(activeInstance)?.findWidget.hide();
 	}
 });
 
@@ -102,11 +119,9 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-	run: (activeInstance, c, accessor) => {
-		const state = getFindWidget(activeInstance, accessor)?.state;
-		if (state) {
-			state.change({ matchCase: !state.isRegex }, false);
-		}
+	run: (activeInstance) => {
+		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
+		state?.change({ matchCase: !state.isRegex }, false);
 	}
 });
 
@@ -120,11 +135,9 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-	run: (activeInstance, c, accessor) => {
-		const state = getFindWidget(activeInstance, accessor)?.state;
-		if (state) {
-			state.change({ matchCase: !state.wholeWord }, false);
-		}
+	run: (activeInstance) => {
+		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
+		state?.change({ matchCase: !state.wholeWord }, false);
 	}
 });
 
@@ -138,11 +151,9 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib
 	},
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-	run: (activeInstance, c, accessor) => {
-		const state = getFindWidget(activeInstance, accessor)?.state;
-		if (state) {
-			state.change({ matchCase: !state.matchCase }, false);
-		}
+	run: (activeInstance) => {
+		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
+		state?.change({ matchCase: !state.matchCase }, false);
 	}
 });
 
@@ -163,8 +174,8 @@ registerActiveInstanceAction({
 		}
 	],
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-	run: (activeInstance, c, accessor) => {
-		const widget = getFindWidget(activeInstance, accessor);
+	run: (activeInstance) => {
+		const widget = TerminalFindContribution.get(activeInstance)?.findWidget;
 		if (widget) {
 			widget.show();
 			widget.find(false);
@@ -189,8 +200,8 @@ registerActiveInstanceAction({
 		}
 	],
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-	run: (activeInstance, c, accessor) => {
-		const widget = getFindWidget(activeInstance, accessor);
+	run: (activeInstance) => {
+		const widget = TerminalFindContribution.get(activeInstance)?.findWidget;
 		if (widget) {
 			widget.show();
 			widget.find(true);

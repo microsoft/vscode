@@ -1277,8 +1277,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		for (let i = 0; i < this._reconnectedTerminals.length; i++) {
 			const terminal = this._reconnectedTerminals[i];
-			const taskForTerminal = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-			if (taskForTerminal.lastTask === task.getCommonTaskId()) {
+			if (getReconnectionData(terminal)?.lastTask === task.getCommonTaskId()) {
 				this._reconnectedTerminals.splice(i, 1);
 				return terminal;
 			}
@@ -1323,19 +1322,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._logService.trace(`Already reconnected, to ${this._reconnectedTerminals?.length} terminals so returning`);
 			return;
 		}
-		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed);
+		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed && getReconnectionData(t)) || [];
 		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
 		if (!this._reconnectedTerminals?.length) {
 			this._logService.trace(`No terminals to reconnect to so returning`);
 		} else {
 			for (const terminal of this._reconnectedTerminals) {
-				const task = terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData;
-				this._logService.trace(`Reconnecting to task: ${JSON.stringify(task)}`);
-				if (!task) {
-					continue;
+				const data = getReconnectionData(terminal) as IReconnectionTaskData | undefined;
+				if (data) {
+					const terminalData = { lastTask: data.lastTask, group: data.group, terminal };
+					this._terminals[terminal.instanceId] = terminalData;
+					this._logService.trace('Reconnecting to task terminal', terminalData.lastTask, terminal.instanceId);
 				}
-				const terminalData = { lastTask: task.lastTask, group: task.group, terminal };
-				this._terminals[terminal.instanceId] = terminalData;
 			}
 		}
 		this._hasReconnected = true;
@@ -1838,4 +1836,8 @@ function taskShellIntegrationWaitOnExitSequence(message: string): (exitCode: num
 	return (exitCode) => {
 		return `${VSCodeSequence(VSCodeOscPt.CommandFinished, exitCode.toString())}${message}`;
 	};
+}
+
+function getReconnectionData(terminal: ITerminalInstance): IReconnectionTaskData | undefined {
+	return terminal.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties?.data as IReconnectionTaskData | undefined;
 }

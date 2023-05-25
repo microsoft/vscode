@@ -316,13 +316,14 @@ export class DebugHoverWidget implements IContentWidget {
 			// Do this in beforeRender once the content widget is no longer display=none so that its elements' sizes will be measured correctly.
 			this.isUpdatingTree = true;
 			this.tree.setInput(expression).then(() => {
-				this.isUpdatingTree = false;
 				dom.scheduleAtNextAnimationFrame(() => {
 					// Wait for scrollWidth to update after a frame
 					this.layoutTree();
 					this.editor.layoutContentWidget(this);
 					this.complexValueContainer.style.visibility = '';
 				});
+			}).finally(() => {
+				this.isUpdatingTree = false;
 			});
 		}
 
