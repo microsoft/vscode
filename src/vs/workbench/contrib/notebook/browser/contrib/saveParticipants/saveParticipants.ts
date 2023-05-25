@@ -246,14 +246,16 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 				for (const action of actionsToRun.validActions) {
 					const codeActionEdits = action.action.edit?.edits;
 					let breakFlag = false;
-					for (const edit of codeActionEdits ?? []) {
-						const workspaceTextEdit = edit as IWorkspaceTextEdit;
-						if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
-							continue;
-						} else {
-							// error -> applied to multiple resources
-							breakFlag = true;
-							break;
+					if (!action.action.kind?.includes('notebook')) {
+						for (const edit of codeActionEdits ?? []) {
+							const workspaceTextEdit = edit as IWorkspaceTextEdit;
+							if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
+								continue;
+							} else {
+								// error -> applied to multiple resources
+								breakFlag = true;
+								break;
+							}
 						}
 					}
 					if (breakFlag) {
