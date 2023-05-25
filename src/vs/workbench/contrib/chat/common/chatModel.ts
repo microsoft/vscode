@@ -14,6 +14,7 @@ import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse,
 
 export interface IChatRequestModel {
 	readonly id: string;
+	readonly providerRequestId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
@@ -56,6 +57,10 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._id;
 	}
 
+	public get providerRequestId(): string | undefined {
+		return this._providerRequestId;
+	}
+
 	public get username(): string {
 		return this.session.requesterUsername;
 	}
@@ -66,8 +71,13 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	constructor(
 		public readonly session: ChatModel,
-		public readonly message: string | IChatReplyFollowup) {
+		public readonly message: string | IChatReplyFollowup,
+		private _providerRequestId?: string) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
+	}
+
+	setProviderRequestId(providerRequestId: string) {
+		this._providerRequestId = providerRequestId;
 	}
 }
 
@@ -189,7 +199,7 @@ export interface ISerializableChatsData {
 }
 
 export interface ISerializableChatRequestData {
-	providerResponseId: string | undefined;
+	providerRequestId: string | undefined;
 	message: string;
 	response: string | undefined;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
@@ -230,7 +240,7 @@ export function isSerializableSessionData(obj: unknown): obj is ISerializableCha
 		typeof data.sessionId === 'string';
 }
 
-export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent;
+export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent | IChatRemoveRequestEvent;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -240,6 +250,12 @@ export interface IChatAddRequestEvent {
 export interface IChatAddResponseEvent {
 	kind: 'addResponse';
 	response: IChatResponseModel;
+}
+
+export interface IChatRemoveRequestEvent {
+	kind: 'removeRequest';
+	requestId: string;
+	responseId?: string;
 }
 
 export interface IChatInitEvent {
@@ -360,9 +376,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		return requests.map((raw: ISerializableChatRequestData) => {
-			const request = new ChatRequestModel(this, raw.message);
+			const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new ChatResponseModel(new MarkdownString(raw.response), this, true, raw.isCanceled, raw.vote, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
+				request.response = new ChatResponseModel(new MarkdownString(raw.response), this, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
@@ -433,7 +449,22 @@ export class ChatModel extends Disposable implements IChatModel {
 		if ('content' in progress) {
 			request.response.updateContent(progress.content);
 		} else {
-			request.response.setProviderResponseId(progress.responseId);
+			request.setProviderRequestId(progress.requestId);
+			request.response.setProviderResponseId(progress.requestId);
+		}
+	}
+
+	removeRequest(requestId: string): void {
+		const index = this._requests.findIndex(request => request.providerRequestId === requestId);
+		const request = this._requests[index];
+		if (!request.providerRequestId) {
+			return;
+		}
+
+		if (index !== -1) {
+			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.providerRequestId, responseId: request.response?.providerResponseId });
+			this._requests.splice(index, 1);
+			request.response?.dispose();
 		}
 	}
 
@@ -484,7 +515,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			}),
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				return {
-					providerResponseId: r.response?.providerResponseId,
+					providerRequestId: r.providerRequestId,
 					message: typeof r.message === 'string' ? r.message : r.message.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,
