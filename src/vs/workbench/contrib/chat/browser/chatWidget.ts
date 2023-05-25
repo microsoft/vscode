@@ -386,7 +386,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					if (lastResponse) {
-						alert(lastResponse.response.value);
+						const errorDetails = lastResponse.errorDetails ? ` ${lastResponse.errorDetails.message}` : '';
+						alert(lastResponse.response.value + errorDetails);
 					}
 				});
 			}
