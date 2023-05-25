@@ -378,9 +378,9 @@ export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; pre
 export interface HostedExtension {
 	readonly location: UriComponents;
 	readonly preRelease?: boolean;
-	readonly manifest?: IExtensionManifest;
-	readonly defaultManifestTranslations?: ITranslations | null;
-	readonly manifestNLSUris?: Map<string, UriComponents>;
+	readonly packageJSON?: IExtensionManifest;
+	readonly defaultPackageTranslations?: ITranslations | null;
+	readonly packageNLSUris?: Map<string, UriComponents>;
 	readonly readmeUri?: UriComponents;
 	readonly changelogUri?: UriComponents;
 }

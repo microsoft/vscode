@@ -48,9 +48,9 @@ type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrate
 interface HostedExtensionInfo {
 	readonly location: UriComponents;
 	readonly preRelease?: boolean;
-	readonly manifest?: IExtensionManifest;
-	readonly defaultManifestTranslations?: ITranslations | null;
-	readonly manifestNLSUris?: Map<string, UriComponents>;
+	readonly packageJSON?: IExtensionManifest;
+	readonly defaultPackageTranslations?: ITranslations | null;
+	readonly packagetNLSUris?: Map<string, UriComponents>;
 	readonly readmeUri?: UriComponents;
 	readonly changelogUri?: UriComponents;
 }
@@ -67,8 +67,8 @@ function isHostedExtensionInfo(obj: unknown): obj is HostedExtensionInfo {
 	const hostedExtensionInfo = obj as HostedExtensionInfo | undefined;
 	return isUriComponents(hostedExtensionInfo?.location)
 		&& (hostedExtensionInfo?.preRelease === undefined || typeof hostedExtensionInfo.preRelease === 'boolean')
-		&& (hostedExtensionInfo?.manifest === undefined || typeof hostedExtensionInfo.manifest === 'object')
-		&& (hostedExtensionInfo?.defaultManifestTranslations === undefined || hostedExtensionInfo?.defaultManifestTranslations === null || typeof hostedExtensionInfo.defaultManifestTranslations === 'object')
+		&& (hostedExtensionInfo?.packageJSON === undefined || typeof hostedExtensionInfo.packageJSON === 'object')
+		&& (hostedExtensionInfo?.defaultPackageTranslations === undefined || hostedExtensionInfo?.defaultPackageTranslations === null || typeof hostedExtensionInfo.defaultPackageTranslations === 'object')
 		&& (hostedExtensionInfo?.changelogUri === undefined || isUriComponents(hostedExtensionInfo?.changelogUri))
 		&& (hostedExtensionInfo?.readmeUri === undefined || isUriComponents(hostedExtensionInfo?.readmeUri));
 }
@@ -243,12 +243,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			return [];
 		}
 		const result: IScannedExtension[] = [];
-		await Promise.allSettled(extensionLocations.map(async ({ location, preRelease, manifestNLSUris, manifest, defaultManifestTranslations, readmeUri, changelogUri }) => {
+		await Promise.allSettled(extensionLocations.map(async ({ location, preRelease, packagetNLSUris, packageJSON, defaultPackageTranslations, readmeUri, changelogUri }) => {
 			try {
 				const webExtension = await this.toWebExtension(URI.revive(location), undefined,
-					manifest,
-					manifestNLSUris ? [...manifestNLSUris.entries()].reduce((result, [key, value]) => { result.set(key, URI.revive(value)); return result; }, new Map<string, URI>()) : undefined,
-					defaultManifestTranslations,
+					packageJSON,
+					packagetNLSUris ? [...packagetNLSUris.entries()].reduce((result, [key, value]) => { result.set(key, URI.revive(value)); return result; }, new Map<string, URI>()) : undefined,
+					defaultPackageTranslations,
 					URI.revive(readmeUri),
 					URI.revive(changelogUri),
 					{ preRelease });
