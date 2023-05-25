@@ -1811,13 +1811,13 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('writeFile - buffered (atomic)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAtomicWrite);
 
 		return testWriteFile(true);
 	});
 
 	test('writeFile - unbuffered (atomic)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAtomicWrite);
 
 		return testWriteFile(true);
 	});
@@ -1832,7 +1832,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(content, 'Small File');
 
 		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: { resource: joinPath(resourcesDirname(resource), `${resourcesBasename(resource)}.vsctmp`) } });
+		await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: atomic ? { resource: joinPath(resourcesDirname(resource), `${resourcesBasename(resource)}.vsctmp`) } : false });
 
 		assert.ok(event!);
 		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
@@ -1862,13 +1862,13 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('writeFile (large file) - buffered (atomic)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAtomicWrite);
 
 		return testWriteFileLarge(true);
 	});
 
 	test('writeFile (large file) - unbuffered (atomic)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAtomicWrite);
 
 		return testWriteFileLarge(true);
 	});
@@ -1879,7 +1879,7 @@ flakySuite('Disk File Service', function () {
 		const content = readFileSync(resource.fsPath);
 		const newContent = content.toString() + content.toString();
 
-		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: { resource: joinPath(resourcesDirname(resource), `${resourcesBasename(resource)}.vsctmp`) } });
+		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent), { atomic: atomic ? { resource: joinPath(resourcesDirname(resource), `${resourcesBasename(resource)}.vsctmp`) } : false });
 		assert.strictEqual(fileStat.name, 'lorem.txt');
 
 		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);
