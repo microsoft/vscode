@@ -65,12 +65,16 @@
 	color: var(--vscode-badge-foreground) !important;
 }
 
-.interactive-item-container:not(.interactive-response:hover) .header .monaco-toolbar,
-.interactive-item-container:not(.interactive-response:hover) .header .monaco-toolbar .action-label {
+.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
+.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label {
 	/* Also apply this rule to the .action-label directly to work around a strange issue- when the
 	toolbar is hidden without that second rule, tabbing from the list container into a list item doesn't work
 	and the tab key doesn't do anything. */
 	display: none;
+}
+
+.interactive-item-container .header .monaco-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
 .interactive-item-container .header .monaco-toolbar .action-label {
@@ -201,8 +205,7 @@
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	position: absolute;
 	height: 22px;
-
-	right: 3px;
+	right: 6px;
 	bottom: 6px;
 }
 

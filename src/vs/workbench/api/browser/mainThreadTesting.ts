@@ -55,6 +55,18 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
+	$markTestRetired(testId: string): void {
+		for (const result of this.resultService.results) {
+			// all non-live results are already entirely outdated
+			if (result instanceof LiveTestResult) {
+				result.markRetired(testId);
+			}
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	$publishTestRunProfile(profile: ITestRunProfile): void {
 		const controller = this.testProviderRegistrations.get(profile.controllerId);
 		if (controller) {

@@ -17,6 +17,9 @@ import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ITranslations } from 'vs/platform/extensionManagement/common/extensionNls';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -90,6 +93,17 @@ export interface IWorkbench {
 			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
 			task: (progress: IProgress<IProgressStep>) => Promise<R>
 		): Promise<R>;
+
+		/**
+		 * Creates a terminal with limited capabilities that is intended for
+		 * writing output from the embedder before the workbench has finished
+		 * loading. When an embedder terminal is created it will automatically
+		 * show to the user.
+		 *
+		 * @param options The definition of the terminal, this is similar to
+		 * `ExtensionTerminalOptions` in the extension API.
+		 */
+		createTerminal(options: IEmbedderTerminalOptions): void;
 	};
 
 	workspace: {
@@ -208,7 +222,7 @@ export interface IWorkbenchConstructionOptions {
 	 * 	- an extension in the Marketplace
 	 * 	- location of the extension where it is hosted.
 	 */
-	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
+	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents | HostedExtension)[];
 
 	/**
 	 * List of extensions to be enabled if they are installed.
@@ -361,6 +375,15 @@ export interface IResourceUriProvider {
 export type ExtensionId = string;
 
 export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
+export interface HostedExtension {
+	readonly location: UriComponents;
+	readonly preRelease?: boolean;
+	readonly packageJSON?: IExtensionManifest;
+	readonly defaultPackageTranslations?: ITranslations | null;
+	readonly packageNLSUris?: Map<string, UriComponents>;
+	readonly readmeUri?: UriComponents;
+	readonly changelogUri?: UriComponents;
+}
 
 export interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };

@@ -17,7 +17,7 @@ import { ErrorNoTelemetry, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
@@ -53,7 +53,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IRequestAddInstanceToGroupEvent, ITerminalChildElement, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -163,8 +163,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
-	get container(): HTMLElement | undefined { return this._container; }
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal });
+	get domElement(): HTMLElement { return this._wrapperElement; }
 	private _horizontalScrollbar: DomScrollableElement | undefined;
 	private _terminalFocusContextKey: IContextKey<boolean>;
 	private _terminalHasFixedWidth: IContextKey<boolean>;
@@ -334,12 +334,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-
-	// Internal events
-	private readonly _onDidAttachToElement = new Emitter<HTMLElement>();
-	private readonly _onDidAttachToElementEvent = this._onDidAttachToElement.event;
-	private readonly _onDidLayout = new Emitter<dom.Dimension>();
-	private readonly _onDidLayoutEvent = this._onDidLayout.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -876,7 +870,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
-		this._onDidAttachToElement.fire(this._container);
 		this.xterm?.refresh();
 
 		setTimeout(() => this._initDragAndDrop(container));
@@ -1837,7 +1830,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._resize();
-		this._onDidLayout.fire(dimension);
 
 		// Signal the container is ready
 		this._containerReadyBarrier.open();
@@ -1845,9 +1837,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Layout all contributions
 		for (const contribution of this._contributions.values()) {
 			if (!this.xterm) {
-				this._xtermReadyPromise.then(xterm => contribution.layout?.(xterm));
+				this._xtermReadyPromise.then(xterm => contribution.layout?.(xterm, dimension));
 			} else {
-				contribution.layout?.(this.xterm);
+				contribution.layout?.(this.xterm, dimension);
 			}
 		}
 	}
@@ -2284,28 +2276,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	forceScrollbarVisibility(): void {
-		this._container?.classList.add('force-scrollbar');
+		this._wrapperElement.classList.add('force-scrollbar');
 	}
 
 	resetScrollbarVisibility(): void {
-		this._container?.classList.remove('force-scrollbar');
-	}
-
-	registerChildElement(child: ITerminalChildElement): IDisposable {
-		const store = new DisposableStore();
-		if (this._container) {
-			this._container.appendChild(child.element);
-		} else {
-			store.add(this._onDidAttachToElementEvent(container => container.appendChild(child.element)));
-		}
-		if (this._lastLayoutDimensions) {
-			child.layout?.(this._lastLayoutDimensions);
-		}
-		store.add(this._onDidLayoutEvent(e => child.layout?.(e)));
-		if (child.xtermReady) {
-			this._xtermReadyPromise.then(xterm => child.xtermReady!(xterm));
-		}
-		return store;
+		this._wrapperElement.classList.remove('force-scrollbar');
 	}
 }
 
