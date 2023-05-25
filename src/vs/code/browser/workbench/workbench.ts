@@ -308,6 +308,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		let payload = Object.create(null);
 
 		const query = new URL(document.location.href).searchParams;
+
 		query.forEach((value, key) => {
 			switch (key) {
 
@@ -340,6 +341,9 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				// Empty
 				case WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW:
 					workspace = undefined;
+					if (typeof value === 'string') {
+						config = { ...config, remoteAuthority: value };
+					}
 					foundWorkspace = true;
 					break;
 
