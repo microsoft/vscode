@@ -423,6 +423,49 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		await cleanup();
 	});
 
+	test('onWillShutdown - scratchpads - no veto if backed up', async function () {
+		const { accessor, cleanup } = await createTracker();
+
+		class TestBackupWorkingCopy extends TestWorkingCopy {
+
+			constructor(resource: URI) {
+				super(resource);
+
+				accessor.workingCopyService.registerWorkingCopy(this);
+			}
+
+			override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
+
+			override isDirty(): boolean {
+				return false;
+			}
+
+			override isModified(): boolean {
+				return true;
+			}
+		}
+
+		accessor.filesConfigurationService.testOnFilesConfigurationChange({ files: { hotExit: HotExitConfiguration.ON_EXIT } });
+		accessor.nativeHostService.windowCount = Promise.resolve(2);
+		// Set cancel to force a veto if hot exit does not trigger
+		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
+
+		const resource = toResource.call(this, '/path/custom.txt');
+		new TestBackupWorkingCopy(resource);
+
+		const event = new TestBeforeShutdownEvent();
+		event.reason = ShutdownReason.CLOSE;
+		accessor.lifecycleService.fireBeforeShutdown(event);
+
+		const veto = await event.value;
+		assert.ok(!veto);
+
+		const finalVeto = await event.finalValue?.();
+		assert.ok(!finalVeto); // assert the tracker uses the internal finalVeto API
+
+		await cleanup();
+	});
+
 	test('onWillShutdown - pending backup operations canceled and tracker suspended/resumsed', async function () {
 		const { accessor, tracker, cleanup } = await createTracker();
 
