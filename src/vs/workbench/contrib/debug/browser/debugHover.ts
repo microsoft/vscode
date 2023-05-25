@@ -300,9 +300,6 @@ export class DebugHoverWidget implements IContentWidget {
 		const scrollBarHeight = 10;
 		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight);
 
-		// Reset to a smaller width, if it was previously rendered wide
-		// this.tree.layout(treeHeight, 400);
-
 		const realTreeWidth = this.tree.contentWidth;
 		const treeWidth = clamp(realTreeWidth, 400, 550);
 		this.tree.layout(treeHeight, treeWidth);
