@@ -224,6 +224,7 @@ class SCMTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 
 interface InputTemplate {
 	readonly inputWidget: SCMInputWidget;
+	inputWidgetHeight: number;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
@@ -258,7 +259,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
 		templateDisposable.add(inputWidget);
 
-		return { inputWidget, elementDisposables: new DisposableStore(), templateDisposable };
+		return { inputWidget, inputWidgetHeight: InputRenderer.DEFAULT_HEIGHT, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
@@ -268,10 +269,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
 		templateData.elementDisposables.add({
-			dispose: () => {
-				this.inputWidgets.delete(input);
-				this.contentHeights.delete(input);
-			}
+			dispose: () => this.inputWidgets.delete(input)
 		});
 
 		// Widget cursor selections
@@ -292,11 +290,11 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		// Rerender the element whenever the editor content height changes
 		const onDidChangeContentHeight = () => {
 			const contentHeight = templateData.inputWidget.getContentHeight();
-			const lastContentHeight = this.contentHeights.get(input)!;
 			this.contentHeights.set(input, contentHeight);
 
-			if (lastContentHeight !== contentHeight) {
+			if (templateData.inputWidgetHeight !== contentHeight) {
 				this.updateHeight(input, contentHeight + 10);
+				templateData.inputWidgetHeight = contentHeight;
 				templateData.inputWidget.layout();
 			}
 		};
