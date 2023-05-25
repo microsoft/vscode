@@ -204,7 +204,7 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 			if (environmentService.remoteAuthority) {
 				hostService.reload(); // TODO@aeschli, workaround
 			} else if (isNative) {
-				const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restart Extension Host."));
+				const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restarting extension host due to a workspace folder change."));
 				if (stopped) {
 					extensionService.startExtensionHosts();
 				}

@@ -764,7 +764,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private getCheckbox(extensionTreeItem: vscode.TreeItem2): ITreeItemCheckboxState | undefined {
-		if (!extensionTreeItem.checkboxState) {
+		if (extensionTreeItem.checkboxState === undefined) {
 			return undefined;
 		}
 		let checkboxState: TreeItemCheckboxState;

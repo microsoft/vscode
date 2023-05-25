@@ -15,7 +15,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery } from './api/git';
+import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -401,7 +401,7 @@ export class Git {
 		return new Repository(this, repository, dotGit, logger);
 	}
 
-	async init(repository: string, options: { defaultBranch?: string } = {}): Promise<void> {
+	async init(repository: string, options: InitOptions = {}): Promise<void> {
 		const args = ['init'];
 
 		if (options.defaultBranch && options.defaultBranch !== '') {
@@ -793,7 +793,7 @@ export class GitStatusParser {
 		// space
 		i++;
 
-		if (entry.x === 'R' || entry.x === 'C') {
+		if (entry.x === 'R' || entry.y === 'R' || entry.x === 'C') {
 			lastIndex = raw.indexOf('\0', i);
 
 			if (lastIndex === -1) {

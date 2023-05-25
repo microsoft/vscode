@@ -357,7 +357,7 @@ export class ChatService extends Disposable implements IChatService {
 				if ('content' in progress) {
 					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.length} chars`);
 				} else {
-					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.responseId}`);
+					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}
 
 				model.acceptResponseProgress(request, progress);
@@ -414,6 +414,22 @@ export class ChatService extends Disposable implements IChatService {
 		return rawResponsePromise;
 	}
 
+	async removeRequest(sessionId: string, requestId: string): Promise<void> {
+		const model = this._sessionModels.get(sessionId);
+		if (!model) {
+			throw new Error(`Unknown session: ${sessionId}`);
+		}
+
+		await model.waitForInitialization();
+		const provider = this._providers.get(model.providerId);
+		if (!provider) {
+			throw new Error(`Unknown provider: ${model.providerId}`);
+		}
+
+		model.removeRequest(requestId);
+		provider.removeRequest?.(model.session!, requestId);
+	}
+
 	private async handleSlashCommand(sessionId: string, command: string): Promise<string> {
 		const slashCommands = await this.getSlashCommands(sessionId, CancellationToken.None);
 		for (const slashCommand of slashCommands ?? []) {
@@ -467,30 +483,30 @@ export class ChatService extends Disposable implements IChatService {
 		const model = Iterable.first(this._sessionModels.values());
 		if (!model) {
 			// If no session, create one- how and is the service the right place to decide this?
-			this.trace('addInteractiveRequest', 'No session available');
+			this.trace('addRequest', 'No session available');
 			return;
 		}
 
 		const provider = this._providers.get(model.providerId);
 		if (!provider || !provider.resolveRequest) {
-			this.trace('addInteractiveRequest', 'No provider available');
+			this.trace('addRequest', 'No provider available');
 			return undefined;
 		}
 
-		this.trace('addInteractiveRequest', `Calling resolveRequest for session ${model.sessionId}`);
+		this.trace('addRequest', `Calling resolveRequest for session ${model.sessionId}`);
 		const request = await provider.resolveRequest(model.session!, context, CancellationToken.None);
 		if (!request) {
-			this.trace('addInteractiveRequest', `Provider returned no request for session ${model.sessionId}`);
+			this.trace('addRequest', `Provider returned no request for session ${model.sessionId}`);
 			return;
 		}
 
 		// Maybe this API should queue a request after the current one?
-		this.trace('addInteractiveRequest', `Sending resolved request for session ${model.sessionId}`);
+		this.trace('addRequest', `Sending resolved request for session ${model.sessionId}`);
 		this.sendRequest(model.sessionId, request.message);
 	}
 
 	async sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): Promise<void> {
-		this.trace('sendInteractiveRequestToProvider', `sessionId: ${sessionId}`);
+		this.trace('sendRequestToProvider', `sessionId: ${sessionId}`);
 		await this.sendRequest(sessionId, message.message);
 	}
 

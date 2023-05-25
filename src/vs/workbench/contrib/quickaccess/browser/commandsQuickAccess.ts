@@ -307,7 +307,7 @@ export class AskInInteractiveAction extends Action2 {
 	constructor() {
 		super({
 			id: AskInInteractiveAction.ID,
-			title: { value: localize('askInChat', "Ask In Interactive Session"), original: 'Ask In Interactive Session' },
+			title: { value: localize('askInChat', "Ask In Chat"), original: 'Ask In Chat' },
 			f1: false
 		});
 	}
@@ -325,12 +325,12 @@ export class AskInInteractiveAction extends Action2 {
 		const providerInfos = chatService.getProviderInfos();
 		switch (providerInfos.length) {
 			case 0:
-				throw new Error('No interactive session provider found.');
+				throw new Error('No chat provider found.');
 			case 1:
 				providerId = providerInfos[0].id;
 				break;
 			default:
-				logService.warn('Multiple interactive session providers found. Using the first one.');
+				logService.warn('Multiple chat providers found. Using the first one.');
 				providerId = providerInfos[0].id;
 				break;
 		}

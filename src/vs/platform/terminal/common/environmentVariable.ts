@@ -11,22 +11,22 @@ export enum EnvironmentVariableMutatorType {
 	Append = 2,
 	Prepend = 3
 }
-// export enum EnvironmentVariableMutatorTiming {
-// 	AtSpawn = 1,
-// 	AfterShellIntegration = 2
-// 	// TODO: Do we need a both?
-// }
 export interface IEnvironmentVariableMutator {
 	readonly variable: string;
 	readonly value: string;
 	readonly type: EnvironmentVariableMutatorType;
 	readonly scope?: EnvironmentVariableScope;
-	// readonly timing?: EnvironmentVariableMutatorTiming;
+	readonly options?: IEnvironmentVariableMutatorOptions;
 }
 
 export interface IEnvironmentDescriptionMutator {
 	readonly description: string | undefined;
 	readonly scope?: EnvironmentVariableScope;
+}
+
+export interface IEnvironmentVariableMutatorOptions {
+	applyAtProcessCreation?: boolean;
+	applyAtShellIntegration?: boolean;
 }
 
 export type EnvironmentVariableScope = {
@@ -74,7 +74,8 @@ export interface IMergedEnvironmentVariableCollection {
 	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 	/**
 	 * Gets the description map for a given scope.
-	 * @param scope The scope to get the description map for. If undefined, the global scope is used.
+	 * @param scope The scope to get the description map for. If undefined, description map for the
+	 * global scope is returned.
 	 */
 	getDescriptionMap(scope: EnvironmentVariableScope | undefined): Map<string, string | undefined>;
 	/**

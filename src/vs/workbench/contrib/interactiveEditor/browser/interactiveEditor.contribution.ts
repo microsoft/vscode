@@ -18,9 +18,10 @@ registerSingleton(IInteractiveEditorSessionService, InteractiveEditorSessionServ
 registerEditorContribution(INTERACTIVE_EDITOR_ID, InteractiveEditorController, EditorContributionInstantiation.Lazy);
 
 registerAction2(interactiveEditorActions.StartSessionAction);
+registerAction2(interactiveEditorActions.UnstashSessionAction);
 registerAction2(interactiveEditorActions.MakeRequestAction);
 registerAction2(interactiveEditorActions.StopRequestAction);
-registerAction2(interactiveEditorActions.DicardAction);
+registerAction2(interactiveEditorActions.DiscardAction);
 registerAction2(interactiveEditorActions.DiscardToClipboardAction);
 registerAction2(interactiveEditorActions.DiscardUndoToNewFileAction);
 registerAction2(interactiveEditorActions.CancelSessionAction);
