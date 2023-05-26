@@ -447,14 +447,30 @@ export class InteractiveEditorWidget {
 
 	updateMarkdownMessageExpansionState(expand: boolean) {
 		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
-		// find number of lines visible,
-		// then find 1/6th then 1/3rd of it
-		// this.parentEditor.getContentHeight();
-		// TODO: find total height below the cursor to the bottom of the viewport
-		// TODO: find the equivalent number of lines there should be below
-		// TODO: remove around 4 which is the approximate height of the status bar
-		// TODO: find 1/3rd and 1/6th of these numbers, set as the values for the line clamp
-		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
+		const viewModel = this.parentEditor._getViewModel();
+		const visibleViewRange = viewModel?.getCompletelyVisibleViewRange();
+		const cursorLineNumber = viewModel?.getPrimaryCursorState()?.viewState.position.lineNumber;
+		if (!visibleViewRange || !cursorLineNumber) {
+			return;
+		}
+		const lineHeight = this.parentEditor.getOption(EditorOption.lineHeight);
+		const editorHeight = this.parentEditor.getLayoutInfo().height;
+		const editorHeightInLines = Math.floor(editorHeight / lineHeight);
+		const numberOfLinesAboveCursor = cursorLineNumber - visibleViewRange.startLineNumber + 1;
+		const numberOfLinesBelowCursor = editorHeightInLines - numberOfLinesAboveCursor;
+		const heightOfInteractiveEditorWithoutMessage = this._elements.root.clientHeight - this._elements.message.clientHeight;
+		const heightOfInteractiveEditorWithoutMessageInLines = Math.floor(heightOfInteractiveEditorWithoutMessage / lineHeight);
+		const availableHeightBelowCursorInLines = numberOfLinesBelowCursor - heightOfInteractiveEditorWithoutMessageInLines;
+		const numberOfLinesInExpandedState = Math.floor(availableHeightBelowCursorInLines / 2);
+		const numberOfLinesInCroppedState = Math.floor(availableHeightBelowCursorInLines / 3);
+		const currentWebkitLineClamp = parseInt(this._elements.message.style.webkitLineClamp);
+		if (expand && currentWebkitLineClamp > numberOfLinesInExpandedState) {
+			return;
+		}
+		else if (!expand && currentWebkitLineClamp < numberOfLinesInCroppedState) {
+			return;
+		}
+		this._elements.message.style.webkitLineClamp = expand ? numberOfLinesInExpandedState.toString() : numberOfLinesInCroppedState.toString();
 		this._onDidChangeHeight.fire();
 	}
 
