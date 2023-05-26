@@ -118,6 +118,9 @@ export interface InteractiveEditorWidgetViewState {
 	placeholder: string;
 }
 
+const MESSAGE_CROPPED_NUMBER_LINES = 3;
+const MESSAGE_EXPANDED_NUMBER_LINES = 10;
+
 export class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
@@ -441,7 +444,7 @@ export class InteractiveEditorWidget {
 			this._ctxMessageCropState.reset();
 			this._expansionState = ExpansionState.NOT_CROPPED;
 		} else {
-			this._elements.message.style.webkitLineClamp = '3';
+			this._elements.message.style.webkitLineClamp = MESSAGE_CROPPED_NUMBER_LINES.toString();
 			reset(this._elements.message, message);
 			const expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
 			this._ctxMessageCropState.set(expansionState);
@@ -497,7 +500,7 @@ export class InteractiveEditorWidget {
 	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
 		this._ctxMessageCropState.set(expansionState);
 		this._expansionState = expansionState;
-		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? '10' : '3');
+		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? MESSAGE_EXPANDED_NUMBER_LINES.toString() : MESSAGE_CROPPED_NUMBER_LINES.toString());
 		this._onDidChangeHeight.fire();
 	}
 
