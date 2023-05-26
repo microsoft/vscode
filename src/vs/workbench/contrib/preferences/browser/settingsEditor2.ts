@@ -1196,8 +1196,13 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private addOrRemoveManageExtensionSetting(setting: ISetting, extension: IGalleryExtension, groups: ISettingsGroup[]): ISettingsGroup | undefined {
-		const extensionId = setting.extensionId!;
-		const matchingGroups = groups.filter(g => g.extensionInfo?.id.toLowerCase() === extensionId.toLowerCase());
+		const matchingGroups = groups.filter(g => {
+			const lowerCaseId = g.extensionInfo?.id.toLowerCase();
+			return (lowerCaseId === setting.stableExtensionId!.toLowerCase() ||
+				lowerCaseId === setting.prereleaseExtensionId!.toLowerCase());
+		});
+
+		const extensionId = setting.displayExtensionId!;
 		if (!matchingGroups.length) {
 			const newGroup: ISettingsGroup = {
 				sections: [{
@@ -1217,7 +1222,7 @@ export class SettingsEditor2 extends EditorPane {
 		} else if (matchingGroups.length >= 2) {
 			// Remove the group with the manage extension setting.
 			const matchingGroupIndex = matchingGroups.findIndex(group =>
-				group.sections.length === 1 && group.sections[0].settings.length === 1 && group.sections[0].settings[0].extensionId);
+				group.sections.length === 1 && group.sections[0].settings.length === 1 && group.sections[0].settings[0].displayExtensionId);
 			if (matchingGroupIndex !== -1) {
 				groups.splice(matchingGroupIndex, 1);
 			}
@@ -1286,7 +1291,9 @@ export class SettingsEditor2 extends EditorPane {
 					title: localize('manageExtension', "Manage {0}", extensionName),
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
-					extensionId: extensionId,
+					displayExtensionId: extensionId,
+					stableExtensionId: key,
+					prereleaseExtensionId: typeof prerelease === 'string' ? prerelease : key,
 					extensionGroupTitle: groupTitle ?? extensionName
 				};
 				const additionalGroup = this.addOrRemoveManageExtensionSetting(setting, extension, groups);
