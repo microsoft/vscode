@@ -197,7 +197,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 						return modifiedWorkingCopies; // backup if a folder is open and onExitAndWindowClose is configured
 					} else {
-						return []; // do not backup because we are switching contexts
+						return modifiedWorkingCopies.filter(wc => wc.capabilities & WorkingCopyCapabilities.Scratchpad); // only backup scratchpads because we are switching contexts
 					}
 			}
 		}
