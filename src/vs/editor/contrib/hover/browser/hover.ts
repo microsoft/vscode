@@ -27,10 +27,10 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
-import 'vs/css!./hover';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import 'vs/css!./hover';
 
 export class ModesHoverController implements IEditorContribution {
 
