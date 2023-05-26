@@ -27,6 +27,8 @@ declare module 'vscode' {
 	 */
 	export interface ShareProvider {
 
+
+
 		/**
 		 * A unique ID for the provider.
 		 * This will be used to activate specific extensions contributing share providers if necessary.
