@@ -90,10 +90,14 @@
 /* status */
 
 .monaco-editor .interactive-editor .status {
-	padding: 6px 0px 2px 0px;
+	margin-top: 3px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
+}
+
+.monaco-editor .interactive-editor .status.actions {
+	margin-top: 6px;
 }
 
 .monaco-editor .interactive-editor .status .actions.hidden {
@@ -102,14 +106,25 @@
 
 .monaco-editor .interactive-editor .status .label {
 	overflow: hidden;
-	padding-left: 10px;
-	padding-right: 4px;
-	margin-left: auto;
 	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	align-self: baseline;
+	display: flex;
 }
 
 .monaco-editor .interactive-editor .status .label.hidden {
 	display: none;
+}
+
+.monaco-editor .interactive-editor .status .label.info {
+	margin-right: auto;
+	padding-left: 2px;
+}
+
+.monaco-editor .interactive-editor .status .label.status {
+	padding-left: 10px;
+	padding-right: 4px;
+	margin-left: auto;
 }
 
 .monaco-editor .interactive-editor .markdownMessage {
@@ -159,6 +174,18 @@
 	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
 	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.button-item .action-label {
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	border-radius: 2px;
+	padding: 4px 6px;
+}
+
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.button-item .action-label>.codicon {
+	color: unset;
+	font-size: 14px;
 }
 
 /* preview */
