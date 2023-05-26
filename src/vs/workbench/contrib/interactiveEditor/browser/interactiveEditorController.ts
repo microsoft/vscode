@@ -130,16 +130,26 @@ export class InteractiveEditorController implements IEditorContribution {
 				return;
 			}
 
-			this._logService.trace('[IE] session RESUMING');
+			this._log('session RESUMING', e);
 			await this._nextState(State.CREATE_SESSION, { existingSession });
-			this._logService.trace('[IE] session done or paused');
+			this._log('session done or paused');
 		}));
+		this._log('NEW controller');
 	}
 
 	dispose(): void {
 		this._stashedSession.clear();
 		this._finishExistingSession();
 		this._store.dispose();
+		this._log('controller disposed');
+	}
+
+	private _log(message: string | Error, ...more: any[]): void {
+		if (message instanceof Error) {
+			this._logService.error(message, ...more);
+		} else {
+			this._logService.trace(`[IE] (editor:${this._editor.getId()})${message}`, ...more);
+		}
 	}
 
 	getId(): string {
@@ -161,21 +171,21 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
-		this._logService.trace('[IE] session starting');
+		this._log('session starting');
 		await this._finishExistingSession();
 		this._stashedSession.clear();
 
 		await this._nextState(State.CREATE_SESSION, options);
-		this._logService.trace('[IE] session done or paused');
+		this._log('session done or paused');
 	}
 
 	private async _finishExistingSession(): Promise<void> {
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
-				this._logService.trace('[IE] finishing existing session, using CANCEL', this._activeSession.editMode);
+				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
 				await this.cancelSession();
 			} else {
-				this._logService.trace('[IE] finishing existing session, using APPLY', this._activeSession.editMode);
+				this._log('finishing existing session, using APPLY', this._activeSession.editMode);
 				await this.applyChanges();
 			}
 		}
@@ -184,7 +194,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	// ---- state machine
 
 	protected async _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {
-		this._logService.trace('[IE] setState to ', state);
+		this._log('setState to ', state);
 		const nextState = await this[state](options);
 		if (nextState) {
 			await this._nextState(nextState, options);
@@ -200,7 +210,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (!session) {
 			const createSessionCts = new CancellationTokenSource();
 			const msgListener = Event.once(this._messages.event)(m => {
-				this._logService.trace('[IE](state=_createSession) message received', m);
+				this._log('state=_createSession) message received', m);
 				createSessionCts.cancel();
 			});
 
@@ -261,11 +271,12 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.show(this._activeSession.wholeRange.getEndPosition());
 
-		this._sessionStore.add(this._editor.onDidChangeModel(() => {
-			this._messages.fire(this._activeSession?.lastExchange
+		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
+			const msg = this._activeSession?.lastExchange
 				? Message.PAUSE_SESSION // pause when switching models/tabs and when having a previous exchange
-				: Message.CANCEL_SESSION
-			);
+				: Message.CANCEL_SESSION;
+			this._log('model changed, pause or cancel session', msg, e);
+			this._messages.fire(msg);
 		}));
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
@@ -282,7 +293,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._activeSession!.recordExternalEditOccurred(editIsOutsideOfWholeRange);
 
 			if (editIsOutsideOfWholeRange) {
-				this._logService.info('[IE] text changed outside of whole range, FINISH session');
+				this._log('text changed outside of whole range, FINISH session');
 				this._finishExistingSession();
 			}
 		}));
@@ -363,7 +374,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		} else {
 			const barrier = new Barrier();
 			const msgListener = Event.once(this._messages.event)(m => {
-				this._logService.trace('[IE](state=_waitForInput) message received', m);
+				this._log('state=_waitForInput) message received', m);
 				message = m;
 				barrier.open();
 			});
@@ -397,7 +408,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		const refer = this._activeSession.session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
 		if (refer) {
-			this._logService.info('[IE] seeing refer command, continuing outside editor', this._activeSession.provider.debugName);
+			this._log('[IE] seeing refer command, continuing outside editor', this._activeSession.provider.debugName);
 			this._editor.setSelection(this._activeSession.wholeRange);
 			this._instaService.invokeFunction(sendRequest, input);
 
@@ -421,7 +432,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		let message = Message.NONE;
 		const msgListener = Event.once(this._messages.event)(m => {
-			this._logService.trace('[IE](state=_makeRequest) message received', m);
+			this._log('state=_makeRequest) message received', m);
 			message = m;
 			requestCts.cancel();
 		});
@@ -438,7 +449,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			attempt: 0,
 		};
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, requestCts.token);
-		this._logService.trace('[IE] request started', this._activeSession.provider.debugName, this._activeSession.session, request);
+		this._log('request started', this._activeSession.provider.debugName, this._activeSession.session, request);
 
 		let response: EditResponse | MarkdownResponse | ErrorResponse | EmptyResponse;
 		let reply: IInteractiveEditorResponse | null | undefined;
@@ -463,7 +474,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctxHasActiveRequest.set(false);
 			this._zone.widget.updateProgress(false);
 			this._zone.widget.updateInfo('');
-			this._logService.trace('[IE] request took', sw.elapsed(), this._activeSession.provider.debugName);
+			this._log('request took', sw.elapsed(), this._activeSession.provider.debugName);
 
 		}
 
@@ -497,7 +508,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(this._activeSession.textModelN.uri, response.localEdits));
 			const editOperations = (moreMinimalEdits ?? response.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, response.localEdits, moreMinimalEdits);
+			this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, response.localEdits, moreMinimalEdits);
 
 			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(this._activeSession.textModelN.createSnapshot()), null, undefined, true);
 			textModelNplus1.applyEdits(editOperations);
@@ -682,8 +693,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				await strategy?.apply();
 			} catch (err) {
 				this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
-				this._logService.error('[IE] FAILED to apply changes');
-				this._logService.error(err);
+				this._log('FAILED to apply changes');
+				this._log(err);
 			}
 			strategy?.dispose();
 			this._messages.fire(Message.ACCEPT_SESSION);
@@ -702,8 +713,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			await strategy?.cancel();
 		} catch (err) {
 			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
-			this._logService.error('[IE] FAILED to discard changes');
-			this._logService.error(err);
+			this._log('FAILED to discard changes');
+			this._log(err);
 		}
 		strategy?.dispose();
 		this._messages.fire(Message.CANCEL_SESSION);
