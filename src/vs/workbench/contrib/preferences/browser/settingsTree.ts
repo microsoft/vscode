@@ -1907,7 +1907,7 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 			...defaultButtonStyles
 		});
 		actionButton.element.classList.add('setting-item-extension-toggle-button');
-		actionButton.label = localize('manageExtension', "Manage extension");
+		actionButton.label = localize('showExtension', "Show Extension");
 
 		const template: ISettingExtensionToggleItemTemplate = {
 			...common,
