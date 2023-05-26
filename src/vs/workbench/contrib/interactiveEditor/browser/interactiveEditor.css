@@ -90,7 +90,7 @@
 /* status */
 
 .monaco-editor .interactive-editor .status {
-	padding: 6px 0px 2px 0px;
+	margin-top: 2px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -102,14 +102,23 @@
 
 .monaco-editor .interactive-editor .status .label {
 	overflow: hidden;
-	padding-left: 10px;
-	padding-right: 4px;
-	margin-left: auto;
 	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
 }
 
 .monaco-editor .interactive-editor .status .label.hidden {
 	display: none;
+}
+
+.monaco-editor .interactive-editor .status .label.info {
+	margin-right: auto;
+	padding-left: 2px;
+}
+
+.monaco-editor .interactive-editor .status .label.status {
+	padding-left: 10px;
+	padding-right: 4px;
+	margin-left: auto;
 }
 
 .monaco-editor .interactive-editor .markdownMessage {

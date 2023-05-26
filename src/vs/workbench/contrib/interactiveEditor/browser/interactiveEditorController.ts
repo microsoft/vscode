@@ -257,7 +257,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		this._zone.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._zone.widget.placeholder = this._getPlaceholderText();
-		this._zone.widget.updateStatus(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
+		this._zone.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.show(this._activeSession.wholeRange.getEndPosition());
 
 		this._sessionStore.add(this._editor.onDidChangeModel(() => {
@@ -443,6 +443,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		let reply: IInteractiveEditorResponse | null | undefined;
 		try {
 			this._zone.widget.updateProgress(true);
+			this._zone.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
@@ -460,6 +461,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		} finally {
 			this._ctxHasActiveRequest.set(false);
 			this._zone.widget.updateProgress(false);
+			this._zone.widget.updateInfo('');
 			this._logService.trace('[IE] request took', sw.elapsed(), this._activeSession.provider.debugName);
 
 		}

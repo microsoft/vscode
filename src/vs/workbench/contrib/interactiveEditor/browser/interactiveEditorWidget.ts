@@ -138,8 +138,9 @@ export class InteractiveEditorWidget {
 			h('div.previewCreateTitle.show-file-icons@previewCreateTitle'),
 			h('div.previewCreate.hidden@previewCreate'),
 			h('div.status@status', [
+				h('div.label.info.hidden@infoLabel'),
 				h('div.actions.hidden@statusToolbar'),
-				h('div.label.hidden@statusLabel'),
+				h('div.label.status.hidden@statusLabel'),
 				h('div.actions.hidden@feedbackToolbar'),
 			]),
 			h('div.markdownMessage.hidden@markdownMessage', [
@@ -442,6 +443,12 @@ export class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
+	updateInfo(message: string): void {
+		this._elements.infoLabel.classList.toggle('hidden', !message);
+		this._elements.infoLabel.innerText = message;
+		this._onDidChangeHeight.fire();
+	}
+
 	updateStatus(message: string, ops: { classes?: string[]; resetAfter?: number; keepMessage?: boolean } = {}) {
 		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
@@ -452,7 +459,7 @@ export class InteractiveEditorWidget {
 			}, ops.resetAfter);
 		}
 		reset(this._elements.statusLabel, message);
-		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
+		this._elements.statusLabel.className = `label status ${(ops.classes ?? []).join(' ')}`;
 		this._elements.statusLabel.classList.toggle('hidden', !message);
 		if (isTempMessage) {
 			this._elements.statusLabel.dataset['state'] = 'temp';
