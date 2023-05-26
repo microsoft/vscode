@@ -257,6 +257,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		this._zone.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._zone.widget.placeholder = this._getPlaceholderText();
+		this._zone.widget.value = this._activeSession.lastInput ?? '';
 		this._zone.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.show(this._activeSession.wholeRange.getEndPosition());
 
@@ -558,6 +559,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			try {
 				this._ignoreModelContentChanged = true;
 				await this._strategy.renderChanges(response);
+				this._ctxDidEdit.set(this._activeSession.hasChangedText);
 			} finally {
 				this._ignoreModelContentChanged = false;
 			}
