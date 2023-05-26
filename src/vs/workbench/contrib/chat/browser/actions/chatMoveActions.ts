@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -28,14 +27,12 @@ const getMoveToEditorChatActionDescriptorForViewTitle = (viewId: string, provide
 		original: 'Open In Editor'
 	},
 	category: CHAT_CATEGORY,
-	icon: Codicon.arrowLeft,
 	precondition: CONTEXT_PROVIDER_EXISTS,
 	f1: false,
 	viewId,
 	menu: {
 		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.deserialize('config.chat.experimental.moveIcons')),
-		group: 'navigation',
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId)),
 		order: 0
 	},
 });
@@ -66,15 +63,13 @@ const getMoveToSidebarChatActionDescriptorForViewTitle = (viewId: string, provid
 		original: 'Open In Sidebar'
 	},
 	category: CHAT_CATEGORY,
-	icon: Codicon.arrowRight,
 	precondition: CONTEXT_PROVIDER_EXISTS,
-	f1: false, // TODO
+	f1: false,
 	viewId,
 	menu: [{
 		id: MenuId.EditorTitle,
-		group: 'navigation',
 		order: 0,
-		when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ContextKeyExpr.deserialize('config.chat.experimental.moveIcons')),
+		when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID)),
 	}]
 });
 
@@ -135,9 +130,10 @@ export function registerMoveActions() {
 				return;
 			}
 
+			const sessionId = viewModel.sessionId;
 			const view = await viewService.openView(widget.viewContext.viewId) as ChatViewPane;
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: viewModel.sessionId }, pinned: true } });
 			view.clear();
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: sessionId }, pinned: true } });
 		}
 	});
 
@@ -151,7 +147,12 @@ export function registerMoveActions() {
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
-				f1: true
+				f1: true,
+				menu: [{
+					id: MenuId.EditorTitle,
+					order: 0,
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID)),
+				}]
 			});
 		}
 
