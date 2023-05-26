@@ -13,6 +13,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/acti
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -26,6 +27,8 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { ShareProviderCountContext, ShareService } from 'vs/workbench/contrib/share/browser/shareService';
 import { IShareService } from 'vs/workbench/contrib/share/common/share';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 const targetMenus = [
 	MenuId.EditorContextShare,
@@ -73,15 +76,23 @@ class ShareWorkbenchContribution {
 
 			override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 				const shareService = accessor.get(IShareService);
-				const resourceUri = accessor.get(IWorkspaceContextService).getWorkspace().folders[0].uri;
+				const activeEditor = accessor.get(IEditorService)?.activeEditor;
+				const resourceUri = (activeEditor && EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }))
+					?? accessor.get(IWorkspaceContextService).getWorkspace().folders[0].uri;
 				const clipboardService = accessor.get(IClipboardService);
 				const dialogService = accessor.get(IDialogService);
 				const urlService = accessor.get(IOpenerService);
+				const progressService = accessor.get(IProgressService);
 
 				const uri = await shareService.provideShare({ resourceUri }, new CancellationTokenSource().token);
 				if (uri) {
 					const uriText = uri.toString();
-					await clipboardService.writeText(uriText);
+
+					await progressService.withProgress({
+						location: ProgressLocation.Window,
+						detail: localize('generating link', 'Generating link...')
+					}, () => clipboardService.writeText(uriText));
+
 					dialogService.prompt(
 						{
 							type: Severity.Info,
