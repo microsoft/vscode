@@ -333,7 +333,7 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 
 	const text = outputInfo.text();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, false);
+	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
 	content.classList.add('output-plaintext');
 	if (ctx.settings.outputWordWrap) {
 		content.classList.add('word-wrap');
