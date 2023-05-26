@@ -27,12 +27,14 @@ import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGetti
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const configurationKey = 'workbench.welcome.experimental.dialog';
 
 class WelcomeDialogContribution extends Disposable implements IWorkbenchContribution {
 
 	private contextKeysToWatch = new Set<string>();
+	private isRendered = false;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -69,27 +71,41 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 		this.contextKeysToWatch.add(welcomeDialog.when);
 
 		this._register(this.contextService.onDidChangeContext(e => {
-			if (e.affectsSome(this.contextKeysToWatch) &&
-				Array.from(this.contextKeysToWatch).every(value => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(value)))) {
+			if (e.affectsSome(this.contextKeysToWatch) && !this.isRendered) {
+
+				if (!Array.from(this.contextKeysToWatch).every(value => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(value)))) {
+					return;
+				}
+
 				const codeEditor = this.codeEditorService.getActiveCodeEditor();
+
 				if (codeEditor?.hasModel()) {
+					const scheduler = new RunOnceScheduler(() => {
+						this.isRendered = true;
+						const detailsRenderer = new GettingStartedDetailsRenderer(fileService, notificationService, extensionService, languageService);
 
-					const detailsRenderer = new GettingStartedDetailsRenderer(fileService, notificationService, extensionService, languageService);
+						const welcomeWidget = new WelcomeWidget(
+							codeEditor,
+							instantiationService,
+							commandService,
+							telemetryService,
+							openerService,
+							webviewService,
+							detailsRenderer);
 
-					const welcomeWidget = new WelcomeWidget(
-						codeEditor,
-						instantiationService,
-						commandService,
-						telemetryService,
-						openerService,
-						webviewService,
-						detailsRenderer);
+						welcomeWidget.render(welcomeDialog.title,
+							welcomeDialog.message,
+							welcomeDialog.buttonText,
+							welcomeDialog.buttonCommand,
+							welcomeDialog.media);
 
-					welcomeWidget.render(welcomeDialog.title,
-						welcomeDialog.message,
-						welcomeDialog.buttonText,
-						welcomeDialog.buttonCommand,
-						welcomeDialog.media);
+					}, 3000);
+
+					this._register(codeEditor.onDidChangeModelContent((e) => {
+						if (!this.isRendered) {
+							scheduler.schedule();
+						}
+					}));
 
 					this.contextKeysToWatch.delete(welcomeDialog.when);
 				}
@@ -110,7 +126,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
-			description: localize('workbench.welcome.dialog', "When enabled, a welcome widget is shown in the edior")
+			description: localize('workbench.welcome.dialog', "When enabled, a welcome widget is shown in the editor")
 		}
 	}
 });
