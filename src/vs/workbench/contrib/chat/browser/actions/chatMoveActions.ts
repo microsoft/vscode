@@ -32,7 +32,7 @@ const getMoveToEditorChatActionDescriptorForViewTitle = (viewId: string, provide
 	viewId,
 	menu: {
 		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId)),
+		when: ContextKeyExpr.equals('view', viewId),
 		order: 0
 	},
 });
@@ -52,35 +52,6 @@ export function getMoveToEditorAction(viewId: string, providerId: string) {
 			const editorService = accessor.get(IEditorService);
 			view.clear();
 			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: viewModel.sessionId }, pinned: true } });
-		}
-	};
-}
-
-const getMoveToSidebarChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
-	id: `workbench.action.chat.${providerId}.openInSidebar`,
-	title: {
-		value: localize('chat.openInSidebar.label', "Open In Sidebar"),
-		original: 'Open In Sidebar'
-	},
-	category: CHAT_CATEGORY,
-	precondition: CONTEXT_PROVIDER_EXISTS,
-	f1: false,
-	viewId,
-	menu: [{
-		id: MenuId.EditorTitle,
-		order: 0,
-		when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID)),
-	}]
-});
-
-export function getMoveToSidebarAction(viewId: string, providerId: string) {
-	return class MoveToSidebarAction extends Action2 {
-		constructor() {
-			super(getMoveToSidebarChatActionDescriptorForViewTitle(viewId, providerId));
-		}
-
-		override async run(accessor: ServicesAccessor, ...args: any[]) {
-			return moveToSidebar(accessor);
 		}
 	};
 }
@@ -151,7 +122,7 @@ export function registerMoveActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					order: 0,
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID)),
+					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 				}]
 			});
 		}
