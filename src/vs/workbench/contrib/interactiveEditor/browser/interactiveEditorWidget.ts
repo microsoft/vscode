@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -137,7 +137,8 @@ export class InteractiveEditorWidget {
 			h('div.previewCreate.hidden@previewCreate'),
 			h('div.status@status', [
 				h('div.actions.hidden@statusToolbar'),
-				h('div.label.hidden@statusLabel')
+				h('div.label.hidden@statusLabel'),
+				h('div.actions.hidden@feedbackToolbar'),
 			]),
 			h('div.markdownMessage.hidden@markdownMessage', [
 				h('div.message@message'),
@@ -293,6 +294,10 @@ export class InteractiveEditorWidget {
 		this._store.add(statusToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusToolbar);
 
+		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		this._store.add(feedbackToolbar);
+
 		// preview editors
 		this._previewDiffEditor = this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, _previewEditorEditorOptions, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor));
 
@@ -389,6 +394,7 @@ export class InteractiveEditorWidget {
 
 	updateToolbar(show: boolean) {
 		this._elements.statusToolbar.classList.toggle('hidden', !show);
+		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
 		this._onDidChangeHeight.fire();
 	}
 
@@ -437,6 +443,7 @@ export class InteractiveEditorWidget {
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.statusToolbar.classList.add('hidden');
+		this._elements.feedbackToolbar.classList.add('hidden');
 		this.hideCreatePreview();
 		this.hideEditsPreview();
 		this._onDidChangeHeight.fire();

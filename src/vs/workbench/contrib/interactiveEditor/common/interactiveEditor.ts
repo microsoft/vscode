@@ -123,6 +123,7 @@ export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<EditMode>('con
 export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidget');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE = MenuId.for('interactiveEditorWidget.markdownMessage');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_STATUS = MenuId.for('interactiveEditorWidget.status');
+export const MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK = MenuId.for('interactiveEditorWidget.feedback');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD = MenuId.for('interactiveEditorWidget.undo');
 
 // --- colors
