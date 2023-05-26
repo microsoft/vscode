@@ -1303,7 +1303,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jlelong/vscode-latex-basics 1.5.1 - MIT
+jlelong/vscode-latex-basics 1.5.2 - MIT
 https://github.com/jlelong/vscode-latex-basics
 
 Copyright (c) vscode-latex-basics authors
@@ -1654,8 +1654,8 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-language-php 0.48.1 - MIT
-https://github.com/atom/language-php
+language-php 0.49.0 - MIT
+https://github.com/KapitanOczywisty/language-php
 
 The MIT License (MIT)
 
@@ -2184,7 +2184,7 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-microsoft/vscode-css 0.45.1 - MIT License
+microsoft/vscode-css 0.0.0 - MIT License
 https://github.com/microsoft/vscode-css
 
 MIT License
@@ -2748,7 +2748,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 
 ---------------------------------------------------------
 
-trond-snekvik/vscode-rst 1.5.1 - MIT
+trond-snekvik/vscode-rst 1.5.2 - MIT
 https://github.com/trond-snekvik/vscode-rst
 
 The MIT License (MIT)
