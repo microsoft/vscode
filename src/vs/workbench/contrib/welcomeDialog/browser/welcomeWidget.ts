@@ -74,12 +74,12 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	render(title: string, message: string, buttonText: string, buttonAction: string, media: { altText: string; path: string }): void {
+	public async render(title: string, message: string, buttonText: string, buttonAction: string, media: { altText: string; path: string }) {
 		if (!this._editor._getViewModel()) {
 			return;
 		}
 
-		this.buildWidgetContent(title, message, buttonText, buttonAction, media);
+		await this.buildWidgetContent(title, message, buttonText, buttonAction, media);
 		this._editor.addOverlayWidget(this);
 		this._revealTemporarily();
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
@@ -88,7 +88,7 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		});
 	}
 
-	buildWidgetContent(title: string, message: string, buttonText: string, buttonAction: string, media: { altText: string; path: string }): void {
+	private async buildWidgetContent(title: string, message: string, buttonText: string, buttonAction: string, media: { altText: string; path: string }) {
 
 		const actionBar = this._register(new ActionBar(this.element, {}));
 
@@ -98,7 +98,7 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		actionBar.push(action, { icon: true, label: false });
 
 		if (media) {
-			this.buildSVGMediaComponent(media.path);
+			await this.buildSVGMediaComponent(media.path);
 		}
 
 		const renderBody = (message: string): MarkdownString => {
@@ -158,7 +158,7 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		return container;
 	}
 
-	private buildSVGMediaComponent(path: string) {
+	private async buildSVGMediaComponent(path: string) {
 
 		const mediaContainer = this.messageContainer.appendChild($('.dialog-image-container'));
 		mediaContainer.id = generateUuid();
@@ -166,9 +166,8 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		const webview = this._register(this.webviewService.createWebviewElement({ title: undefined, options: {}, contentOptions: {}, extension: undefined }));
 		webview.mountTo(mediaContainer);
 
-		this.detailsRenderer.renderSVG(FileAccess.asFileUri(`${WelcomeWidget.WELCOME_MEDIA_PATH}${path}`)).then(body => {
-			webview.setHtml(body);
-		});
+		const body = await this.detailsRenderer.renderSVG(FileAccess.asFileUri(`${WelcomeWidget.WELCOME_MEDIA_PATH}${path}`));
+		webview.setHtml(body);
 	}
 
 	getId(): string {

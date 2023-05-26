@@ -24,8 +24,11 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { localize } from 'vs/nls';
+import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
-const configurationKey = 'welcome.experimental.dialog';
+const configurationKey = 'workbench.welcome.experimental.dialog';
 
 class WelcomeDialogContribution extends Disposable implements IWorkbenchContribution {
 
@@ -49,7 +52,7 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
-		if (!storageService.isNew(StorageScope.PROFILE)) {
+		if (!storageService.isNew(StorageScope.APPLICATION)) {
 			return; // do not show if this is not the first session
 		}
 
@@ -97,3 +100,17 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WelcomeDialogContribution, LifecyclePhase.Restored);
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	...applicationConfigurationNodeBase,
+	properties: {
+		'workbench.welcome.experimental.dialog': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			description: localize('workbench.welcome.dialog', "When enabled, a welcome widget is shown in the edior")
+		}
+	}
+});
