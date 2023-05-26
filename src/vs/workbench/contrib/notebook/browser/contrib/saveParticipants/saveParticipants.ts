@@ -30,6 +30,8 @@ import { CodeActionTriggerType, CodeActionProvider, IWorkspaceTextEdit } from 'v
 import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { isEqual } from 'vs/base/common/resources';
 
+const NotebookCodeAction = new CodeActionKind('notebook');
+
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -133,8 +135,8 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			return undefined;
 		}
 
-		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => !CodeActionKind.Notebook.contains(x));
-		const notebookCodeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => CodeActionKind.Notebook.contains(x));
+		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => !NotebookCodeAction.contains(x));
+		const notebookCodeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => NotebookCodeAction.contains(x));
 
 		// prioritize `source.fixAll` code actions
 		if (!Array.isArray(setting)) {
