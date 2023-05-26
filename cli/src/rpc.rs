@@ -533,17 +533,9 @@ struct StreamRec {
 	q: Vec<Vec<u8>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct Streams {
 	map: Arc<std::sync::Mutex<HashMap<u32, StreamRec>>>,
-}
-
-impl Default for Streams {
-	fn default() -> Self {
-		Self {
-			map: Default::default(),
-		}
-	}
 }
 
 impl Streams {
