@@ -23,7 +23,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A provider which generates share links for resources in VS Code.
+	 * A provider which generates share links for resources in the editor.
 	 */
 	export interface ShareProvider {
 
