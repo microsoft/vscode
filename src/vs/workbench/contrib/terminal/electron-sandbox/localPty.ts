@@ -5,8 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent, ILocalPtyService } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
@@ -49,7 +48,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		super();
 	}
 
-	start(): Promise<ITerminalLaunchError | undefined> {
+	start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		return this._localPtyService.start(this.id);
 	}
 	detach(forcePersist?: boolean): Promise<void> {

@@ -132,7 +132,7 @@ export interface IGlobalEditorOptions {
 	 */
 	'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
 	/**
-	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+	 * Keep peek editors open even when double-clicking their content or when hitting `Escape`.
 	 * Defaults to false.
 	 */
 	stablePeek?: boolean;
@@ -327,7 +327,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
+		const run = (_accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
 			return Promise.resolve(_descriptor.run(this, ...args));
 		};
 
@@ -367,7 +367,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			label,
 			label,
 			precondition,
-			run,
+			(...args: unknown[]) => Promise.resolve(_descriptor.run(this, ...args)),
 			this._contextKeyService
 		);
 
@@ -470,7 +470,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	override _postDetachModelCleanup(detachedModel: ITextModel): void {
+	protected override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();

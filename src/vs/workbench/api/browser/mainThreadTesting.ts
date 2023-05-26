@@ -45,11 +45,23 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 		this._register(resultService.onResultsChanged(evt => {
 			const results = 'completed' in evt ? evt.completed : ('inserted' in evt ? evt.inserted : undefined);
-			const serialized = results?.toJSON();
+			const serialized = results?.toJSONWithMessages();
 			if (serialized) {
 				this.proxy.$publishTestResults([serialized]);
 			}
 		}));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$markTestRetired(testId: string): void {
+		for (const result of this.resultService.results) {
+			// all non-live results are already entirely outdated
+			if (result instanceof LiveTestResult) {
+				result.markRetired(testId);
+			}
+		}
 	}
 
 	/**
@@ -175,6 +187,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			refreshTests: token => this.proxy.$refreshTests(controllerId, token),
 			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
 			runTests: (reqs, token) => this.proxy.$runControllerTests(reqs, token),
+			startContinuousRun: (reqs, token) => this.proxy.$startContinuousRun(reqs, token),
 			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
 		};
 

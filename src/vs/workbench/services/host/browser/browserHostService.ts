@@ -13,7 +13,7 @@ import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, i
 import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -399,11 +399,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	private getRecentLabel(openable: IWindowOpenable): string {
 		if (isFolderToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: true });
+			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: Verbosity.LONG });
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: true });
+			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: Verbosity.LONG });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);
@@ -456,8 +456,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		const opened = await this.workspaceProvider.open(workspace, options);
 		if (!opened) {
-			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."), [localize('open', "Open"), localize('cancel', "Cancel")], { cancelId: 1 });
-			if (showResult.choice === 0) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Warning,
+				message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")
+			});
+			if (confirmed) {
 				await this.workspaceProvider.open(workspace, options);
 			}
 		}

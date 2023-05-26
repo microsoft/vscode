@@ -298,6 +298,24 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
+		const productConfiguration = <Partial<IProductConfiguration>>{
+			embedderIdentifier: 'server-distro',
+			extensionsGallery: this._webExtensionResourceUrlTemplate ? {
+				...this._productService.extensionsGallery,
+				'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
+					scheme: 'http',
+					authority: remoteAuthority,
+					path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+				}).toString(true)
+			} : undefined
+		};
+
+		if (!this._environmentService.isBuilt) {
+			try {
+				const productOverrides = JSON.parse((await fsp.readFile(join(APP_ROOT, 'product.overrides.json'))).toString());
+				Object.assign(productConfiguration, productOverrides);
+			} catch (err) {/* Ignore Error */ }
+		}
 
 		const workbenchWebConfiguration = {
 			remoteAuthority,
@@ -307,17 +325,7 @@ export class WebClientServer {
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
-			productConfiguration: <Partial<IProductConfiguration>>{
-				embedderIdentifier: 'server-distro',
-				extensionsGallery: this._webExtensionResourceUrlTemplate ? {
-					...this._productService.extensionsGallery,
-					'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
-						scheme: 'http',
-						authority: remoteAuthority,
-						path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
-					}).toString(true)
-				} : undefined
-			},
+			productConfiguration,
 			callbackRoute: this._callbackRoute
 		};
 
@@ -346,7 +354,7 @@ export class WebClientServer {
 			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-fh3TwPMflhsEIpR8g1OYTIMVWhXTLcjQ9kh2tIpmv54=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
-			'worker-src \'self\' data:;',
+			'worker-src \'self\' data: blob:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',
 			'font-src \'self\' blob:;',

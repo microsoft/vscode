@@ -9,9 +9,8 @@ import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecyc
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, editorBackground, asCssVariable, asCssVariableWithDefault, widgetBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { append, $, addDisposableListener, EventType, EventHelper, prepend } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -23,6 +22,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -122,7 +122,7 @@ export class FeedbackWidget extends Disposable {
 		append(this.feedbackForm, $('h2.title')).textContent = localize("label.sendASmile", "Tweet us your feedback.");
 
 		// Close Button (top right)
-		const closeBtn = append(this.feedbackForm, $(`div.cancel${Codicon.close.cssSelector}`));
+		const closeBtn = append(this.feedbackForm, $(`div.cancel${ThemeIcon.asCSSSelector(Codicon.close)}`));
 		closeBtn.tabIndex = 0;
 		closeBtn.setAttribute('role', 'button');
 		closeBtn.title = localize('close', "Close");
@@ -284,27 +284,27 @@ export class FeedbackWidget extends Disposable {
 		this.sendButton = new Button(buttonsContainer, defaultButtonStyles);
 		this.sendButton.enabled = false;
 		this.sendButton.label = localize('tweet', "Tweet");
-		prepend(this.sendButton.element, $(`span${Codicon.twitter.cssSelector}`));
+		prepend(this.sendButton.element, $(`span${ThemeIcon.asCSSSelector(Codicon.twitter)}`));
 		this.sendButton.element.classList.add('send');
 		this.sendButton.element.title = localize('tweetFeedback', "Tweet Feedback");
 
 		this.sendButton.onDidClick(() => this.onSubmit());
 
-		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, editorWidgetForeground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
-			if (this.feedbackForm) {
-				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
-				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : '';
-				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px 2px ${colors.widgetShadow}` : '';
-			}
-			if (this.feedbackDescriptionInput) {
-				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
-				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
-			}
+		if (this.feedbackForm) {
+			this.feedbackForm.style.backgroundColor = asCssVariable(editorWidgetBackground);
+			this.feedbackForm.style.color = asCssVariable(editorWidgetForeground);
+			this.feedbackForm.style.boxShadow = `0 0 8px 2px ${asCssVariable(widgetShadow)}`;
+			this.feedbackForm.style.border = `1px solid ${asCssVariable(widgetBorder)}`;
+		}
+		if (this.feedbackDescriptionInput) {
+			this.feedbackDescriptionInput.style.backgroundColor = asCssVariable(inputBackground);
+			this.feedbackDescriptionInput.style.color = asCssVariable(inputForeground);
+			this.feedbackDescriptionInput.style.border = `1px solid ${asCssVariableWithDefault(inputBorder, 'transparent')}`;
+		}
 
-			contactUsContainer.style.backgroundColor = colors.editorBackground ? colors.editorBackground.toString() : '';
-			contactUsContainer.style.border = `1px solid ${colors.contrastBorder || 'transparent'}`;
-		}));
+		contactUsContainer.style.backgroundColor = asCssVariable(editorBackground);
+		contactUsContainer.style.border = `1px solid ${asCssVariableWithDefault(contrastBorder, 'transparent')}`;
+
 
 		return {
 			dispose: () => {
@@ -453,18 +453,3 @@ export class FeedbackWidget extends Disposable {
 		this.hide();
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-
-	// Sentiment Buttons
-	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.monaco-workbench .feedback-form .sentiment.checked { border: 1px solid ${inputActiveOptionBorderColor}; }`);
-	}
-
-	// Links
-	const linkColor = theme.getColor(textLinkForeground) || theme.getColor(contrastBorder);
-	if (linkColor) {
-		collector.addRule(`.monaco-workbench .feedback-form .content .channels a { color: ${linkColor}; }`);
-	}
-});

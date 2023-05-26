@@ -34,7 +34,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 		});
 		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontFamily, 'bar', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
+		assert.strictEqual(configHelper.getFont().fontFamily, 'bar, monospace', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
 	});
 
 	test('TerminalConfigHelper - getFont fontFamily (Linux Fedora)', () => {
@@ -66,7 +66,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 		});
 		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		configHelper.panelContainer = fixture;
-		assert.strictEqual(configHelper.getFont().fontFamily, 'foo', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
+		assert.strictEqual(configHelper.getFont().fontFamily, 'foo, monospace', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
 	});
 
 	test('TerminalConfigHelper - getFont fontSize 10', () => {

@@ -6,7 +6,7 @@
 import 'vs/css!./media/basepanelpart';
 import 'vs/css!./media/panelpart';
 import { localize } from 'vs/nls';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
+import { IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -18,8 +18,9 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
@@ -38,7 +39,7 @@ import { IActivity } from 'vs/workbench/common/activity';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Extensions as PaneCompositeExtensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IComposite } from 'vs/workbench/common/composite';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { IPartOptions } from 'vs/workbench/browser/part';
@@ -47,12 +48,12 @@ import { URI } from 'vs/base/common/uri';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PlaceHolderToggleCompositeBadgeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 interface ICachedPanel {
 	id: string;
 	name?: string;
 	pinned: boolean;
-	badgeEnabled: boolean;
 	order?: number;
 	visible: boolean;
 	views?: { when?: string }[];
@@ -142,8 +143,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		@IExtensionService private readonly extensionService: IExtensionService,
 		private readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART,
 		activePanelSettingsKey: string,
-		protected readonly pinnedPanelsKey: string,
-		protected readonly placeholdeViewContainersKey: string,
+		private readonly pinnedPanelsKey: string,
+		private readonly placeholdeViewContainersKey: string,
 		panelRegistryId: string,
 		private readonly backgroundColor: string,
 		private readonly viewContainerLocation: ViewContainerLocation,
@@ -339,15 +340,16 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
-		let cssClass: string | undefined = undefined;
+		let classNames: string[] | undefined = undefined;
 		let iconUrl: URI | undefined = undefined;
 		if (URI.isUri(icon)) {
 			iconUrl = icon;
 			const cssUrl = asCSSUrl(icon);
 			const hash = new StringSHA1();
 			hash.update(cssUrl);
-			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
-			const iconClass = `.monaco-workbench .basepanel .monaco-action-bar .action-label.${cssClass}`;
+			const iconId = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
+			classNames = [iconId, 'uri-icon'];
+			const iconClass = `.monaco-workbench .basepanel .monaco-action-bar .action-label.${iconId}`;
 			createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
 				mask-size: 16px;
@@ -357,10 +359,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				-webkit-mask-origin: padding;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
-			cssClass = ThemeIcon.asClassName(icon);
+			classNames = ThemeIcon.asClassNameArray(icon);
 		}
 
-		return { id, name, cssClass, iconUrl, keybindingId };
+		return { id, name, classNames, iconUrl, keybindingId };
 	}
 
 	private showOrHideViewContainer(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
@@ -648,7 +650,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	getLastActivePaneCompositeId(): string {
-		return this.getLastActiveCompositetId();
+		return this.getLastActiveCompositeId();
 	}
 
 	hideActivePaneComposite(): void {
@@ -796,7 +798,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 					name: cachedPanel.name,
 					order: cachedPanel.order,
 					pinned: cachedPanel.pinned,
-					badgeEnabled: cachedPanel.badgeEnabled,
 					visible: !!compositeItems.find(({ id }) => id === cachedPanel.id)
 				});
 			}
@@ -821,10 +822,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, badgeEnabled: compositeItem.badgeEnabled, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 				placeholders.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.label });
 			} else {
-				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, badgeEnabled: compositeItem.badgeEnabled, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 			}
 		}
 
@@ -837,7 +838,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 		const storedStates: Array<string | ICachedPanel> = JSON.parse(this.cachedPanelsValue);
 		const cachedPanels = storedStates.map(c => {
-			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, badgeEnabled: true } : c;
+			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true } : c;
 			const registered = registeredPanels.some(p => p.id === serialized.id);
 			serialized.visible = registered ? isUndefinedOrNull(serialized.visible) ? true : serialized.visible : false;
 			return serialized;
@@ -912,8 +913,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 export class PanelPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
-	static readonly pinnedPanelsKey = 'workbench.panel.pinnedPanels';
-	static readonly placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -928,6 +927,7 @@ export class PanelPart extends BasePanelPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
+		@IMenuService private menuService: IMenuService,
 	) {
 		super(
 			notificationService,
@@ -943,8 +943,8 @@ export class PanelPart extends BasePanelPart {
 			extensionService,
 			Parts.PANEL_PART,
 			PanelPart.activePanelSettingsKey,
-			PanelPart.pinnedPanelsKey,
-			PanelPart.placeholdeViewContainersKey,
+			'workbench.panel.pinnedPanels',
+			'workbench.panel.placeholderPanels',
 			PaneCompositeExtensions.Panels,
 			PANEL_BACKGROUND,
 			ViewContainerLocation.Panel,
@@ -979,12 +979,19 @@ export class PanelPart extends BasePanelPart {
 
 	protected fillExtraContextMenuActions(actions: IAction[]): void {
 
+		const panelPositionMenu = this.menuService.createMenu(MenuId.PanelPositionMenu, this.contextKeyService);
+		const panelAlignMenu = this.menuService.createMenu(MenuId.PanelAlignmentMenu, this.contextKeyService);
+		const positionActions: IAction[] = [];
+		const alignActions: IAction[] = [];
+		createAndFillInContextMenuActions(panelPositionMenu, { shouldForwardArgs: true }, { primary: [], secondary: positionActions });
+		createAndFillInContextMenuActions(panelAlignMenu, { shouldForwardArgs: true }, { primary: [], secondary: alignActions });
+		panelAlignMenu.dispose();
+		panelPositionMenu.dispose();
+
 		actions.push(...[
 			new Separator(),
-			...PositionPanelActionConfigs
-				// show the contextual menu item if it is not in that position
-				.filter(({ when }) => this.contextKeyService.contextMatchesRules(when))
-				.map(({ id, title }) => this.instantiationService.createInstance(SetPanelPositionAction, id, title.value)),
+			new SubmenuAction('workbench.action.panel.position', localize('panel position', "Panel Position"), positionActions),
+			new SubmenuAction('workbench.action.panel.align', localize('align panel', "Align Panel"), alignActions),
 			toAction({ id: TogglePanelAction.ID, label: localize('hidePanel', "Hide Panel"), run: () => this.commandService.executeCommand(TogglePanelAction.ID) })
 		]);
 	}

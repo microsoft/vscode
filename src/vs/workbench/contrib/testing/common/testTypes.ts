@@ -20,12 +20,20 @@ export const enum TestResultState {
 	Errored = 6
 }
 
+/** note: keep in sync with TestRunProfileKind in vscode.d.ts */
+export const enum ExtTestRunProfileKind {
+	Run = 1,
+	Debug = 2,
+	Coverage = 3,
+}
+
 export const enum TestRunProfileBitset {
 	Run = 1 << 1,
 	Debug = 1 << 2,
 	Coverage = 1 << 3,
 	HasNonDefaultProfile = 1 << 4,
 	HasConfigurable = 1 << 5,
+	SupportsContinuousRun = 1 << 6,
 }
 
 /**
@@ -36,6 +44,8 @@ export const testRunProfileBitsetList = [
 	TestRunProfileBitset.Debug,
 	TestRunProfileBitset.Coverage,
 	TestRunProfileBitset.HasNonDefaultProfile,
+	TestRunProfileBitset.HasConfigurable,
+	TestRunProfileBitset.SupportsContinuousRun,
 ];
 
 /**
@@ -49,6 +59,7 @@ export interface ITestRunProfile {
 	isDefault: boolean;
 	tag: string | null;
 	hasConfigurationHandler: boolean;
+	supportsContinuousRun: boolean;
 }
 
 /**
@@ -63,7 +74,8 @@ export interface ResolvedTestRunRequest {
 		profileId: number;
 	}[];
 	exclude?: string[];
-	isAutoRun?: boolean;
+	/** Whether this is a continuous test run */
+	continuous?: boolean;
 	/** Whether this was trigged by a user action in UI. Default=true */
 	isUiTriggered?: boolean;
 }
@@ -78,20 +90,34 @@ export interface ExtensionRunTestsRequest {
 	controllerId: string;
 	profile?: { group: TestRunProfileBitset; id: number };
 	persist: boolean;
+	/** Whether this is a result of a continuous test run request */
+	continuous: boolean;
 }
 
 /**
- * Request from the main thread to run tests for a single controller.
+ * Request parameters a controller run handler. This is different than
+ * {@link IStartControllerTests}. The latter is used to ask for one or more test
+ * runs tracked directly by the renderer.
+ *
+ * This alone can be used to start an autorun, without a specific associated runId.
  */
-export interface RunTestForControllerRequest {
-	runId: string;
+export interface ICallProfileRunHandler {
 	controllerId: string;
 	profileId: number;
 	excludeExtIds: string[];
 	testIds: string[];
 }
 
-export interface RunTestForControllerResult {
+export const isStartControllerTests = (t: ICallProfileRunHandler | IStartControllerTests): t is IStartControllerTests => ('runId' as keyof IStartControllerTests) in t;
+
+/**
+ * Request from the main thread to run tests for a single controller.
+ */
+export interface IStartControllerTests extends ICallProfileRunHandler {
+	runId: string;
+}
+
+export interface IStartControllerTestsResult {
 	error?: string;
 }
 
@@ -443,12 +469,14 @@ export interface TestResultItem extends InternalTestItem {
 }
 
 export namespace TestResultItem {
-	/** Serialized version of the TestResultItem */
+	/**
+	 * Serialized version of the TestResultItem. Note that 'retired' is not
+	 * included since all hydrated items are automatically retired.
+	 */
 	export interface Serialized extends InternalTestItem.Serialized {
 		tasks: ITestTaskState.Serialized[];
 		ownComputedState: TestResultState;
 		computedState: TestResultState;
-		retired?: boolean;
 	}
 
 	export const serializeWithoutMessages = (original: TestResultItem): Serialized => ({
@@ -456,7 +484,6 @@ export namespace TestResultItem {
 		ownComputedState: original.ownComputedState,
 		computedState: original.computedState,
 		tasks: original.tasks.map(ITestTaskState.serializeWithoutMessages),
-		retired: original.retired,
 	});
 
 	export const serialize = (original: TestResultItem): Serialized => ({
@@ -464,7 +491,6 @@ export namespace TestResultItem {
 		ownComputedState: original.ownComputedState,
 		computedState: original.computedState,
 		tasks: original.tasks.map(ITestTaskState.serialize),
-		retired: original.retired,
 	});
 
 	export const deserialize = (serialized: Serialized): TestResultItem => ({

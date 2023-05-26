@@ -15,9 +15,19 @@ const nodeRequire = require;
 globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
 
 // VSCODE_GLOBALS: package/product.json
+/** @type Record<string, any> */
 globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
+if (process.env['VSCODE_DEV']) {
+	// Patch product overrides when running out of sources
+	try {
+		// @ts-ignore
+		const overrides = require('../product.overrides.json');
+		globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, overrides);
+	} catch (error) { /* ignore */ }
+}
 globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 
+// @ts-ignore
 const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
 const performance = require('./vs/base/common/performance');
@@ -37,18 +47,23 @@ loader.config({
 
 // Running in Electron
 if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
-	loader.define('fs', ['original-fs'], function (originalFS) {
+	loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
 		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
 	});
 }
 
 // Pseudo NLS support
 if (nlsConfig && nlsConfig.pseudo) {
-	loader(['vs/nls'], function (nlsPlugin) {
-		nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+	loader(['vs/nls'], function (/** @type {import('vs/nls')} */nlsPlugin) {
+		nlsPlugin.setPseudoTranslation(!!nlsConfig.pseudo);
 	});
 }
 
+/**
+ * @param {string=} entrypoint
+ * @param {(value: any) => void=} onLoad
+ * @param {(err: Error) => void=} onError
+ */
 exports.load = function (entrypoint, onLoad, onError) {
 	if (!entrypoint) {
 		return;
@@ -67,6 +82,6 @@ exports.load = function (entrypoint, onLoad, onError) {
 	onLoad = onLoad || function () { };
 	onError = onError || function (err) { console.error(err); };
 
-	performance.mark(`code/fork/willLoadCode`);
+	performance.mark('code/fork/willLoadCode');
 	loader([entrypoint], onLoad, onError);
 };

@@ -1,0 +1,52 @@
+{
+	"original": {
+		"content": "import { findLast } from 'vs/base/common/arrays';\nimport { Disposable } from 'vs/base/common/lifecycle';\nimport { ITransaction, observableValue, transaction } from 'vs/base/common/observable';\nimport { Range } from 'vs/editor/common/core/range';\nimport { ScrollType } from 'vs/editor/common/editorCommon';\nimport { IFooBar, IFoo } from 'foo';\n\nconsole.log(observableValue);\n\nconsole.log(observableValue);\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "import { findLast } from 'vs/base/common/arrays';\nimport { Disposable } from 'vs/base/common/lifecycle';\nimport { ITransaction, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';\nimport { Range } from 'vs/editor/common/core/range';\nimport { ScrollType } from 'vs/editor/common/editorCommon';\nimport { IFooBar, IBar, IFoo } from 'foo';\n\nconsole.log(observableFromEvent, observableValue);\n\nconsole.log(observableValue, observableFromEvent);\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[3,4)",
+			"modifiedRange": "[3,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[3,23 -> 3,23]",
+					"modifiedRange": "[3,23 -> 3,44]"
+				}
+			]
+		},
+		{
+			"originalRange": "[6,7)",
+			"modifiedRange": "[6,7)",
+			"innerChanges": [
+				{
+					"originalRange": "[6,18 -> 6,18]",
+					"modifiedRange": "[6,18 -> 6,24]"
+				}
+			]
+		},
+		{
+			"originalRange": "[8,9)",
+			"modifiedRange": "[8,9)",
+			"innerChanges": [
+				{
+					"originalRange": "[8,13 -> 8,13]",
+					"modifiedRange": "[8,13 -> 8,34]"
+				}
+			]
+		},
+		{
+			"originalRange": "[10,11)",
+			"modifiedRange": "[10,11)",
+			"innerChanges": [
+				{
+					"originalRange": "[10,28 -> 10,28]",
+					"modifiedRange": "[10,28 -> 10,49]"
+				}
+			]
+		}
+	]
+}

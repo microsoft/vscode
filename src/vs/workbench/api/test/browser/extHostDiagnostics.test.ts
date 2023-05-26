@@ -505,7 +505,7 @@ suite('ExtHostDiagnostics', () => {
 				startColumn: 1,
 				endLineNumber: 1,
 				endColumn: 1,
-				severity: 3
+				severity: MarkerSeverity.Info
 			}];
 
 			const p1 = Event.toPromise(diags.onDidChangeDiagnostics);

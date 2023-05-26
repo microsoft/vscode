@@ -14,6 +14,8 @@ import { ViewContainerLocation, ViewContainerLocationToString } from 'vs/workben
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));
@@ -33,11 +35,15 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 			toggled: {
 				condition: AuxiliaryBarVisibleContext,
 				title: localize('secondary sidebar', "Secondary Side Bar"),
-				mnemonicTitle: localize('secondary sidebar mnemonic', "Secondary Si&&de Bar"),
+				mnemonicTitle: localize({ key: 'secondary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "Secondary Si&&de Bar"),
 			},
 
 			category: Categories.View,
 			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
+			},
 			menu: [
 				{
 					id: MenuId.LayoutControlMenuSubmenu,

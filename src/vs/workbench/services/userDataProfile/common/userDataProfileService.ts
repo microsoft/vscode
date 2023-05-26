@@ -6,6 +6,7 @@
 import { Promises } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { defaultUserDataProfileIcon, DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
@@ -56,16 +57,10 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	}
 
 	getShortName(profile: IUserDataProfile): string {
-		if (profile.isDefault) {
-			return `$(${defaultUserDataProfileIcon.id})`;
-		}
-		if (profile.shortName) {
+		if (!profile.isDefault && profile.shortName && ThemeIcon.fromId(profile.shortName)) {
 			return profile.shortName;
 		}
-		if (profile.isTransient) {
-			return `T${profile.name.charAt(profile.name.length - 1)}`;
-		}
-		return profile.name.substring(0, 2).toUpperCase();
+		return `$(${defaultUserDataProfileIcon.id})`;
 	}
 
 }

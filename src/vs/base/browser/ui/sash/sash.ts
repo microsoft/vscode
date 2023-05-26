@@ -55,6 +55,13 @@ export enum OrthogonalEdge {
 	West = 'west'
 }
 
+export interface IBoundarySashes {
+	readonly top?: Sash;
+	readonly right?: Sash;
+	readonly bottom?: Sash;
+	readonly left?: Sash;
+}
+
 export interface ISashOptions {
 
 	/**

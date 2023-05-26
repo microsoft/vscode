@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as picomatch from 'picomatch';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
+import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions } from './git';
@@ -21,6 +21,8 @@ import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { ActionButtonCommand } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
+import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
+import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -56,6 +58,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.UNTRACKED: return l10n.t('Untracked');
 			case Status.IGNORED: return l10n.t('Ignored');
 			case Status.INTENT_TO_ADD: return l10n.t('Intent to Add');
+			case Status.INTENT_TO_RENAME: return l10n.t('Intent to Rename');
 			case Status.BOTH_DELETED: return l10n.t('Conflict: Both Deleted');
 			case Status.ADDED_BY_US: return l10n.t('Conflict: Added By Us');
 			case Status.DELETED_BY_THEM: return l10n.t('Conflict: Deleted By Them');
@@ -69,7 +72,7 @@ export class Resource implements SourceControlResourceState {
 
 	@memoize
 	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
+		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED || this._type === Status.INTENT_TO_RENAME)) {
 			return this.renameResourceUri;
 		}
 
@@ -134,6 +137,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.UNTRACKED: return Resource.Icons[theme].Untracked;
 			case Status.IGNORED: return Resource.Icons[theme].Ignored;
 			case Status.INTENT_TO_ADD: return Resource.Icons[theme].Added;
+			case Status.INTENT_TO_RENAME: return Resource.Icons[theme].Renamed;
 			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
 			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
 			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
@@ -191,6 +195,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED:
 				return 'D';
 			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
 				return 'R';
 			case Status.UNTRACKED:
 				return 'U';
@@ -228,6 +233,7 @@ export class Resource implements SourceControlResourceState {
 				return new ThemeColor('gitDecoration.addedResourceForeground');
 			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
 				return new ThemeColor('gitDecoration.renamedResourceForeground');
 			case Status.UNTRACKED:
 				return new ThemeColor('gitDecoration.untrackedResourceForeground');
@@ -297,155 +303,8 @@ export class Resource implements SourceControlResourceState {
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
 
-	clone() {
-		return new Resource(this._commandResolver, this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
-	}
-}
-
-export const enum Operation {
-	Status = 'Status',
-	Config = 'Config',
-	Diff = 'Diff',
-	MergeBase = 'MergeBase',
-	Add = 'Add',
-	AddNoProgress = 'AddNoProgress',
-	Remove = 'Remove',
-	RevertFiles = 'RevertFiles',
-	RevertFilesNoProgress = 'RevertFilesNoProgress',
-	Commit = 'Commit',
-	PostCommitCommand = 'PostCommitCommand',
-	Clean = 'Clean',
-	CleanNoProgress = 'CleanNoProgress',
-	Branch = 'Branch',
-	GetBranch = 'GetBranch',
-	GetBranches = 'GetBranches',
-	SetBranchUpstream = 'SetBranchUpstream',
-	HashObject = 'HashObject',
-	Checkout = 'Checkout',
-	CheckoutTracking = 'CheckoutTracking',
-	Reset = 'Reset',
-	Remote = 'Remote',
-	Fetch = 'Fetch',
-	FetchNoProgress = 'FetchNoProgress',
-	Pull = 'Pull',
-	Push = 'Push',
-	CherryPick = 'CherryPick',
-	Sync = 'Sync',
-	Show = 'Show',
-	Stage = 'Stage',
-	GetCommitTemplate = 'GetCommitTemplate',
-	DeleteBranch = 'DeleteBranch',
-	RenameBranch = 'RenameBranch',
-	DeleteRef = 'DeleteRef',
-	Merge = 'Merge',
-	MergeAbort = 'MergeAbort',
-	Rebase = 'Rebase',
-	Ignore = 'Ignore',
-	Tag = 'Tag',
-	DeleteTag = 'DeleteTag',
-	Stash = 'Stash',
-	CheckIgnore = 'CheckIgnore',
-	GetObjectDetails = 'GetObjectDetails',
-	SubmoduleUpdate = 'SubmoduleUpdate',
-	RebaseAbort = 'RebaseAbort',
-	RebaseContinue = 'RebaseContinue',
-	FindTrackingBranches = 'GetTracking',
-	Apply = 'Apply',
-	Blame = 'Blame',
-	Log = 'Log',
-	LogFile = 'LogFile',
-
-	Move = 'Move'
-}
-
-function isReadOnly(operation: Operation): boolean {
-	switch (operation) {
-		case Operation.Blame:
-		case Operation.CheckIgnore:
-		case Operation.Diff:
-		case Operation.FindTrackingBranches:
-		case Operation.GetBranch:
-		case Operation.GetCommitTemplate:
-		case Operation.GetObjectDetails:
-		case Operation.Log:
-		case Operation.LogFile:
-		case Operation.MergeBase:
-		case Operation.Show:
-			return true;
-		default:
-			return false;
-	}
-}
-
-function shouldShowProgress(operation: Operation): boolean {
-	switch (operation) {
-		case Operation.AddNoProgress:
-		case Operation.CleanNoProgress:
-		case Operation.FetchNoProgress:
-		case Operation.RevertFilesNoProgress:
-		case Operation.CheckIgnore:
-		case Operation.GetObjectDetails:
-		case Operation.Show:
-			return false;
-		default:
-			return true;
-	}
-}
-
-export interface Operations {
-	isIdle(): boolean;
-	shouldShowProgress(): boolean;
-	isRunning(operation: Operation): boolean;
-}
-
-class OperationsImpl implements Operations {
-
-	private operations = new Map<Operation, number>();
-
-	constructor(private readonly logger: LogOutputChannel) { }
-
-	start(operation: Operation): void {
-		this.logger.trace(`Operation start: ${operation}`);
-		this.operations.set(operation, (this.operations.get(operation) || 0) + 1);
-	}
-
-	end(operation: Operation): void {
-		this.logger.trace(`Operation end: ${operation}`);
-		const count = (this.operations.get(operation) || 0) - 1;
-
-		if (count <= 0) {
-			this.operations.delete(operation);
-		} else {
-			this.operations.set(operation, count);
-		}
-	}
-
-	isRunning(operation: Operation): boolean {
-		return this.operations.has(operation);
-	}
-
-	isIdle(): boolean {
-		const operations = this.operations.keys();
-
-		for (const operation of operations) {
-			if (!isReadOnly(operation)) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	shouldShowProgress(): boolean {
-		const operations = this.operations.keys();
-
-		for (const operation of operations) {
-			if (shouldShowProgress(operation)) {
-				return true;
-			}
-		}
-
-		return false;
+	clone(resourceGroupType?: ResourceGroupType) {
+		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
 	}
 }
 
@@ -460,11 +319,6 @@ interface GitResourceGroups {
 	workingTreeGroup?: Resource[];
 }
 
-export interface OperationResult {
-	operation: Operation;
-	error: any;
-}
-
 class ProgressManager {
 
 	private enabled = false;
@@ -477,7 +331,7 @@ class ProgressManager {
 
 		this.repository.onDidChangeOperations(() => {
 			// Disable input box when the commit operation is running
-			this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(Operation.Commit);
+			this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
 		});
 	}
 
@@ -670,6 +524,7 @@ class ResourceCommandResolver {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_RENAME:
 				return toGitUri(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
@@ -704,7 +559,8 @@ class ResourceCommandResolver {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-			case Status.INTENT_TO_ADD: {
+			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_RENAME: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
@@ -749,10 +605,19 @@ class ResourceCommandResolver {
 			case Status.UNTRACKED:
 				return l10n.t('{0} (Untracked)', basename);
 
+			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_RENAME:
+				return l10n.t('{0} (Intent to add)', basename);
+
 			default:
 				return '';
 		}
 	}
+}
+
+interface BranchProtectionMatcher {
+	include?: picomatch.Matcher;
+	exclude?: picomatch.Matcher;
 }
 
 export class Repository implements Disposable {
@@ -769,11 +634,14 @@ export class Repository implements Disposable {
 	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
 	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
 
-	private _onRunOperation = new EventEmitter<Operation>();
-	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
+	private _onRunOperation = new EventEmitter<OperationKind>();
+	readonly onRunOperation: Event<OperationKind> = this._onRunOperation.event;
 
 	private _onDidRunOperation = new EventEmitter<OperationResult>();
 	readonly onDidRunOperation: Event<OperationResult> = this._onDidRunOperation.event;
+
+	private _onDidChangeBranchProtection = new EventEmitter<void>();
+	readonly onDidChangeBranchProtection: Event<void> = this._onDidChangeBranchProtection.event;
 
 	@memoize
 	get onDidChangeOperations(): Event<void> {
@@ -802,11 +670,6 @@ export class Repository implements Disposable {
 		return this._HEAD;
 	}
 
-	private _refs: Ref[] = [];
-	get refs(): Ref[] {
-		return this._refs;
-	}
-
 	get headShortName(): string | undefined {
 		if (!this.HEAD) {
 			return;
@@ -816,13 +679,6 @@ export class Repository implements Disposable {
 
 		if (HEAD.name) {
 			return HEAD.name;
-		}
-
-		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-		const tagName = tag && tag.name;
-
-		if (tagName) {
-			return tagName;
 		}
 
 		return (HEAD.commit || '').substr(0, 8);
@@ -874,8 +730,8 @@ export class Repository implements Disposable {
 		return this._mergeInProgress;
 	}
 
-	private _operations = new OperationsImpl(this.logger);
-	get operations(): Operations { return this._operations; }
+	private _operations = new OperationManager(this.logger);
+	get operations(): OperationManager { return this._operations; }
 
 	private _state = RepositoryState.Idle;
 	get state(): RepositoryState { return this._state; }
@@ -884,7 +740,6 @@ export class Repository implements Disposable {
 		this._onDidChangeState.fire(state);
 
 		this._HEAD = undefined;
-		this._refs = [];
 		this._remotes = [];
 		this.mergeGroup.resourceStates = [];
 		this.indexGroup.resourceStates = [];
@@ -904,7 +759,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
-	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
+	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
@@ -915,6 +770,7 @@ export class Repository implements Disposable {
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
+		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
@@ -923,7 +779,7 @@ export class Repository implements Disposable {
 		this.disposables.push(repositoryWatcher);
 
 		const onRepositoryFileChange = anyEvent(repositoryWatcher.onDidChange, repositoryWatcher.onDidCreate, repositoryWatcher.onDidDelete);
-		const onRepositoryWorkingTreeFileChange = filterEvent(onRepositoryFileChange, uri => !/\.git($|\/)/.test(relativePath(repository.root, uri.fsPath)));
+		const onRepositoryWorkingTreeFileChange = filterEvent(onRepositoryFileChange, uri => !/\.git($|\\|\/)/.test(relativePath(repository.root, uri.fsPath)));
 
 		let onRepositoryDotGitFileChange: Event<Uri>;
 
@@ -934,7 +790,7 @@ export class Repository implements Disposable {
 		} catch (err) {
 			logger.error(`Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 
-			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\/)/.test(uri.path));
+			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\\|\/)/.test(uri.path));
 		}
 
 		// FS changes should trigger `git status`:
@@ -980,8 +836,7 @@ export class Repository implements Disposable {
 		}, undefined, this.disposables);
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
-			e.affectsConfiguration('git.branchProtection', root)
-			|| e.affectsConfiguration('git.branchSortOrder', root)
+			e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
@@ -1017,7 +872,7 @@ export class Repository implements Disposable {
 		}
 
 		// https://github.com/microsoft/vscode/issues/39039
-		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation === Operation.Push && !e.error);
+		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation.kind === OperationKind.Push && !e.error);
 		onSuccessfulPush(() => {
 			const gitConfig = workspace.getConfiguration('git');
 
@@ -1026,9 +881,10 @@ export class Repository implements Disposable {
 			}
 		}, null, this.disposables);
 
-		const onDidChangeBranchProtection = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchProtection', root));
-		onDidChangeBranchProtection(this.updateBranchProtectionMatcher, this, this.disposables);
-		this.updateBranchProtectionMatcher();
+		// Default branch protection provider
+		const onBranchProtectionProviderChanged = filterEvent(this.branchProtectionProviderRegistry.onDidChangeBranchProtectionProviders, e => pathEquals(e.fsPath, root.fsPath));
+		this.disposables.push(onBranchProtectionProviderChanged(root => this.updateBranchProtectionMatchers(root)));
+		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root)));
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
@@ -1124,14 +980,25 @@ export class Repository implements Disposable {
 		}
 	}
 
+	/**
+	 * Quick diff label
+	 */
+	get label(): string {
+		return l10n.t('Git local working changes');
+	}
+
 	provideOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
 			return;
 		}
 
-		const path = uri.path;
+		// Ignore path that is inside a merge group
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
+			return undefined;
+		}
 
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === path)) {
+		// Ignore path that is inside a submodule
+		if (this.submodules.some(s => isDescendant(path.join(this.repository.root, s.path), uri.path))) {
 			return undefined;
 		}
 
@@ -1231,7 +1098,7 @@ export class Repository implements Disposable {
 
 	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
 		await this.run(
-			this.optimisticUpdateEnabled() ? Operation.AddNoProgress : Operation.Add,
+			Operation.Add(!this.optimisticUpdateEnabled()),
 			async () => {
 				await this.repository.add(resources.map(r => r.fsPath), opts);
 				this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
@@ -1244,7 +1111,7 @@ export class Repository implements Disposable {
 				const addedResourceStates: Resource[] = [];
 				for (const resource of [...this.mergeGroup.resourceStates, ...this.untrackedGroup.resourceStates, ...this.workingTreeGroup.resourceStates]) {
 					if (resourcePaths.includes(resource.resourceUri.fsPath) && !indexGroupResourcePaths.includes(resource.resourceUri.fsPath)) {
-						addedResourceStates.push(resource);
+						addedResourceStates.push(resource.clone(ResourceGroupType.Index));
 					}
 				}
 
@@ -1282,7 +1149,7 @@ export class Repository implements Disposable {
 
 	async revert(resources: Uri[]): Promise<void> {
 		await this.run(
-			this.optimisticUpdateEnabled() ? Operation.RevertFilesNoProgress : Operation.RevertFiles,
+			Operation.RevertFiles(!this.optimisticUpdateEnabled()),
 			async () => {
 				await this.repository.revert('HEAD', resources.map(r => r.fsPath));
 				this.closeDiffEditors([...resources.length !== 0 ?
@@ -1292,6 +1159,7 @@ export class Repository implements Disposable {
 			() => {
 				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 				const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+				const untrackedChangesResourceGroupType = untrackedChanges === 'mixed' ? ResourceGroupType.WorkingTree : ResourceGroupType.Untracked;
 
 				const resourcePaths = resources.length === 0 ?
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath) : resources.map(r => r.fsPath);
@@ -1302,9 +1170,9 @@ export class Repository implements Disposable {
 				for (const resource of this.indexGroup.resourceStates) {
 					if (resourcePaths.includes(resource.resourceUri.fsPath)) {
 						if (resource.type === Status.INDEX_ADDED) {
-							untrackedResources.push(resource);
+							untrackedResources.push(resource.clone(untrackedChangesResourceGroupType));
 						} else {
-							trackedResources.push(resource);
+							trackedResources.push(resource.clone(ResourceGroupType.WorkingTree));
 						}
 					}
 				}
@@ -1399,7 +1267,7 @@ export class Repository implements Disposable {
 
 	async clean(resources: Uri[]): Promise<void> {
 		await this.run(
-			this.optimisticUpdateEnabled() ? Operation.CleanNoProgress : Operation.Clean,
+			Operation.Clean(!this.optimisticUpdateEnabled()),
 			async () => {
 				const toClean: string[] = [];
 				const toCheckout: string[] = [];
@@ -1436,7 +1304,13 @@ export class Repository implements Disposable {
 				});
 
 				await this.repository.clean(toClean);
-				await this.repository.checkout('', toCheckout);
+				try {
+					await this.repository.checkout('', toCheckout);
+				} catch (err) {
+					if (err.gitErrorCode !== GitErrorCodes.BranchNotYetBorn) {
+						throw err;
+					}
+				}
 				await this.repository.updateSubmodules(submodulesToUpdate);
 
 				this.closeDiffEditors([], [...toClean, ...toCheckout]);
@@ -1456,7 +1330,7 @@ export class Repository implements Disposable {
 			});
 	}
 
-	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting: boolean = false): void {
+	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting = false): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
@@ -1503,7 +1377,7 @@ export class Repository implements Disposable {
 		try {
 			// Fast-forward the branch if possible
 			const options = { remote: branch.upstream.remote, ref: `${branch.upstream.name}:${branch.name}` };
-			await this.run(Operation.Fetch, async () => this.repository.fetch(options));
+			await this.run(Operation.Fetch(true), async () => this.repository.fetch(options));
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.BranchFastForwardRejected) {
 				return;
@@ -1525,8 +1399,26 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
 
-	async getBranches(query: BranchQuery): Promise<Ref[]> {
-		return await this.run(Operation.GetBranches, () => this.repository.getBranches(query));
+	async getBranches(query: BranchQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		return await this.run(Operation.GetBranches, async () => {
+			const refs = await this.getRefs(query, cancellationToken);
+			return refs.filter(value => (value.type === RefType.Head || value.type === RefType.RemoteHead) && (query.remote || !value.remote));
+		});
+	}
+
+	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		const config = workspace.getConfiguration('git');
+		let defaultSort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder');
+		if (defaultSort !== 'alphabetically' && defaultSort !== 'committerdate') {
+			defaultSort = 'alphabetically';
+		}
+
+		query = { ...query, sort: query?.sort ?? defaultSort };
+		return await this.run(Operation.GetRefs, () => this.repository.getRefs(query, cancellationToken));
+	}
+
+	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
+		return await this.run(Operation.GetRemoteRefs, () => this.repository.getRemoteRefs(remote, opts));
 	}
 
 	async setBranchUpstream(name: string, upstream: string): Promise<void> {
@@ -1553,12 +1445,31 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async checkout(treeish: string, opts?: { detached?: boolean }): Promise<void> {
-		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, [], opts));
+	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
+		await this.run(Operation.DeleteRemoteTag, () => this.repository.deleteRemoteTag(remoteName, tagName));
+	}
+
+	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
+		const refLabel = opts?.detached ? treeish.substring(0, 8) : treeish;
+
+		await this.run(Operation.Checkout(refLabel),
+			async () => {
+				if (opts?.pullBeforeCheckout && !opts?.detached) {
+					try {
+						await this.fastForwardBranch(treeish);
+					}
+					catch (err) {
+						// noop
+					}
+				}
+
+				await this.repository.checkout(treeish, [], opts);
+			});
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
-		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { ...opts, track: true }));
+		const refLabel = opts.detached ? treeish.substring(0, 8) : treeish;
+		await this.run(Operation.CheckoutTracking(refLabel), () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
 	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
@@ -1615,8 +1526,7 @@ export class Repository implements Disposable {
 			options.prune = prune;
 		}
 
-		const operation = options.silent === true ? Operation.FetchNoProgress : Operation.Fetch;
-		await this.run(operation, async () => this.repository.fetch(options));
+		await this.run(Operation.Fetch(options.silent !== true), async () => this.repository.fetch(options));
 	}
 
 	@throttle
@@ -1658,7 +1568,7 @@ export class Repository implements Disposable {
 				}
 
 				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-					this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags });
+					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags });
 				}
 			});
 		});
@@ -1693,7 +1603,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
 	}
 
-	async pushTo(remote?: string, name?: string, setUpstream: boolean = false, forcePushMode?: ForcePushMode): Promise<void> {
+	async pushTo(remote?: string, name?: string, setUpstream = false, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
 	}
 
@@ -1740,7 +1650,7 @@ export class Repository implements Disposable {
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken });
+						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken });
 					}
 				};
 
@@ -1862,14 +1772,14 @@ export class Repository implements Disposable {
 		return await this.repository.getStashes();
 	}
 
-	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
+	async createStash(message?: string, includeUntracked?: boolean, staged?: boolean): Promise<void> {
 		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
 		const workingGroupResources = [
-			...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...!staged ? this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath) : [],
 			...includeUntracked ? this.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath) : []];
 
 		return await this.run(Operation.Stash, async () => {
-			this.repository.createStash(message, includeUntracked);
+			await this.repository.createStash(message, includeUntracked, staged);
 			this.closeDiffEditors(indexResources, workingGroupResources);
 		});
 	}
@@ -1983,7 +1893,7 @@ export class Repository implements Disposable {
 		return ignored;
 	}
 
-	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
+	private async _push(remote?: string, refspec?: string, setUpstream = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		try {
 			await this.repository.push(remote, refspec, setUpstream, followTags, forcePushMode, tags);
 		} catch (err) {
@@ -2012,6 +1922,7 @@ export class Repository implements Disposable {
 		operation: Operation,
 		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
 		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
+
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
@@ -2019,12 +1930,12 @@ export class Repository implements Disposable {
 		let error: any = null;
 
 		this._operations.start(operation);
-		this._onRunOperation.fire(operation);
+		this._onRunOperation.fire(operation.kind);
 
 		try {
 			const result = await this.retryRun(operation, runOperation);
 
-			if (!isReadOnly(operation)) {
+			if (!operation.readOnly) {
 				await this.updateModelState(this.optimisticUpdateEnabled() ? getOptimisticResourceGroups() : undefined);
 			}
 
@@ -2036,10 +1947,14 @@ export class Repository implements Disposable {
 				this.state = RepositoryState.Disposed;
 			}
 
+			if (!operation.readOnly) {
+				await this.updateModelState();
+			}
+
 			throw err;
 		} finally {
 			this._operations.end(operation);
-			this._onDidRunOperation.fire({ operation, error });
+			this._onDidRunOperation.fire({ operation: operation, error });
 		}
 	}
 
@@ -2053,7 +1968,7 @@ export class Repository implements Disposable {
 			} catch (err) {
 				const shouldRetry = attempt <= 10 && (
 					(err.gitErrorCode === GitErrorCodes.RepositoryIsLocked)
-					|| ((operation === Operation.Pull || operation === Operation.Sync || operation === Operation.Fetch) && (err.gitErrorCode === GitErrorCodes.CantLockRef || err.gitErrorCode === GitErrorCodes.CantRebaseMultipleBranches))
+					|| (operation.retry && (err.gitErrorCode === GitErrorCodes.CantLockRef || err.gitErrorCode === GitErrorCodes.CantRebaseMultipleBranches))
 				);
 
 				if (shouldRetry) {
@@ -2100,7 +2015,7 @@ export class Repository implements Disposable {
 
 			const [HEAD, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
 				await Promise.all([
-					this.repository.getHEADBranch(),
+					this.repository.getHEADRef(),
 					this.repository.getRemotes(),
 					this.repository.getSubmodules(),
 					this.getRebaseCommit(),
@@ -2115,19 +2030,8 @@ export class Repository implements Disposable {
 
 			this._sourceControl.commitTemplate = commitTemplate;
 
-			// Execute cancellable long-running operations
-			const config = workspace.getConfiguration('git');
-			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-			if (sort !== 'alphabetically' && sort !== 'committerdate') {
-				sort = 'alphabetically';
-			}
-
-			const [resourceGroups, refs] =
-				await Promise.all([
-					this.getStatus(cancellationToken),
-					this.repository.getRefs({ sort, cancellationToken })]);
-
-			this._refs = refs!;
+			// Execute cancellable long-running operation
+			const resourceGroups = await this.getStatus(cancellationToken);
 			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
@@ -2162,9 +2066,10 @@ export class Repository implements Disposable {
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
 
 		const start = new Date().getTime();
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken });
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, similarityThreshold, untrackedChanges, cancellationToken });
 		const totalTime = new Date().getTime() - start;
 
 		this.isRepositoryHuge = didHitLimit ? { limit } : false;
@@ -2282,6 +2187,7 @@ export class Repository implements Disposable {
 				case 'M': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
 				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
 				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
+				case 'R': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_RENAME, useIcons, renameUri)); break;
 			}
 
 			return undefined;
@@ -2413,9 +2319,7 @@ export class Repository implements Disposable {
 			return '';
 		}
 
-		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-		const tagName = tag && tag.name;
-		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
+		const head = HEAD.name || (HEAD.commit || '').substr(0, 8);
 
 		return head
 			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')
@@ -2476,15 +2380,29 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private updateBranchProtectionMatcher(): void {
-		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const branchProtectionGlobs = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+	private updateBranchProtectionMatchers(root: Uri): void {
+		this.branchProtection.clear();
 
-		if (branchProtectionGlobs.length === 0) {
-			this.isBranchProtectedMatcher = undefined;
-		} else {
-			this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
+		for (const provider of this.branchProtectionProviderRegistry.getBranchProtectionProviders(root)) {
+			for (const { remote, rules } of provider.provideBranchProtection()) {
+				const matchers: BranchProtectionMatcher[] = [];
+
+				for (const rule of rules) {
+					const include = rule.include && rule.include.length !== 0 ? picomatch(rule.include) : undefined;
+					const exclude = rule.exclude && rule.exclude.length !== 0 ? picomatch(rule.exclude) : undefined;
+
+					if (include || exclude) {
+						matchers.push({ include, exclude });
+					}
+				}
+
+				if (matchers.length !== 0) {
+					this.branchProtection.set(remote, matchers);
+				}
+			}
 		}
+
+		this._onDidChangeBranchProtection.fire();
 	}
 
 	private optimisticUpdateEnabled(): boolean {
@@ -2524,8 +2442,31 @@ export class Repository implements Disposable {
 		return true;
 	}
 
-	public isBranchProtected(name: string = this.HEAD?.name ?? ''): boolean {
-		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
+	public isBranchProtected(branch = this.HEAD): boolean {
+		if (branch?.name) {
+			// Default branch protection (settings)
+			const defaultBranchProtectionMatcher = this.branchProtection.get('');
+			if (defaultBranchProtectionMatcher?.length === 1 &&
+				defaultBranchProtectionMatcher[0].include &&
+				defaultBranchProtectionMatcher[0].include(branch.name)) {
+				return true;
+			}
+
+			if (branch.upstream?.remote) {
+				// Branch protection (contributed)
+				const remoteBranchProtectionMatcher = this.branchProtection.get(branch.upstream.remote);
+				if (remoteBranchProtectionMatcher && remoteBranchProtectionMatcher?.length !== 0) {
+					return remoteBranchProtectionMatcher.some(matcher => {
+						const include = matcher.include ? matcher.include(branch.name!) : true;
+						const exclude = matcher.exclude ? matcher.exclude(branch.name!) : false;
+
+						return include && !exclude;
+					});
+				}
+			}
+		}
+
+		return false;
 	}
 
 	dispose(): void {

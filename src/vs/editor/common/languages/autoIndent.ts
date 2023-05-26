@@ -93,6 +93,19 @@ export function getInheritIndentForLine(
 		};
 	}
 
+	// Use no indent if this is the first non-blank line
+	for (let priorLineNumber = lineNumber - 1; priorLineNumber > 0; priorLineNumber--) {
+		if (model.getLineContent(priorLineNumber) !== '') {
+			break;
+		}
+		if (priorLineNumber === 1) {
+			return {
+				indentation: '',
+				action: null
+			};
+		}
+	}
+
 	const precedingUnIgnoredLine = getPrecedingValidLine(model, lineNumber, indentRulesSupport);
 	if (precedingUnIgnoredLine < 0) {
 		return null;

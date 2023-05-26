@@ -51,7 +51,7 @@ suite('Indentation Folding', () => {
 
 		function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
 			let reported: number | false = false;
-			const indentRanges = computeRanges(model, true, undefined, { limit: maxEntries, report: r => reported = r.limited });
+			const indentRanges = computeRanges(model, true, undefined, { limit: maxEntries, update: (computed, limited) => reported = limited });
 			assert.ok(indentRanges.length <= maxEntries, 'max ' + message);
 			const actual: IndentRange[] = [];
 			for (let i = 0; i < indentRanges.length; i++) {

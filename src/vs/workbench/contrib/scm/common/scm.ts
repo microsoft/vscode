@@ -11,7 +11,7 @@ import { Command } from 'vs/editor/common/languages';
 import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const VIEWLET_ID = 'workbench.view.scm';
@@ -60,6 +60,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
+	readonly inputBoxDocumentUri: URI;
 	readonly count?: number;
 	readonly commitTemplate: string;
 	readonly onDidChangeCommitTemplate: Event<string>;
@@ -197,7 +198,7 @@ export interface ISCMViewService {
 	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
-	visibleRepositories: ISCMRepository[];
+	visibleRepositories: readonly ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
 	isVisible(repository: ISCMRepository): boolean;

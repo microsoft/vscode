@@ -22,11 +22,11 @@ import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
-import { defaultButtonStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = DOM.$;
 
@@ -146,7 +146,6 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.listElement = DOM.append(container, $('div'));
 		this.listElement.setAttribute('role', 'list');
 		this.getContainerClasses().forEach(c => this.listElement.classList.add(c));
-		this.listElement.setAttribute('tabindex', '0');
 		DOM.append(container, this.renderAddButton());
 		this.renderList();
 
@@ -202,6 +201,12 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		const newMode = this.model.items.some(item => !!(item.editing && this.isItemNew(item)));
 		this.container.classList.toggle('setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
 
+		if (this.model.items.length) {
+			this.listElement.tabIndex = 0;
+		} else {
+			this.listElement.removeAttribute('tabIndex');
+		}
+
 		const header = this.renderHeader();
 		const ITEM_HEIGHT = 24;
 		let listHeight = ITEM_HEIGHT * this.model.items.length;
@@ -221,16 +226,17 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		const selectBoxOptions = value.options.map(({ value, description }) => ({ text: value, description }));
 		const selected = value.options.findIndex(option => value.data === option.value);
 
-		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
-		});
-
-		this.listDisposables.add(attachSelectBoxStyler(selectBox, this.themeService, {
+		const styles = getSelectBoxStyles({
 			selectBackground: settingsSelectBackground,
 			selectForeground: settingsSelectForeground,
 			selectBorder: settingsSelectBorder,
 			selectListBorder: settingsSelectListBorder
-		}));
+		});
+
+
+		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, styles, {
+			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+		});
 		return selectBox;
 	}
 
@@ -719,7 +725,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 
 export class ExcludeSettingWidget extends ListSettingWidget {
 	protected override getContainerClasses() {
-		return ['setting-list-exclude-widget'];
+		return ['setting-list-include-exclude-widget'];
 	}
 
 	protected override addDragAndDrop(rowElement: HTMLElement, item: IListDataItem, idx: number) {
@@ -743,6 +749,36 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 			addButtonLabel: localize('addPattern', "Add Pattern"),
 			inputPlaceholder: localize('excludePatternInputPlaceholder', "Exclude Pattern..."),
 			siblingInputPlaceholder: localize('excludeSiblingInputPlaceholder', "When Pattern Is Present..."),
+		};
+	}
+}
+
+export class IncludeSettingWidget extends ListSettingWidget {
+	protected override getContainerClasses() {
+		return ['setting-list-include-exclude-widget'];
+	}
+
+	protected override addDragAndDrop(rowElement: HTMLElement, item: IListDataItem, idx: number) {
+		return;
+	}
+
+	protected override addTooltipsToRow(rowElementGroup: RowElementGroup, { value, sibling }: IListDataItem): void {
+		const title = isUndefinedOrNull(sibling)
+			? localize('includePatternHintLabel', "Include files matching `{0}`", value.data)
+			: localize('includeSiblingHintLabel', "Include files matching `{0}`, only when a file matching `{1}` is present", value.data, sibling);
+
+		const { rowElement } = rowElementGroup;
+		rowElement.title = title;
+		rowElement.setAttribute('aria-label', rowElement.title);
+	}
+
+	protected override getLocalizedStrings() {
+		return {
+			deleteActionTooltip: localize('removeIncludeItem', "Remove Include Item"),
+			editActionTooltip: localize('editIncludeItem', "Edit Include Item"),
+			addButtonLabel: localize('addPattern', "Add Pattern"),
+			inputPlaceholder: localize('includePatternInputPlaceholder', "Include Pattern..."),
+			siblingInputPlaceholder: localize('includeSiblingInputPlaceholder', "When Pattern Is Present..."),
 		};
 	}
 }

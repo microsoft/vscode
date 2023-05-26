@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct, lastIndex } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { stringHash } from 'vs/base/common/hash';
@@ -25,6 +25,7 @@ import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -851,6 +852,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 
 	toJSON(): any {
 		const result = Object.create(null);
+		result.id = this.getId();
 		result.enabled = this.enabled;
 		result.condition = this.condition;
 		result.hitCondition = this.hitCondition;
@@ -873,9 +875,14 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		private _adapterData: any,
 		private readonly textFileService: ITextFileService,
 		private readonly uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
+	}
+
+	get originalUri() {
+		return this._uri;
 	}
 
 	get lineNumber(): number {
@@ -891,7 +898,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get uri(): uri {
-		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService) : this._uri;
+		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService, this.logService) : this._uri;
 	}
 
 	get column(): number | undefined {
@@ -1077,8 +1084,10 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		result.label = this.label;
 		result.enabled = this.enabled;
 		result.supportsCondition = this.supportsCondition;
+		result.conditionDescription = this.conditionDescription;
 		result.condition = this.condition;
 		result.fallback = this.fallback;
+		result.description = this.description;
 
 		return result;
 	}
@@ -1164,14 +1173,10 @@ export class ThreadAndSessionIds implements ITreeElement {
 	}
 }
 
-export class Memory {
-
-}
-
 export class DebugModel implements IDebugModel {
 
 	private sessions: IDebugSession[];
-	private schedulers = new Map<string, RunOnceScheduler>();
+	private schedulers = new Map<string, { scheduler: RunOnceScheduler; completeDeferred: DeferredPromise<void> }>();
 	private breakpointsActivated = true;
 	private readonly _onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent | undefined>();
 	private readonly _onDidChangeCallStack = new Emitter<void>();
@@ -1186,7 +1191,8 @@ export class DebugModel implements IDebugModel {
 	constructor(
 		debugStorage: DebugStorage,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.breakpoints = debugStorage.loadBreakpoints();
 		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
@@ -1268,7 +1274,10 @@ export class DebugModel implements IDebugModel {
 
 	clearThreads(id: string, removeThreads: boolean, reference: number | undefined = undefined): void {
 		const session = this.sessions.find(p => p.getId() === id);
-		this.schedulers.forEach(scheduler => scheduler.dispose());
+		this.schedulers.forEach(entry => {
+			entry.scheduler.dispose();
+			entry.completeDeferred.complete();
+		});
 		this.schedulers.clear();
 
 		if (session) {
@@ -1308,24 +1317,32 @@ export class DebugModel implements IDebugModel {
 			const wholeCallStack = new Promise<void>((c, e) => {
 				topCallStack = thread.fetchCallStack(1).then(() => {
 					if (!this.schedulers.has(thread.getId())) {
-						this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
-							thread.fetchCallStack(19).then(() => {
-								const stale = thread.getStaleCallStack();
-								const current = thread.getCallStack();
-								let bottomOfCallStackChanged = stale.length !== current.length;
-								for (let i = 1; i < stale.length && !bottomOfCallStackChanged; i++) {
-									bottomOfCallStackChanged = !stale[i].equals(current[i]);
-								}
+						const deferred = new DeferredPromise<void>();
+						this.schedulers.set(thread.getId(), {
+							completeDeferred: deferred,
+							scheduler: new RunOnceScheduler(() => {
+								thread.fetchCallStack(19).then(() => {
+									const stale = thread.getStaleCallStack();
+									const current = thread.getCallStack();
+									let bottomOfCallStackChanged = stale.length !== current.length;
+									for (let i = 1; i < stale.length && !bottomOfCallStackChanged; i++) {
+										bottomOfCallStackChanged = !stale[i].equals(current[i]);
+									}
 
-								if (bottomOfCallStackChanged) {
-									this._onDidChangeCallStack.fire();
-								}
-								c();
-							});
-						}, 420));
+									if (bottomOfCallStackChanged) {
+										this._onDidChangeCallStack.fire();
+									}
+								}).finally(() => {
+									deferred.complete();
+									this.schedulers.delete(thread.getId());
+								});
+							}, 420)
+						});
 					}
 
-					this.schedulers.get(thread.getId())!.schedule();
+					const entry = this.schedulers.get(thread.getId())!;
+					entry.scheduler.schedule();
+					entry.completeDeferred.p.then(c, e);
 					this._onDidChangeCallStack.fire();
 				});
 			});
@@ -1337,11 +1354,15 @@ export class DebugModel implements IDebugModel {
 		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
-	getBreakpoints(filter?: { uri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): IBreakpoint[] {
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): IBreakpoint[] {
 		if (filter) {
-			const uriStr = filter.uri ? filter.uri.toString() : undefined;
+			const uriStr = filter.uri?.toString();
+			const originalUriStr = filter.originalUri?.toString();
 			return this.breakpoints.filter(bp => {
 				if (uriStr && bp.uri.toString() !== uriStr) {
+					return false;
+				}
+				if (originalUriStr && bp.originalUri.toString() !== originalUriStr) {
 					return false;
 				}
 				if (filter.lineNumber && bp.lineNumber !== filter.lineNumber) {
@@ -1427,7 +1448,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, rawBp.id));
+		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();

@@ -12,7 +12,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { FIND_IDS } from 'vs/editor/contrib/find/browser/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { asCssValue, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
@@ -47,9 +47,9 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.setAttribute('aria-hidden', 'true');
 
 		const toggleStyles = {
-			inputActiveOptionBorder: asCssValue(inputActiveOptionBorder),
-			inputActiveOptionForeground: asCssValue(inputActiveOptionForeground),
-			inputActiveOptionBackground: asCssValue(inputActiveOptionBackground),
+			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
 		};
 
 		this.caseSensitive = this._register(new CaseSensitiveToggle({

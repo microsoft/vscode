@@ -1046,6 +1046,23 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(m.getValueInRange(new Range(NaN, NaN, NaN, NaN)), '');
 		m.dispose();
 	});
+
+	test('issue #168836: updating tabSize should also update indentSize when indentSize is set to "tabSize"', () => {
+		const m = createTextModel('some text', null, {
+			tabSize: 2,
+			indentSize: 'tabSize'
+		});
+		assert.strictEqual(m.getOptions().tabSize, 2);
+		assert.strictEqual(m.getOptions().indentSize, 2);
+		assert.strictEqual(m.getOptions().originalIndentSize, 'tabSize');
+		m.updateOptions({
+			tabSize: 4
+		});
+		assert.strictEqual(m.getOptions().tabSize, 4);
+		assert.strictEqual(m.getOptions().indentSize, 4);
+		assert.strictEqual(m.getOptions().originalIndentSize, 'tabSize');
+		m.dispose();
+	});
 });
 
 suite('TextModel.mightContainRTL', () => {

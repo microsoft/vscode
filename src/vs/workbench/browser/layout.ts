@@ -31,7 +31,7 @@ import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statu
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
-import { assertIsDefined, isNumber } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
@@ -171,7 +171,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 		// If the command center is visible then the quickinput should go over the title bar and the banner
 		if (this.titleService.isCommandCenterVisible) {
-			quickPickTop = 0;
+			quickPickTop = 6;
 		}
 		return { top, quickPickTop };
 	}
@@ -274,7 +274,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		});
 
 		// Configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if ([
+				LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE,
+				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
+				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
+				'window.menuBarVisibility',
+				'window.titleBarStyle',
+			].some(setting => e.affectsConfiguration(setting))) {
+				this.doUpdateLayoutConfiguration();
+			}
+		}));
 
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
@@ -683,23 +693,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return {
 				layout: defaultLayout.layout?.editors,
 				filesToOpenOrCreate: defaultLayout?.editors?.map(editor => {
-					// TODO@bpasero remove me eventually
-					const editor2 = editor as any;
-					const legacySelection = editor2.selection && editor2.selection.start && isNumber(editor2.selection.start.line) ? {
-						startLineNumber: editor2.selection.start.line,
-						startColumn: isNumber(editor2.selection.start.column) ? editor2.selection.start.column : 1,
-						endLineNumber: isNumber(editor2.selection.end.line) ? editor2.selection.end.line : undefined,
-						endColumn: isNumber(editor2.selection.end.line) ? (isNumber(editor2.selection.end.column) ? editor2.selection.end.column : 1) : undefined,
-					} : undefined;
-
 					return {
 						viewColumn: editor.viewColumn,
 						fileUri: URI.revive(editor.uri),
 						openOnlyIfExists: editor.openOnlyIfExists,
-						options: {
-							selection: legacySelection,
-							...editor.options // keep at the end to override legacy selection/override that may be `undefined`
-						}
+						options: editor.options
 					};
 				})
 			};
@@ -739,6 +737,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// first ensure the editor part is ready
 			await this.editorGroupService.whenReady;
+			mark('code/restoreEditors/editorGroupsReady');
 
 			// apply editor layout if any
 			if (this.state.initialization.layout?.editors) {
@@ -755,6 +754,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// fully loaded.
 
 			const editors = await this.state.initialization.editor.editorsToOpen;
+			mark('code/restoreEditors/editorsToOpenResolved');
 
 			let openEditorsPromise: Promise<unknown> | undefined = undefined;
 			if (editors.length) {
@@ -791,8 +791,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// slow editors to resolve on startup
 			layoutRestoredPromises.push(
 				Promise.all([
-					openEditorsPromise,
-					this.editorGroupService.whenRestored
+					openEditorsPromise?.finally(() => mark('code/restoreEditors/editorsOpened')),
+					this.editorGroupService.whenRestored.finally(() => mark('code/restoreEditors/editorGroupsRestored'))
 				]).finally(() => {
 					// the `code/didRestoreEditors` perf mark is specifically
 					// for when visible editors have resolved, so we only mark
@@ -2323,11 +2323,11 @@ class InitializationStateKey<T extends StorageKeyType> extends WorkbenchLayoutSt
 const LayoutStateKeys = {
 
 	// Editor
-	EDITOR_CENTERED: new RuntimeStateKey<boolean>('editor.centered', StorageScope.WORKSPACE, StorageTarget.USER, false),
+	EDITOR_CENTERED: new RuntimeStateKey<boolean>('editor.centered', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 
 	// Zen Mode
-	ZEN_MODE_ACTIVE: new RuntimeStateKey<boolean>('zenMode.active', StorageScope.WORKSPACE, StorageTarget.USER, false),
-	ZEN_MODE_EXIT_INFO: new RuntimeStateKey('zenMode.exitInfo', StorageScope.WORKSPACE, StorageTarget.USER, {
+	ZEN_MODE_ACTIVE: new RuntimeStateKey<boolean>('zenMode.active', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+	ZEN_MODE_EXIT_INFO: new RuntimeStateKey('zenMode.exitInfo', StorageScope.WORKSPACE, StorageTarget.MACHINE, {
 		transitionedToCenteredEditorLayout: false,
 		transitionedToFullScreen: false,
 		handleNotificationsDoNotDisturbMode: false,
@@ -2346,20 +2346,20 @@ const LayoutStateKeys = {
 
 	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_LAST_NON_MAXIMIZED_WIDTH: new RuntimeStateKey<number>('panel.lastNonMaximizedWidth', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
-	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.USER, false),
+	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 
 	// Part Positions
-	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.WORKSPACE, StorageTarget.USER, Position.LEFT),
-	PANEL_POSITION: new RuntimeStateKey<Position>('panel.position', StorageScope.WORKSPACE, StorageTarget.USER, Position.BOTTOM),
+	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.WORKSPACE, StorageTarget.MACHINE, Position.LEFT),
+	PANEL_POSITION: new RuntimeStateKey<Position>('panel.position', StorageScope.WORKSPACE, StorageTarget.MACHINE, Position.BOTTOM),
 	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.PROFILE, StorageTarget.USER, 'center'),
 
 	// Part Visibility
-	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false, true),
-	SIDEBAR_HIDDEN: new RuntimeStateKey<boolean>('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false),
-	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false),
-	PANEL_HIDDEN: new RuntimeStateKey<boolean>('panel.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
-	AUXILIARYBAR_HIDDEN: new RuntimeStateKey<boolean>('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
-	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false, true)
+	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true),
+	SIDEBAR_HIDDEN: new RuntimeStateKey<boolean>('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+	PANEL_HIDDEN: new RuntimeStateKey<boolean>('panel.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true),
+	AUXILIARYBAR_HIDDEN: new RuntimeStateKey<boolean>('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true),
+	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true)
 
 } as const;
 

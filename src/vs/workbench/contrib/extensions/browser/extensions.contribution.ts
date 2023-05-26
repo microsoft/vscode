@@ -75,8 +75,9 @@ import { UnsupportedExtensionsMigrationContrib } from 'vs/workbench/contrib/exte
 import { isWeb } from 'vs/base/common/platform';
 import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import product from 'vs/platform/product/common/product';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
+import { DeprecatedExtensionsChecker } from 'vs/workbench/contrib/extensions/browser/deprecatedExtensionsChecker';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -136,8 +137,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('none', "None"),
 				],
 				enumDescriptions: [
-					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions.'),
-					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions. Disabled extensions will not be updated automatically.'),
+					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions except for those updates are ignored.'),
+					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions except for those updates are ignored. Disabled extensions are not updated automatically.'),
 					localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
 				],
 				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
@@ -222,12 +223,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				}]
 			},
-			'extensions.experimental.useUtilityProcess': {
-				type: 'boolean',
-				tags: ['experimental'],
-				description: localize('extensionsUseUtilityProcess', "When enabled, the extension host will be launched using the new UtilityProcess Electron API."),
-				default: product.quality === 'stable' ? false : true // disabled by default in stable for now
-			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
 				scope: ConfigurationScope.APPLICATION,
@@ -253,6 +248,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						}
 					}
 				}
+			},
+			'extensions.experimental.deferredStartupFinishedActivation': {
+				type: 'boolean',
+				description: localize('extensionsDeferredStartupFinishedActivation', "When enabled, extensions which declare the `onStartupFinished` activation event will be activated after a timeout."),
+				default: false
 			}
 		}
 	});
@@ -263,9 +263,11 @@ jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigura
 // Register Commands
 CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
-	const extension = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
-	if (extension.length === 1) {
-		extensionService.open(extension[0], { tab, preserveFocus });
+	const extension = extensionService.local.find(e => areSameExtensions(e.identifier, { id: extensionId }));
+	if (extension) {
+		extensionService.open(extension, { tab, preserveFocus });
+	} else {
+		throw new Error(localize('notFound', "Extension '{0}' not found.", extensionId));
 	}
 });
 
@@ -325,6 +327,7 @@ CommandsRegistry.registerCommand({
 	},
 	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean; context?: IStringDictionary<any> }) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
 		try {
 			if (typeof arg === 'string') {
 				const [id, version] = getIdAndVersion(arg);
@@ -336,6 +339,10 @@ CommandsRegistry.registerCommand({
 						installGivenVersion: !!version,
 						context: options?.context
 					};
+					if (extension.gallery && extension.enablementState === EnablementState.DisabledByExtensionKind) {
+						await extensionManagementService.installFromGallery(extension.gallery, installOptions);
+						return;
+					}
 					if (version) {
 						await extensionsWorkbenchService.installVersion(extension, version, installOptions);
 					} else {
@@ -515,8 +522,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					id: VIEWLET_ID,
 					title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 				},
-				group: '1_settings',
-				order: 4
+				group: '2_configuration',
+				order: 3
 			}
 		}, {
 			id: MenuId.GlobalActivity,
@@ -551,17 +558,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.CommandPalette,
 				when: CONTEXT_HAS_GALLERY
 			}, {
-				id: MenuId.MenubarPreferencesMenu,
-				group: '2_keybindings',
-				order: 2
-			}, {
-				id: MenuId.GlobalActivity,
-				group: '2_keybindings',
-				order: 2
+				id: MenuId.EditorTitle,
+				when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_HAS_GALLERY),
+				group: '2_keyboard_discover_actions'
 			}],
 			menuTitles: {
-				[MenuId.MenubarPreferencesMenu.id]: localize({ key: 'miimportKeyboardShortcutsFrom', comment: ['&& denotes a mnemonic'] }, "&&Migrate Keyboard Shortcuts from..."),
-				[MenuId.GlobalActivity.id]: localize('importKeyboardShortcutsFroms', "Migrate Keyboard Shortcuts from...")
+				[MenuId.EditorTitle.id]: localize('importKeyboardShortcutsFroms', "Migrate Keyboard Shortcuts from...")
 			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:keymaps '))
 		});
@@ -596,7 +598,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (outdated.length) {
 					return runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '));
 				} else {
-					return this.dialogService.show(Severity.Info, localize('noUpdatesAvailable', "All extensions are up to date."));
+					return this.dialogService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
 				}
 			}
 		});
@@ -678,7 +680,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: { value: localize('disableAutoUpdate', "Disable Auto Update for all extensions"), original: 'Disable Auto Update for all extensions' },
+			title: { value: localize('disableAutoUpdate', "Disable Auto Update for All Extensions"), original: 'Disable Auto Update for All Extensions' },
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			precondition: CONTEXT_HAS_GALLERY,
@@ -687,7 +689,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: { value: localize('enableAutoUpdate', "Enable Auto Update for all extensions"), original: 'Enable Auto Update for all extensions' },
+			title: { value: localize('enableAutoUpdate', "Enable Auto Update for All Extensions"), original: 'Enable Auto Update for All Extensions' },
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			precondition: CONTEXT_HAS_GALLERY,
@@ -1399,9 +1401,22 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasConfiguration'))
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasConfiguration')),
+				order: 1
 			},
 			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: `@ext:${id}` })
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.configureKeybindings',
+			title: { value: localize('workbench.extensions.action.configureKeybindings', "Extension Keyboard Shortcuts"), original: 'Extension Keyboard Shortcuts' },
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasKeybindings')),
+				order: 2
+			},
+			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query: `@ext:${id}` })
 		});
 
 		this.registerExtensionAction({
@@ -1410,7 +1425,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
-				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate())
+				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate()),
+				order: 3
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const extension = this.extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
@@ -1598,7 +1614,7 @@ class ExtensionStorageCleaner implements IWorkbenchContribution {
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Restored);
@@ -1607,6 +1623,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, Life
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(DeprecatedExtensionsChecker, LifecyclePhase.Eventually);
 if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }

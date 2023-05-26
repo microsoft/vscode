@@ -23,6 +23,10 @@ export class CommentMenus implements IDisposable {
 		return this.getMenu(MenuId.CommentThreadActions, contextKeyService);
 	}
 
+	getCommentEditorActions(contextKeyService: IContextKeyService): IMenu {
+		return this.getMenu(MenuId.CommentEditorActions, contextKeyService);
+	}
+
 	getCommentThreadAdditionalActions(contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.CommentThreadAdditionalActions, contextKeyService);
 	}

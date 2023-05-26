@@ -36,14 +36,6 @@ export interface INotebookRawData {
 	transientOptions: TransientOptions;
 }
 
-export class ComplexNotebookProviderInfo {
-	constructor(
-		readonly viewType: string,
-		readonly controller: INotebookContentProvider,
-		readonly extensionData: NotebookExtensionDescription
-	) { }
-}
-
 export class SimpleNotebookProviderInfo {
 	constructor(
 		readonly viewType: string,
@@ -56,6 +48,7 @@ export interface INotebookService {
 	readonly _serviceBrand: undefined;
 	canResolve(viewType: string): Promise<boolean>;
 
+	readonly onAddViewType: Event<string>;
 	readonly onWillRemoveViewType: Event<string>;
 	readonly onDidChangeOutputRenderers: Event<void>;
 	readonly onWillAddNotebookDocument: Event<NotebookTextModel>;
@@ -64,12 +57,12 @@ export interface INotebookService {
 	readonly onWillRemoveNotebookDocument: Event<NotebookTextModel>;
 	readonly onDidRemoveNotebookDocument: Event<NotebookTextModel>;
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable;
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
-	withNotebookDataProvider(viewType: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
+	withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo>;
 
 	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
 
+	getViewTypeProvider(viewType: string): string | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 	getRenderers(): INotebookRendererInfo[];
 

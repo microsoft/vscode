@@ -58,7 +58,7 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 			input: InputLatencyStatisticFragment;
 			render: InputLatencyStatisticFragment;
 			total: InputLatencyStatisticFragment;
-			sampleCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of samples measured.' };
+			sampleCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The number of samples measured.' };
 		};
 
 		type PerformanceInputLatencyEvent = inputLatency.IInputLatencyMeasurements;

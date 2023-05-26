@@ -17,7 +17,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { localize } from 'vs/nls';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -67,10 +67,6 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 		return element.getHeight(this.lineHeight);
 	}
 
-	hasDynamicHeight(element: CellViewModel): boolean {
-		return element.hasDynamicHeight();
-	}
-
 	getDynamicHeight(element: CellViewModel): number | null {
 		return element.getDynamicHeight();
 	}
@@ -95,7 +91,7 @@ abstract class AbstractCellRenderer {
 		configurationService: IConfigurationService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly notificationService: INotificationService,
-		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		language: string,
 		protected dndController: CellDragAndDropController | undefined
 	) {
@@ -115,7 +111,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		notebookEditor: INotebookEditorDelegate,
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
-		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -146,6 +142,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
 		const cellInputCollapsedContainer = DOM.append(codeInnerContent, $('.input-collapse-container'));
+		cellInputCollapsedContainer.style.display = 'none';
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		editorPart.style.display = 'none';
 		const cellCommentPartContainer = DOM.append(container, $('.cell-comment-container'));
@@ -234,7 +231,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		notebookEditor: INotebookEditorDelegate,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
 		dndController: CellDragAndDropController,
-		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
@@ -263,6 +260,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
 		const cellInputCollapsedContainer = DOM.append(cellContainer, $('.input-collapse-container'));
+		cellInputCollapsedContainer.style.display = 'none';
 		const executionOrderLabel = DOM.append(focusIndicatorLeft.domNode, $('div.execution-count-label'));
 		executionOrderLabel.title = localize('cellExecutionOrderCountLabel', 'Execution Order');
 		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));

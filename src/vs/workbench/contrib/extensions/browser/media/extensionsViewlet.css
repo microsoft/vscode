@@ -96,15 +96,26 @@
 	background: url('loading.svg') center center no-repeat;
 }
 
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .extension-list-item.loading {
+	background-image: url('loading-dark.svg');
+}
+
+.monaco-workbench.hc-black .extensions-viewlet > .extensions .extension-list-item.loading {
+	background-image: url('loading-hc.svg');
+}
+
 .extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
 	display: none;
 }
-
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container {
+	display: flex;
+	align-items: flex-start;
+	padding-top: 10px;
+}
 .extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
 	width: 24px;
 	height: 24px;
-	padding-top: 8px;
-	padding-right: 6px;
+	padding-right: 8px;
 }
 
 .extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,

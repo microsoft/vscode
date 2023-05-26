@@ -5,10 +5,14 @@
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
+import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isWindows } from 'vs/base/common/platform';
+import { joinPath } from 'vs/base/common/resources';
+import { Mutable, isNumber, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -17,6 +21,10 @@ export const ILoggerService = createDecorator<ILoggerService>('loggerService');
 
 function now(): string {
 	return new Date().toISOString();
+}
+
+export function isLogLevel(thing: unknown): thing is LogLevel {
+	return isNumber(thing);
 }
 
 export enum LogLevel {
@@ -59,11 +67,15 @@ export function log(logger: ILogger, level: LogLevel, message: string): void {
 	}
 }
 
-export function format(args: any): string {
+function format(args: any, verbose: boolean = false): string {
 	let result = '';
 
 	for (let i = 0; i < args.length; i++) {
 		let a = args[i];
+
+		if (a instanceof Error) {
+			a = toErrorMessage(a, verbose);
+		}
 
 		if (typeof a === 'object') {
 			try {
@@ -84,6 +96,11 @@ export interface ILogService extends ILogger {
 export interface ILoggerOptions {
 
 	/**
+	 * Id of the logger.
+	 */
+	id?: string;
+
+	/**
 	 * Name of the logger.
 	 */
 	name?: string;
@@ -99,33 +116,124 @@ export interface ILoggerOptions {
 	donotUseFormatters?: boolean;
 
 	/**
-	 * If set, logger logs the message always.
+	 * When to log. Set to `always` to log always.
 	 */
-	always?: boolean;
+	logLevel?: 'always' | LogLevel;
+
+	/**
+	 * Whether the log should be hidden from the user.
+	 */
+	hidden?: boolean;
+
+	/**
+	 * Condition which must be true to show this logger
+	 */
+	when?: string;
+
+	/**
+	 * Id of the extension that created this logger.
+	 */
+	extensionId?: string;
 }
 
+export interface ILoggerResource {
+	readonly resource: URI;
+	readonly id: string;
+	readonly name?: string;
+	readonly logLevel?: LogLevel;
+	readonly hidden?: boolean;
+	readonly when?: string;
+	readonly extensionId?: string;
+}
+
+export type DidChangeLoggersEvent = {
+	readonly added: Iterable<ILoggerResource>;
+	readonly removed: Iterable<ILoggerResource>;
+};
+
 export interface ILoggerService {
+
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Creates a logger, or gets one if it already exists.
+	 * Creates a logger for the given resource, or gets one if it already exists.
+	 *
+	 * This will also register the logger with the logger service.
 	 */
-	createLogger(resource: URI, options?: ILoggerOptions, logLevel?: LogLevel): ILogger;
+	createLogger(resource: URI, options?: ILoggerOptions): ILogger;
+
+	/**
+	 * Creates a logger with the given id in the logs folder, or gets one if it already exists.
+	 *
+	 * This will also register the logger with the logger service.
+	 */
+	createLogger(id: string, options?: Omit<ILoggerOptions, 'id'>): ILogger;
 
 	/**
 	 * Gets an existing logger, if any.
 	 */
-	getLogger(resource: URI): ILogger | undefined;
+	getLogger(resourceOrId: URI | string): ILogger | undefined;
+
+	/**
+	 * An event which fires when the log level of a logger has changed
+	 */
+	readonly onDidChangeLogLevel: Event<LogLevel | [URI, LogLevel]>;
+
+	/**
+	 * Set default log level.
+	 */
+	setLogLevel(level: LogLevel): void;
 
 	/**
 	 * Set log level for a logger.
 	 */
-	setLevel(resource: URI, level: LogLevel | undefined): void;
+	setLogLevel(resource: URI, level: LogLevel): void;
 
 	/**
-	 * Get log level for a logger.
+	 * Get log level for a logger or the default log level.
 	 */
-	getLogLevel(resource: URI): LogLevel | undefined;
+	getLogLevel(resource?: URI): LogLevel;
+
+	/**
+	 * An event which fires when the visibility of a logger has changed
+	 */
+	readonly onDidChangeVisibility: Event<[URI, boolean]>;
+
+	/**
+	 * Set the visibility of a logger.
+	 */
+	setVisibility(resourceOrId: URI | string, visible: boolean): void;
+
+	/**
+	 * An event which fires when the logger resources are changed
+	 */
+	readonly onDidChangeLoggers: Event<DidChangeLoggersEvent>;
+
+	/**
+	 * Register a logger with the logger service.
+	 *
+	 * Note that this will not create a logger, but only register it.
+	 *
+	 * Use `createLogger` to create a logger and register it.
+	 *
+	 * Use it when you want to register a logger that is not created by the logger service.
+	 */
+	registerLogger(resource: ILoggerResource): void;
+
+	/**
+	 * Deregister the logger for the given resource.
+	 */
+	deregisterLogger(resource: URI): void;
+
+	/**
+	 * Get all registered loggers
+	 */
+	getRegisteredLoggers(): Iterable<ILoggerResource>;
+
+	/**
+	 * Get the registered logger for the given resource.
+	 */
+	getRegisteredLogger(resource: URI): ILoggerResource | undefined;
 }
 
 export abstract class AbstractLogger extends Disposable implements ILogger {
@@ -171,7 +279,7 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 
 	trace(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Trace)) {
-			this.log(LogLevel.Trace, format([message, ...args]));
+			this.log(LogLevel.Trace, format([message, ...args], true));
 		}
 	}
 
@@ -282,38 +390,58 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 
 export class ConsoleLogger extends AbstractLogger implements ILogger {
 
-	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
+	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL, private readonly useColors: boolean = true) {
 		super();
 		this.setLevel(logLevel);
 	}
 
 	trace(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Trace)) {
-			console.log('%cTRACE', 'color: #888', message, ...args);
+			if (this.useColors) {
+				console.log('%cTRACE', 'color: #888', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Debug)) {
-			console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+			if (this.useColors) {
+				console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Info)) {
-			console.log('%c INFO', 'color: #33f', message, ...args);
+			if (this.useColors) {
+				console.log('%c INFO', 'color: #33f', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Warning)) {
-			console.log('%c WARN', 'color: #993', message, ...args);
+			if (this.useColors) {
+				console.log('%c WARN', 'color: #993', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Error)) {
-			console.log('%c  ERR', 'color: #f33', message, ...args);
+			if (this.useColors) {
+				console.log('%c  ERR', 'color: #f33', message, ...args);
+			} else {
+				console.error(message, ...args);
+			}
 		}
 	}
 
@@ -380,179 +508,205 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 	}
 }
 
-export class MultiplexLogService extends AbstractLogger implements ILogService {
-	declare readonly _serviceBrand: undefined;
+export class MultiplexLogger extends AbstractLogger implements ILogger {
 
-	constructor(private readonly logServices: ReadonlyArray<ILogger>) {
+	constructor(private readonly loggers: ReadonlyArray<ILogger>) {
 		super();
-		if (logServices.length) {
-			this.setLevel(logServices[0].getLevel());
+		if (loggers.length) {
+			this.setLevel(loggers[0].getLevel());
 		}
 	}
 
 	override setLevel(level: LogLevel): void {
-		for (const logService of this.logServices) {
-			logService.setLevel(level);
+		for (const logger of this.loggers) {
+			logger.setLevel(level);
 		}
 		super.setLevel(level);
 	}
 
 	trace(message: string, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.trace(message, ...args);
+		for (const logger of this.loggers) {
+			logger.trace(message, ...args);
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.debug(message, ...args);
+		for (const logger of this.loggers) {
+			logger.debug(message, ...args);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.info(message, ...args);
+		for (const logger of this.loggers) {
+			logger.info(message, ...args);
 		}
 	}
 
 	warn(message: string, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.warn(message, ...args);
+		for (const logger of this.loggers) {
+			logger.warn(message, ...args);
 		}
 	}
 
 	error(message: string | Error, ...args: any[]): void {
-		for (const logService of this.logServices) {
-			logService.error(message, ...args);
+		for (const logger of this.loggers) {
+			logger.error(message, ...args);
 		}
 	}
 
 	flush(): void {
-		for (const logService of this.logServices) {
-			logService.flush();
+		for (const logger of this.loggers) {
+			logger.flush();
 		}
 	}
 
 	override dispose(): void {
-		for (const logService of this.logServices) {
-			logService.dispose();
+		for (const logger of this.loggers) {
+			logger.dispose();
 		}
 	}
 }
 
-export class LogService extends Disposable implements ILogService {
-	declare readonly _serviceBrand: undefined;
-
-	constructor(private logger: ILogger) {
-		super();
-		this._register(logger);
-	}
-
-	get onDidChangeLogLevel(): Event<LogLevel> {
-		return this.logger.onDidChangeLogLevel;
-	}
-
-	setLevel(level: LogLevel): void {
-		this.logger.setLevel(level);
-	}
-
-	getLevel(): LogLevel {
-		return this.logger.getLevel();
-	}
-
-	trace(message: string, ...args: any[]): void {
-		this.logger.trace(message, ...args);
-	}
-
-	debug(message: string, ...args: any[]): void {
-		this.logger.debug(message, ...args);
-	}
-
-	info(message: string, ...args: any[]): void {
-		this.logger.info(message, ...args);
-	}
-
-	warn(message: string, ...args: any[]): void {
-		this.logger.warn(message, ...args);
-	}
-
-	error(message: string | Error, ...args: any[]): void {
-		this.logger.error(message, ...args);
-	}
-
-	flush(): void {
-		this.logger.flush();
-	}
-}
-
-interface ILoggerItem {
-	readonly logger: ILogger;
-	logLevel: LogLevel | undefined;
-}
+type LoggerEntry = { logger: ILogger | undefined; info: Mutable<ILoggerResource> };
 
 export abstract class AbstractLoggerService extends Disposable implements ILoggerService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly loggerItems = new ResourceMap<ILoggerItem>();
+	private readonly _loggers = new ResourceMap<LoggerEntry>();
+
+	private _onDidChangeLoggers = this._register(new Emitter<{ added: ILoggerResource[]; removed: ILoggerResource[] }>);
+	readonly onDidChangeLoggers = this._onDidChangeLoggers.event;
+
+	private _onDidChangeLogLevel = this._register(new Emitter<LogLevel | [URI, LogLevel]>);
+	readonly onDidChangeLogLevel = this._onDidChangeLogLevel.event;
+
+	private _onDidChangeVisibility = this._register(new Emitter<[URI, boolean]>);
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	constructor(
-		private logLevel: LogLevel,
-		onDidChangeLogLevel: Event<LogLevel>,
+		protected logLevel: LogLevel,
+		private readonly logsHome: URI,
+		loggerResources?: Iterable<ILoggerResource>,
 	) {
 		super();
-		this._register(onDidChangeLogLevel(logLevel => this.setLevel(logLevel)));
-	}
-
-	getLoggers(): ILogger[] {
-		return [...this.loggerItems.values()].map(({ logger }) => logger);
-	}
-
-	getLogger(resource: URI): ILogger | undefined {
-		return this.loggerItems.get(resource)?.logger;
-	}
-
-	createLogger(resource: URI, options?: ILoggerOptions, logLevel?: LogLevel): ILogger {
-		let logger = this.loggerItems.get(resource)?.logger;
-		if (!logger) {
-			logLevel = options?.always ? LogLevel.Trace : logLevel;
-			logger = this.doCreateLogger(resource, logLevel ?? this.logLevel, options);
-			this.loggerItems.set(resource, { logger, logLevel });
+		if (loggerResources) {
+			for (const loggerResource of loggerResources) {
+				this._loggers.set(loggerResource.resource, { logger: undefined, info: loggerResource });
+			}
 		}
+	}
+
+	private getLoggerEntry(resourceOrId: URI | string): LoggerEntry | undefined {
+		if (isString(resourceOrId)) {
+			return [...this._loggers.values()].find(logger => logger.info.id === resourceOrId);
+		}
+		return this._loggers.get(resourceOrId);
+	}
+
+	getLogger(resourceOrId: URI | string): ILogger | undefined {
+		return this.getLoggerEntry(resourceOrId)?.logger;
+	}
+
+	createLogger(idOrResource: URI | string, options?: ILoggerOptions): ILogger {
+		const resource = this.toResource(idOrResource);
+		const id = isString(idOrResource) ? idOrResource : (options?.id ?? hash(resource.toString()).toString(16));
+		let logger = this._loggers.get(resource)?.logger;
+		const logLevel = options?.logLevel === 'always' ? LogLevel.Trace : options?.logLevel;
+		if (!logger) {
+			logger = this.doCreateLogger(resource, logLevel ?? this.getLogLevel(resource) ?? this.logLevel, { ...options, id });
+		}
+		const loggerEntry: LoggerEntry = {
+			logger,
+			info: { resource, id, logLevel, name: options?.name, hidden: options?.hidden, extensionId: options?.extensionId, when: options?.when }
+		};
+		this.registerLogger(loggerEntry.info);
+		// TODO: @sandy081 Remove this once registerLogger can take ILogger
+		this._loggers.set(resource, loggerEntry);
 		return logger;
 	}
 
-	setLevel(logLevel: LogLevel): void;
-	setLevel(resource: URI, logLevel: LogLevel): void;
-	setLevel(arg1: any, arg2?: any): void {
-		const resource = URI.isUri(arg1) ? arg1 : undefined;
-		const logLevel = resource ? arg2 : arg1;
-
-		if (resource) {
-			const logger = this.loggerItems.get(resource);
-			if (logger && logger.logLevel !== logLevel) {
-				logger.logLevel = logLevel;
-				logger.logger.setLevel(logLevel);
-			}
-		} else {
-			this.logLevel = logLevel;
-			this.loggerItems.forEach(({ logLevel, logger }) => {
-				if (logLevel === undefined) {
-					logger.setLevel(this.logLevel);
-				}
-			});
-		}
-
+	protected toResource(idOrResource: string | URI): URI {
+		return isString(idOrResource) ? joinPath(this.logsHome, `${idOrResource}.log`) : idOrResource;
 	}
 
-	getLogLevel(resource: URI): LogLevel | undefined {
-		const logger = this.loggerItems.get(resource);
-		return logger?.logLevel;
+	setLogLevel(logLevel: LogLevel): void;
+	setLogLevel(resource: URI, logLevel: LogLevel): void;
+	setLogLevel(arg1: any, arg2?: any): void {
+		if (URI.isUri(arg1)) {
+			const resource = arg1;
+			const logLevel = arg2;
+			const logger = this._loggers.get(resource);
+			if (logger && logLevel !== logger.info.logLevel) {
+				logger.info.logLevel = logLevel === this.logLevel ? undefined : logLevel;
+				logger.logger?.setLevel(logLevel);
+				this._loggers.set(logger.info.resource, logger);
+				this._onDidChangeLogLevel.fire([resource, logLevel]);
+			}
+		} else {
+			this.logLevel = arg1;
+			for (const [resource, logger] of this._loggers.entries()) {
+				if (this._loggers.get(resource)?.info.logLevel === undefined) {
+					logger.logger?.setLevel(this.logLevel);
+				}
+			}
+			this._onDidChangeLogLevel.fire(this.logLevel);
+		}
+	}
+
+	setVisibility(resourceOrId: URI | string, visibility: boolean): void {
+		const logger = this.getLoggerEntry(resourceOrId);
+		if (logger && visibility !== !logger.info.hidden) {
+			logger.info.hidden = !visibility;
+			this._loggers.set(logger.info.resource, logger);
+			this._onDidChangeVisibility.fire([logger.info.resource, visibility]);
+		}
+	}
+
+	getLogLevel(resource?: URI): LogLevel {
+		let logLevel;
+		if (resource) {
+			logLevel = this._loggers.get(resource)?.info.logLevel;
+		}
+		return logLevel ?? this.logLevel;
+	}
+
+	registerLogger(resource: ILoggerResource): void {
+		const existing = this._loggers.get(resource.resource);
+		if (existing) {
+			if (existing.info.hidden !== resource.hidden) {
+				this.setVisibility(resource.resource, !resource.hidden);
+			}
+		} else {
+			this._loggers.set(resource.resource, { info: resource, logger: undefined });
+			this._onDidChangeLoggers.fire({ added: [resource], removed: [] });
+		}
+	}
+
+	deregisterLogger(resource: URI): void {
+		const existing = this._loggers.get(resource);
+		if (existing) {
+			if (existing.logger) {
+				existing.logger.dispose();
+			}
+			this._loggers.delete(resource);
+			this._onDidChangeLoggers.fire({ added: [], removed: [existing.info] });
+		}
+	}
+
+	*getRegisteredLoggers(): Iterable<ILoggerResource> {
+		for (const entry of this._loggers.values()) {
+			yield entry.info;
+		}
+	}
+
+	getRegisteredLogger(resource: URI): ILoggerResource | undefined {
+		return this._loggers.get(resource)?.info;
 	}
 
 	override dispose(): void {
-		this.loggerItems.forEach(({ logger }) => logger.dispose());
-		this.loggerItems.clear();
+		this._loggers.forEach(logger => logger.logger?.dispose());
+		this._loggers.clear();
 		super.dispose();
 	}
 
@@ -575,15 +729,6 @@ export class NullLogger implements ILogger {
 
 export class NullLogService extends NullLogger implements ILogService {
 	declare readonly _serviceBrand: undefined;
-}
-
-export class NullLoggerService extends AbstractLoggerService {
-
-	constructor() { super(LogLevel.Info, Event.None); }
-
-	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions | undefined): ILogger {
-		return new NullLogger();
-	}
 }
 
 export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
@@ -629,3 +774,6 @@ export function parseLogLevel(logLevel: string): LogLevel | undefined {
 	}
 	return undefined;
 }
+
+// Contexts
+export const CONTEXT_LOG_LEVEL = new RawContextKey<string>('logLevel', LogLevelToString(LogLevel.Info));

@@ -13,7 +13,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
@@ -51,6 +51,8 @@ export interface INotebookTextDiffEditor {
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void;
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
+	previousChange(): void;
+	nextChange(): void;
 }
 
 export interface IDiffNestedCellViewModel {

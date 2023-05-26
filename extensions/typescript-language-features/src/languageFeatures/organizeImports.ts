@@ -5,29 +5,28 @@
 
 import * as vscode from 'vscode';
 import { Command, CommandManager } from '../commands/commandManager';
-import type * as Proto from '../protocol';
-import { OrganizeImportsMode } from '../protocol.const';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { TelemetryReporter } from '../logging/telemetry';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { OrganizeImportsMode } from '../tsServer/protocol/protocol.const';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
 
 interface OrganizeImportsCommandMetadata {
 	readonly ids: readonly string[];
 	readonly title: string;
-	readonly minVersion: API;
+	readonly minVersion?: API;
 	readonly kind: vscode.CodeActionKind;
 	readonly mode: OrganizeImportsMode;
 }
 
 const organizeImportsCommand: OrganizeImportsCommandMetadata = {
 	ids: ['typescript.organizeImports'],
-	minVersion: API.v280,
 	title: vscode.l10n.t("Organize Imports"),
 	kind: vscode.CodeActionKind.SourceOrganizeImports,
 	mode: OrganizeImportsMode.All,
@@ -77,7 +76,7 @@ class OrganizeImportsCommand implements Command {
 
 			const resource = activeEditor.document.uri;
 			const document = await vscode.workspace.openTextDocument(resource);
-			const openedFiledPath = this.client.toOpenedFilePath(document);
+			const openedFiledPath = this.client.toOpenTsFilePath(document);
 			if (!openedFiledPath) {
 				vscode.window.showErrorMessage(vscode.l10n.t("Organize Imports failed. Unknown file type."));
 				return;
@@ -129,12 +128,12 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return [];
 		}
 
-		if (!context.only || !context.only.contains(this.commandMetadata.kind)) {
+		if (!context.only?.contains(this.commandMetadata.kind)) {
 			return [];
 		}
 
@@ -157,7 +156,7 @@ export function register(
 
 	for (const command of [organizeImportsCommand, sortImportsCommand, removeUnusedImportsCommand]) {
 		disposables.push(conditionalRegistration([
-			requireMinVersion(client, command.minVersion),
+			requireMinVersion(client, command.minVersion ?? API.defaultVersion),
 			requireSomeCapability(client, ClientCapability.Semantic),
 		], () => {
 			const provider = new ImportsCodeActionProvider(client, command, commandManager, fileConfigurationManager, telemetryReporter);

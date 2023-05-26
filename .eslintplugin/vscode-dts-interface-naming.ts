@@ -8,7 +8,7 @@ import { TSESTree } from '@typescript-eslint/experimental-utils';
 
 export = new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
 
-	private static _nameRegExp = /I[A-Z]/;
+	private static _nameRegExp = /^I[A-Z]/;
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {

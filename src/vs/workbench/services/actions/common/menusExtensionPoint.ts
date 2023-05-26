@@ -12,7 +12,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
@@ -71,9 +71,21 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.explorerContext', "The file explorer context menu")
 	},
 	{
+		key: 'explorer/context/share',
+		id: MenuId.ExplorerContextShare,
+		description: localize('menus.explorerContextShare', "'Share' submenu in the file explorer context menu"),
+		proposed: 'contribShareMenu'
+	},
+	{
 		key: 'editor/title/context',
 		id: MenuId.EditorTitleContext,
 		description: localize('menus.editorTabContext', "The editor tabs context menu")
+	},
+	{
+		key: 'editor/title/context/share',
+		id: MenuId.EditorTitleContextShare,
+		description: localize('menus.editorTitleContextShare', "'Share' submenu inside the editor title context menu"),
+		proposed: 'contribShareMenu'
 	},
 	{
 		key: 'debug/callstack/context',
@@ -147,6 +159,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'view/item/context',
 		id: MenuId.ViewItemContext,
 		description: localize('view.itemContext', "The contributed view item context menu")
+	},
+	{
+		key: 'comments/comment/editorActions',
+		id: MenuId.CommentEditorActions,
+		description: localize('commentThread.editorActions', "The contributed comment editor actions"),
+		proposed: 'contribCommentEditorActionsMenu'
 	},
 	{
 		key: 'comments/commentThread/title',
@@ -289,6 +307,11 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
 		proposed: 'contribEditorContentMenu'
+	},
+	{
+		key: 'editor/lineNumber/context',
+		id: MenuId.EditorLineNumberContext,
+		description: localize('editorLineNumberContext', "The contributed editor line number context menu")
 	},
 	{
 		key: 'mergeEditor/result/title',
@@ -663,13 +686,18 @@ commandsExtensionPoint.setHandler(extensions => {
 			}
 		}
 
-		if (MenuRegistry.getCommand(command)) {
-			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
+		const existingCmd = MenuRegistry.getCommand(command);
+		if (existingCmd) {
+			if (existingCmd.source) {
+				extension.collector.info(localize('dup1', "Command `{0}` already registered by {1} ({2})", userFriendlyCommand.command, existingCmd.source.title, existingCmd.source.id));
+			} else {
+				extension.collector.info(localize('dup0', "Command `{0}` already registered", userFriendlyCommand.command));
+			}
 		}
 		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
-			source: extension.description.displayName ?? extension.description.name,
+			source: { id: extension.description.identifier.value, title: extension.description.displayName ?? extension.description.name },
 			shortTitle,
 			tooltip: title,
 			category,

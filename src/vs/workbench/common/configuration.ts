@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -12,11 +12,26 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IC
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 
+export const applicationConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+	'id': 'application',
+	'order': 100,
+	'title': localize('applicationConfigurationTitle', "Application"),
+	'type': 'object'
+});
+
 export const workbenchConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'id': 'workbench',
 	'order': 7,
 	'title': localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
+});
+
+export const securityConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+	'id': 'security',
+	'scope': ConfigurationScope.APPLICATION,
+	'title': localize('securityConfigurationTitle', "Security"),
+	'type': 'object',
+	'order': 7
 });
 
 export const Extensions = {

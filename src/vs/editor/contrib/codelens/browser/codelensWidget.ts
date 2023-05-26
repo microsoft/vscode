@@ -182,6 +182,11 @@ export class CodeLensHelper {
 	}
 }
 
+const codeLensDecorationOptions = ModelDecorationOptions.register({
+	collapseOnReplaceEdit: true,
+	description: 'codelens'
+});
+
 export class CodeLensWidget {
 
 	private readonly _editor: IActiveCodeEditor;
@@ -218,7 +223,7 @@ export class CodeLensWidget {
 
 			helper.addDecoration({
 				range: codeLensData.symbol.range,
-				options: ModelDecorationOptions.EMPTY
+				options: codeLensDecorationOptions
 			}, id => this._decorationIds[i] = id);
 
 			// the range contains all lenses on this line
@@ -277,7 +282,7 @@ export class CodeLensWidget {
 		this._data.forEach((codeLensData, i) => {
 			helper.addDecoration({
 				range: codeLensData.symbol.range,
-				options: ModelDecorationOptions.EMPTY
+				options: codeLensDecorationOptions
 			}, id => this._decorationIds[i] = id);
 		});
 	}

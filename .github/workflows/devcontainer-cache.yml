@@ -38,4 +38,4 @@ jobs:
           GIT_BRANCH=$(echo "${{ github.ref }}" | grep -oP 'refs/(heads|tags)/\K(.+)')
           if [ "$GIT_BRANCH" == "" ]; then GIT_BRANCH=main; fi
 
-          .devcontainer/cache/build-cache-image.sh "${{ secrets.CONTAINER_IMAGE_REGISTRY }}/public/vscode/devcontainers/repos/microsoft/vscode" "${GIT_BRANCH}"
+          .devcontainer/prebuilt/cache/build-cache-image.sh "${{ secrets.CONTAINER_IMAGE_REGISTRY }}/public/vscode/devcontainers/repos/microsoft/vscode" "${GIT_BRANCH}"

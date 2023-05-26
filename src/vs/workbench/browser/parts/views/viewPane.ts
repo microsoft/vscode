@@ -6,9 +6,9 @@
 import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset } from 'vs/base/browser/dom';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -16,7 +16,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
@@ -45,8 +46,6 @@ import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/v
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -85,25 +84,14 @@ class ViewWelcomeController {
 
 	private defaultItem: IItem | undefined;
 	private items: IItem[] = [];
-	get contents(): Promise<IViewContentDescriptor[]> {
+	get contents(): IViewContentDescriptor[] {
 		const visibleItems = this.items.filter(v => v.visible);
 
 		if (visibleItems.length === 0 && this.defaultItem) {
-			return Promise.resolve([this.defaultItem.descriptor]);
+			return [this.defaultItem.descriptor];
 		}
 
-		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceFolder = workspace.folders.length > 0 ? workspace.folders[0] : undefined;
-
-		return Promise.all(visibleItems.map(async (v) => {
-			return {
-				content: await this.configurationResolverService.resolveWithInteractionReplace(workspaceFolder, v.descriptor.content),
-				when: v.descriptor.when,
-				group: v.descriptor.group,
-				order: v.descriptor.order,
-				precondition: v.descriptor.precondition
-			};
-		}));
+		return visibleItems.map(v => v.descriptor);
 	}
 
 	private disposables = new DisposableStore();
@@ -111,8 +99,6 @@ class ViewWelcomeController {
 	constructor(
 		private id: string,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
 		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
@@ -243,7 +229,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
-		this.viewWelcomeController = this.instantiationService.createInstance(ViewWelcomeController, this.id);
+		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}
 
 	override get headerVisible(): boolean {
@@ -318,9 +304,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this._register(addDisposableListener(actions, EventType.CLICK, e => e.preventDefault()));
 
-		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
-			this.updateTitle(this.title);
-		}));
+		const viewContainerModel = this.viewDescriptorService.getViewContainerByViewId(this.id);
+		if (viewContainerModel) {
+			this._register(this.viewDescriptorService.getViewContainerModel(viewContainerModel).onDidChangeContainerInfo(({ title }) => this.updateTitle(this.title)));
+		} else {
+			console.error(`View container model not found for view ${this.id}`);
+		}
 
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
@@ -336,14 +325,14 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const icon = this.getIcon();
 		if (this.iconContainer) {
-			const fgColor = styles.headerForeground || this.themeService.getColorTheme().getColor(foreground);
+			const fgColor = asCssValueWithDefault(styles.headerForeground, asCssVariable(foreground));
 			if (URI.isUri(icon)) {
 				// Apply background color to activity bar item provided with iconUrls
-				this.iconContainer.style.backgroundColor = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.backgroundColor = fgColor;
 				this.iconContainer.style.color = '';
 			} else {
 				// Apply foreground color to activity bar items provided with codicons
-				this.iconContainer.style.color = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.color = fgColor;
 				this.iconContainer.style.backgroundColor = '';
 			}
 		}
@@ -564,7 +553,7 @@ export abstract class ViewPane extends Pane implements IView {
 		// Subclasses to implement for saving state
 	}
 
-	private async updateViewWelcome(): Promise<void> {
+	private updateViewWelcome(): void {
 		this.viewWelcomeDisposable.dispose();
 
 		if (!this.shouldShowWelcome()) {
@@ -574,7 +563,7 @@ export abstract class ViewPane extends Pane implements IView {
 			return;
 		}
 
-		const contents = await this.viewWelcomeController.contents;
+		const contents = this.viewWelcomeController.contents;
 
 		if (contents.length === 0) {
 			this.bodyContainer.classList.remove('welcome');
@@ -704,8 +693,10 @@ export abstract class FilterViewPane extends ViewPane {
 			this.updateActions();
 			if (!shouldShowFilterInHeader) {
 				append(this.filterContainer!, this.filterWidget.element);
-				height = height - 44;
 			}
+		}
+		if (!shouldShowFilterInHeader) {
+			height = height - 44;
 		}
 		this.filterWidget.layout(width);
 		this.layoutBodyContent(height, width);

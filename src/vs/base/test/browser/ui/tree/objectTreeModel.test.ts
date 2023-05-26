@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilter, ITreeNode, ObjectTreeElementCollapseState, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
 
 function toList<T>(arr: T[]): IList<T> {
@@ -169,6 +169,27 @@ suite('ObjectTreeModel', function () {
 
 		model.setChildren(null, data);
 		assert.deepStrictEqual(toArray(list), ['father']);
+	});
+
+	test('collapse state can be optionally preserved with strict identity', () => {
+		const list: ITreeNode<string>[] = [];
+		const model = new ObjectTreeModel<string>('test', toList(list), { collapseByDefault: true });
+		const data = [{ element: 'father', collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded, children: [{ element: 'child' }] }];
+
+		model.setChildren(null, data);
+		assert.deepStrictEqual(toArray(list), ['father', 'child']);
+
+		model.setCollapsed('father', true);
+		assert.deepStrictEqual(toArray(list), ['father']);
+
+		model.setChildren(null, data);
+		assert.deepStrictEqual(toArray(list), ['father']);
+
+		model.setCollapsed('father', false);
+		assert.deepStrictEqual(toArray(list), ['father', 'child']);
+
+		model.setChildren(null, data);
+		assert.deepStrictEqual(toArray(list), ['father', 'child']);
 	});
 
 	test('sorter', () => {

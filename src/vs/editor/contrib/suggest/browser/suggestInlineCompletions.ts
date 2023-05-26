@@ -16,10 +16,9 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Command, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
+import { Command, CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CompletionItemInsertTextRule } from 'vs/editor/common/standalone/standaloneEnums';
 import { CompletionModel, LineContext } from 'vs/editor/contrib/suggest/browser/completionModel';
 import { CompletionItem, CompletionItemModel, CompletionOptions, provideSuggestionItems, QuickSuggestionsOptions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
@@ -57,7 +56,7 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 			&& this.line === line
 			&& this.word.word.length > 0
 			&& this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
-			&& this.completionModel.incomplete.size === 0; // no incomplete results
+			&& this.completionModel.getIncompleteProvider().size === 0; // no incomplete results
 	}
 
 	get items(): SuggestInlineCompletion[] {

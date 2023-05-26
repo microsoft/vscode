@@ -146,7 +146,8 @@ suite('StoredFileWorkingCopy', function () {
 		});
 	});
 
-	test('dirty', async () => {
+	test('dirty / modified', async () => {
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 
@@ -172,12 +173,14 @@ suite('StoredFileWorkingCopy', function () {
 		workingCopy.model?.updateContents('hello dirty');
 		assert.strictEqual(contentChangeCounter, 1);
 
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 1);
 
 		await workingCopy.save();
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 2);
@@ -187,25 +190,29 @@ suite('StoredFileWorkingCopy', function () {
 		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello dirty stream')) });
 
 		assert.strictEqual(contentChangeCounter, 2); // content of model did not change
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 3);
 
 		await workingCopy.revert({ soft: true });
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 4);
 
-		// Dirty from: API
-		workingCopy.markDirty();
+		// Modified from: API
+		workingCopy.markModified();
 
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 5);
 
 		await workingCopy.revert();
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 6);

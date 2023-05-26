@@ -13,13 +13,13 @@ import * as objects from 'vs/base/common/objects';
 export interface IHighlight {
 	start: number;
 	end: number;
-	extraClasses?: string[];
+	readonly extraClasses?: readonly string[];
 }
 
-export interface IOptions {
+export interface IHighlightedLabelOptions {
 
 	/**
-	 * Whether
+	 * Whether the label supports rendering icons.
 	 */
 	readonly supportIcons?: boolean;
 }
@@ -42,7 +42,7 @@ export class HighlightedLabel {
 	 *
 	 * @param container The parent container to append to.
 	 */
-	constructor(container: HTMLElement, options?: IOptions) {
+	constructor(container: HTMLElement, options?: IHighlightedLabelOptions) {
 		this.supportIcons = options?.supportIcons ?? false;
 		this.domNode = dom.append(container, dom.$('span.monaco-highlighted-label'));
 	}

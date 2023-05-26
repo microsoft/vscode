@@ -8,11 +8,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { Readable } from 'stream';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import API from '../utils/api';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { Disposable } from '../utils/dispose';
-import { TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
+import { API } from './api';
+import type * as Proto from './protocol/protocol';
+import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
 
@@ -253,11 +253,12 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
+		_tsserverLog: TsServerLog | undefined,
 	): TsServerProcess {
 		let tsServerPath = version.tsServerPath;
 
 		if (!fs.existsSync(tsServerPath)) {
-			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', tsServerPath"));
+			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.", tsServerPath));
 			versionManager.reset();
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}

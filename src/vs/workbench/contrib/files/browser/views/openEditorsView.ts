@@ -19,9 +19,8 @@ import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/fil
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -30,7 +29,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MenuId, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import { ResourceContextKey, MultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { ResourcesDropHandler, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -64,7 +63,7 @@ export class OpenEditorsView extends ViewPane {
 	static readonly NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 	private dirtyCountElement!: HTMLElement;
-	private listRefreshScheduler: RunOnceScheduler;
+	private listRefreshScheduler: RunOnceScheduler | undefined;
 	private structuralRefreshDelay: number;
 	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
 	private listLabels: ResourceLabels | undefined;
@@ -94,27 +93,6 @@ export class OpenEditorsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.structuralRefreshDelay = 0;
-		let labelChangeListeners: IDisposable[] = [];
-		this.listRefreshScheduler = new RunOnceScheduler(() => {
-			labelChangeListeners = dispose(labelChangeListeners);
-			const previousLength = this.list.length;
-			const elements = this.getElements();
-			this.list.splice(0, this.list.length, elements);
-			this.focusActiveEditor();
-			if (previousLength !== this.list.length) {
-				this.updateSize();
-			}
-			this.needsRefresh = false;
-
-			if (this.sortOrder === 'alphabetical' || this.sortOrder === 'fullPath') {
-				// We need to resort the list if the editor label changed
-				elements.forEach(e => {
-					if (e instanceof OpenEditor) {
-						labelChangeListeners.push(e.editor.onDidChangeLabel(() => this.listRefreshScheduler.schedule()));
-					}
-				});
-			}
-		}, this.structuralRefreshDelay);
 		this.sortOrder = configurationService.getValue('explorer.openEditors.sortOrder');
 
 		this.registerUpdateEvents();
@@ -133,13 +111,13 @@ export class OpenEditorsView extends ViewPane {
 				return;
 			}
 
-			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
+			this.listRefreshScheduler?.schedule(this.structuralRefreshDelay);
 		};
 
 		const groupDisposables = new Map<number, IDisposable>();
 		const addGroupListener = (group: IEditorGroup) => {
 			const groupModelChangeListener = group.onDidModelChange(e => {
-				if (this.listRefreshScheduler.isScheduled()) {
+				if (this.listRefreshScheduler?.isScheduled()) {
 					return;
 				}
 				if (!this.isBodyVisible() || !this.list) {
@@ -195,18 +173,9 @@ export class OpenEditorsView extends ViewPane {
 		const count = dom.append(container, $('.count'));
 		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge.long'));
 
-		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-
-			this.dirtyCountElement.style.backgroundColor = background;
-			this.dirtyCountElement.style.color = foreground;
-
-			this.dirtyCountElement.style.borderWidth = border ? '1px' : '';
-			this.dirtyCountElement.style.borderStyle = border ? 'solid' : '';
-			this.dirtyCountElement.style.borderColor = border;
-		})));
+		this.dirtyCountElement.style.backgroundColor = asCssVariable(badgeBackground);
+		this.dirtyCountElement.style.color = asCssVariable(badgeForeground);
+		this.dirtyCountElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
 		this.updateDirtyIndicator();
 	}
@@ -239,6 +208,33 @@ export class OpenEditorsView extends ViewPane {
 		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);
 		this._register(this.listLabels);
+
+		// Register the refresh scheduler
+		let labelChangeListeners: IDisposable[] = [];
+		this.listRefreshScheduler = this._register(new RunOnceScheduler(() => {
+			// No need to refresh the list if it's not rendered
+			if (!this.list) {
+				return;
+			}
+			labelChangeListeners = dispose(labelChangeListeners);
+			const previousLength = this.list.length;
+			const elements = this.getElements();
+			this.list.splice(0, this.list.length, elements);
+			this.focusActiveEditor();
+			if (previousLength !== this.list.length) {
+				this.updateSize();
+			}
+			this.needsRefresh = false;
+
+			if (this.sortOrder === 'alphabetical' || this.sortOrder === 'fullPath') {
+				// We need to resort the list if the editor label changed
+				elements.forEach(e => {
+					if (e instanceof OpenEditor) {
+						labelChangeListeners.push(e.editor.onDidChangeLabel(() => this.listRefreshScheduler?.schedule()));
+					}
+				});
+			}
+		}, this.structuralRefreshDelay));
 
 		this.updateSize();
 
@@ -293,7 +289,7 @@ export class OpenEditorsView extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
-				this.listRefreshScheduler.schedule(0);
+				this.listRefreshScheduler?.schedule(0);
 			}
 		}));
 
@@ -426,7 +422,7 @@ export class OpenEditorsView extends ViewPane {
 		// Trigger a 'repaint' when decoration settings change or the sort order changed
 		if (event.affectsConfiguration('explorer.decorations') || event.affectsConfiguration('explorer.openEditors.sortOrder')) {
 			this.sortOrder = this.configurationService.getValue('explorer.openEditors.sortOrder');
-			this.listRefreshScheduler.schedule();
+			this.listRefreshScheduler?.schedule();
 		}
 	}
 
@@ -745,7 +741,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OpenEditorsView.ID), MultipleEditorGroupsContext),
 				order: 10
 			}
 		});
@@ -811,8 +807,9 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		const closeAll = instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL);
-		await closeAll.run();
+
+		const closeAll = new CloseAllEditorsAction();
+		await instantiationService.invokeFunction(accessor => closeAll.run(accessor));
 	}
 });
 
@@ -820,7 +817,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'openEditors.newUntitledFile',
-			title: { value: nls.localize('newUntitledFile', "New Untitled File"), original: 'New Untitled File' },
+			title: { value: nls.localize('newUntitledFile', "New Untitled Text File"), original: 'New Untitled Text File' },
 			f1: false,
 			icon: Codicon.newFile,
 			menu: {

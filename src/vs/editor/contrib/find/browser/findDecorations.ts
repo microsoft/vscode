@@ -91,6 +91,14 @@ export class FindDecorations implements IDisposable {
 		return 1;
 	}
 
+	public getDecorationRangeAt(index: number): Range | null {
+		const decorationId = index < this._decorations.length ? this._decorations[index] : null;
+		if (decorationId) {
+			return this._editor.getModel().getDecorationRange(decorationId);
+		}
+		return null;
+	}
+
 	public getCurrentMatchesPosition(desiredRange: Range): number {
 		const candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
 		for (const candidate of candidates) {

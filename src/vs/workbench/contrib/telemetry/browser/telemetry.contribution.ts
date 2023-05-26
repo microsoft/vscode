@@ -15,7 +15,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { language } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { configurationTelemetry, TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { configurationTelemetry, TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
@@ -28,7 +28,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 type TelemetryData = {
-	mimeType: TrustedTelemetryValue<string>;
+	mimeType: TelemetryTrustedValue<string>;
 	ext: string;
 	path: number;
 	reason?: number;
@@ -216,7 +216,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const fileName = basename(resource);
 		const path = resource.scheme === Schemas.file ? resource.fsPath : resource.path;
 		const telemetryData = {
-			mimeType: new TrustedTelemetryValue(getMimeTypes(resource).join(', ')),
+			mimeType: new TelemetryTrustedValue(getMimeTypes(resource).join(', ')),
 			ext,
 			path: hash(path),
 			reason,

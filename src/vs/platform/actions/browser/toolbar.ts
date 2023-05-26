@@ -8,6 +8,7 @@ import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -111,6 +112,7 @@ export class WorkbenchToolBar extends ToolBar {
 		const primary = _primary.slice();
 		const secondary = _secondary.slice();
 		const toggleActions: IAction[] = [];
+		let toggleActionsCheckedCount: number = 0;
 
 		const extraSecondary: IAction[] = [];
 
@@ -129,6 +131,9 @@ export class WorkbenchToolBar extends ToolBar {
 
 				// collect all toggle actions
 				toggleActions.push(action.hideActions.toggle);
+				if (action.hideActions.toggle.checked) {
+					toggleActionsCheckedCount++;
+				}
 
 				// hidden items move into overflow or ignore
 				if (action.hideActions.isHidden) {
@@ -171,11 +176,28 @@ export class WorkbenchToolBar extends ToolBar {
 				e.preventDefault();
 				e.stopPropagation();
 
-				let actions = toggleActions;
+				let noHide = false;
+
+				// last item cannot be hidden when using ignore strategy
+				if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore) {
+					noHide = true;
+					for (let i = 0; i < toggleActions.length; i++) {
+						if (toggleActions[i].checked) {
+							toggleActions[i] = toAction({
+								id: action.id,
+								label: action.label,
+								checked: true,
+								enabled: false,
+								run() { }
+							});
+							break; // there is only one
+						}
+					}
+				}
 
 				// add "hide foo" actions
 				let hideAction: IAction;
-				if (action instanceof MenuItemAction || action instanceof SubmenuItemAction) {
+				if (!noHide && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
 					if (!action.hideActions) {
 						// no context menu for MenuItemAction instances that support no hiding
 						// those are fake actions and need to be cleaned up
@@ -191,7 +213,8 @@ export class WorkbenchToolBar extends ToolBar {
 						run() { }
 					});
 				}
-				actions = [hideAction, new Separator(), ...toggleActions];
+
+				const actions = Separator.join([hideAction], toggleActions);
 
 				// add "Reset Menu" action
 				if (this._options?.resetMenu && !menuIds) {
@@ -261,6 +284,9 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
  */
 export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 
+	private readonly _onDidChangeMenuItems = this._store.add(new Emitter<this>());
+	readonly onDidChangeMenuItems: Event<this> = this._onDidChangeMenuItems.event;
+
 	constructor(
 		container: HTMLElement,
 		menuId: MenuId,
@@ -287,7 +313,10 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 			super.setActions(primary, secondary);
 		};
 
-		this._store.add(menu.onDidChange(updateToolbar));
+		this._store.add(menu.onDidChange(() => {
+			updateToolbar();
+			this._onDidChangeMenuItems.fire(this);
+		}));
 		updateToolbar();
 	}
 

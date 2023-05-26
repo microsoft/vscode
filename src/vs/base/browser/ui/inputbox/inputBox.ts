@@ -16,6 +16,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
+import { equals } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./inputBox';
 import * as nls from 'vs/nls';
@@ -368,6 +369,11 @@ export class InputBox extends Widget {
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {
+		if (this.state === 'open' && equals(this.message, message)) {
+			// Already showing
+			return;
+		}
+
 		this.message = message;
 
 		this.element.classList.remove('idle');
@@ -466,8 +472,8 @@ export class InputBox extends Widget {
 				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
-				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : '';
-				spanElement.style.color = styles.foreground ? styles.foreground.toString() : '';
+				spanElement.style.backgroundColor = styles.background ?? '';
+				spanElement.style.color = styles.foreground ?? '';
 				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
 				dom.append(div, spanElement);
@@ -673,14 +679,26 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}
 	}
 
-	public addToHistory(): void {
-		if (this.value && this.value !== this.getCurrentValue()) {
+	public addToHistory(always?: boolean): void {
+		if (this.value && (always || this.value !== this.getCurrentValue())) {
 			this.history.add(this.value);
 		}
 	}
 
 	public getHistory(): string[] {
 		return this.history.getHistory();
+	}
+
+	public isAtFirstInHistory(): boolean {
+		return this.history.isFirst();
+	}
+
+	public isAtLastInHistory(): boolean {
+		return this.history.isLast();
+	}
+
+	public isNowhereInHistory(): boolean {
+		return this.history.isNowhere();
 	}
 
 	public showNextValue(): void {
@@ -693,10 +711,8 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 			next = next === this.value ? this.getNextValue() : next;
 		}
 
-		if (next) {
-			this.value = next;
-			aria.status(this.value);
-		}
+		this.value = next ?? '';
+		aria.status(this.value ? this.value : nls.localize('clearedInput', "Cleared Input"));
 	}
 
 	public showPreviousValue(): void {
@@ -743,6 +759,6 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	}
 
 	private getNextValue(): string | null {
-		return this.history.next() || this.history.last();
+		return this.history.next();
 	}
 }

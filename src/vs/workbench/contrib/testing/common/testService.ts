@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ResolvedTestRunRequest, RunTestForControllerRequest, RunTestForControllerResult, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
+import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ResolvedTestRunRequest, IStartControllerTests, IStartControllerTestsResult, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -27,10 +27,9 @@ export interface IMainThreadTestController {
 	refreshTests(token: CancellationToken): Promise<void>;
 	configureRunProfile(profileId: number): void;
 	expandTest(id: string, levels: number): Promise<void>;
-	runTests(request: RunTestForControllerRequest[], token: CancellationToken): Promise<RunTestForControllerResult[]>;
+	startContinuousRun(request: ICallProfileRunHandler[], token: CancellationToken): Promise<IStartControllerTestsResult[]>;
+	runTests(request: IStartControllerTests[], token: CancellationToken): Promise<IStartControllerTestsResult[]>;
 }
-
-export type TestDiffListener = (diff: TestsDiff) => void;
 
 export interface IMainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> {
 	onBusyProvidersChange: Event<number>;
@@ -79,15 +78,6 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
 	 */
 	getReviverDiff(): TestsDiff;
 }
-
-/**
- * Iterates through the item and its parents to the root.
- */
-export const getCollectionItemParents = function* (collection: IMainThreadTestCollection, item: InternalTestItem) {
-	for (const id of TestId.fromString(item.item.extId).idsToRoot()) {
-		yield collection.getNodeById(id.toString())!;
-	}
-};
 
 export const testCollectionIsEmpty = (collection: IMainThreadTestCollection) =>
 	!Iterable.some(collection.rootItems, r => r.children.size > 0);
@@ -147,26 +137,9 @@ export const expandAndGetTestById = async (collection: IMainThreadTestCollection
 };
 
 /**
- * Waits for all test in the hierarchy to be fulfilled before returning.
- * If cancellation is requested, it will return early.
- */
-export const getAllTestsInHierarchy = async (collection: IMainThreadTestCollection, ct = CancellationToken.None) => {
-	if (ct.isCancellationRequested) {
-		return;
-	}
-
-	let l: IDisposable;
-
-	await Promise.race([
-		Promise.all([...collection.rootItems].map(r => collection.expand(r.item.extId, Infinity))),
-		new Promise(r => { l = ct.onCancellationRequested(r); }),
-	]).finally(() => l?.dispose());
-};
-
-/**
  * Waits for the test to no longer be in the "busy" state.
  */
-export const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
+const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
 	if (!test.item.busy) {
 		return;
 	}
@@ -226,7 +199,7 @@ export interface AmbiguousRunTestsRequest {
 	/** Tests to exclude. If not given, the current UI excluded tests are used */
 	exclude?: InternalTestItem[];
 	/** Whether this was triggered from an auto run. */
-	isAutoRun?: boolean;
+	continuous?: boolean;
 }
 
 export interface ITestService {
@@ -281,6 +254,11 @@ export interface ITestService {
 	 * Cancels any ongoing test refreshes.
 	 */
 	cancelRefreshTests(): void;
+
+	/**
+	 * Requests that tests be executed continuously, until the token is cancelled.
+	 */
+	startContinuousRun(req: ResolvedTestRunRequest, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Requests that tests be executed.

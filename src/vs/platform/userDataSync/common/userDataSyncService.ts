@@ -167,7 +167,23 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return that.sync(manifest, true, executionId, cancellableToken.token);
 			},
 			async apply(): Promise<void> {
-				await that.applyManualSync(manifest, executionId, cancellableToken.token);
+				try {
+					try {
+						await that.applyManualSync(manifest, executionId, cancellableToken.token);
+					} catch (error) {
+						if (UserDataSyncError.toUserDataSyncError(error).code === UserDataSyncErrorCode.MethodNotFound) {
+							that.logService.info('Client is making invalid requests. Cleaning up data...');
+							await that.cleanUpRemoteData();
+							that.logService.info('Applying manual sync again...');
+							await that.applyManualSync(manifest, executionId, cancellableToken.token);
+						} else {
+							throw error;
+						}
+					}
+				} catch (error) {
+					that.logService.error(error);
+					throw error;
+				}
 				that.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
 				that.updateLastSyncTime();
 			},
@@ -395,6 +411,29 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.logService.info('Did reset the local sync state.');
 	}
 
+	async cleanUpRemoteData(): Promise<void> {
+		const remoteProfiles = await this.userDataSyncResourceProviderService.getRemoteSyncedProfiles();
+		const remoteProfileCollections = remoteProfiles.map(profile => profile.collection);
+		const allCollections = await this.userDataSyncStoreService.getAllCollections();
+		const redundantCollections = allCollections.filter(c => !remoteProfileCollections.includes(c));
+		if (redundantCollections.length) {
+			this.logService.info(`Deleting ${redundantCollections.length} redundant collections on server`);
+			await Promise.allSettled(redundantCollections.map(collectionId => this.userDataSyncStoreService.deleteCollection(collectionId)));
+			this.logService.info(`Deleted redundant collections on server`);
+		}
+		const updatedRemoteProfiles = remoteProfiles.filter(profile => allCollections.includes(profile.collection));
+		if (updatedRemoteProfiles.length !== remoteProfiles.length) {
+			this.logService.info(`Updating remote profiles with invalid collections on server`);
+			const profileManifestSynchronizer = this.instantiationService.createInstance(UserDataProfilesManifestSynchroniser, this.userDataProfilesService.defaultProfile, undefined);
+			try {
+				await profileManifestSynchronizer.updateRemoteProfiles(updatedRemoteProfiles, null);
+				this.logService.info(`Updated remote profiles on server`);
+			} finally {
+				profileManifestSynchronizer.dispose();
+			}
+		}
+	}
+
 	private async performAction<T>(profile: IUserDataProfile, action: (synchroniser: IUserDataSynchroniser) => Promise<T | undefined>): Promise<T | null> {
 		const disposables = new DisposableStore();
 		try {
@@ -431,7 +470,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private async performActionWithProfileSynchronizer<T>(profileSynchronizer: ProfileSynchronizer, action: (synchroniser: IUserDataSynchroniser) => Promise<T | undefined>, disposables: DisposableStore): Promise<T | undefined> {
-		const allSynchronizers = [...profileSynchronizer.enabled, ...profileSynchronizer.disabled.map(syncResource => disposables.add(profileSynchronizer.createSynchronizer(syncResource)))];
+		const allSynchronizers = [...profileSynchronizer.enabled, ...profileSynchronizer.disabled.reduce<(IUserDataSynchroniser & IDisposable)[]>((synchronizers, syncResource) => {
+			if (syncResource !== SyncResource.WorkspaceState) {
+				synchronizers.push(disposables.add(profileSynchronizer.createSynchronizer(syncResource)));
+			}
+			return synchronizers;
+		}, [])];
 		for (const synchronizer of allSynchronizers) {
 			const result = await action(synchronizer);
 			if (!isUndefined(result)) {
@@ -575,6 +619,9 @@ class ProfileSynchronizer extends Disposable {
 				return;
 			}
 		}
+		if (syncResource === SyncResource.WorkspaceState) {
+			return;
+		}
 		const disposables = new DisposableStore();
 		const synchronizer = disposables.add(this.createSynchronizer(syncResource));
 		disposables.add(synchronizer.onDidChangeStatus(() => this.updateStatus()));
@@ -595,7 +642,7 @@ class ProfileSynchronizer extends Disposable {
 		}
 	}
 
-	createSynchronizer(syncResource: SyncResource): IUserDataSynchroniser & IDisposable {
+	createSynchronizer(syncResource: Exclude<SyncResource, SyncResource.WorkspaceState>): IUserDataSynchroniser & IDisposable {
 		switch (syncResource) {
 			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser, this.profile, this.collection);
 			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser, this.profile, this.collection);
@@ -756,13 +803,14 @@ class ProfileSynchronizer extends Disposable {
 
 	private getOrder(syncResource: SyncResource): number {
 		switch (syncResource) {
-			case SyncResource.Profiles: return 0;
-			case SyncResource.Settings: return 1;
-			case SyncResource.Keybindings: return 2;
-			case SyncResource.Snippets: return 3;
-			case SyncResource.Tasks: return 4;
-			case SyncResource.GlobalState: return 5;
-			case SyncResource.Extensions: return 6;
+			case SyncResource.Settings: return 0;
+			case SyncResource.Keybindings: return 1;
+			case SyncResource.Snippets: return 2;
+			case SyncResource.Tasks: return 3;
+			case SyncResource.GlobalState: return 4;
+			case SyncResource.Extensions: return 5;
+			case SyncResource.Profiles: return 6;
+			case SyncResource.WorkspaceState: return 7;
 		}
 	}
 
@@ -771,10 +819,12 @@ class ProfileSynchronizer extends Disposable {
 function canBailout(e: any): boolean {
 	if (e instanceof UserDataSyncError) {
 		switch (e.code) {
+			case UserDataSyncErrorCode.MethodNotFound:
 			case UserDataSyncErrorCode.TooLarge:
 			case UserDataSyncErrorCode.TooManyRequests:
 			case UserDataSyncErrorCode.TooManyRequestsAndRetryAfter:
 			case UserDataSyncErrorCode.LocalTooManyRequests:
+			case UserDataSyncErrorCode.LocalTooManyProfiles:
 			case UserDataSyncErrorCode.Gone:
 			case UserDataSyncErrorCode.UpgradeRequired:
 			case UserDataSyncErrorCode.IncompatibleRemoteContent:

@@ -90,6 +90,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		const disposables = new DisposableStore();
 
 		const webview = this._webviewService.createWebviewElement({
+			title: undefined,
 			options: {
 				enableFindWidget: false,
 			},
@@ -122,7 +123,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 	$setHtml(handle: number, value: string): void {
 		const inset = this.getInset(handle);
-		inset.webview.html = value;
+		inset.webview.setHtml(value);
 	}
 
 	$setOptions(handle: number, options: IWebviewContentOptions): void {

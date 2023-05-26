@@ -11,7 +11,7 @@
 .monaco-workbench .part.auxiliarybar > .content .monaco-editor,
 .monaco-workbench .part.auxiliarybar > .content .monaco-editor .margin,
 .monaco-workbench .part.auxiliarybar > .content .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-sideBar-background) !important;
+	background-color: var(--vscode-sideBar-background);
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,

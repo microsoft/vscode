@@ -6,11 +6,12 @@
 import { localize } from 'vs/nls';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // colors for theming
 
@@ -61,15 +62,26 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.debugService.onDidChangeState(this.update, this, this.disposables);
 		this.contextService.onDidChangeWorkbenchState(this.update, this, this.disposables);
+		this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('debug.enableStatusBarColor')) {
+				this.update();
+			}
+		});
 		this.update();
 	}
 
 	protected update(): void {
-		this.enabled = isStatusbarInDebugMode(this.debugService.state, this.debugService.getModel().getSessions());
+		const decorateStatusBar: boolean = this.configurationService.getValue<IDebugConfiguration>('debug').enableStatusBarColor;
+		if (!decorateStatusBar) {
+			this.enabled = false;
+		} else {
+			this.enabled = isStatusbarInDebugMode(this.debugService.state, this.debugService.getModel().getSessions());
+		}
 	}
 
 	dispose(): void {

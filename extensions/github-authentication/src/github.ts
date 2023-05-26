@@ -68,8 +68,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._logger,
 			this._telemetryReporter,
 			uriHandler,
-			// We only can use the Device Code flow when we have a full node environment because of CORS.
-			context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
+			context.extension.extensionKind,
 			ghesUri);
 
 		// Contains the current state of the sessions we have available.
@@ -111,7 +110,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		// We only want to fire a telemetry if we haven't seen this account yet in this session.
 		if (!this._accountsSeen.has(session.account.id)) {
 			this._accountsSeen.add(session.account.id);
-			this._githubServer.sendAdditionalTelemetryInfo(session.accessToken);
+			this._githubServer.sendAdditionalTelemetryInfo(session);
 		}
 	}
 

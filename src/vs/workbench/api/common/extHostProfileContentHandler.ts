@@ -5,9 +5,11 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import type * as vscode from 'vscode';
 import { ExtHostProfileContentHandlersShape, IMainContext, MainContext, MainThreadProfileContentHandlersShape } from './extHost.protocol';
 
@@ -35,7 +37,7 @@ export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandl
 		}
 
 		this.handlers.set(id, handler);
-		this.proxy.$registerProfileContentHandler(id, handler.name, extension.identifier.value);
+		this.proxy.$registerProfileContentHandler(id, handler.name, handler.description, extension.identifier.value);
 
 		return toDisposable(() => {
 			this.handlers.delete(id);
@@ -43,7 +45,7 @@ export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandl
 		});
 	}
 
-	async $saveProfile(id: string, name: string, content: string, token: CancellationToken): Promise<UriComponents | null> {
+	async $saveProfile(id: string, name: string, content: string, token: CancellationToken): Promise<ISaveProfileResult | null> {
 		const handler = this.handlers.get(id);
 		if (!handler) {
 			throw new Error(`Unknown handler with id: ${id}`);
@@ -52,12 +54,12 @@ export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandl
 		return handler.saveProfile(name, content, token);
 	}
 
-	async $readProfile(id: string, uri: UriComponents, token: CancellationToken): Promise<string | null> {
+	async $readProfile(id: string, idOrUri: string | UriComponents, token: CancellationToken): Promise<string | null> {
 		const handler = this.handlers.get(id);
 		if (!handler) {
 			throw new Error(`Unknown handler with id: ${id}`);
 		}
 
-		return handler.readProfile(URI.revive(uri), token);
+		return handler.readProfile(isString(idOrUri) ? idOrUri : URI.revive(idOrUri), token);
 	}
 }

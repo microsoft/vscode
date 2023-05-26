@@ -358,10 +358,18 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 
 		for (const codeActionKind of codeActionsOnSave) {
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
+			if (token.isCancellationRequested) {
+				actionsToRun.dispose();
+				return;
+			}
+
 			try {
 				for (const action of actionsToRun.validActions) {
 					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-					await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave);
+					await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
+					if (token.isCancellationRequested) {
+						return;
+					}
 				}
 			} catch {
 				// Failure to apply a code action should not block other on save actions

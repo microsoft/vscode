@@ -21,14 +21,15 @@ import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IPCExtHostConnection, writeExtHostConnection, SocketExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
+export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, environmentService: IServerEnvironmentService, logService: ILogService, configurationService: IConfigurationService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
 
 	let userShellEnv: typeof process.env = {};
 	if (withUserShellEnvironment) {
 		try {
-			userShellEnv = await getResolvedShellEnv(logService, environmentService.args, process.env);
+			userShellEnv = await getResolvedShellEnv(configurationService, logService, environmentService.args, process.env);
 		} catch (error) {
 			logService.error('ExtensionHostConnection#buildUserEnvironment resolving shell environment failed', error);
 		}
@@ -121,6 +122,7 @@ export class ExtensionHostConnection {
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionHostStatusService private readonly _extensionHostStatusService: IExtensionHostStatusService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._canSendSocket = (!isWindows || !this._environmentService.args['socket-path']);
 		this._disposed = false;
@@ -233,7 +235,7 @@ export class ExtensionHostConnection {
 				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
 			}
 
-			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService);
+			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService, this._configurationService);
 			removeDangerousEnvVariables(env);
 
 			let extHostNamedPipeServer: net.Server | null;

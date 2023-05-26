@@ -21,9 +21,12 @@ module.exports = withBrowserDefaults({
 		extension: './src/extension.ts',
 	},
 	externals: {
-		'keytar': 'commonjs keytar'
+		'keytar': 'commonjs keytar',
 	},
 	resolve: {
+		fallback: {
+			'querystring': require.resolve('querystring-es3')
+		},
 		alias: {
 			'./node/crypto': path.resolve(__dirname, 'src/browser/crypto'),
 			'./node/authServer': path.resolve(__dirname, 'src/browser/authServer'),

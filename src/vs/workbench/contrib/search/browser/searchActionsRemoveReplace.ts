@@ -12,8 +12,8 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { searchRemoveIcon, searchReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, RenderableMatch, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
+import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, MatchInNotebook, RenderableMatch, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -21,7 +21,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { category, getElementsToOperateOnInfo, getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { equals } from 'vs/base/common/arrays';
 
 
 //#region Interfaces
@@ -101,8 +102,7 @@ registerAction2(class RemoveAction extends Action2 {
 			element = viewer.getFocus()[0] ?? undefined;
 		}
 
-		const opInfo = getElementsToOperateOnInfo(viewer, element, configurationService.getValue<ISearchConfigurationProperties>('search'));
-		const elementsToRemove = opInfo.elements;
+		const elementsToRemove = getElementsToOperateOn(viewer, element, configurationService.getValue<ISearchConfigurationProperties>('search'));
 		let focusElement = viewer.getFocus()[0] ?? undefined;
 
 		if (elementsToRemove.length === 0) {
@@ -114,7 +114,8 @@ registerAction2(class RemoveAction extends Action2 {
 		}
 
 		let nextFocusElement;
-		if (opInfo.mustReselect && focusElement) {
+		const shouldRefocusMatch = shouldRefocus(elementsToRemove, focusElement);
+		if (focusElement && shouldRefocusMatch) {
 			nextFocusElement = getElementToFocusAfterRemoved(viewer, focusElement, elementsToRemove);
 		}
 
@@ -124,7 +125,7 @@ registerAction2(class RemoveAction extends Action2 {
 			searchResult.batchRemove(elementsToRemove);
 		}
 
-		if (opInfo.mustReselect && focusElement) {
+		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
 				nextFocusElement = getLastNodeFromSameType(viewer, focusElement);
 			}
@@ -134,6 +135,8 @@ registerAction2(class RemoveAction extends Action2 {
 				viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 				viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
+		} else if (!equals(viewer.getFocus(), viewer.getSelection())) {
+			viewer.setSelection(viewer.getFocus());
 		}
 
 		viewer.domFocus();
@@ -153,20 +156,20 @@ registerAction2(class ReplaceAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.IsEditableItemKey),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 			},
 			icon: searchReplaceIcon,
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.IsEditableItemKey),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.IsEditableItemKey),
 					group: 'inline',
 					order: 1
 				}
@@ -192,7 +195,7 @@ registerAction2(class ReplaceAllAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.IsEditableItemKey),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 			},
@@ -200,13 +203,13 @@ registerAction2(class ReplaceAllAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.IsEditableItemKey),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.IsEditableItemKey),
 					group: 'inline',
 					order: 1
 				}
@@ -231,7 +234,7 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.IsEditableItemKey),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 			},
@@ -239,13 +242,13 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.IsEditableItemKey),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.IsEditableItemKey),
 					group: 'inline',
 					order: 1
 				}
@@ -276,8 +279,7 @@ function performReplace(accessor: ServicesAccessor,
 	const element: RenderableMatch | null = context?.element ?? viewer.getFocus()[0];
 
 	// since multiple elements can be selected, we need to check the type of the FolderMatch/FileMatch/Match before we perform the replace.
-	const opInfo = getElementsToOperateOnInfo(viewer, element ?? undefined, configurationService.getValue<ISearchConfigurationProperties>('search'));
-	const elementsToReplace = opInfo.elements;
+	const elementsToReplace = getElementsToOperateOn(viewer, element ?? undefined, configurationService.getValue<ISearchConfigurationProperties>('search'));
 	let focusElement = viewer.getFocus()[0];
 
 	if (!focusElement || (focusElement && !arrayContainsElementOrParent(focusElement, elementsToReplace)) || (focusElement instanceof SearchResult)) {
@@ -310,7 +312,7 @@ function performReplace(accessor: ServicesAccessor,
 
 			if (nextFocusElement instanceof Match) {
 				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement)) {
+				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement) || nextFocusElement instanceof MatchInNotebook) {
 					viewlet?.open(nextFocusElement, true);
 				} else {
 					accessor.get(IReplaceService).openReplacePreview(nextFocusElement, true);

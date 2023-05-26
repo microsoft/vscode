@@ -158,7 +158,7 @@ export class ExtHostVariableResolverProviderService extends Disposable implement
 	}
 
 	public getResolver(): Promise<IConfigurationResolverService> {
-		return this._resolver.getValue();
+		return this._resolver.value;
 	}
 
 	protected homeDir(): string | undefined {

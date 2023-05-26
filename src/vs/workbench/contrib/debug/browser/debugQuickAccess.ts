@@ -14,7 +14,7 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ADD_CONFIGURATION_ID, DEBUG_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { debugConfigure, debugRemoveConfig } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 

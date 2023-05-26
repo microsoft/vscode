@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 import { TestTestItem } from 'vs/workbench/contrib/testing/test/common/testStubs';
 
@@ -24,12 +23,13 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	setup(() => {
 		onTestChanged = new Emitter();
 		resultsService = {
+			results: [],
 			onResultsChanged: () => undefined,
 			onTestChanged: onTestChanged.event,
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
-		harness = new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection(AbstractTreeViewState.empty(), l, resultsService as any));
+		harness = new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection({}, l, resultsService as any));
 	});
 
 	teardown(() => {
@@ -103,7 +103,6 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 
 	test('applies state changes', async () => {
 		harness.flush();
-		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
 
 		const resultInState = (state: TestResultState): TestResultItem => ({
 			item: {
@@ -125,6 +124,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		});
 
 		// Applies the change:
+		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Queued)];
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,
@@ -140,6 +140,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		]);
 
 		// Falls back if moved into unset state:
+		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,

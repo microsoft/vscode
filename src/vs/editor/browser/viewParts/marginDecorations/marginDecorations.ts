@@ -62,8 +62,9 @@ export class MarginViewLineDecorationsOverlay extends DedupOverlay {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const d = decorations[i];
 			const marginClassName = d.options.marginClassName;
+			const zIndex = d.options.zIndex;
 			if (marginClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, marginClassName);
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, marginClassName, zIndex);
 			}
 		}
 		return r;
@@ -72,15 +73,15 @@ export class MarginViewLineDecorationsOverlay extends DedupOverlay {
 	public prepareRender(ctx: RenderingContext): void {
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
+		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx), 1);
 
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			const classNames = toRender[lineIndex];
+			const decorations = toRender[lineIndex].getLaneDecorations(1); // there is only one lane, see _render call above
 			let lineOutput = '';
-			for (let i = 0, len = classNames.length; i < len; i++) {
-				lineOutput += '<div class="cmdr ' + classNames[i] + '" style=""></div>';
+			for (const decoration of decorations) {
+				lineOutput += '<div class="cmdr ' + decoration.className + '" style=""></div>';
 			}
 			output[lineIndex] = lineOutput;
 		}

@@ -79,6 +79,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 			webviewInitInfo: {
 				providedViewType: data.providedId,
 				origin: data.origin,
+				title: data.title,
 				options: data.webviewOptions,
 				contentOptions: data.contentOptions,
 				extension: data.extension,

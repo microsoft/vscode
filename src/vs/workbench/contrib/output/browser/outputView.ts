@@ -32,6 +32,8 @@ import { Dimension } from 'vs/base/browser/dom';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 export class OutputViewPane extends ViewPane {
 
@@ -57,7 +59,9 @@ export class OutputViewPane extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
-		this.editor = instantiationService.createInstance(OutputEditor);
+
+		const editorInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		this.editor = editorInstantiationService.createInstance(OutputEditor);
 		this._register(this.editor.onTitleAreaUpdate(() => {
 			this.updateTitle(this.editor.getTitle());
 			this.updateActions();
@@ -146,6 +150,7 @@ export class OutputViewPane extends ViewPane {
 }
 
 class OutputEditor extends AbstractTextResourceEditor {
+	private readonly resourceContext: ResourceContextKey;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -156,9 +161,12 @@ class OutputEditor extends AbstractTextResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
+
+		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 	}
 
 	override getId(): string {
@@ -218,6 +226,9 @@ class OutputEditor extends AbstractTextResourceEditor {
 			this.input.dispose();
 		}
 		await super.setInput(input, options, context, token);
+
+		this.resourceContext.set(input.resource);
+
 		if (focus) {
 			this.focus();
 		}
@@ -230,6 +241,8 @@ class OutputEditor extends AbstractTextResourceEditor {
 			this.input.dispose();
 		}
 		super.clearInput();
+
+		this.resourceContext.reset();
 	}
 
 	protected override createEditor(parent: HTMLElement): void {

@@ -191,6 +191,10 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		}
 	}
 
+	public get resolveHandler() {
+		return this._resolveHandler;
+	}
+
 	/**
 	 * Fires when an operation happens that should result in a diff.
 	 */
@@ -551,7 +555,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			console.error(`Unhandled error in resolveHandler of test controller "${this.options.controllerId}"`, err);
 		};
 
-		let r: Thenable<void> | void;
+		let r: Thenable<void> | undefined | void;
 		try {
 			r = this._resolveHandler(internal.actual === this.root ? undefined : internal.actual);
 		} catch (err) {
@@ -673,7 +677,7 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 
 			for (const item of items) {
 				if (!(item instanceof checkCtor)) {
-					throw new InvalidTestItemError(item.id);
+					throw new InvalidTestItemError((item as ITestItemLike).id);
 				}
 
 				const itemController = getApi(item).controllerId;
@@ -705,7 +709,7 @@ export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemAp
 		/** @inheritdoc */
 		add(item: T) {
 			if (!(item instanceof checkCtor)) {
-				throw new InvalidTestItemError(item.id);
+				throw new InvalidTestItemError((item as ITestItemLike).id);
 			}
 
 			mapped.set(item.id, item);

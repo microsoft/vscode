@@ -27,6 +27,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types';
 
 export const codeActionCommandId = 'editor.action.codeAction';
+export const quickFixCommandId = 'editor.action.quickFix';
+export const autoFixCommandId = 'editor.action.autoFix';
 export const refactorCommandId = 'editor.action.refactor';
 export const refactorPreviewCommandId = 'editor.action.refactor.preview';
 export const sourceActionCommandId = 'editor.action.sourceAction';
@@ -231,7 +233,8 @@ export async function applyCodeAction(
 	accessor: ServicesAccessor,
 	item: CodeActionItem,
 	codeActionReason: ApplyCodeActionReason,
-	options?: { preview?: boolean; editor?: ICodeEditor },
+	options?: { readonly preview?: boolean; readonly editor?: ICodeEditor },
+	token: CancellationToken = CancellationToken.None,
 ): Promise<void> {
 	const bulkEditService = accessor.get(IBulkEditService);
 	const commandService = accessor.get(ICommandService);
@@ -260,10 +263,13 @@ export async function applyCodeAction(
 		reason: codeActionReason,
 	});
 
-	await item.resolve(CancellationToken.None);
+	await item.resolve(token);
+	if (token.isCancellationRequested) {
+		return;
+	}
 
-	if (item.action.edit) {
-		await bulkEditService.apply(item.action.edit, {
+	if (item.action.edit?.edits.length) {
+		const result = await bulkEditService.apply(item.action.edit, {
 			editor: options?.editor,
 			label: item.action.title,
 			quotableLabel: item.action.title,
@@ -271,6 +277,10 @@ export async function applyCodeAction(
 			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
 			showPreview: options?.preview,
 		});
+
+		if (!result.isApplied) {
+			return;
+		}
 	}
 
 	if (item.action.command) {

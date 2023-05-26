@@ -12,6 +12,9 @@ performance.mark('code/fork/start');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 
+// Crash reporter
+configureCrashReporter();
+
 // Remove global paths from the node module lookup
 bootstrapNode.removeGlobalNodeModuleLookupPaths();
 
@@ -229,6 +232,19 @@ function terminateWhenParentTerminates() {
 				process.exit();
 			}
 		}, 5000);
+	}
+}
+
+function configureCrashReporter() {
+	const crashReporterProcessType = process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'];
+	if (crashReporterProcessType) {
+		try {
+			if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
+				process['crashReporter'].addExtraParameter('processType', crashReporterProcessType);
+			}
+		} catch (error) {
+			console.error(error);
+		}
 	}
 }
 

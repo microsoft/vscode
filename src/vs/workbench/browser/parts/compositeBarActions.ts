@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, clearNode, EventHelper, EventType, ge
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { toDisposable, MutableDisposable, DisposableStore, disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -21,6 +21,7 @@ import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDr
 import { Color } from 'vs/base/common/color';
 import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -79,7 +80,7 @@ export class ActivityAction extends Action {
 	private clazz: string | undefined;
 
 	constructor(private _activity: IActivity) {
-		super(_activity.id, _activity.name, _activity.cssClass);
+		super(_activity.id, _activity.name, _activity.classNames?.join(' '), true);
 	}
 
 	get activity(): IActivity {
@@ -359,12 +360,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	protected override updateLabel(): void {
 		this.label.className = 'action-label';
 
-		if (this.activity.cssClass) {
-			this.label.classList.add(...this.activity.cssClass.split(' '));
-		}
-
-		if (this.options.icon && !this.activity.iconUrl) {
-			this.label.classList.add('codicon'); // Only apply codicon class to activity bar icon items without iconUrl
+		if (this.activity.classNames) {
+			this.label.classList.add(...this.activity.classNames);
 		}
 
 		if (!this.options.icon) {
@@ -415,10 +412,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 		}, true));
 
-		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
-			ActivityActionViewItem.hoverLeaveTime = Date.now();
-			this.hoverService.hideHover();
-			this.showHoverScheduler.cancel();
+		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, e => {
+			if (e.target === this.container) {
+				ActivityActionViewItem.hoverLeaveTime = Date.now();
+				this.hoverService.hideHover();
+				this.showHoverScheduler.cancel();
+			}
 		}, true));
 
 		this.hoverDisposables.add(toDisposable(() => {
@@ -463,7 +462,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: localize('additionalViews', "Additional Views"),
-			cssClass: Codicon.more.classNames
+			classNames: ThemeIcon.asClassNameArray(Codicon.more)
 		});
 	}
 

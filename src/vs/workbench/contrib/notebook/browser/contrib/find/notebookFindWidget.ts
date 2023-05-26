@@ -57,7 +57,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	}
 
 	show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): Promise<void> {
-		return this.widget.getValue().show(initialInput, options);
+		return this.widget.value.show(initialInput, options);
 	}
 
 	hide() {
@@ -65,7 +65,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	}
 
 	replace(searchString: string | undefined) {
-		return this.widget.getValue().replace(searchString);
+		return this.widget.value.replace(searchString);
 	}
 }
 
@@ -85,12 +85,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(contextViewService, contextKeyService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
+		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));
 
 		this._register(this._state.onFindReplaceStateChange((e) => {
 			this.onInputChanged();
@@ -112,7 +113,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			this._replaceAllBtn.setEnabled(matches.length > 0 && matches.find(match => match.webviewMatches.length > 0) === undefined);
 
 			if (e.filters) {
-				this._findInput.updateFilterState((this._state.filters?.markupPreview ?? false) || (this._state.filters?.codeOutput ?? false));
+				this._findInput.updateFilterState(this._state.filters?.isModified() ?? false);
 			}
 		}));
 
@@ -129,6 +130,14 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			return;
 		} else if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
 			this.find(true);
+			e.preventDefault();
+			return;
+		}
+	}
+
+	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
+		if (e.equals(KeyCode.Enter)) {
+			this.replaceOne();
 			e.preventDefault();
 			return;
 		}
@@ -236,7 +245,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 	override async show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): Promise<void> {
 		const searchStringUpdate = this._state.searchString !== initialInput;
 		super.show(initialInput, options);
-		this._state.change({ searchString: initialInput ?? '', isRevealed: true }, false);
+		this._state.change({ searchString: initialInput ?? this._state.searchString, isRevealed: true }, false);
 
 		if (typeof options?.matchIndex === 'number') {
 			if (!this._findModel.findMatches.length) {
@@ -321,7 +330,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 				const cell = this._notebookEditor.cellAt(i);
 
 				if (cell.getEditState() === CellEditState.Editing && cell.editStateSource === 'find') {
-					cell.updateEditState(CellEditState.Preview, 'find');
+					cell.updateEditState(CellEditState.Preview, 'closeFind');
 				}
 			}
 		}
@@ -332,7 +341,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			return;
 		}
 
-		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.style.width = MAX_MATCHES_COUNT_WIDTH + 'px';
 		this._matchesCount.title = '';
 
 		// remove previous content

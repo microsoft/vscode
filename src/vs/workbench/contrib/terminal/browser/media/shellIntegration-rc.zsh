@@ -14,17 +14,21 @@ fi
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
+# By default, zsh will set the $HISTFILE to the $ZDOTDIR location automatically. In the case of the
+# shell integration being injected, this means that the terminal will use a different history file
+# to other terminals. To fix this issue, set $HISTFILE back to the default location before ~/.zshrc
+# is called as that may depend upon the value.
+if [[  "$VSCODE_INJECTION" == "1" ]]; then
+	HISTFILE=$USER_ZDOTDIR/.zsh_history
+fi
+
 # Only fix up ZDOTDIR if shell integration was injected (not manually installed) and has not been called yet
 if [[ "$VSCODE_INJECTION" == "1" ]]; then
 	if [[ $options[norcs] = off  && -f $USER_ZDOTDIR/.zshrc ]]; then
 		VSCODE_ZDOTDIR=$ZDOTDIR
 		ZDOTDIR=$USER_ZDOTDIR
+		# A user's custom HISTFILE location might be set when their .zshrc file is sourced below
 		. $USER_ZDOTDIR/.zshrc
-		ZDOTDIR=$VSCODE_ZDOTDIR
-	fi
-
-	if [[ -f $USER_ZDOTDIR/.zsh_history && -z $HISTFILE ]]; then
-		HISTFILE=$USER_ZDOTDIR/.zsh_history
 	fi
 fi
 
@@ -32,6 +36,32 @@ fi
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
+fi
+
+# Apply EnvironmentVariableCollections if needed
+if [ -n "$VSCODE_ENV_REPLACE" ]; then
+	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_REPLACE"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo ${ITEM%%=*})"
+		export $VARNAME="$(echo -e ${ITEM#*=})"
+	done
+	unset VSCODE_ENV_REPLACE
+fi
+if [ -n "$VSCODE_ENV_PREPEND" ]; then
+	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_PREPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo ${ITEM%%=*})"
+		export $VARNAME="$(echo -e {ITEM#*=})${(P)VARNAME}"
+	done
+	unset VSCODE_ENV_PREPEND
+fi
+if [ -n "$VSCODE_ENV_APPEND" ]; then
+	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_APPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo ${ITEM%%=*})"
+		export $VARNAME="${(P)VARNAME}$(echo -e {ITEM#*=})"
+	done
+	unset VSCODE_ENV_APPEND
 fi
 
 # The property (P) and command (E) codes embed values which require escaping.
@@ -45,21 +75,13 @@ __vsc_escape_value() {
 	for (( i = 0; i < ${#str}; ++i )); do
 		byte="${str:$i:1}"
 
-		# Backslashes must be doubled.
+		# Escape backslashes and semi-colons
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
-		# Conservatively pass alphanumerics through.
-		elif [[ "$byte" == [0-9A-Za-z] ]]; then
-			token="$byte"
-		# Hex-encode anything else.
-		# (Importantly including: semicolon, newline, and control chars).
+		elif [ "$byte" = ";" ]; then
+			token="\\x3b"
 		else
-			token="\\x${(l:2::0:)$(( [##16] #byte ))}"
-			#            | |  |       |/|/ |_____|
-			#            | |  |       | |     |
-			# left-pad --+ |  |       | |     +- the byte value of the character
-			# two digits --+  |       | +------- in hexadecimal
-			# with '0' -------+       +--------- with no prefix
+			token="$byte"
 		fi
 
 		out+="$token"
@@ -70,6 +92,10 @@ __vsc_escape_value() {
 
 __vsc_in_command_execution="1"
 __vsc_current_command=""
+
+# It's fine this is in the global scope as it getting at it requires access to the shell environment
+__vsc_nonce="$VSCODE_NONCE"
+unset VSCODE_NONCE
 
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
@@ -85,7 +111,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf '\e]633;C\a'
-	builtin printf '\e]633;E;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")"
+	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 }
 
 __vsc_continuation_start() {

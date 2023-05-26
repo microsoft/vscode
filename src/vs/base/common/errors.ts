@@ -78,6 +78,21 @@ export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) =>
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
 
+/**
+ * Returns if the error is a SIGPIPE error. SIGPIPE errors should generally be
+ * logged at most once, to avoid a loop.
+ *
+ * @see https://github.com/microsoft/vscode-remote-release/issues/6481
+ */
+export function isSigPipeError(e: unknown): e is Error {
+	if (!e || typeof e !== 'object') {
+		return false;
+	}
+
+	const cast = e as Record<string, string | undefined>;
+	return cast.code === 'EPIPE' && cast.syscall?.toUpperCase() === 'WRITE';
+}
+
 export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isCancellationError(e)) {
@@ -275,6 +290,6 @@ export class BugIndicatingError extends Error {
 		// Because we know for sure only buggy code throws this,
 		// we definitely want to break here and fix the bug.
 		// eslint-disable-next-line no-debugger
-		debugger;
+		// debugger;
 	}
 }

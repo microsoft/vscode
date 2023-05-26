@@ -121,27 +121,49 @@ export class MainThreadFileSystemEventService {
 
 					if (needsConfirmation) {
 						// edit which needs confirmation -> always show dialog
-						const answer = await dialogService.show(Severity.Info, message, [localize('preview', "Show Preview"), localize('cancel', "Skip Changes")], { cancelId: 1 });
+						const { confirmed } = await dialogService.confirm({
+							type: Severity.Info,
+							message,
+							primaryButton: localize('preview', "Show &&Preview"),
+							cancelButton: localize('cancel', "Skip Changes")
+						});
 						showPreview = true;
-						if (answer.choice === 1) {
+						if (!confirmed) {
 							// no changes wanted
 							return;
 						}
 					} else {
 						// choice
-						const answer = await dialogService.show(Severity.Info, message,
-							[localize('ok', "OK"), localize('preview', "Show Preview"), localize('cancel', "Skip Changes")],
-							{
-								cancelId: 2,
-								checkbox: { label: localize('again', "Don't ask again") }
-							}
-						);
-						if (answer.choice === 2) {
+						enum Choice {
+							OK = 0,
+							Preview = 1,
+							Cancel = 2
+						}
+						const { result, checkboxChecked } = await dialogService.prompt<Choice>({
+							type: Severity.Info,
+							message,
+							buttons: [
+								{
+									label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+									run: () => Choice.OK
+								},
+								{
+									label: localize({ key: 'preview', comment: ['&& denotes a mnemonic'] }, "Show &&Preview"),
+									run: () => Choice.Preview
+								}
+							],
+							cancelButton: {
+								label: localize('cancel', "Skip Changes"),
+								run: () => Choice.Cancel
+							},
+							checkbox: { label: localize('again', "Don't ask again") }
+						});
+						if (result === Choice.Cancel) {
 							// no changes wanted, don't persist cancel option
 							return;
 						}
-						showPreview = answer.choice === 1;
-						if (answer.checkboxChecked /* && answer.choice !== 2 */) {
+						showPreview = result === Choice.Preview;
+						if (checkboxChecked) {
 							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.PROFILE, StorageTarget.USER);
 						}
 					}

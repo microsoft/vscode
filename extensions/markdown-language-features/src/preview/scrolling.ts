@@ -16,6 +16,7 @@ export function scrollEditorToLine(
 }
 
 function toRevealRange(line: number, editor: vscode.TextEditor): vscode.Range {
+	line = Math.max(0, line);
 	const sourceLine = Math.floor(line);
 	if (sourceLine >= editor.document.lineCount) {
 		return new vscode.Range(editor.document.lineCount - 1, 0, editor.document.lineCount - 1, 0);

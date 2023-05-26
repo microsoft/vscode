@@ -40,7 +40,6 @@ class FormatOnType implements IEditorContribution {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService private readonly _workerService: IEditorWorkerService
 	) {
-
 		this._disposables.add(_languageFeaturesService.onTypeFormattingEditProvider.onDidChange(this._update, this));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
@@ -49,6 +48,7 @@ class FormatOnType implements IEditorContribution {
 				this._update();
 			}
 		}));
+		this._update();
 	}
 
 	dispose(): void {

@@ -20,13 +20,13 @@ import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperationError, FileOperationResult, IFileContent, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, IUserDataSyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getPathSegments, IUserDataSyncResourceConflicts, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, IUserDataSyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataSyncResourceInitializer, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getPathSegments, IUserDataSyncResourceConflicts, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type IncompatibleSyncSourceClassification = {
@@ -102,7 +102,7 @@ interface IEditableResourcePreview extends IBaseResourcePreview, IResourcePrevie
 	acceptResult?: IAcceptResult;
 }
 
-interface ISyncResourcePreview extends IBaseSyncResourcePreview {
+export interface ISyncResourcePreview extends IBaseSyncResourcePreview {
 	readonly remoteUserData: IRemoteUserData;
 	readonly lastSyncUserData: IRemoteUserData | null;
 	readonly resourcePreviews: IEditableResourcePreview[];
@@ -540,8 +540,10 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		this.storageService.remove(this.lastSyncUserDataStateKey, StorageScope.APPLICATION);
 		try {
 			await this.fileService.del(this.lastSyncResource);
-		} catch (e) {
-			this.logService.error(e);
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
 		}
 	}
 
@@ -713,10 +715,12 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 					content: undefined,
 				}), StorageScope.APPLICATION, StorageTarget.MACHINE);
 				await this.writeLastSyncStoredRemoteUserData({ ref: userData.ref, syncData: userData.content === null ? null : JSON.parse(userData.content) });
+			} else {
+				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Invalid data.`, userData);
 			}
 		} catch (error) {
 			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.debug(`${this.syncResourceLogLabel}: Migrating last sync user data. Resource does not exist.`);
+				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Resource does not exist.`);
 			} else {
 				this.logService.error(error);
 			}
@@ -911,7 +915,7 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 
 }
 
-export abstract class AbstractInitializer implements IUserDataInitializer {
+export abstract class AbstractInitializer implements IUserDataSyncResourceInitializer {
 
 	protected readonly extUri: IExtUri;
 	private readonly lastSyncResource: URI;

@@ -13,10 +13,11 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
-import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import Severity from 'vs/base/common/severity';
+import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -29,8 +30,6 @@ export const TerminalCursorStyle = {
 };
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
-
-export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Terminal");
 
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
@@ -80,6 +79,7 @@ export interface ITerminalProfileService {
 	getPlatformKey(): Promise<string>;
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
+	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
@@ -87,20 +87,6 @@ export interface ITerminalProfileService {
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
 
-export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
-export interface ITerminalQuickFixService {
-	onDidRegisterProvider: Event<ITerminalQuickFixProviderSelector>;
-	onDidUnregisterProvider: Event<string>;
-	readonly _serviceBrand: undefined;
-	providers: Map<string, ITerminalQuickFixProvider>;
-	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable;
-	registerCommandSelector(selector: ITerminalCommandSelector): void;
-}
-
-export interface ITerminalQuickFixProviderSelector {
-	selector: ITerminalCommandSelector;
-	provider: ITerminalQuickFixProvider;
-}
 export interface ITerminalProfileProvider {
 	createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
@@ -137,7 +123,7 @@ export interface ITerminalBackend {
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
-	getWslPath(original: string): Promise<string>;
+	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
@@ -265,6 +251,7 @@ export interface ITerminalConfiguration {
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
 	mouseWheelScrollSensitivity: number;
+	tabStopWidth: number;
 	sendKeybindingsToShell: boolean;
 	// fontLigatures: boolean;
 	fontSize: number;
@@ -290,7 +277,7 @@ export interface ITerminalConfiguration {
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
 	wordSeparators: string;
-	enableFileLinks: boolean;
+	enableFileLinks: 'off' | 'on' | 'notRemote';
 	unicodeVersion: '6' | '11';
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
@@ -317,6 +304,7 @@ export interface ITerminalConfiguration {
 		enabled: boolean;
 		decorationsEnabled: boolean;
 	};
+	experimentalImageSupport: boolean;
 	smoothScrolling: boolean;
 }
 
@@ -351,26 +339,7 @@ export interface IRemoteTerminalAttachTarget {
 	icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } } | undefined;
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
-}
-
-export interface ITerminalCommand {
-	command: string;
-	timestamp: number;
-	cwd?: string;
-	exitCode?: number;
-	marker?: IXtermMarker;
-	markProperties?: IMarkProperties;
-	hasOutput(): boolean;
-	getOutput(): string | undefined;
-	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
-}
-
-export interface INavigationMode {
-	exitNavigationMode(): void;
-	focusPreviousLine(): void;
-	focusNextLine(): void;
-	focusPreviousPage(): void;
-	focusNextPage(): void;
+	shellIntegrationNonce: string;
 }
 
 export interface IBeforeProcessDataEvent {
@@ -393,6 +362,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly remoteAuthority: string | undefined;
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
+	readonly initialCwd: string;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	readonly persistentProcessId: number | undefined;
 	readonly shouldPersist: boolean;
@@ -400,6 +370,8 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly hasChildProcesses: boolean;
 	readonly backend: ITerminalBackend | undefined;
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly shellIntegrationNonce: string;
+	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -414,8 +386,8 @@ export interface ITerminalProcessManager extends IDisposable {
 
 	dispose(immediate?: boolean): void;
 	detachFromProcess(forcePersist?: boolean): Promise<void>;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
-	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined>;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
+	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 	write(data: string): Promise<void>;
 	setDimensions(cols: number, rows: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
@@ -424,12 +396,11 @@ export interface ITerminalProcessManager extends IDisposable {
 	acknowledgeDataEvent(charCount: number): void;
 	processBinary(data: string): void;
 
-	getInitialCwd(): Promise<string>;
 	getLatency(): Promise<number>;
 	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
-	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
+	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): Promise<void>;
 	getBackendOS(): Promise<OperatingSystem>;
-	freePortKillProcess(port: string): void;
+	freePortKillProcess(port: string): Promise<void>;
 }
 
 export const enum ProcessState {
@@ -477,6 +448,35 @@ export interface IStartExtensionTerminalRequest {
 	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
+export interface ITerminalStatus {
+	/** An internal string ID used to identify the status. */
+	id: string;
+	/**
+	 * The severity of the status, this defines both the color and how likely the status is to be
+	 * the "primary status".
+	 */
+	severity: Severity;
+	/**
+	 * An icon representing the status, if this is not specified it will not show up on the terminal
+	 * tab and will use the generic `info` icon when hovering.
+	 */
+	icon?: ThemeIcon;
+	/**
+	 * What to show for this status in the terminal's hover.
+	 */
+	tooltip?: string | undefined;
+	/**
+	 * Actions to expose on hover.
+	 */
+	hoverActions?: ITerminalStatusHoverAction[];
+}
+
+export interface ITerminalStatusHoverAction {
+	label: string;
+	commandId: string;
+	run: () => void;
+}
+
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
@@ -495,8 +495,13 @@ export const enum TerminalCommandId {
 	OpenFileLink = 'workbench.action.terminal.openFileLink',
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
-	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
+	FocusAccessibleBuffer = 'workbench.action.terminal.focusAccessibleBuffer',
+	NavigateAccessibleBuffer = 'workbench.action.terminal.navigateAccessibleBuffer',
+	AccessibleBufferGoToNextCommand = 'workbench.action.terminal.accessibleBufferGoToNextCommand',
+	AccessibleBufferGoToPreviousCommand = 'workbench.action.terminal.accessibleBufferGoToPreviousCommand',
+	CopyLastCommandOutput = 'workbench.action.terminal.copyLastCommandOutput',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
+	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
 	CopySelection = 'workbench.action.terminal.copySelection',
 	CopySelectionAsHtml = 'workbench.action.terminal.copySelectionAsHtml',
 	SelectAll = 'workbench.action.terminal.selectAll',
@@ -528,7 +533,6 @@ export const enum TerminalCommandId {
 	ResizePaneLeft = 'workbench.action.terminal.resizePaneLeft',
 	ResizePaneRight = 'workbench.action.terminal.resizePaneRight',
 	ResizePaneUp = 'workbench.action.terminal.resizePaneUp',
-	CreateWithProfileButton = 'workbench.action.terminal.gitCreateProfileButton',
 	SizeToContentWidth = 'workbench.action.terminal.sizeToContentWidth',
 	SizeToContentWidthInstance = 'workbench.action.terminal.sizeToContentWidthInstance',
 	ResizePaneDown = 'workbench.action.terminal.resizePaneDown',
@@ -570,16 +574,9 @@ export const enum TerminalCommandId {
 	SelectToNextLine = 'workbench.action.terminal.selectToNextLine',
 	ToggleEscapeSequenceLogging = 'toggleEscapeSequenceLogging',
 	SendSequence = 'workbench.action.terminal.sendSequence',
-	QuickFix = 'workbench.action.terminal.quickFix',
 	ToggleFindRegex = 'workbench.action.terminal.toggleFindRegex',
 	ToggleFindWholeWord = 'workbench.action.terminal.toggleFindWholeWord',
 	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
-	NavigationModeExit = 'workbench.action.terminal.navigationModeExit',
-	NavigationModeFocusNext = 'workbench.action.terminal.navigationModeFocusNext',
-	NavigationModeFocusNextPage = 'workbench.action.terminal.navigationModeFocusNextPage',
-	NavigationModeFocusPrevious = 'workbench.action.terminal.navigationModeFocusPrevious',
-	NavigationModeFocusPreviousPage = 'workbench.action.terminal.navigationModeFocusPreviousPage',
-	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
 	DetachSession = 'workbench.action.terminal.detachSession',
@@ -587,17 +584,27 @@ export const enum TerminalCommandId {
 	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
-	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
+	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
 	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
 	ShowTextureAtlas = 'workbench.action.terminal.showTextureAtlas',
+	ShowTerminalAccessibilityHelp = 'workbench.action.terminal.showAccessibilityHelp',
+	SelectPrevSuggestion = 'workbench.action.terminal.selectPrevSuggestion',
+	SelectPrevPageSuggestion = 'workbench.action.terminal.selectPrevPageSuggestion',
+	SelectNextSuggestion = 'workbench.action.terminal.selectNextSuggestion',
+	SelectNextPageSuggestion = 'workbench.action.terminal.selectNextPageSuggestion',
+	AcceptSelectedSuggestion = 'workbench.action.terminal.acceptSelectedSuggestion',
+	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
+	FocusHover = 'workbench.action.terminal.focusHover',
+	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ClearSelection,
 	TerminalCommandId.Clear,
+	TerminalCommandId.CopyAndClearSelection,
 	TerminalCommandId.CopySelection,
 	TerminalCommandId.CopySelectionAsHtml,
-	TerminalCommandId.CopyLastCommand,
+	TerminalCommandId.CopyLastCommandOutput,
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,
@@ -625,7 +632,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.New,
 	TerminalCommandId.Paste,
 	TerminalCommandId.PasteSelection,
-	TerminalCommandId.QuickFix,
 	TerminalCommandId.ResizePaneDown,
 	TerminalCommandId.ResizePaneLeft,
 	TerminalCommandId.ResizePaneRight,
@@ -650,9 +656,14 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.SplitInActiveWorkspace,
 	TerminalCommandId.Split,
 	TerminalCommandId.Toggle,
-	TerminalCommandId.NavigationModeExit,
-	TerminalCommandId.NavigationModeFocusNext,
-	TerminalCommandId.NavigationModeFocusPrevious,
+	TerminalCommandId.SelectPrevSuggestion,
+	TerminalCommandId.SelectPrevPageSuggestion,
+	TerminalCommandId.SelectNextSuggestion,
+	TerminalCommandId.SelectNextPageSuggestion,
+	TerminalCommandId.AcceptSelectedSuggestion,
+	TerminalCommandId.HideSuggestWidget,
+	TerminalCommandId.ShowTerminalAccessibilityHelp,
+	TerminalCommandId.FocusHover,
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',
@@ -723,69 +734,25 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.navigateLeft',
 	'workbench.action.togglePanel',
 	'workbench.action.quickOpenView',
-	'workbench.action.toggleMaximizedPanel'
+	'workbench.action.toggleMaximizedPanel',
+	'notification.acceptPrimaryAction',
+	'runCommands'
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
 	extensionPoint: 'terminal',
 	defaultExtensionKind: ['workspace'],
+	activationEventsGenerator: (contribs: ITerminalContributions[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			for (const profileContrib of (contrib.profiles ?? [])) {
+				result.push(`onTerminalProfile:${profileContrib.id}`);
+			}
+		}
+	},
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.terminal', 'Contributes terminal functionality.'),
 		type: 'object',
 		properties: {
-			quickFixes: {
-				type: 'array',
-				description: nls.localize('vscode.extension.contributes.terminal.quickFixes', "Defines quick fixes for terminals with shell integration enabled."),
-				items: {
-					type: 'object',
-					required: ['id', 'commandLineMatcher', 'outputMatcher', 'exitStatus'],
-					defaultSnippets: [{
-						body: {
-							id: '$1',
-							commandLineMatcher: '$2',
-							outputMatcher: '$3',
-							exitStatus: '$4'
-						}
-					}],
-					properties: {
-						id: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.id', "The ID of the quick fix."),
-							type: 'string',
-						},
-						commandLineMatcher: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.commandLineMatcher', "The command line to match."),
-							type: 'string',
-						},
-						outputMatcher: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.outputMatcher', "The output to match, which provides groups of the form <group_name> to be referenced via ${group:group_name} in commandToRun and linkToOpen."),
-							type: 'object',
-							required: ['lineMatcher', 'anchor', 'offset', 'length'],
-							properties: {
-								lineMatcher: {
-									description: 'The command line to match',
-									type: 'string'
-								},
-								anchor: {
-									description: 'Which side of the output to anchor the offset and length against',
-									enum: ['top', 'bottom']
-								},
-								offset: {
-									description: 'How far from either the top or the bottom of the butter to start matching against.',
-									type: 'number'
-								},
-								length: {
-									description: 'The number of rows to match against, this should be as small as possible for performance reasons',
-									type: 'number'
-								}
-							}
-						},
-						exitStatus: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.exitStatus', "True if the exit code is non-zero"),
-							type: 'boolean',
-						}
-					},
-				}
-			},
 			profiles: {
 				type: 'array',
 				description: nls.localize('vscode.extension.contributes.terminal.profiles', "Defines additional terminal profiles that the user can create."),

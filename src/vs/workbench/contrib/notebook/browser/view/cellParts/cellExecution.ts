@@ -41,7 +41,7 @@ export class CellExecutionPart extends CellContentPart {
 		}));
 	}
 
-	protected override didRenderCell(element: ICellViewModel): void {
+	override didRenderCell(element: ICellViewModel): void {
 		this.updateExecutionOrder(element.internalMetadata, true);
 	}
 

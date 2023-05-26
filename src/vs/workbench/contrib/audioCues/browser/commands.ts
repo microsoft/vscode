@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2 } from 'vs/platform/actions/common/actions';
@@ -34,11 +35,11 @@ export class ShowAudioCueHelp extends Action2 {
 
 		const items: (IQuickPickItem & { audioCue: AudioCue })[] = AudioCue.allAudioCues.map((cue, idx) => ({
 			label: accessibilityService.isScreenReaderOptimized() ?
-				`${cue.name}${audioCueService.isEnabled(cue).get() ? '' : ' (' + localize('disabled', "Disabled") + ')'}`
-				: `${audioCueService.isEnabled(cue).get() ? '$(check)' : '     '} ${cue.name}`,
+				`${cue.name}${audioCueService.isEnabled(cue) ? '' : ' (' + localize('disabled', "Disabled") + ')'}`
+				: `${audioCueService.isEnabled(cue) ? '$(check)' : '     '} ${cue.name}`,
 			audioCue: cue,
 			buttons: [{
-				iconClass: Codicon.settingsGear.classNames,
+				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 				tooltip: localize('audioCues.help.settings', 'Enable/Disable Audio Cue'),
 			}],
 		}));

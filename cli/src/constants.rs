@@ -18,7 +18,8 @@ pub const CONTROL_PORT: u16 = 31545;
 ///  2 - Addition of `serve.compressed` property to control whether servermsg's
 ///      are compressed bidirectionally.
 ///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
-pub const PROTOCOL_VERSION: u32 = 3;
+///  4 - The server's msgpack messages are no longer length-prefixed
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// Prefix for the tunnel tag that includes the version.
 pub const PROTOCOL_VERSION_TAG_PREFIX: &str = "protocolv";
@@ -33,6 +34,15 @@ pub const DOCUMENTATION_URL: Option<&'static str> = option_env!("VSCODE_CLI_DOCU
 pub const VSCODE_CLI_COMMIT: Option<&'static str> = option_env!("VSCODE_CLI_COMMIT");
 pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
 	option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
+
+/// Windows lock name for the running tunnel service. Used by the setup script
+/// to detect a tunnel process. See #179265.
+pub const TUNNEL_SERVICE_LOCK_NAME: Option<&'static str> =
+	option_env!("VSCODE_CLI_TUNNEL_SERVICE_MUTEX");
+
+/// Windows lock name for the running tunnel without a service. Used by the setup
+/// script to detect a tunnel process. See #179265.
+pub const TUNNEL_CLI_LOCK_NAME: Option<&'static str> = option_env!("VSCODE_CLI_TUNNEL_CLI_MUTEX");
 
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 
@@ -61,12 +71,25 @@ pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " 
 /// Web URL the editor is hosted at. For VS Code, this is vscode.dev.
 pub const EDITOR_WEB_URL: Option<&'static str> = option_env!("VSCODE_CLI_EDITOR_WEB_URL");
 
+/// Name shown in places where we need to tell a user what a process is, e.g. in sleep inhibition.
+pub const TUNNEL_ACTIVITY_NAME: &str = concatcp!(PRODUCT_NAME_LONG, " Tunnel");
+
+const NONINTERACTIVE_VAR: &str = "VSCODE_CLI_NONINTERACTIVE";
+
+/// Default data CLI data directory.
+pub const DEFAULT_DATA_PARENT_DIR: &str = match option_env!("VSCODE_CLI_DEFAULT_PARENT_DATA_DIR") {
+	Some(n) => n,
+	None => ".vscode-oss",
+};
+
 pub fn get_default_user_agent() -> String {
 	format!(
 		"vscode-server-launcher/{}",
 		VSCODE_CLI_VERSION.unwrap_or("dev")
 	)
 }
+
+const NO_COLOR_ENV: &str = "NO_COLOR";
 
 lazy_static! {
 	pub static ref TUNNEL_SERVICE_USER_AGENT: String =
@@ -94,4 +117,13 @@ lazy_static! {
 	/// Map of qualities to the server name
 	pub static ref SERVER_NAME_MAP: Option<HashMap<Quality, String>> =
 		option_env!("VSCODE_CLI_SERVER_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
+
+	/// Whether i/o interactions are allowed in the current CLI.
+	pub static ref IS_A_TTY: bool = atty::is(atty::Stream::Stdin);
+
+	/// Whether i/o interactions are allowed in the current CLI.
+	pub static ref COLORS_ENABLED: bool = *IS_A_TTY && std::env::var(NO_COLOR_ENV).is_err();
+
+	/// Whether i/o interactions are allowed in the current CLI.
+	pub static ref IS_INTERACTIVE_CLI: bool = *IS_A_TTY && std::env::var(NONINTERACTIVE_VAR).is_err();
 }

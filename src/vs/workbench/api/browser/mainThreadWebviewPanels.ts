@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -106,11 +107,13 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
 
-		this._register(_editorService.onDidActiveEditorChange(() => {
-			this.updateWebviewViewStates(this._editorService.activeEditor);
-		}));
-
-		this._register(_editorService.onDidVisibleEditorsChange(() => {
+		this._register(Event.any(
+			_editorService.onDidActiveEditorChange,
+			_editorService.onDidVisibleEditorsChange,
+			_editorGroupService.onDidAddGroup,
+			_editorGroupService.onDidRemoveGroup,
+			_editorGroupService.onDidMoveGroup,
+		)(() => {
 			this.updateWebviewViewStates(this._editorService.activeEditor);
 		}));
 
@@ -164,6 +167,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		const webview = this._webviewWorkbenchService.openWebview({
 			origin,
 			providedViewType: viewType,
+			title: initData.title,
 			options: reviveWebviewOptions(initData.panelOptions),
 			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
 			extension
@@ -187,23 +191,27 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 
 	public $disposeWebview(handle: extHostProtocol.WebviewHandle): void {
-		const webview = this.getWebviewInput(handle);
+		const webview = this.tryGetWebviewInput(handle);
+		if (!webview) {
+			return;
+		}
 		webview.dispose();
 	}
 
 	public $setTitle(handle: extHostProtocol.WebviewHandle, value: string): void {
-		const webview = this.getWebviewInput(handle);
-		webview.setName(value);
+		this.tryGetWebviewInput(handle)?.setName(value);
 	}
 
 	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: extHostProtocol.IWebviewIconPath | undefined): void {
-		const webview = this.getWebviewInput(handle);
-		webview.iconPath = reviveWebviewIcon(value);
+		const webview = this.tryGetWebviewInput(handle);
+		if (webview) {
+			webview.iconPath = reviveWebviewIcon(value);
+		}
 	}
 
 	public $reveal(handle: extHostProtocol.WebviewHandle, showOptions: extHostProtocol.WebviewPanelShowOptions): void {
-		const webview = this.getWebviewInput(handle);
-		if (webview.isDisposed()) {
+		const webview = this.tryGetWebviewInput(handle);
+		if (!webview || webview.isDisposed()) {
 			return;
 		}
 
@@ -257,7 +265,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			resolveWebview: async (webviewInput): Promise<void> => {
 				const viewType = this.webviewPanelViewType.toExternal(webviewInput.viewType);
 				if (!viewType) {
-					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType);
+					webviewInput.webview.setHtml(this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType));
 					return;
 				}
 
@@ -284,7 +292,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0));
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+					webviewInput.webview.setHtml(this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType));
 				}
 			}
 		}));
@@ -336,14 +344,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		if (Object.keys(viewStates).length) {
 			this._proxy.$onDidChangeWebviewPanelViewStates(viewStates);
 		}
-	}
-
-	private getWebviewInput(handle: extHostProtocol.WebviewHandle): WebviewInput {
-		const webview = this.tryGetWebviewInput(handle);
-		if (!webview) {
-			throw new Error(`Unknown webview handle:${handle}`);
-		}
-		return webview;
 	}
 
 	private tryGetWebviewInput(handle: extHostProtocol.WebviewHandle): WebviewInput | undefined {

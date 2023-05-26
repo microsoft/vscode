@@ -172,6 +172,10 @@ export class RawDebugSession implements IDisposable {
 		this.debugAdapter.onRequest(request => this.dispatchRequest(request));
 	}
 
+	get isInShutdown() {
+		return this.inShutdown;
+	}
+
 	get onDidExitAdapter(): Event<AdapterEndEvent> {
 		return this._onDidExitAdapter.event;
 	}
@@ -307,7 +311,7 @@ export class RawDebugSession implements IDisposable {
 		if (this.capabilities.supportsTerminateRequest) {
 			if (!this.terminated) {
 				this.terminated = true;
-				return this.send('terminate', { restart }, undefined, 2000);
+				return this.send('terminate', { restart }, undefined);
 			}
 			return this.disconnect({ terminateDebuggee: true, restart });
 		}
@@ -573,7 +577,7 @@ export class RawDebugSession implements IDisposable {
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {
-					this.stopAdapter(error);
+					await this.stopAdapter(error);
 				}
 			} else {
 				return this.stopAdapter(error);
@@ -625,9 +629,12 @@ export class RawDebugSession implements IDisposable {
 			try {
 				let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
 				if (!result.success) {
-					const showResult = await this.dialogSerivce.show(Severity.Warning, nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
-						[nls.localize('continue', "Continue"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
-					if (showResult.choice === 0) {
+					const { confirmed } = await this.dialogSerivce.confirm({
+						type: Severity.Warning,
+						message: nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
+						primaryButton: nls.localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
+					});
+					if (confirmed) {
 						result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
 					} else {
 						response.success = false;
@@ -666,7 +673,7 @@ export class RawDebugSession implements IDisposable {
 					...{
 						request: args.request,
 						type: this.dbgr.type,
-						name: this.name
+						name: args.configuration.name || this.name
 					}
 				};
 				const success = await this.dbgr.startDebugging(config, this.sessionId);

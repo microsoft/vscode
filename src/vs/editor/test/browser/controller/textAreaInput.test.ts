@@ -127,6 +127,7 @@ suite('TextAreaInput', () => {
 						metaKey: event.metaKey,
 						repeat: event.repeat,
 						shiftKey: event.shiftKey,
+						getModifierState: (keyArg: string) => false
 					};
 					if (event.type === 'keydown') {
 						this._onKeyDown.fire(mockEvent);

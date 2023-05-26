@@ -9,10 +9,11 @@ import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { randomPath } from 'vs/base/common/extpath';
-import { join, sep } from 'vs/base/common/path';
+import { FileAccess } from 'vs/base/common/network';
+import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
@@ -87,6 +88,14 @@ flakySuite('PFS', function () {
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
 
 		await Promises.rm(testDir, RimRafMode.MOVE);
+		assert.ok(!fs.existsSync(testDir));
+	});
+
+	test('rimraf - simple - move (with moveToPath)', async () => {
+		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+
+		await Promises.rm(testDir, RimRafMode.MOVE, join(dirname(testDir), `${basename(testDir)}.vsctmp`));
 		assert.ok(!fs.existsSync(testDir));
 	});
 
@@ -165,7 +174,7 @@ flakySuite('PFS', function () {
 	});
 
 	test('copy, move and delete', async () => {
-		const sourceDir = getPathFromAmdModule(require, './fixtures');
+		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
 		const targetDir = randomPath(parentDir);
 		const targetDir2 = randomPath(parentDir);
