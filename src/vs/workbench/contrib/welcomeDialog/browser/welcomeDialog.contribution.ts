@@ -34,6 +34,7 @@ const configurationKey = 'workbench.welcome.experimental.dialog';
 class WelcomeDialogContribution extends Disposable implements IWorkbenchContribution {
 
 	private contextKeysToWatch = new Set<string>();
+	private isRendered = false;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -70,12 +71,17 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 		this.contextKeysToWatch.add(welcomeDialog.when);
 
 		this._register(this.contextService.onDidChangeContext(e => {
-			if (e.affectsSome(this.contextKeysToWatch) &&
-				Array.from(this.contextKeysToWatch).every(value => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(value)))) {
-				const codeEditor = this.codeEditorService.getActiveCodeEditor();
-				if (codeEditor?.hasModel()) {
+			if (e.affectsSome(this.contextKeysToWatch) && !this.isRendered) {
 
-					const scheduler = this._register(new RunOnceScheduler(() => {
+				if (!Array.from(this.contextKeysToWatch).every(value => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(value)))) {
+					return;
+				}
+
+				const codeEditor = this.codeEditorService.getActiveCodeEditor();
+
+				if (codeEditor?.hasModel()) {
+					const scheduler = new RunOnceScheduler(() => {
+						this.isRendered = true;
 						const detailsRenderer = new GettingStartedDetailsRenderer(fileService, notificationService, extensionService, languageService);
 
 						const welcomeWidget = new WelcomeWidget(
@@ -93,11 +99,13 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 							welcomeDialog.buttonCommand,
 							welcomeDialog.media);
 
-					}, 4000));
+					}, 3000);
 
-					codeEditor.onDidChangeModelContent((_) => {
-						scheduler.schedule();
-					});
+					this._register(codeEditor.onDidChangeModelContent((e) => {
+						if (!this.isRendered) {
+							scheduler.schedule();
+						}
+					}));
 
 					this.contextKeysToWatch.delete(welcomeDialog.when);
 				}
