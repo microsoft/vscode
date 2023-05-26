@@ -605,14 +605,14 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			test('should hot exit (reason: LOAD, windows: single, workspace)', function () {
 				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, true, false);
 			});
-			test('should hot exit (reason: LOAD, windows: single, empty workspace)', function () {
-				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, false, false);
+			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, false, true);
 			});
 			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function () {
 				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, true, false);
 			});
-			test('should hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
-				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, false, false);
+			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, false, true);
 			});
 		});
 
@@ -656,14 +656,14 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			test('should hot exit (reason: LOAD, windows: single, workspace)', function () {
 				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, true, false);
 			});
-			test('should hot exit (reason: LOAD, windows: single, empty workspace)', function () {
-				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, false, false);
+			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, false, true);
 			});
 			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function () {
 				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, true, false);
 			});
-			test('should hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
-				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, false, false);
+			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, false, true);
 			});
 		});
 
