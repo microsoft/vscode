@@ -939,9 +939,23 @@ class UnifiedEnvironmentVariableCollection {
 		}
 		const key = this.getKey(variable, mutator.scope);
 		const current = this.map.get(key);
-		if (!current || current.value !== mutator.value || current.type !== mutator.type || current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index) {
+		if (
+			!current ||
+			current.value !== mutator.value ||
+			current.type !== mutator.type ||
+			current.options?.applyAtProcessCreation !== (mutator.options.applyAtProcessCreation ?? true) ||
+			current.options?.applyAtShellIntegration !== (mutator.options.applyAtShellIntegration ?? false) ||
+			current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index
+		) {
 			const key = this.getKey(variable, mutator.scope);
-			const value: IEnvironmentVariableMutator = { variable, ...mutator };
+			const value: IEnvironmentVariableMutator = {
+				variable,
+				...mutator,
+				options: {
+					applyAtProcessCreation: mutator.options.applyAtProcessCreation ?? true,
+					applyAtShellIntegration: mutator.options.applyAtShellIntegration ?? false,
+				}
+			};
 			this.map.set(key, value);
 			this._onDidChangeCollection.fire();
 		}

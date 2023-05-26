@@ -12,11 +12,13 @@ import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
@@ -47,13 +49,29 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super();
 
 		if (this.viewType === 'interactive') {
 			lifecycleService.onBeforeShutdown(async e => e.veto(this.onBeforeShutdown(), 'veto.InteractiveWindow'));
 		}
+
+		this._register(extensionService.onWillStop(e => {
+			if (!this.isDirty()) {
+				return;
+			}
+
+			e.veto((async () => {
+				const didSave = await this._workingCopy?.save();
+				if (!didSave) {
+					// Veto
+					return true;
+				}
+				return false; // Don't veto
+			})(), localize('vetoExtHostRestart', "Notebook could not be saved."));
+		}));
 	}
 
 	private async onBeforeShutdown() {

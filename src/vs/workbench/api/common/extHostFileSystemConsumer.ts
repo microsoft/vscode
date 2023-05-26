@@ -107,7 +107,7 @@ export class ExtHostConsumerFileSystem {
 						await that._proxy.$ensureActivation(uri.scheme);
 						return await provider.delete(uri, { recursive: false, ...options });
 					} else {
-						return await that._proxy.$delete(uri, { recursive: false, useTrash: false, ...options });
+						return await that._proxy.$delete(uri, { recursive: false, useTrash: false, atomic: false, ...options });
 					}
 				} catch (err) {
 					return ExtHostConsumerFileSystem._handleError(err);

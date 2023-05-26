@@ -1174,6 +1174,7 @@ export interface ExtHostChatShape {
 	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined>;
 	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
 	$provideReply(handle: number, sessionId: number, request: IChatRequestDto, token: CancellationToken): Promise<IChatResponseDto | undefined>;
+	$removeRequest(handle: number, sessionId: number, requestId: string): void;
 	$provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	$releaseSession(sessionId: number): void;
 	$onDidPerformUserAction(event: IChatUserActionEvent): Promise<void>;
@@ -1265,7 +1266,7 @@ export interface MainThreadSearchShape extends IDisposable {
 }
 
 export interface MainThreadShareShape extends IDisposable {
-	$registerShareProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string): void;
+	$registerShareProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string, priority: number): void;
 	$unregisterShareProvider(handle: number): void;
 }
 
@@ -2500,6 +2501,8 @@ export interface MainThreadTestingShape {
 	$startedExtensionTestRun(req: ExtensionRunTestsRequest): void;
 	/** Signals that an extension-provided test run finished. */
 	$finishedExtensionTestRun(runId: string): void;
+	/** Marks a test (or controller) as retired in all results. */
+	$markTestRetired(testId: string): void;
 }
 
 // --- proxy identifiers

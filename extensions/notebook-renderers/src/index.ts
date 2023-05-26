@@ -277,43 +277,50 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 	outputElement.classList.add('output-stream');
 
 	const text = outputInfo.text();
-	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
-	content.setAttribute('output-item-id', outputInfo.id);
+	const newContent = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
+	newContent.setAttribute('output-item-id', outputInfo.id);
 	if (error) {
-		content.classList.add('error');
+		newContent.classList.add('error');
 	}
 
 	const scrollTop = outputScrolling ? findScrolledHeight(outputElement) : undefined;
 
+	const existingContent = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+	const previousOutputParent = getPreviousMatchingContentGroup(outputElement);
+
 	// If the previous output item for the same cell was also a stream, append this output to the previous
-	const existingContentParent = getPreviousMatchingContentGroup(outputElement) || outputElement.querySelector('div');
-	if (existingContentParent) {
-		const existing = existingContentParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
-		if (existing) {
-			existing.replaceWith(content);
-			while (content.nextSibling) {
+	if (previousOutputParent) {
+		if (existingContent) {
+			existingContent.replaceWith(newContent);
+
+		} else {
+			previousOutputParent.appendChild(newContent);
+		}
+		previousOutputParent.classList.toggle('scrollbar-visible', previousOutputParent.scrollHeight > previousOutputParent.clientHeight);
+		previousOutputParent.scrollTop = scrollTop !== undefined ? scrollTop : previousOutputParent.scrollHeight;
+	} else {
+		let contentParent = existingContent?.parentElement;
+		if (existingContent && contentParent) {
+			existingContent.replaceWith(newContent);
+			while (newContent.nextSibling) {
 				// clear out any stale content if we had previously combined streaming outputs into this one
-				content.nextSibling.remove();
+				newContent.nextSibling.remove();
 			}
 		} else {
-			existingContentParent.appendChild(content);
+			contentParent = document.createElement('div');
+			contentParent.appendChild(newContent);
+			while (outputElement.firstChild) {
+				outputElement.removeChild(outputElement.firstChild);
+			}
+			outputElement.appendChild(contentParent);
 		}
-		existingContentParent.classList.toggle('scrollbar-visible', existingContentParent.scrollHeight > existingContentParent.clientHeight);
-		existingContentParent.scrollTop = scrollTop !== undefined ? scrollTop : existingContentParent.scrollHeight;
-	} else {
-		const contentParent = document.createElement('div');
-		contentParent.appendChild(content);
+
 		contentParent.classList.toggle('scrollable', outputScrolling);
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
+			contentParent!.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
 
-
-		while (outputElement.firstChild) {
-			outputElement.removeChild(outputElement.firstChild);
-		}
-		outputElement.appendChild(contentParent);
 		initializeScroll(contentParent, disposableStore, scrollTop);
 	}
 

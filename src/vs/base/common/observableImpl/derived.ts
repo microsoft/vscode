@@ -196,7 +196,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 	public handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
 		// In all other states, observers already know that we might have changed.
-		if (this.state === DerivedState.upToDate && this.dependencies.has(observable)) {
+		if (this.state === DerivedState.upToDate && this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			this.state = DerivedState.dependenciesMightHaveChanged;
 			for (const r of this.observers) {
 				r.handlePossibleChange(this);
@@ -205,22 +205,19 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
-		const isUpToDate = this.state === DerivedState.upToDate;
-		let shouldReact = true;
-
-		if (this._handleChange && this.dependencies.has(observable)) {
-			shouldReact = this._handleChange({
+		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
+			const shouldReact = this._handleChange ? this._handleChange({
 				changedObservable: observable,
 				change,
 				didChange: o => o === observable as any,
-			}, this.changeSummary!);
-		}
-
-		if (shouldReact && (this.state === DerivedState.dependenciesMightHaveChanged || isUpToDate) && this.dependencies.has(observable)) {
-			this.state = DerivedState.stale;
-			if (isUpToDate) {
-				for (const r of this.observers) {
-					r.handlePossibleChange(this);
+			}, this.changeSummary!) : true;
+			const wasUpToDate = this.state === DerivedState.upToDate;
+			if (shouldReact && (this.state === DerivedState.dependenciesMightHaveChanged || wasUpToDate)) {
+				this.state = DerivedState.stale;
+				if (wasUpToDate) {
+					for (const r of this.observers) {
+						r.handlePossibleChange(this);
+					}
 				}
 			}
 		}
