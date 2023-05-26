@@ -20,6 +20,9 @@ declare module 'vscode' {
 		 * If present, a selection within the `resourceUri`.
 		 */
 		selection?: Range;
+
+
+		// Test changes
 	}
 
 	/**
