@@ -67,7 +67,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			if (options.source) {
 				secondaryActions.push(toAction({
 					id: options.source.identifier.value,
-					label: nls.localize('manageExtension', "Manage Extension"),
+					label: nls.localize('showExtension', "Show Extension"),
 					run: () => {
 						return this._commandService.executeCommand('_extensions.manage', options.source!.identifier.value);
 					}

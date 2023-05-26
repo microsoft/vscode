@@ -1288,7 +1288,7 @@ export class SettingsEditor2 extends EditorPane {
 					description: [extension?.description || ''],
 					descriptionIsMarkdown: false,
 					descriptionRanges: [],
-					title: localize('manageExtension', "Manage {0}", extensionName),
+					title: extensionName,
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
 					displayExtensionId: extensionId,
