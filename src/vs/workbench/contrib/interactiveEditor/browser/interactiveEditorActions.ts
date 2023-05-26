@@ -306,6 +306,7 @@ export class DiscardAction extends AbstractInteractiveEditorAction {
 			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
+				group: '0_main',
 				order: 0
 			}
 		});
@@ -330,6 +331,7 @@ export class DiscardToClipboardAction extends AbstractInteractiveEditorAction {
 			// },
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
+				group: '0_main',
 				order: 1
 			}
 		});
@@ -353,6 +355,7 @@ export class DiscardUndoToNewFileAction extends AbstractInteractiveEditorAction 
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_DID_EDIT),
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
+				group: '0_main',
 				order: 2
 			}
 		});
@@ -420,12 +423,12 @@ export class ToggleInlineDiff extends AbstractInteractiveEditorAction {
 			title: localize('toggleDiff', 'Toggle Diff'),
 			icon: Codicon.diff,
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_DID_EDIT),
-			toggled: CTX_INTERACTIVE_EDITOR_SHOWING_DIFF,
+			toggled: { condition: CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, title: localize('toggleDiff2', "Show Inline Diff") },
 			menu: {
-				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
 				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.Preview),
-				group: '0_main',
-				order: 10
+				group: '1_config',
+				order: 9
 			}
 		});
 	}

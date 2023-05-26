@@ -424,6 +424,7 @@ export class InteractiveEditorWidget {
 		this._elements.statusToolbar.classList.toggle('hidden', !show);
 		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
 		this._elements.status.classList.toggle('actions', show);
+		this._elements.infoLabel.classList.toggle('hidden', show);
 		this._onDidChangeHeight.fire();
 	}
 
