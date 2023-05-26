@@ -176,6 +176,7 @@ export class InteractiveEditorWidget {
 
 	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
+	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
 
 	constructor(
 		parentEditor: ICodeEditor,
@@ -357,8 +358,6 @@ export class InteractiveEditorWidget {
 		this._store.dispose();
 		this._ctxInputEmpty.reset();
 		this._ctxMessageCropState.reset();
-		console.log('inside of dispose');
-		console.log('this._ctxMessageCropState.get() : ', this._ctxMessageCropState.get());
 	}
 
 	get domNode(): HTMLElement {
@@ -431,34 +430,22 @@ export class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	cropState() {
-		if (this._elements.message.scrollHeight > this._elements.message.clientHeight) {
-			return ExpansionState.CROPPED;
-		} else {
-			return ExpansionState.NOT_CROPPED;
-		}
+	expansionState() {
+		return this._expansionState;
 	}
 
 	updateMarkdownMessage(message: Node | undefined) {
-		console.log('inside of update markdown message');
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
 		if (!message) {
-			this._ctxMessageCropState.reset();
-			console.log('inside of case when message is undefined');
-			console.log('this._ctxMessageCropState.get() : ', this._ctxMessageCropState.get());
 			reset(this._elements.message);
+			this._ctxMessageCropState.reset();
+			this._expansionState = ExpansionState.NOT_CROPPED;
 		} else {
-			// reset the css to what it was before
 			this._elements.message.style.webkitLineClamp = '3';
 			reset(this._elements.message, message);
-			console.log('message overflowing : ', this._elements.message.scrollHeight > this._elements.message.clientHeight);
-			if (this._elements.message.scrollHeight > this._elements.message.clientHeight) {
-				this._ctxMessageCropState.set(ExpansionState.CROPPED);
-			} else {
-				this._ctxMessageCropState.set(ExpansionState.NOT_CROPPED);
-			}
-			console.log('inside of the case when the message is defined');
-			console.log('this._ctxMessageCropState.get() : ', this._ctxMessageCropState.get());
+			const expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
+			this._ctxMessageCropState.set(expansionState);
+			this._expansionState = expansionState;
 		}
 		this._onDidChangeHeight.fire();
 	}
@@ -508,12 +495,9 @@ export class InteractiveEditorWidget {
 	}
 
 	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
-		console.log('inside of update markdown message expansion state');
-		console.log('expansionState : ', expansionState);
 		this._ctxMessageCropState.set(expansionState);
-		console.log('this._ctxMessageCropState.get() : ', this._ctxMessageCropState.get());
+		this._expansionState = expansionState;
 		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? '10' : '3');
-		console.log('this._elements.message.style.webkitLineClamp : ', this._elements.message.style.webkitLineClamp);
 		this._onDidChangeHeight.fire();
 	}
 

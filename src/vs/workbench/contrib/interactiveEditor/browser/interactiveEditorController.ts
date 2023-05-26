@@ -556,12 +556,10 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.widget.updateStatus('');
 			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.widget.updateToolbar(true);
-			console.log('inside of SHOW_RESPONSE');
-			console.log('this._activeSession.lastExpansionState', this._activeSession.lastExpansionState);
-			const state = this._activeSession.newlySelected ? (this._activeSession.lastExpansionState ?? this._zone.widget.cropState()) : this._zone.widget.cropState();
+			const expansionState = this._activeSession.newlySelected ? (this._activeSession.lastExpansionState ?? this._zone.widget.expansionState()) : this._zone.widget.expansionState();
 			this._activeSession.newlySelected = false;
-			this._activeSession.lastExpansionState = state;
-			this._zone.widget.updateMarkdownMessageExpansionState(state);
+			this._activeSession.lastExpansionState = expansionState;
+			this._zone.widget.updateMarkdownMessageExpansionState(expansionState);
 
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
@@ -670,12 +668,10 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	updateExpansionState(expand: boolean) {
-		console.log('inside of update expansion state, expand : ', expand);
 		if (this._activeSession) {
-			const state = expand ? ExpansionState.EXPANDED : ExpansionState.CROPPED;
-			console.log('state : ', state);
-			this._zone.widget.updateMarkdownMessageExpansionState(state);
-			this._activeSession.lastExpansionState = state;
+			const expansionState = expand ? ExpansionState.EXPANDED : ExpansionState.CROPPED;
+			this._zone.widget.updateMarkdownMessageExpansionState(expansionState);
+			this._activeSession.lastExpansionState = expansionState;
 		}
 	}
 
