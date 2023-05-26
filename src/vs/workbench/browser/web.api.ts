@@ -343,7 +343,7 @@ export interface IWorkbenchConstructionOptions {
 	readonly initialColorTheme?: IInitialColorTheme;
 
 	/**
-	 *  Welcome view dialog on first launch. Can be dismissed by the user.
+	 *  Welcome dialog. Can be dismissed by the user.
 	 */
 	readonly welcomeDialog?: IWelcomeDialog;
 
@@ -639,14 +639,24 @@ export interface IWelcomeDialog {
 	buttonText: string;
 
 	/**
-	 * Message text and icon for the welcome dialog.
+	 * Button command to execute from the welcome dialog.
 	 */
-	messages: { message: string; icon: string }[];
+	buttonCommand: string;
 
 	/**
-	 * Optional action to appear as links at the bottom of the welcome dialog.
+	 * Message text for the welcome dialog.
 	 */
-	action?: IWelcomeLinkAction;
+	message: string;
+
+	/**
+	 * Context key expression to control the visibility of the welcome dialog.
+	 */
+	when: string;
+
+	/**
+	 * Media to include in the welcome dialog.
+	 */
+	media: { altText: string; path: string };
 }
 
 export interface IDefaultView {
