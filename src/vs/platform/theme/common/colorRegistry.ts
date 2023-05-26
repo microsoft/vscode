@@ -424,6 +424,8 @@ export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', 
 export const diffBorder = registerColor('diffEditor.border', { dark: null, light: null, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('diffEditorBorder', 'Border color between the two text editors.'));
 export const diffDiagonalFill = registerColor('diffEditor.diagonalFill', { dark: '#cccccc33', light: '#22222233', hcDark: null, hcLight: null }, nls.localize('diffDiagonalFill', "Color of the diff editor's diagonal fill. The diagonal fill is used in side-by-side diff views."));
 
+export const diffUnchangedRegionBackground = registerColor('diffEditor.unchangedRegionBackground', { dark: '#000000', light: '#e4e4e4', hcDark: null, hcLight: null }, nls.localize('diffEditor.unchangedRegionBackground', "The color of unchanged blocks in diff editor."));
+
 /**
  * List and tree colors
  */

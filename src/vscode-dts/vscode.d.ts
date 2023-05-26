@@ -7443,6 +7443,11 @@ declare module 'vscode' {
 		 * Controls whether the terminal is cleared before executing the task.
 		 */
 		clear?: boolean;
+
+		/**
+		 * Controls whether the terminal is closed after executing the task.
+		 */
+		close?: boolean;
 	}
 
 	/**
@@ -10153,21 +10158,22 @@ declare module 'vscode' {
 		/**
 		 * Creates a status bar {@link StatusBarItem item}.
 		 *
-		 * @param alignment The alignment of the item.
-		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
-		 * @return A new status bar item.
-		 */
-		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
-
-		/**
-		 * Creates a status bar {@link StatusBarItem item}.
-		 *
-		 * @param id The unique identifier of the item.
+		 * @param id The identifier of the item. Must be unique within the extension.
 		 * @param alignment The alignment of the item.
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(id: string, alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+
+		/**
+		 * Creates a status bar {@link StatusBarItem item}.
+		 *
+		 * @see {@link createStatusBarItem} for creating a status bar item with an identifier.
+		 * @param alignment The alignment of the item.
+		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
+		 * @return A new status bar item.
+		 */
+		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
 		/**
 		 * Creates a {@link Terminal} with a backing shell process. The cwd of the terminal will be the workspace
@@ -16782,7 +16788,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents the main editor area which consists of multple groups which contain tabs.
+	 * Represents the main editor area which consists of multiple groups which contain tabs.
 	 */
 	export interface TabGroups {
 		/**

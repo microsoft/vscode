@@ -115,8 +115,17 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	async clear(): Promise<void> {
 		if (this.widget.viewModel) {
 			this.chatService.clearSession(this.widget.viewModel.sessionId);
-			this.updateModel();
 		}
+		this.updateModel();
+	}
+
+	loadSession(sessionId: string): void {
+		if (this.widget.viewModel) {
+			this.chatService.clearSession(this.widget.viewModel.sessionId);
+		}
+
+		const newModel = this.chatService.getOrRestoreSession(sessionId);
+		this.updateModel(newModel);
 	}
 
 	focusInput(): void {

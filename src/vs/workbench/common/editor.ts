@@ -567,12 +567,6 @@ export function isUntitledResourceEditorInput(editor: unknown): editor is IUntit
 	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
 }
 
-const UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX = /Untitled-\d+/;
-
-export function isUntitledWithAssociatedResource(resource: URI): boolean {
-	return resource.scheme === Schemas.untitled && resource.path.length > 1 && !UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX.test(resource.path);
-}
-
 export function isResourceMergeEditorInput(editor: unknown): editor is IResourceMergeEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
@@ -1100,7 +1094,8 @@ interface IEditorPartConfiguration {
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
-	tabSizing?: 'fit' | 'shrink';
+	tabSizing?: 'fit' | 'shrink' | 'fixed';
+	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;

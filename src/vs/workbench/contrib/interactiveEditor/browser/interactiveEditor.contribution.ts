@@ -11,16 +11,21 @@ import { IInteractiveEditorService, INTERACTIVE_EDITOR_ID } from 'vs/workbench/c
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { InteractiveEditorServiceImpl } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditorServiceImpl';
 import { IInteractiveEditorSessionService, InteractiveEditorSessionService } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { InteractiveEditorNotebookContribution } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorNotebook';
 
 registerSingleton(IInteractiveEditorService, InteractiveEditorServiceImpl, InstantiationType.Delayed);
 registerSingleton(IInteractiveEditorSessionService, InteractiveEditorSessionService, InstantiationType.Delayed);
 
-registerEditorContribution(INTERACTIVE_EDITOR_ID, InteractiveEditorController, EditorContributionInstantiation.Lazy);
+registerEditorContribution(INTERACTIVE_EDITOR_ID, InteractiveEditorController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
 registerAction2(interactiveEditorActions.StartSessionAction);
+registerAction2(interactiveEditorActions.UnstashSessionAction);
 registerAction2(interactiveEditorActions.MakeRequestAction);
 registerAction2(interactiveEditorActions.StopRequestAction);
-registerAction2(interactiveEditorActions.DicardAction);
+registerAction2(interactiveEditorActions.DiscardAction);
 registerAction2(interactiveEditorActions.DiscardToClipboardAction);
 registerAction2(interactiveEditorActions.DiscardUndoToNewFileAction);
 registerAction2(interactiveEditorActions.CancelSessionAction);
@@ -41,3 +46,7 @@ registerAction2(interactiveEditorActions.FeebackUnhelpfulCommand);
 registerAction2(interactiveEditorActions.ApplyPreviewEdits);
 
 registerAction2(interactiveEditorActions.CopyRecordings);
+
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
+	.registerWorkbenchContribution(InteractiveEditorNotebookContribution, LifecyclePhase.Restored);

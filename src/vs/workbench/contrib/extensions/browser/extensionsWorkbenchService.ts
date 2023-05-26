@@ -1480,23 +1480,23 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	async installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void> {
 		await this.doInstall(extension, async () => {
+			const local = extension.local;
+			if (!local) {
+				throw new Error('Extension not found');
+			}
 			if (!extension.gallery) {
-				extension = (await this.getExtensions([extension.identifier], CancellationToken.None))[0] ?? extension;
+				extension = (await this.getExtensions([{ ...extension.identifier, preRelease: local.preRelease }], CancellationToken.None))[0] ?? extension;
 			}
 			if (extension.gallery) {
-				return server.extensionManagementService.installFromGallery(extension.gallery);
-			}
-
-			if (!extension.local) {
-				throw new Error('Extension not found');
+				return server.extensionManagementService.installFromGallery(extension.gallery, { installPreReleaseVersion: local.preRelease });
 			}
 
 			const targetPlatform = await server.extensionManagementService.getTargetPlatform();
-			if (!isTargetPlatformCompatible(extension.local.targetPlatform, [extension.local.targetPlatform], targetPlatform)) {
+			if (!isTargetPlatformCompatible(local.targetPlatform, [local.targetPlatform], targetPlatform)) {
 				throw new Error(nls.localize('incompatible', "Can't install '{0}' extension because it is not compatible.", extension.identifier.id));
 			}
 
-			const vsix = await this.extensionManagementService.zip(extension.local);
+			const vsix = await this.extensionManagementService.zip(local);
 			try {
 				return await server.extensionManagementService.install(vsix);
 			} finally {

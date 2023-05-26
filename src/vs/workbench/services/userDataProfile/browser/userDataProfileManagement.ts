@@ -118,7 +118,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		const isRemoteWindow = !!this.environmentService.remoteAuthority;
 
 		if (!isRemoteWindow) {
-			if (!(await this.extensionService.stopExtensionHosts(localize('switch profile', "Switching Profile")))) {
+			if (!(await this.extensionService.stopExtensionHosts(localize('switch profile', "Switching to a profile.")))) {
 				throw new CancellationError();
 			}
 		}

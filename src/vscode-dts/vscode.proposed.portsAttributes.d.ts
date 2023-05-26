@@ -7,6 +7,9 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/115616 @alexr00
 
+	/**
+	 * The action that should be taken when a port is discovered through automatic port forwarding discovery.
+	 */
 	export enum PortAutoForwardAction {
 		/**
 		 * Notify the user that the port is being forwarded. This is the default action.
@@ -67,21 +70,16 @@ declare module 'vscode' {
 		providePortAttributes(port: number, pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes>;
 	}
 
-	export interface PortAttributesProviderSelector {
-		/**
-		 * TODO:  @alexr00 no one is currently using this. Should we delete it?
-		 * If your {@link PortAttributesProvider PortAttributesProvider} is registered after your process has started then already know the process id of port you are listening on.
-		 * Specifying a pid will cause your provider to only be called for ports that match the pid.
-		 */
-		pid?: number;
-
+	/**
+	 * A selector that will be used to filter which {@link PortAttributesProvider} should be called for each port.
+	 */
+	export interface PortAttributesSelector {
 		/**
 		 * Specifying a port range will cause your provider to only be called for ports within the range.
 		 */
 		portRange?: [number, number];
 
 		/**
-		 * TODO: @alexr00 no one is currently using this. Should we delete it?
 		 * Specifying a command pattern will cause your provider to only be called for processes whose command line matches the pattern.
 		 */
 		commandPattern?: RegExp;
@@ -100,6 +98,6 @@ declare module 'vscode' {
 		 * If you don't specify a port selector your provider will be called for every port, which will result in slower port forwarding for the user.
 		 * @param provider The {@link PortAttributesProvider PortAttributesProvider}.
 		 */
-		export function registerPortAttributesProvider(portSelector: PortAttributesProviderSelector, provider: PortAttributesProvider): Disposable;
+		export function registerPortAttributesProvider(portSelector: PortAttributesSelector, provider: PortAttributesProvider): Disposable;
 	}
 }

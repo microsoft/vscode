@@ -39,6 +39,8 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
+	readonly providerRequestId: string | undefined;
+	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly username: string;
@@ -64,6 +66,7 @@ export interface IChatLiveUpdateData {
 export interface IChatResponseViewModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
+	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly providerId: string;
@@ -91,7 +94,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private readonly _items: (IChatRequestViewModel | IChatResponseViewModel)[] = [];
+	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
 	get inputPlaceholder(): string | undefined {
 		return this._model.inputPlaceholder;
@@ -135,6 +138,20 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				}
 			} else if (e.kind === 'addResponse') {
 				this.onAddResponse(e.response);
+			} else if (e.kind === 'removeRequest') {
+				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.providerRequestId === e.requestId);
+				if (requestIdx >= 0) {
+					this._items.splice(requestIdx, 1);
+				}
+
+				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.providerResponseId === e.responseId);
+				if (typeof responseIdx === 'number' && responseIdx >= 0) {
+					const items = this._items.splice(responseIdx, 1);
+					const item = items[0];
+					if (isResponseVM(item)) {
+						item.dispose();
+					}
+				}
 			}
 
 			this._onDidChange.fire();
@@ -147,7 +164,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._items.push(response);
 	}
 
-	getItems() {
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[] {
 		return [...(this._model.welcomeMessage ? [this._model.welcomeMessage] : []), ...this._items];
 	}
 
@@ -164,8 +181,16 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.id;
 	}
 
+	get providerRequestId() {
+		return this._model.providerRequestId;
+	}
+
 	get dataId() {
 		return this.id + (this._model.session.isInitialized ? '' : '_initializing');
+	}
+
+	get sessionId() {
+		return this._model.session.sessionId;
 	}
 
 	get username() {
@@ -209,6 +234,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get providerResponseId() {
 		return this._model.providerResponseId;
+	}
+
+	get sessionId() {
+		return this._model.session.sessionId;
 	}
 
 	get username() {

@@ -362,6 +362,11 @@ export interface IDocumentFilterDto {
 	isBuiltin?: boolean;
 }
 
+export interface IShareableItemDto {
+	resourceUri: UriComponents;
+	range?: IRange;
+}
+
 export interface ISignatureHelpProviderMetadataDto {
 	readonly triggerCharacters: readonly string[];
 	readonly retriggerCharacters: readonly string[];
@@ -609,8 +614,21 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, statusId: string, extensionId: string | undefined, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
-	$dispose(id: number): void;
+	$setEntry(id: string, statusId: string, extensionId: string | undefined, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
+	$disposeEntry(id: string): void;
+}
+
+export type StatusBarItemDto = {
+	entryId: string;
+	alignLeft: boolean;
+	priority?: number;
+	name: string;
+	text: string;
+	command?: string;
+};
+
+export interface ExtHostStatusBarShape {
+	$acceptStaticEntries(added?: StatusBarItemDto[]): void;
 }
 
 export interface MainThreadStorageShape extends IDisposable {
@@ -1156,6 +1174,7 @@ export interface ExtHostChatShape {
 	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined>;
 	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
 	$provideReply(handle: number, sessionId: number, request: IChatRequestDto, token: CancellationToken): Promise<IChatResponseDto | undefined>;
+	$removeRequest(handle: number, sessionId: number, requestId: string): void;
 	$provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	$releaseSession(sessionId: number): void;
 	$onDidPerformUserAction(event: IChatUserActionEvent): Promise<void>;
@@ -1244,6 +1263,11 @@ export interface MainThreadSearchShape extends IDisposable {
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
 	$handleTextMatch(handle: number, session: number, data: search.IRawFileMatch2[]): void;
 	$handleTelemetry(eventName: string, data: any): void;
+}
+
+export interface MainThreadShareShape extends IDisposable {
+	$registerShareProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string, priority: number): void;
+	$unregisterShareProvider(handle: number): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -1397,8 +1421,7 @@ export enum CandidatePortSource {
 	Output = 2
 }
 
-export interface PortAttributesProviderSelector {
-	pid?: number;
+export interface PortAttributesSelector {
 	portRange?: [number, number];
 	commandPattern?: RegExp;
 }
@@ -1412,7 +1435,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$setCandidateFilter(): Promise<void>;
 	$onFoundNewCandidates(candidates: CandidatePort[]): Promise<void>;
 	$setCandidatePortSource(source: CandidatePortSource): Promise<void>;
-	$registerPortsAttributesProvider(selector: PortAttributesProviderSelector, providerHandle: number): Promise<void>;
+	$registerPortsAttributesProvider(selector: PortAttributesSelector, providerHandle: number): Promise<void>;
 	$unregisterPortsAttributesProvider(providerHandle: number): Promise<void>;
 }
 
@@ -2008,6 +2031,10 @@ export interface ExtHostQuickDiffShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
 }
 
+export interface ExtHostShareShape {
+	$provideShare(handle: number, shareableItem: IShareableItemDto, token: CancellationToken): Promise<UriComponents | undefined>;
+}
+
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO>;
 	$resolveTask(handle: number, taskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined>;
@@ -2474,6 +2501,8 @@ export interface MainThreadTestingShape {
 	$startedExtensionTestRun(req: ExtensionRunTestsRequest): void;
 	/** Signals that an extension-provided test run finished. */
 	$finishedExtensionTestRun(runId: string): void;
+	/** Marks a test (or controller) as retired in all results. */
+	$markTestRetired(testId: string): void;
 }
 
 // --- proxy identifiers
@@ -2524,6 +2553,7 @@ export const MainContext = {
 	MainThreadExtensionService: createProxyIdentifier<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createProxyIdentifier<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadSearch: createProxyIdentifier<MainThreadSearchShape>('MainThreadSearch'),
+	MainThreadShare: createProxyIdentifier<MainThreadShareShape>('MainThreadShare'),
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
@@ -2564,6 +2594,8 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createProxyIdentifier<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createProxyIdentifier<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostQuickDiff: createProxyIdentifier<ExtHostQuickDiffShape>('ExtHostQuickDiff'),
+	ExtHostStatusBar: createProxyIdentifier<ExtHostStatusBarShape>('ExtHostStatusBar'),
+	ExtHostShare: createProxyIdentifier<ExtHostShareShape>('ExtHostShare'),
 	ExtHostExtensionService: createProxyIdentifier<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
 	ExtHostLogLevelServiceShape: createProxyIdentifier<ExtHostLogLevelServiceShape>('ExtHostLogLevelServiceShape'),
 	ExtHostTerminalService: createProxyIdentifier<ExtHostTerminalServiceShape>('ExtHostTerminalService'),

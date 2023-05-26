@@ -507,7 +507,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		let sourceTextModel: ITextModel | undefined = undefined;
 		if (sourceModel instanceof BaseTextEditorModel) {
 			if (sourceModel.isResolved()) {
-				sourceTextModel = sourceModel.textEditorModel;
+				sourceTextModel = withNullAsUndefined(sourceModel.textEditorModel);
 			}
 		} else {
 			sourceTextModel = sourceModel as ITextModel;

@@ -331,6 +331,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this._overlayWidget = null;
 		}
 		this._arrow?.hide();
+		this._positionMarkerId.clear();
 	}
 
 	private _decoratingElementsHeight(): number {

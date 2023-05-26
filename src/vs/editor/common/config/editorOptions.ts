@@ -794,6 +794,13 @@ export interface IDiffEditorBaseOptions {
 	 * Whether the diff editor aria label should be verbose.
 	 */
 	accessibilityVerbose?: boolean;
+
+	experimental?: {
+		/**
+		 * Defaults to false.
+		 */
+		collapseUnchangedRegions?: boolean;
+	};
 }
 
 /**

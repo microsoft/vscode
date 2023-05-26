@@ -719,15 +719,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		switch (capability) {
-			case ClientCapability.Semantic:
-				{
-					return fileSchemes.semanticSupportedSchemes.includes(resource.scheme);
-				}
+			case ClientCapability.Semantic: {
+				return fileSchemes.getSemanticSupportedSchemes().includes(resource.scheme);
+			}
 			case ClientCapability.Syntax:
-			case ClientCapability.EnhancedSyntax:
-				{
-					return true;
-				}
+			case ClientCapability.EnhancedSyntax: {
+				return true;
+			}
 		}
 	}
 

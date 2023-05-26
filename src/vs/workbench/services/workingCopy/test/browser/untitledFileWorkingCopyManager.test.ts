@@ -157,14 +157,16 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 		const workingCopy1 = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')) } });
 
+		assert.strictEqual(workingCopy1.isModified(), true);
 		assert.strictEqual(workingCopy1.isDirty(), true);
 		assert.strictEqual(dirtyCounter, 1);
 		assert.strictEqual(workingCopy1.model?.contents, 'Hello World');
 
 		workingCopy1.dispose();
 
-		const workingCopy2 = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')), markDirty: true } });
+		const workingCopy2 = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')), markModified: true } });
 
+		assert.strictEqual(workingCopy2.isModified(), true);
 		assert.strictEqual(workingCopy2.isDirty(), true);
 		assert.strictEqual(dirtyCounter, 2);
 		assert.strictEqual(workingCopy2.model?.contents, 'Hello World');
@@ -178,8 +180,9 @@ suite('UntitledFileWorkingCopyManager', () => {
 			dirtyCounter++;
 		});
 
-		const workingCopy = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')), markDirty: false } });
+		const workingCopy = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')), markModified: false } });
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(dirtyCounter, 0);
 		assert.strictEqual(workingCopy.model?.contents, 'Hello World');
