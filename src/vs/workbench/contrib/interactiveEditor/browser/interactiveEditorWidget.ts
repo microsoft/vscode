@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -28,7 +28,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { DropdownWithDefaultActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { DropdownWithDefaultActionViewItem, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
@@ -44,10 +44,12 @@ import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interact
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { assertType } from 'vs/base/common/types';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -285,6 +287,31 @@ export class InteractiveEditorWidget {
 
 				if (action instanceof SubmenuItemAction) {
 					return this._instantiationService.createInstance(DropdownWithDefaultActionViewItem, action, { ...options, renderKeybindingWithDefaultActionLabel: true, persistLastActionId: false });
+				}
+
+				if (action.id === ACTION_ACCEPT_CHANGES) {
+					const ButtonLikeActionViewItem = class extends MenuEntryActionViewItem {
+
+						override render(container: HTMLElement): void {
+							this.options.icon = false;
+							super.render(container);
+							assertType(this.element);
+							this.element.classList.add('button-item');
+						}
+
+						protected override updateLabel(): void {
+							assertType(this.label);
+							assertType(this.action instanceof MenuItemAction);
+							const label = MenuItemAction.label(this.action.item, { renderShortTitle: true });
+							const labelElements = renderLabelWithIcons(`$(check)${label}`);
+							reset(this.label, ...labelElements);
+						}
+
+						protected override updateClass(): void {
+							// noop
+						}
+					};
+					return this._instantiationService.createInstance(ButtonLikeActionViewItem, <MenuItemAction>action, <IMenuEntryActionViewItemOptions>options);
 				}
 
 				return createActionViewItem(this._instantiationService, action, options);

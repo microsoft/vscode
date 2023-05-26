@@ -161,6 +161,18 @@
 	outline: 1px solid var(--vscode-inputOption-activeBorder);
 }
 
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.button-item .action-label {
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	border-radius: 2px;
+	padding: 4px 6px;
+}
+
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.button-item .action-label>.codicon {
+	color: unset;
+	font-size: 14px;
+}
+
 /* preview */
 
 .monaco-editor .interactive-editor .preview {

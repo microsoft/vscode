@@ -326,7 +326,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 		let message: string;
 		if (linesChanged === 0) {
-			message = localize('lines.0', "No changes yet");
+			message = localize('lines.0', "Nothing changed");
 		} else if (linesChanged === 1) {
 			message = localize('lines.1', "Changed 1 line");
 		} else {
