@@ -348,10 +348,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model);
-		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+		this.viewModelDisposables.add(this.viewModel.onDidChange(e => {
 			this.slashCommandsPromise = undefined;
 			this.requestInProgress.set(this.viewModel!.requestInProgress);
 			this.onDidChangeItems();
+			if (e?.kind === 'addRequest') {
+				revealLastElement(this.tree);
+				this.focusInput();
+			}
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Disposes the viewmodel and listeners
@@ -380,13 +384,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const input = query ?? editorValue;
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
 			if (result) {
-				revealLastElement(this.tree);
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					if (lastResponse) {
-						alert(lastResponse.response.value);
+						const errorDetails = lastResponse.errorDetails ? ` ${lastResponse.errorDetails.message}` : '';
+						alert(lastResponse.response.value + errorDetails);
 					}
 				});
 			}
@@ -417,6 +421,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	layout(height: number, width: number): void {
+		width = Math.min(width, 600);
 		this.bodyDimension = new dom.Dimension(width, height);
 
 		const inputPartHeight = this.inputPart.layout(height, width);

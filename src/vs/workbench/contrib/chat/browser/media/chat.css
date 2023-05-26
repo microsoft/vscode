@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.editor-instance .interactive-session {
+.interactive-session {
 	max-width: 600px;
 	margin: auto;
 }

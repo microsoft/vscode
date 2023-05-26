@@ -291,6 +291,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/welcomeDialog",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/outline",
 			"project": "vscode-workbench"
 		},

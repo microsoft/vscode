@@ -437,7 +437,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private renderRemoteStatusIndicator(initialText: string, initialTooltip?: string | MarkdownString, command?: string, showProgress?: boolean): void {
-		const { text, tooltip, ariaLabel } = this.withNetworkStatus(initialText, initialTooltip);
+		const { text, tooltip, ariaLabel } = this.withNetworkStatus(initialText, initialTooltip, showProgress);
 
 		const properties: IStatusbarEntry = {
 			name: nls.localize('remoteHost', "Remote Host"),
@@ -457,35 +457,37 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private withNetworkStatus(initialText: string, initialTooltip?: string | MarkdownString): { text: string; tooltip: string | IMarkdownString | undefined; ariaLabel: string } {
+	private withNetworkStatus(initialText: string, initialTooltip?: string | MarkdownString, showProgress?: boolean): { text: string; tooltip: string | IMarkdownString | undefined; ariaLabel: string } {
 		let text = initialText;
 		let tooltip = initialTooltip;
 		let ariaLabel = getCodiconAriaLabel(text);
 
-		// `initialText` can have a "$(remote)" codicon in the beginning
-		// but it may not have it depending on the environment.
-		// the following function will replace the codicon in the beginning with
-		// another icon or add it to the beginning if no icon
+		function textWithAlert(): string {
 
-		function insertOrReplaceCodicon(target: string, codicon: string): string {
-			if (target.startsWith('$(remote)')) {
-				return target.replace('$(remote)', codicon);
+			// `initialText` can have a codicon in the beginning that already
+			// indicates some kind of status, or we may have been asked to
+			// show progress, where a spinning codicon appears. we only want
+			// to replace with an alert icon for when a normal remote indicator
+			// is shown.
+
+			if (!showProgress && initialText.startsWith('$(remote)')) {
+				return initialText.replace('$(remote)', '$(alert)');
 			}
 
-			return `${codicon} ${target}`;
+			return initialText;
 		}
 
 		switch (this.networkState) {
 			case 'offline': {
-				text = insertOrReplaceCodicon(initialText, '$(alert)');
-
 				const offlineMessage = nls.localize('networkStatusOfflineTooltip', "Network appears to be offline, certain features might be unavailable.");
+
+				text = textWithAlert();
 				tooltip = this.appendTooltipLine(tooltip, offlineMessage);
 				ariaLabel = `${ariaLabel}, ${offlineMessage}`;
 				break;
 			}
 			case 'high-latency':
-				text = insertOrReplaceCodicon(initialText, '$(alert)');
+				text = textWithAlert();
 				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusHighLatencyTooltip', "Network appears to have high latency ({0}ms last, {1}ms average), certain features may be slow to respond.", remoteConnectionLatencyMeasurer.latency?.current?.toFixed(2), remoteConnectionLatencyMeasurer.latency?.average?.toFixed(2)));
 				break;
 		}
