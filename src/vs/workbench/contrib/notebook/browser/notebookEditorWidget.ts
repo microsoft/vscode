@@ -2235,13 +2235,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			let position = '';
 			switch (focusItem) {
 				case 'editor':
-					position = `the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor is focused` + verboseLabel ? `, press escape to focus the cell container` : '';
+					position = `the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor is focused` + (verboseLabel ? `, press escape to focus the cell container` : '');
 					break;
 				case 'output':
-					position = `the cell output is focused` + verboseLabel ? `, press escape to focus the cell container` : '';
+					position = `the cell output is focused` + (verboseLabel ? `, press escape to focus the cell container` : '');
 					break;
 				case 'container':
-					position = `the ${cell.cellKind === CellKind.Markup ? 'markdown preview' : 'cell container'} is focused` + verboseLabel ? `, press enter to focus the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor` : '';
+					position = `the ${cell.cellKind === CellKind.Markup ? 'markdown preview' : 'cell container'} is focused` + (verboseLabel ? `, press enter to focus the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor` : '');
 					break;
 				default:
 					break;
