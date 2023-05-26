@@ -45,7 +45,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
 
-	private diffEditorControl: DiffEditorWidget | undefined = undefined;
+	private diffEditorControl: IDiffEditor | undefined = undefined;
 
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());

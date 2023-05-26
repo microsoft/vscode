@@ -866,6 +866,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._domElement;
 	}
 
+	// #region editorBrowser.IDiffEditor: Delegating to modified Editor
+
 	public getVisibleColumnFromPosition(position: IPosition): number {
 		return this._modifiedEditor.getVisibleColumnFromPosition(position);
 	}
@@ -978,6 +980,24 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._modifiedEditor.getSupportedActions();
 	}
 
+	public focus(): void {
+		this._modifiedEditor.focus();
+	}
+
+	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
+		this._modifiedEditor.trigger(source, handlerId, payload);
+	}
+
+	public createDecorationsCollection(decorations?: IModelDeltaDecoration[]): editorCommon.IEditorDecorationsCollection {
+		return this._modifiedEditor.createDecorationsCollection(decorations);
+	}
+
+	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
+		return this._modifiedEditor.changeDecorations(callback);
+	}
+
+	// #endregion
+
 	public saveViewState(): editorCommon.IDiffEditorViewState {
 		const originalViewState = this._originalEditor.saveViewState();
 		const modifiedViewState = this._modifiedEditor.saveViewState();
@@ -999,9 +1019,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._elementSizeObserver.observe(dimension);
 	}
 
-	public focus(): void {
-		this._modifiedEditor.focus();
-	}
 
 	public hasTextFocus(): boolean {
 		return this._originalEditor.hasTextFocus() || this._modifiedEditor.hasTextFocus();
@@ -1021,18 +1038,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._modifiedEditor.onHide();
 		// Remove all view zones & decorations
 		this._cleanViewZonesAndDecorations();
-	}
-
-	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
-		this._modifiedEditor.trigger(source, handlerId, payload);
-	}
-
-	public createDecorationsCollection(decorations?: IModelDeltaDecoration[]): editorCommon.IEditorDecorationsCollection {
-		return this._modifiedEditor.createDecorationsCollection(decorations);
-	}
-
-	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
-		return this._modifiedEditor.changeDecorations(callback);
 	}
 
 	//------------ end IDiffEditor methods
