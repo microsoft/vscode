@@ -201,7 +201,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 							return modifiedWorkingCopies.filter(wc => wc.capabilities & WorkingCopyCapabilities.Scratchpad); // only backup scratchpads because we are switching contexts
 						}
 					} else {
-						return []; // do not backup because we are switching contexts from an empty workspace
+						return []; // do not backup because we are switching contexts with no folder open
 					}
 			}
 		}
