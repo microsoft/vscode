@@ -24,15 +24,15 @@
 			]
 		},
 		{
-			"type": "chrome",
+			"type": "node",
 			"request": "attach",
+			"restart": true,
 			"name": "Attach to Shared Process",
-			"timeout": 30000,
-			"port": 9222,
-			"urlFilter": "*sharedProcess*.html*",
-			"presentation": {
-				"hidden": true
-			}
+			"timeout": 0,
+			"port": 5879,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
 		},
 		{
 			"type": "node",
@@ -159,7 +159,7 @@
 				"--disable-extensions"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -177,7 +177,7 @@
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/workspace-tests"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -236,7 +236,6 @@
 				"VSCODE_SKIP_PRELAUNCH": "1"
 			},
 			"cleanUp": "wholeBrowser",
-			"urlFilter": "*workbench*.html*",
 			"runtimeArgs": [
 				"--inspect-brk=5875",
 				"--no-cached-data",
@@ -526,7 +525,7 @@
 			"name": "Monaco Editor Playground",
 			"type": "chrome",
 			"request": "launch",
-			"url": "https://microsoft.github.io/monaco-editor/playground.html?source=http%3A%2F%2Flocalhost%3A5001%2Fout%2Fvs",
+			"url": "http://localhost:5001",
 			"preLaunchTask": "Launch Http Server",
 			"presentation": {
 				"group": "monaco",

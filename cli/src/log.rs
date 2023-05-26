@@ -10,13 +10,13 @@ use opentelemetry::{
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::{env, path::Path, sync::Arc};
 use std::{
 	io::Write,
 	sync::atomic::{AtomicU32, Ordering},
 };
+use std::{path::Path, sync::Arc};
 
-const NO_COLOR_ENV: &str = "NO_COLOR";
+use crate::constants::COLORS_ENABLED;
 
 static INSTANCE_COUNTER: AtomicU32 = AtomicU32::new(0);
 
@@ -27,21 +27,19 @@ pub fn next_counter() -> u32 {
 
 // Log level
 #[derive(clap::ArgEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum Level {
 	Trace = 0,
 	Debug,
-	Info,
+	#[default]
+ Info,
 	Warn,
 	Error,
 	Critical,
 	Off,
 }
 
-impl Default for Level {
-	fn default() -> Self {
-		Level::Info
-	}
-}
+
 
 impl fmt::Display for Level {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -71,7 +69,7 @@ impl Level {
 	}
 
 	pub fn color_code(&self) -> Option<&str> {
-		if env::var(NO_COLOR_ENV).is_ok() || !atty::is(atty::Stream::Stdout) {
+		if !*COLORS_ENABLED {
 			return None;
 		}
 

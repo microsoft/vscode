@@ -24,7 +24,7 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 		this.providerRegistration.dispose();
 	}
 
-	async provideEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder, _token: vscode.CancellationToken): Promise<string | undefined> {
+	async provideEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder, token: vscode.CancellationToken): Promise<string | undefined> {
 		await this.model.openRepository(path.dirname(workspaceFolder.uri.fsPath));
 
 		const repository = this.model.getRepository(workspaceFolder.uri);
@@ -34,8 +34,11 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 			return undefined;
 		}
 
+		const remoteUrl = repository.remotes.find((remote) => remote.name === repository.HEAD?.upstream?.remote)?.pushUrl?.replace(/^(git@[^\/:]+)(:)/i, 'ssh://$1/');
+		const remote = remoteUrl ? await vscode.workspace.getCanonicalUri(vscode.Uri.parse(remoteUrl), { targetScheme: 'https' }, token) : null;
+
 		return JSON.stringify({
-			remote: repository.remotes.find((remote) => remote.name === repository.HEAD?.upstream?.remote)?.pushUrl ?? null,
+			remote: remote?.toString() ?? remoteUrl,
 			ref: repository.HEAD?.upstream?.name ?? null,
 			sha: repository.HEAD?.commit ?? null,
 		});

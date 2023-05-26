@@ -16,8 +16,12 @@ declare module 'vscode' {
 	}
 
 	export interface InlineCompletionItemProvider {
+		/**
+		 * @param completionItem The completion item that was shown.
+		 * @param updatedInsertText The actual insert text (after brackets were fixed).
+		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleDidShowCompletionItem?(completionItem: InlineCompletionItem): void;
+		handleDidShowCompletionItem?(completionItem: InlineCompletionItem, updatedInsertText: string): void;
 
 		/**
 		 * Is called when an inline completion item was accepted partially.
@@ -33,5 +37,16 @@ declare module 'vscode' {
 		 * A list of commands associated with the inline completions of this list.
 		 */
 		commands?: Command[];
+
+		/**
+		 * When set, overrides the user setting of `editor.inlineSuggest.suppressSuggestions`.
+		 */
+		suppressSuggestions?: boolean;
+
+		/**
+		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
+		 * Defaults to false (might change).
+		 */
+		enableForwardStability?: boolean;
 	}
 }

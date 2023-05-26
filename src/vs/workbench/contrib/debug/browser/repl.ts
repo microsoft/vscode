@@ -384,14 +384,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	private navigateHistory(previous: boolean): void {
-		const historyInput = previous ? this.history.previous() : this.history.next();
-		if (historyInput) {
-			this.replInput.setValue(historyInput);
-			aria.status(historyInput);
-			// always leave cursor at the end.
-			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
-			this.setHistoryNavigationEnablement(true);
-		}
+		const historyInput = (previous ?
+			(this.history.previous() ?? this.history.first()) : this.history.next())
+			?? '';
+		this.replInput.setValue(historyInput);
+		aria.status(historyInput);
+		// always leave cursor at the end.
+		this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
+		this.setHistoryNavigationEnablement(true);
 	}
 
 	async selectSession(session?: IDebugSession): Promise<void> {
@@ -595,6 +595,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider,
 				mouseSupport: false,
+				findWidgetEnabled: false,
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e.toString(true) },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
@@ -731,19 +732,19 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	override saveState(): void {
 		const replHistory = this.history.getHistory();
 		if (replHistory.length) {
-			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 		const filterHistory = this.filterWidget.getHistory();
 		if (filterHistory.length) {
-			this.storageService.store(FILTER_HISTORY_STORAGE_KEY, JSON.stringify(filterHistory), StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(FILTER_HISTORY_STORAGE_KEY, JSON.stringify(filterHistory), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 		const filterValue = this.filterWidget.getFilterText();
 		if (filterValue) {
-			this.storageService.store(FILTER_VALUE_STORAGE_KEY, filterValue, StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(FILTER_VALUE_STORAGE_KEY, filterValue, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE);
 		}

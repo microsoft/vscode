@@ -37,7 +37,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 	private readonly _inLoggingOnlyMode: boolean = false;
 	private readonly extHostTelemetryLogFile: URI;
 	private readonly _outputLogger: ILogger;
-	private readonly _telemetryLoggers = new Map<string, ExtHostTelemetryLogger>();
+	private readonly _telemetryLoggers = new Map<string, ExtHostTelemetryLogger[]>();
 
 	constructor(
 		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
@@ -83,7 +83,8 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 			this.getBuiltInCommonProperties(extension),
 			{ isUsageEnabled: telemetryDetails.isUsageEnabled, isErrorsEnabled: telemetryDetails.isErrorsEnabled }
 		);
-		this._telemetryLoggers.set(extension.identifier.value, logger);
+		const loggers = this._telemetryLoggers.get(extension.identifier.value) ?? [];
+		this._telemetryLoggers.set(extension.identifier.value, [...loggers, logger]);
 		return logger.apiTelemetryLogger;
 	}
 
@@ -127,14 +128,19 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		this._level = level;
 		const telemetryDetails = this.getTelemetryDetails();
 		// Remove all disposed loggers
-		this._telemetryLoggers.forEach((logger, key) => {
-			if (logger.isDisposed) {
+		this._telemetryLoggers.forEach((loggers, key) => {
+			const newLoggers = loggers.filter(l => !l.isDisposed);
+			if (newLoggers.length === 0) {
 				this._telemetryLoggers.delete(key);
+			} else {
+				this._telemetryLoggers.set(key, newLoggers);
 			}
 		});
 		// Loop through all loggers and update their level
-		this._telemetryLoggers.forEach(logger => {
-			logger.updateTelemetryEnablements(telemetryDetails.isUsageEnabled, telemetryDetails.isErrorsEnabled);
+		this._telemetryLoggers.forEach(loggers => {
+			for (const logger of loggers) {
+				logger.updateTelemetryEnablements(telemetryDetails.isUsageEnabled, telemetryDetails.isErrorsEnabled);
+			}
 		});
 
 		if (this._oldTelemetryEnablement !== this.getTelemetryConfiguration()) {
@@ -145,16 +151,21 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 	}
 
 	onExtensionError(extension: ExtensionIdentifier, error: Error): boolean {
-		const logger = this._telemetryLoggers.get(extension.value);
-		if (logger && logger.isDisposed) {
+		const loggers = this._telemetryLoggers.get(extension.value);
+		const nonDisposedLoggers = loggers?.filter(l => !l.isDisposed);
+		if (!nonDisposedLoggers) {
 			this._telemetryLoggers.delete(extension.value);
 			return false;
 		}
-		if (!logger || logger.ignoreUnhandledExtHostErrors) {
-			return false;
+		let errorEmitted = false;
+		for (const logger of nonDisposedLoggers) {
+			if (logger.ignoreUnhandledExtHostErrors) {
+				continue;
+			}
+			logger.logError(error);
+			errorEmitted = true;
 		}
-		logger.logError(error);
-		return true;
+		return errorEmitted;
 	}
 }
 
@@ -210,7 +221,7 @@ export class ExtHostTelemetryLogger {
 	mixInCommonPropsAndCleanData(data: Record<string, any>): Record<string, any> {
 		// Some telemetry modules prefer to break properties and measurmements up
 		// We mix common properties into the properties tab.
-		let updatedData = data.properties ?? data;
+		let updatedData = 'properties' in data ? (data.properties ?? {}) : data;
 
 		// We don't clean measurements since they are just numbers
 		updatedData = cleanData(updatedData, []);
@@ -223,7 +234,7 @@ export class ExtHostTelemetryLogger {
 			updatedData = mixin(updatedData, this._commonProperties);
 		}
 
-		if (data.properties) {
+		if ('properties' in data) {
 			data.properties = updatedData;
 		} else {
 			data = updatedData;

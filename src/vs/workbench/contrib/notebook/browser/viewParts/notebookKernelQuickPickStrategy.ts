@@ -629,7 +629,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		// group controllers by extension
 		for (const group of groupBy(others, (a, b) => a.extension.value === b.extension.value ? 0 : 1)) {
 			const extension = this._extensionService.extensions.find(extension => extension.identifier.value === group[0].extension.value);
-			const source = extension?.description ?? group[0].extension.value;
+			const source = extension?.displayName ?? extension?.description ?? group[0].extension.value;
 			if (group.length > 1) {
 				quickPickItems.push({
 					label: source,
@@ -664,7 +664,8 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			const res: SourcePick = {
 				action: sourceAction,
 				picked: false,
-				label: sourceAction.action.label
+				label: sourceAction.action.label,
+				tooltip: sourceAction.action.tooltip
 			};
 
 			quickPickItems.push(res);

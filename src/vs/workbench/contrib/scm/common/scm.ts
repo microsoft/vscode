@@ -60,6 +60,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
+	readonly inputBoxDocumentUri: URI;
 	readonly count?: number;
 	readonly commitTemplate: string;
 	readonly onDidChangeCommitTemplate: Event<string>;

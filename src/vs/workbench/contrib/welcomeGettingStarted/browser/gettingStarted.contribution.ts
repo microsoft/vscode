@@ -31,6 +31,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { RemoteStartEntry } from 'vs/workbench/contrib/remote/browser/remoteStartEntry';
 
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 
@@ -205,11 +206,11 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	private getQuickPickItems(
+	private async getQuickPickItems(
 		contextService: IContextKeyService,
 		gettingStartedService: IWalkthroughsService
-	): IQuickPickItem[] {
-		const categories = gettingStartedService.getWalkthroughs();
+	): Promise<IQuickPickItem[]> {
+		const categories = await gettingStartedService.getWalkthroughs();
 		return categories
 			.filter(c => contextService.contextMatchesRules(c.when))
 			.map(x => ({
@@ -232,7 +233,7 @@ registerAction2(class extends Action2 {
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
 		quickPick.placeholder = localize('pickWalkthroughs', 'Select a walkthrough to open');
-		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
+		quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
 		quickPick.busy = true;
 		quickPick.onDidAccept(() => {
 			const selection = quickPick.selectedItems[0];
@@ -245,8 +246,7 @@ registerAction2(class extends Action2 {
 		quickPick.show();
 		await extensionService.whenInstalledExtensionsRegistered();
 		quickPick.busy = false;
-		await gettingStartedService.installedExtensionsRegistered;
-		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
+		quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
 	}
 });
 
@@ -325,3 +325,6 @@ configurationRegistry.registerConfiguration({
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Restored);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(RemoteStartEntry, LifecyclePhase.Restored);

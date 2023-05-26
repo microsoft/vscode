@@ -133,7 +133,7 @@ export class TestResultService implements ITestResultService {
 	public createLiveResult(req: ResolvedTestRunRequest | ExtensionRunTestsRequest) {
 		if ('targets' in req) {
 			const id = generateUuid();
-			return this.push(new LiveTestResult(id, this.storage.getOutputController(id), true, req));
+			return this.push(new LiveTestResult(id, true, req));
 		}
 
 		let profile: ITestRunProfile | undefined;
@@ -158,7 +158,7 @@ export class TestResultService implements ITestResultService {
 			});
 		}
 
-		return this.push(new LiveTestResult(req.id, this.storage.getOutputController(req.id), req.persist, resolved));
+		return this.push(new LiveTestResult(req.id, req.persist, resolved));
 	}
 
 	/**

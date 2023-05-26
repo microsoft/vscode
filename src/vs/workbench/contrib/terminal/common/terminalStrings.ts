@@ -64,4 +64,16 @@ export const terminalStrings = {
 		value: localize('workbench.action.terminal.focusHover', "Focus Hover"),
 		original: 'Focus Hover'
 	},
+	sendSequence: {
+		value: localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"),
+		original: 'Send Custom Sequence To Terminal'
+	},
+	newWithCwd: {
+		value: localize('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
+		original: 'Create New Terminal Starting in a Custom Working Directory'
+	},
+	renameWithArgs: {
+		value: localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
+		original: 'Rename the Currently Active Terminal'
+	}
 };

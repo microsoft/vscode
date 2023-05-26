@@ -930,6 +930,12 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	}
 }
 
+/**
+ * Creates a new `IFocusTracker` instance that tracks focus changes on the given `element` and its descendants.
+ *
+ * @param element The `HTMLElement` or `Window` to track focus changes on.
+ * @returns An `IFocusTracker` instance.
+ */
 export function trackFocus(element: HTMLElement | Window): IFocusTracker {
 	return new FocusTracker(element);
 }
@@ -1859,7 +1865,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 				el.appendChild(c);
 			} else if (typeof c === 'string') {
 				el.append(c);
-			} else {
+			} else if ('root' in c) {
 				Object.assign(result, c);
 				el.appendChild(c.root);
 			}

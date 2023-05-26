@@ -7,8 +7,8 @@ import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedTerminalCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -37,6 +37,11 @@ export interface ICurrentPartialCommand {
 	continuations?: { marker: IMarker; end: number }[];
 
 	command?: string;
+
+	/**
+	 * Whether the command line is trusted via a nonce.
+	 */
+	isTrusted?: boolean;
 
 	/**
 	 * Something invalidated the command before it finished, this will prevent the onCommandFinished
@@ -482,6 +487,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const endMarker = this._currentCommand.commandFinishedMarker;
 			const newCommand: ITerminalCommand = {
 				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
+				isTrusted: !!this._currentCommand.isTrusted,
 				marker: this._currentCommand.commandStartMarker,
 				endMarker,
 				executedMarker,
@@ -491,7 +497,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._isWindowsPty && (executedMarker?.line === endMarker?.line) ? this._currentCommand.commandStartMarker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
@@ -543,19 +549,21 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
 	}
 
-	setCommandLine(commandLine: string) {
-		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
+	setCommandLine(commandLine: string, isTrusted: boolean) {
+		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine, isTrusted);
 		this._currentCommand.command = commandLine;
+		this._currentCommand.isTrusted = isTrusted;
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
-		const commands: ISerializedCommand[] = this.commands.map(e => {
+		const commands: ISerializedTerminalCommand[] = this.commands.map(e => {
 			return {
 				startLine: e.marker?.line,
 				startX: undefined,
 				endLine: e.endMarker?.line,
 				executedLine: e.executedMarker?.line,
 				command: this.__isCommandStorageDisabled ? '' : e.command,
+				isTrusted: e.isTrusted,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
@@ -571,6 +579,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				endLine: undefined,
 				executedLine: undefined,
 				command: '',
+				isTrusted: true,
 				cwd: this._cwd,
 				exitCode: undefined,
 				commandStartLineContent: undefined,
@@ -606,8 +615,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			// Full command
 			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			const newCommand = {
+			const newCommand: ITerminalCommand = {
 				command: this.__isCommandStorageDisabled ? '' : e.command,
+				isTrusted: e.isTrusted,
 				marker,
 				endMarker,
 				executedMarker,
@@ -617,7 +627,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._isWindowsPty && (executedMarker?.line === endMarker?.line) ? marker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: e.markProperties,
 				wasReplayed: true
 			};
@@ -659,7 +669,6 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 		return undefined;
 	}
 	const startLine = Math.max(executedMarker.line, 0);
-
 	const matcher = outputMatcher.lineMatcher;
 	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
 	const lines: string[] = [];

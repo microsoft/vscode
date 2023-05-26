@@ -7,8 +7,6 @@
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-
-	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 </head>
 
 <body style="margin: 0; overflow: hidden; width: 100%; height: 100%" role="document">
@@ -34,6 +32,7 @@
 		const ID = searchParams.get('id');
 		const webviewOrigin = searchParams.get('origin');
 		const onElectron = searchParams.get('platform') === 'electron';
+		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 		/**
@@ -213,6 +212,10 @@
 
 		/** @type {Promise<void>} */
 		const workerReady = new Promise((resolve, reject) => {
+			if (disableServiceWorker) {
+				return resolve();
+			}
+
 			if (!areServiceWorkersEnabled()) {
 				return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 			}
@@ -258,13 +261,21 @@
 						// service worker already loaded & ready to receive messages
 						postVersionMessage(currentController);
 					} else {
-						console.log(`Found unexpected service worker controller. Found: ${currentController?.scriptURL}. Expected: ${swPath}`);
+						if (currentController) {
+							console.log(`Found unexpected service worker controller. Found: ${currentController.scriptURL}. Expected: ${swPath}. Waiting for controllerchange.`);
+						} else {
+							console.log(`No service worker controller found. Waiting for controllerchange.`);
+						}
 
-						// either there's no controlling service worker, or it's an old one:
-						// wait for it to change before posting the message
+						// Either there's no controlling service worker, or it's an old one.
+						// Wait for it to change before posting the message
 						const onControllerChange = () => {
 							navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-							postVersionMessage(navigator.serviceWorker.controller);
+							if (navigator.serviceWorker.controller) {
+								postVersionMessage(navigator.serviceWorker.controller);
+							} else {
+								return reject(new Error('No controller found.'));
+							}
 						};
 						navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 					}
@@ -436,26 +447,25 @@
 			reduceMotion: false,
 		};
 
-		hostMessaging.onMessage('did-load-resource', (_event, data) => {
-			navigator.serviceWorker.getRegistration().then(registration => {
-				assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+		if (!disableServiceWorker) {
+			hostMessaging.onMessage('did-load-resource', (_event, data) => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
 			});
-		});
 
-		hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-			navigator.serviceWorker.getRegistration().then(registration => {
-				assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
+			hostMessaging.onMessage('did-load-localhost', (_event, data) => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-localhost', data });
 			});
-		});
 
-		navigator.serviceWorker.addEventListener('message', event => {
-			switch (event.data.channel) {
-				case 'load-resource':
-				case 'load-localhost':
-					hostMessaging.postMessage(event.data.channel, event.data);
-					return;
-			}
-		});
+			navigator.serviceWorker.addEventListener('message', event => {
+				switch (event.data.channel) {
+					case 'load-resource':
+					case 'load-localhost':
+						hostMessaging.postMessage(event.data.channel, event.data);
+						return;
+				}
+			});
+		}
+
 		/**
 		 * @param {HTMLDocument?} document
 		 * @param {HTMLElement?} body
@@ -620,8 +630,10 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
-			return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
+			// 45: keyCode of "Insert"
+			const shiftInsert = e.shiftKey && e.keyCode === 45;
+			// 67, 86, 88: keyCode of "C", "V", "X"
+			return (hasMeta && [67, 86, 88].includes(e.keyCode)) || shiftInsert;
 		}
 
 		/**
@@ -630,7 +642,8 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
+			// 90, 89: keyCode of "Z", "Y"
+			return hasMeta && [90, 89].includes(e.keyCode);
 		}
 
 		/**
@@ -639,7 +652,8 @@
 		 */
 		function isPrint(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'p';
+			// 80: keyCode of "P"
+			return hasMeta && e.keyCode === 80;
 		}
 
 		/**
@@ -648,7 +662,8 @@
 		 */
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'f';
+			// 70: keyCode of "F"
+			return hasMeta && e.keyCode === 70;
 		}
 
 		/**
@@ -657,7 +672,8 @@
 		 */
 		function isSaveEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 's';
+			// 83: keyCode of "S"
+			return hasMeta && e.keyCode === 83;
 		}
 
 		/**
@@ -666,7 +682,8 @@
 		 */
 		function isCloseTab(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'w';
+			// 87: keyCode of "W"
+			return hasMeta && e.keyCode === 87;
 		}
 
 		/**
@@ -675,7 +692,8 @@
 		 */
 		function isNewWindow(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'n';
+			// 78: keyCode of "N"
+			return hasMeta && e.keyCode === 78;
 		}
 
 		let isHandlingScroll = false;

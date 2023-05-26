@@ -98,9 +98,11 @@ export class MenuId {
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
 	static readonly MenubarHomeMenu = new MenuId('MenubarHomeMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
+	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
+	static readonly SCMResourceContextShare = new MenuId('SCMResourceContextShare');
 	static readonly SCMResourceFolderContext = new MenuId('SCMResourceFolderContext');
 	static readonly SCMResourceGroupContext = new MenuId('SCMResourceGroupContext');
 	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
@@ -179,10 +181,10 @@ export class MenuId {
 	static readonly MergeBaseToolbar = new MenuId('MergeBaseToolbar');
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
-	static readonly InteractiveSessionContext = new MenuId('InteractiveSessionContext');
-	static readonly InteractiveSessionCodeBlock = new MenuId('InteractiveSessionCodeblock');
-	static readonly InteractiveSessionTitle = new MenuId('InteractiveSessionTitle');
-	static readonly InteractiveSessionExecute = new MenuId('InteractiveSessionExecute');
+	static readonly ChatContext = new MenuId('ChatContext');
+	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
+	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
+	static readonly ChatExecute = new MenuId('ChatExecute');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier

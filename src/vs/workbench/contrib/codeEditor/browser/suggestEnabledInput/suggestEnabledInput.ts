@@ -388,9 +388,7 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 			next = next === this.getValue() ? this.getNextValue() : next;
 		}
 
-		if (next) {
-			this.setValue(next);
-		}
+		this.setValue(next ?? '');
 	}
 
 	public showPreviousValue(): void {
@@ -427,7 +425,7 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 	}
 
 	private getNextValue(): string | null {
-		return this.history.next() || this.history.last();
+		return this.history.next();
 	}
 }
 

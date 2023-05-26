@@ -14,25 +14,32 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { StringSHA1 } from 'vs/base/common/hash';
+import { EditSessionsStoreClient } from 'vs/workbench/contrib/editSessions/common/editSessionsStorageClient';
 
 export const EDIT_SESSION_SYNC_CATEGORY: ILocalizedString = {
 	original: 'Cloud Changes',
 	value: localize('cloud changes', 'Cloud Changes')
 };
 
+export type SyncResource = 'editSessions' | 'workspaceState';
+
 export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageService>('IEditSessionsStorageService');
 export interface IEditSessionsStorageService {
 	_serviceBrand: undefined;
+
+	readonly SIZE_LIMIT: number;
 
 	readonly isSignedIn: boolean;
 	readonly onDidSignIn: Event<void>;
 	readonly onDidSignOut: Event<void>;
 
-	initialize(fromContinueOn: boolean, silent?: boolean): Promise<boolean>;
-	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
-	write(editSession: EditSession): Promise<string>;
-	delete(ref: string | null): Promise<void>;
-	list(): Promise<IResourceRefHandle[]>;
+	storeClient: EditSessionsStoreClient | undefined;
+
+	initialize(silent?: boolean): Promise<boolean>;
+	read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined>;
+	write(resource: SyncResource, content: string | EditSession): Promise<string>;
+	delete(resource: SyncResource, ref: string | null): Promise<void>;
+	list(resource: SyncResource): Promise<IResourceRefHandle[]>;
 	getMachineById(machineId: string): Promise<string | undefined>;
 }
 
@@ -68,9 +75,10 @@ export interface Folder {
 	name: string;
 	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
+	absoluteUri: string | undefined;
 }
 
-export const EditSessionSchemaVersion = 2;
+export const EditSessionSchemaVersion = 3;
 
 export interface EditSession {
 	version: number;

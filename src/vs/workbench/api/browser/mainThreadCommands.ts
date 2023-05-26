@@ -6,11 +6,10 @@
 import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
+import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { Dto, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostCommandsShape, ExtHostContext, MainContext, MainThreadCommandsShape } from '../common/extHost.protocol';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
@@ -60,7 +59,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 			CommandsRegistry.registerCommand(id, (accessor, ...args) => {
 				return this._proxy.$executeContributedCommand(id, ...args).then(result => {
 					return revive(result);
-				}, onUnexpectedExternalError);
+				});
 			})
 		);
 	}

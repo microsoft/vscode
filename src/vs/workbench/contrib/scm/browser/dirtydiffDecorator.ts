@@ -408,11 +408,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 			renderSideBySide: false,
 			readOnly: false,
 			renderIndicators: false,
-			diffAlgorithm: 'smart',
+			diffAlgorithm: 'advanced',
 			stickyScroll: { enabled: false }
 		};
 
-		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
+		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, {}, this.editor);
 		this._disposables.add(this.diffEditor);
 	}
 
@@ -601,8 +601,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
 		await playAudioCueForChange(change.change, audioCueService);
-		// The audio cue can take up to a second to load. Give it a chance to play before we read the line content
-		await setTimeout(() => setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService), 500);
+		setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
 registerEditorAction(GotoPreviousChangeAction);
@@ -645,8 +644,7 @@ export class GotoNextChangeAction extends EditorAction {
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index].change;
 		await playAudioCueForChange(change, audioCueService);
-		// The audio cue can take up to a second to load. Give it a chance to play before we read the line content
-		await setTimeout(() => setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService), 500);
+		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
 
@@ -665,10 +663,13 @@ async function playAudioCueForChange(change: IChange, audioCueService: IAudioCue
 	switch (changeType) {
 		case ChangeType.Add:
 			audioCueService.playAudioCue(AudioCue.diffLineInserted, true);
+			break;
 		case ChangeType.Delete:
 			audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
+			break;
 		case ChangeType.Modify:
 			audioCueService.playAudioCue(AudioCue.diffLineModified, true);
+			break;
 	}
 }
 
@@ -785,7 +786,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		}
 
 		let index: number;
-		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
+		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.provider)) {
 			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
 			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value;
@@ -1465,7 +1466,7 @@ export class DirtyDiffModel extends Disposable {
 			const possibleChangesLength = possibleChanges.length;
 
 			if (inclusive) {
-				if ((getModifiedEndLineNumber(change.change) >= lineNumber) && (change.change.modifiedStartLineNumber <= lineNumber)) {
+				if (getModifiedEndLineNumber(change.change) >= lineNumber) {
 					if (preferredProvider && change.label !== preferredProvider) {
 						possibleChanges.push(i);
 					} else {

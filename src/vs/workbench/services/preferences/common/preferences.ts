@@ -32,12 +32,14 @@ export enum SettingValueType {
 	Boolean = 'boolean',
 	Array = 'array',
 	Exclude = 'exclude',
+	Include = 'include',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
 	Object = 'object',
 	BooleanObject = 'boolean-object',
-	LanguageTag = 'language-tag'
+	LanguageTag = 'language-tag',
+	ExtensionToggle = 'extension-toggle'
 }
 
 export interface ISettingsGroup {
@@ -93,6 +95,11 @@ export interface ISetting {
 	isLanguageTagSetting?: boolean;
 	categoryOrder?: number;
 	categoryLabel?: string;
+
+	// For ExtensionToggle settings
+	extensionId?: string;
+	title?: string;
+	extensionGroupTitle?: string;
 }
 
 export interface IExtensionSetting extends ISetting {

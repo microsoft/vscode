@@ -21,6 +21,7 @@ import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { ILineChange, IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IDimension } from 'vs/editor/common/core/dimension';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -38,11 +39,19 @@ export interface IViewZone {
 	 * This is relevant for wrapped lines.
 	 */
 	afterColumn?: number;
-
 	/**
 	 * If the `afterColumn` has multiple view columns, the affinity specifies which one to use. Defaults to `none`.
 	*/
 	afterColumnAffinity?: PositionAffinity;
+	/**
+	 * Render the zone even when its line is hidden.
+	 */
+	showInHiddenAreas?: boolean;
+	/**
+	 * Tiebreaker that is used when multiple view zones want to be after the same line.
+	 * Defaults to `afterColumn` otherwise 10000;
+	 */
+	ordinal?: number;
 	/**
 	 * Suppress mouse down events.
 	 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
@@ -480,12 +489,6 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	 * Aria label for modified editor.
 	 */
 	modifiedAriaLabel?: string;
-
-	/**
-	 * Is the diff editor inside another editor
-	 * Defaults to false
-	 */
-	isInEmbeddedEditor?: boolean;
 }
 
 /**
@@ -804,6 +807,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Change the scroll position of the editor's viewport.
 	 */
 	setScrollPosition(position: editorCommon.INewScrollPosition, scrollType?: editorCommon.ScrollType): void;
+	/**
+	 * Check if the editor is currently scrolling towards a different scroll position.
+	 */
+	hasPendingScrollAnimation(): boolean;
 
 	/**
 	 * Get an action that is a contribution to this editor.
@@ -1204,6 +1211,21 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * Update the editor's options after the editor has been created.
 	 */
 	updateOptions(newOptions: IDiffEditorOptions): void;
+
+	/**
+	 * @internal
+	 */
+	setBoundarySashes(sashes: IBoundarySashes): void;
+
+	/**
+	 * @internal
+	 */
+	goToDiff(target: 'next' | 'previous'): void;
+
+	/**
+	 * @internal
+	 */
+	revealFirstDiff(): unknown;
 }
 
 /**

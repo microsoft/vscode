@@ -116,9 +116,6 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 // Logs
 import 'vs/workbench/contrib/logs/browser/logs.contribution';
 
-// Explorer
-import 'vs/workbench/contrib/files/browser/files.web.contribution';
-
 // Localization
 import 'vs/workbench/contrib/localization/browser/localization.contribution';
 
@@ -159,9 +156,6 @@ import 'vs/workbench/contrib/issue/browser/issue.contribution';
 
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
-
-// Offline
-import 'vs/workbench/contrib/offline/browser/offline.contribution';
 
 //#endregion
 

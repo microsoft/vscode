@@ -85,9 +85,9 @@ export async function openSearchEditor(accessor: ServicesAccessor): Promise<void
 			filesToInclude: searchView.searchIncludePattern.getValue(),
 			onlyOpenEditors: searchView.searchIncludePattern.onlySearchInOpenEditors(),
 			filesToExclude: searchView.searchExcludePattern.getValue(),
-			isRegexp: searchView.searchAndReplaceWidget.searchInput.getRegex(),
-			isCaseSensitive: searchView.searchAndReplaceWidget.searchInput.getCaseSensitive(),
-			matchWholeWord: searchView.searchAndReplaceWidget.searchInput.getWholeWords(),
+			isRegexp: searchView.searchAndReplaceWidget.searchInput?.getRegex(),
+			isCaseSensitive: searchView.searchAndReplaceWidget.searchInput?.getCaseSensitive(),
+			matchWholeWord: searchView.searchAndReplaceWidget.searchInput?.getWholeWords(),
 			useExcludeSettingsAndIgnoreFiles: searchView.searchExcludePattern.useExcludesAndIgnoreFiles(),
 			showIncludesExcludes: !!(searchView.searchIncludePattern.getValue() || searchView.searchExcludePattern.getValue() || !searchView.searchExcludePattern.useExcludesAndIgnoreFiles())
 		});
