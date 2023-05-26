@@ -35,6 +35,8 @@ declare module 'vscode' {
 		 */
 		readonly id: string;
 
+
+
 		/**
 		 * A label which will be used to present this provider's options in the UI.
 		 */
