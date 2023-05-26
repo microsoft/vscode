@@ -17,7 +17,7 @@ function* resolveExtensionResources(extension: vscode.Extension<any>, resourcePa
 			try {
 				yield resolveExtensionResource(extension, resource);
 			} catch {
-				// noop
+				// no op
 			}
 		}
 	}
