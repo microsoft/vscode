@@ -2352,6 +2352,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				if (typeof options?.focusEditorLine === 'number') {
 					this._cursorNavMode.set(true);
 					this.revealInView(cell);
+				} else if (options?.minimalScrolling) {
+					this.revealInView(cell);
 				} else {
 					this.revealInCenterIfOutsideViewport(cell);
 				}
