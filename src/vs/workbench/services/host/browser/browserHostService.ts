@@ -43,7 +43,7 @@ import { isEqualAuthority } from 'vs/base/common/resources';
  * A workspace to open in the workbench can either be:
  * - a workspace file with 0-N folders (via `workspaceUri`)
  * - a single folder (via `folderUri`)
- * - empty (via `undefined` or `IEmptyWorkspace`. IEmptyWorkspace is used if the workspace should have a different remote than the currently opened one.
+ * - empty (via `undefined` or `IEmptyWorkspace`). IEmptyWorkspace is used if the workspace should have a different remote than the currently opened one.
  */
 export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | IEmptyWorkspace | undefined;
 
@@ -282,7 +282,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 						environment.set('mergeFileBase', editors[2].resource.toString());
 						environment.set('mergeFileResult', editors[3].resource.toString());
 
-						this.doOpen(this.asEmptyWorkspace(options?.remoteAuthority), { payload: Array.from(environment.entries()) });
+						this.doOpen(this.newEmptyWorkspace(options?.remoteAuthority), { payload: Array.from(environment.entries()) });
 					}
 				}
 
@@ -308,7 +308,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 						environment.set('diffFileSecondary', editors[0].resource.toString());
 						environment.set('diffFilePrimary', editors[1].resource.toString());
 
-						this.doOpen(this.asEmptyWorkspace(options?.remoteAuthority), { payload: Array.from(environment.entries()) });
+						this.doOpen(this.newEmptyWorkspace(options?.remoteAuthority), { payload: Array.from(environment.entries()) });
 					}
 				}
 
@@ -345,7 +345,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								environment.set('gotoLineMode', 'true');
 							}
 
-							this.doOpen(this.asEmptyWorkspace(options?.remoteAuthority), { payload: Array.from(environment.entries()) });
+							this.doOpen(this.newEmptyWorkspace(options?.remoteAuthority), { payload: Array.from(environment.entries()) });
 						}
 					}
 				}
@@ -431,7 +431,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	 * @param remoteAuthority the remoteAuthority for the new workspace. undefined to use the current remote authority, null to enforce a local workspace
 	 * @returns a representation of an empty workspace.
 	 */
-	private asEmptyWorkspace(remoteAuthority: string | undefined | null): undefined | IEmptyWorkspace {
+	private newEmptyWorkspace(remoteAuthority: string | undefined | null): undefined | IEmptyWorkspace {
 		if (remoteAuthority === null) {
 			// open a local workspace
 			return this.environmentService.remoteAuthority === undefined ? undefined : { remoteAuthority: '' };
@@ -444,7 +444,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		return this.doOpen(this.asEmptyWorkspace(options?.remoteAuthority), {
+		return this.doOpen(this.newEmptyWorkspace(options?.remoteAuthority), {
 			reuse: options?.forceReuseWindow,
 			payload: this.preservePayload(true /* empty window */)
 		});
