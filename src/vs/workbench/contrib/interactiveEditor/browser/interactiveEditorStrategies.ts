@@ -326,11 +326,11 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 		let message: string;
 		if (linesChanged === 0) {
-			message = localize('lines.0', "Generated reply");
+			message = localize('lines.0', "Nothing changed");
 		} else if (linesChanged === 1) {
-			message = localize('lines.1', "Generated reply and changed 1 line");
+			message = localize('lines.1', "Changed 1 line");
 		} else {
-			message = localize('lines.N', "Generated reply and changed {0} lines", linesChanged);
+			message = localize('lines.N', "Changed {0} lines", linesChanged);
 		}
 		this._widget.updateStatus(message);
 	}

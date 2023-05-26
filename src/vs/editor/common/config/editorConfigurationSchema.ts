@@ -202,6 +202,16 @@ const editorConfiguration: IConfigurationNode = {
 			],
 			tags: ['experimental'],
 		},
+		'diffEditor.experimental.collapseUnchangedRegions': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('collapseUnchangedRegions', "Controls whether the diff editor shows unchanged regions. Only works when 'diffEditor.experimental.useVersion2' is set."),
+		},
+		'diffEditor.experimental.useVersion2': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('useVersion2', "Controls whether the diff editor uses the new or the old implementation."),
+		}
 	}
 };
 

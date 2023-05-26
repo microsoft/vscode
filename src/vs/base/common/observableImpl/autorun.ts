@@ -23,6 +23,41 @@ export function autorunHandleChanges<TChangeSummary>(
 	return new AutorunObserver(debugName, fn, options.createEmptyChangeSummary, options.handleChange);
 }
 
+// TODO@hediet rename to autorunWithStore
+export function autorunWithStore2(
+	debugName: string,
+	fn: (reader: IReader, store: DisposableStore) => void,
+): IDisposable {
+	return autorunWithStore(fn, debugName);
+}
+
+export function autorunWithStoreHandleChanges<TChangeSummary>(
+	debugName: string,
+	options: {
+		createEmptyChangeSummary?: () => TChangeSummary;
+		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
+	},
+	fn: (reader: IReader, changeSummary: TChangeSummary, store: DisposableStore) => void
+): IDisposable {
+	const store = new DisposableStore();
+	const disposable = autorunHandleChanges(
+		debugName,
+		{
+			createEmptyChangeSummary: options.createEmptyChangeSummary,
+			handleChange: options.handleChange,
+		},
+		(reader, changeSummary) => {
+			store.clear();
+			fn(reader, changeSummary, store);
+		}
+	);
+	return toDisposable(() => {
+		disposable.dispose();
+		store.dispose();
+	});
+}
+
+// TODO@hediet deprecate, rename to autorunWithStoreEx
 export function autorunWithStore(
 	fn: (reader: IReader, store: DisposableStore) => void,
 	debugName: string
@@ -144,13 +179,13 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	public handlePossibleChange(observable: IObservable<any>): void {
-		if (this.state === AutorunState.upToDate && this.dependencies.has(observable)) {
+		if (this.state === AutorunState.upToDate && this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			this.state = AutorunState.dependenciesMightHaveChanged;
 		}
 	}
 
 	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
-		if (this.dependencies.has(observable)) {
+		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
 			const shouldReact = this._handleChange ? this._handleChange({
 				changedObservable: observable,
 				change,
