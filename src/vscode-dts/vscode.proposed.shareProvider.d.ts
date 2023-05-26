@@ -12,7 +12,7 @@ declare module 'vscode' {
 	 */
 	export interface ShareableItem {
 		/**
-		 * A resource in the editor that can be shared.
+		 * A resource in the workspace that can be shared.
 		 */
 		resourceUri: Uri;
 
