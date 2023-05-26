@@ -9,11 +9,11 @@ import { MdLanguageClient, startClient } from './client/client';
 import { activateShared } from './extension.shared';
 import { VsCodeOutputLogger } from './logging';
 import { IMdParser, MarkdownItEngine } from './markdownEngine';
-import { getMarkdownExtensionContributions } from './markdownExtensions';
+import { getMarkdownExtensionContributionsNew } from './markdownExtensions';
 import { githubSlugifier } from './slugify';
 
 export async function activate(context: vscode.ExtensionContext) {
-	const contributions = getMarkdownExtensionContributions(context);
+	const contributions = getMarkdownExtensionContributionsNew(context);
 	context.subscriptions.push(contributions);
 
 	const logger = new VsCodeOutputLogger();

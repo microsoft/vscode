@@ -155,6 +155,6 @@ class VSCodeExtensionMarkdownContributionProvider extends Disposable implements 
 	}
 }
 
-export function getMarkdownExtensionContributions(context: vscode.ExtensionContext): MarkdownContributionProvider {
+export function getMarkdownExtensionContributionsNew(context: vscode.ExtensionContext): MarkdownContributionProvider {
 	return new VSCodeExtensionMarkdownContributionProvider(context);
 }
