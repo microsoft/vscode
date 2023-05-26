@@ -14,7 +14,7 @@ import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUE
 import { localize } from 'vs/nls';
 import { IAction2Options, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -565,6 +565,8 @@ export class ExpandMessageAction extends AbstractInteractiveEditorAction {
 		});
 	}
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		console.log('running the expand message action');
+		console.log('CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE : ', CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.getValue(_accessor.get(IContextKeyService)));
 		ctrl.updateExpansionState(true);
 	}
 }
@@ -585,6 +587,8 @@ export class ContractMessageAction extends AbstractInteractiveEditorAction {
 		});
 	}
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		console.log('running the contract message action');
+		console.log('CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE : ', CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.getValue(_accessor.get(IContextKeyService)));
 		ctrl.updateExpansionState(false);
 	}
 }

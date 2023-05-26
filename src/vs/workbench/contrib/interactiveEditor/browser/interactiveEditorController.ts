@@ -29,7 +29,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorStrategies';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
 import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
@@ -246,6 +246,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 
 		this._activeSession = session;
+		this._activeSession.newlySelected = true;
 		return State.INIT_UI;
 	}
 
@@ -555,7 +556,12 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.widget.updateStatus('');
 			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.widget.updateToolbar(true);
-			this._zone.widget.updateMarkdownMessageExpansionState(this._activeSession.lastExpansionState);
+			console.log('inside of SHOW_RESPONSE');
+			console.log('this._activeSession.lastExpansionState', this._activeSession.lastExpansionState);
+			const state = this._activeSession.newlySelected ? (this._activeSession.lastExpansionState ?? this._zone.widget.cropState()) : this._zone.widget.cropState();
+			this._activeSession.newlySelected = false;
+			this._activeSession.lastExpansionState = state;
+			this._zone.widget.updateMarkdownMessageExpansionState(state);
 
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
@@ -664,9 +670,12 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	updateExpansionState(expand: boolean) {
+		console.log('inside of update expansion state, expand : ', expand);
 		if (this._activeSession) {
-			this._zone.widget.updateMarkdownMessageExpansionState(expand);
-			this._activeSession.lastExpansionState = expand;
+			const state = expand ? ExpansionState.EXPANDED : ExpansionState.CROPPED;
+			console.log('state : ', state);
+			this._zone.widget.updateMarkdownMessageExpansionState(state);
+			this._activeSession.lastExpansionState = state;
 		}
 	}
 
