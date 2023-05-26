@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.diff-hidden-lines.showTop {
+	margin: -5px 0;
+}
+
+.diff-hidden-lines.showTop .top {
+	height: 7px;
+	background-color: var(--vscode-diffEditor-unchangedRegionBackground);
+	mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='7' viewBox='0 0 10 10' preserveAspectRatio='none'>       <polygon points='0,10 5,0 10,10' style='fill:white' />      </svg>") repeat 0px 0px;
+	-webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='7' viewBox='0 0 10 10' preserveAspectRatio='none'>       <polygon points='0,10 5,0 10,10' style='fill:white' />      </svg>") repeat 0px 0px;
+}
+
+.diff-hidden-lines.showBottom .bottom {
+	height: 7px;
+	background-color: var(--vscode-diffEditor-unchangedRegionBackground);
+	mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='7' viewBox='0 0 10 10' preserveAspectRatio='none'>       <polygon points='0,0 5,10 10,0' style='fill:white' />      </svg>") repeat 10px 0px;
+	-webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='7' viewBox='0 0 10 10' preserveAspectRatio='none'>       <polygon points='0,0 5,10 10,0' style='fill:white' />      </svg>") repeat 10px 0px;
+}
+
+.diff-hidden-lines .center {
+	background: var(--vscode-diffEditor-unchangedRegionBackground);
+	padding: 0px 3px;
+	overflow: hidden;
+	display: block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.diff-hidden-lines .center > span,
+.diff-hidden-lines .center > a {
+	user-select: none;
+	-webkit-user-select: none;
+	white-space: nowrap;
+}
+
+.diff-hidden-lines .center > a {
+	text-decoration: none;
+}
+
+.diff-hidden-lines .center > a:hover {
+	cursor: pointer;
+	color: var(--vscode-editorLink-activeForeground) !important;
+}
+
+.diff-hidden-lines .center > a:hover .codicon {
+	color: var(--vscode-editorLink-activeForeground) !important;
+}
+
+.diff-hidden-lines .center .codicon {
+	vertical-align: middle;
+	color: currentColor !important;
+	color: var(--vscode-editorCodeLens-foreground);
+}
+
+.merge-editor-conflict-actions > a:hover .codicon::before {
+	cursor: pointer;
+}

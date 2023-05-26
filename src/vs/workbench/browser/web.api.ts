@@ -18,8 +18,6 @@ import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IPro
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { ITranslations } from 'vs/platform/extensionManagement/common/extensionNls';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -222,7 +220,7 @@ export interface IWorkbenchConstructionOptions {
 	 * 	- an extension in the Marketplace
 	 * 	- location of the extension where it is hosted.
 	 */
-	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents | HostedExtension)[];
+	readonly additionalBuiltinExtensions?: readonly (MarketplaceExtension | UriComponents)[];
 
 	/**
 	 * List of extensions to be enabled if they are installed.
@@ -343,7 +341,7 @@ export interface IWorkbenchConstructionOptions {
 	readonly initialColorTheme?: IInitialColorTheme;
 
 	/**
-	 *  Welcome view dialog on first launch. Can be dismissed by the user.
+	 *  Welcome dialog. Can be dismissed by the user.
 	 */
 	readonly welcomeDialog?: IWelcomeDialog;
 
@@ -375,15 +373,6 @@ export interface IResourceUriProvider {
 export type ExtensionId = string;
 
 export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
-export interface HostedExtension {
-	readonly location: UriComponents;
-	readonly preRelease?: boolean;
-	readonly packageJSON?: IExtensionManifest;
-	readonly defaultPackageTranslations?: ITranslations | null;
-	readonly packageNLSUris?: Map<string, UriComponents>;
-	readonly readmeUri?: UriComponents;
-	readonly changelogUri?: UriComponents;
-}
 
 export interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -639,14 +628,24 @@ export interface IWelcomeDialog {
 	buttonText: string;
 
 	/**
-	 * Message text and icon for the welcome dialog.
+	 * Button command to execute from the welcome dialog.
 	 */
-	messages: { message: string; icon: string }[];
+	buttonCommand: string;
 
 	/**
-	 * Optional action to appear as links at the bottom of the welcome dialog.
+	 * Message text for the welcome dialog.
 	 */
-	action?: IWelcomeLinkAction;
+	message: string;
+
+	/**
+	 * Context key expression to control the visibility of the welcome dialog.
+	 */
+	when: string;
+
+	/**
+	 * Media to include in the welcome dialog.
+	 */
+	media: { altText: string; path: string };
 }
 
 export interface IDefaultView {
