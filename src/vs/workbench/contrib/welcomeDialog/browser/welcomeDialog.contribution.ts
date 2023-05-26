@@ -27,6 +27,7 @@ import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGetti
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const configurationKey = 'workbench.welcome.experimental.dialog';
 
@@ -74,22 +75,29 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 				const codeEditor = this.codeEditorService.getActiveCodeEditor();
 				if (codeEditor?.hasModel()) {
 
-					const detailsRenderer = new GettingStartedDetailsRenderer(fileService, notificationService, extensionService, languageService);
+					const scheduler = this._register(new RunOnceScheduler(() => {
+						const detailsRenderer = new GettingStartedDetailsRenderer(fileService, notificationService, extensionService, languageService);
 
-					const welcomeWidget = new WelcomeWidget(
-						codeEditor,
-						instantiationService,
-						commandService,
-						telemetryService,
-						openerService,
-						webviewService,
-						detailsRenderer);
+						const welcomeWidget = new WelcomeWidget(
+							codeEditor,
+							instantiationService,
+							commandService,
+							telemetryService,
+							openerService,
+							webviewService,
+							detailsRenderer);
 
-					welcomeWidget.render(welcomeDialog.title,
-						welcomeDialog.message,
-						welcomeDialog.buttonText,
-						welcomeDialog.buttonCommand,
-						welcomeDialog.media);
+						welcomeWidget.render(welcomeDialog.title,
+							welcomeDialog.message,
+							welcomeDialog.buttonText,
+							welcomeDialog.buttonCommand,
+							welcomeDialog.media);
+
+					}, 4000));
+
+					codeEditor.onDidChangeModelContent((_) => {
+						scheduler.schedule();
+					});
 
 					this.contextKeysToWatch.delete(welcomeDialog.when);
 				}
@@ -110,7 +118,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
-			description: localize('workbench.welcome.dialog', "When enabled, a welcome widget is shown in the edior")
+			description: localize('workbench.welcome.dialog', "When enabled, a welcome widget is shown in the editor")
 		}
 	}
 });
