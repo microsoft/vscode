@@ -386,6 +386,8 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 				data.session.session.dispose?.();
 
 				map.delete(textModelN.uri);
+				this._logService.trace(`[IE] did RELEASE session for ${editor.getId()}, ${session.provider.debugName}`);
+
 			}
 			if (map.size === 0) {
 				this._sessions.delete(editor);
