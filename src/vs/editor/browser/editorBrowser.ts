@@ -1216,6 +1216,16 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	setBoundarySashes(sashes: IBoundarySashes): void;
+
+	/**
+	 * @internal
+	 */
+	goToDiff(target: 'next' | 'previous'): void;
+
+	/**
+	 * @internal
+	 */
+	revealFirstDiff(): unknown;
 }
 
 /**

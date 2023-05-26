@@ -60,6 +60,7 @@ import { getThemeTypeSelector, IColorTheme, IThemeService, registerThemingPartic
 import { ThemeIcon } from 'vs/base/common/themables';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -242,6 +243,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private isEmbeddedDiffEditorKey: IContextKey<boolean>;
 
+	private _diffNavigator: DiffNavigator | undefined;
+
 	constructor(
 		domElement: HTMLElement,
 		options: Readonly<editorBrowser.IDiffEditorConstructionOptions>,
@@ -289,7 +292,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			renderOverviewRuler: true,
 			diffWordWrap: 'inherit',
 			diffAlgorithm: 'advanced',
-			accessibilityVerbose: false
+			accessibilityVerbose: false,
+			experimental: {
+				collapseUnchangedRegions: false,
+			},
 		});
 
 		this.isEmbeddedDiffEditorKey = EditorContextKeys.isEmbeddedDiffEditor.bindTo(this._contextKeyService);
@@ -860,6 +866,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._layoutOverviewViewport();
 
 		this._onDidChangeModel.fire();
+
+		// Diff navigator
+		this._diffNavigator = this._register(this._instantiationService.createInstance(DiffNavigator, this, {
+			alwaysRevealFirst: false,
+			findResultLoop: this.getModifiedEditor().getOption(EditorOption.find).loop
+		}));
 	}
 
 	public getContainerDomNode(): HTMLElement {
@@ -1535,6 +1547,21 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return {
 			equivalentLineNumber: this._getEquivalentLineForModifiedLineNumber(lineNumber)
 		};
+	}
+
+	public goToDiff(target: 'previous' | 'next'): void {
+		if (target === 'next') {
+			this._diffNavigator?.next();
+		} else {
+			this._diffNavigator?.previous();
+		}
+	}
+
+	public revealFirstDiff(): void {
+		// This is a hack, but it works.
+		if (this._diffNavigator) {
+			this._diffNavigator.revealFirst = true;
+		}
 	}
 }
 
@@ -2785,6 +2812,9 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
 		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
+		experimental: {
+			collapseUnchangedRegions: false,
+		},
 	};
 }
 
