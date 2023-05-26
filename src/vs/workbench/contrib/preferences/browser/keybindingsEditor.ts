@@ -1192,7 +1192,7 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 		ariaLabel += ', ' + (keybindingItemEntry.keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No Keybinding assigned."));
 		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.when ? keybindingItemEntry.keybindingItem.when : localize('noWhen', "No when context.");
 		ariaLabel += ', ' + (isString(keybindingItemEntry.keybindingItem.source) ? keybindingItemEntry.keybindingItem.source : keybindingItemEntry.keybindingItem.source.description ?? keybindingItemEntry.keybindingItem.source.identifier.value);
-		ariaLabel += this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor) ? localize('keyboard shortcuts arial label', ", use space or enter to change the keybinding.") : '';
+		ariaLabel += this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor) ? localize('keyboard shortcuts aria label', ", use space or enter to change the keybinding.") : '';
 		return ariaLabel;
 	}
 }
