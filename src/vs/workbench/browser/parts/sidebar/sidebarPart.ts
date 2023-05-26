@@ -106,7 +106,8 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 			themeService,
 			Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
-			viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)!.id,
+			// During unit testing, it may be empty and needs.
+			viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id || '',
 			'sideBar',
 			'viewlet',
 			SIDE_BAR_TITLE_FOREGROUND,

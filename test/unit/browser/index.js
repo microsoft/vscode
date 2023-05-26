@@ -20,9 +20,9 @@ const { applyReporter } = require('../reporter');
 // opts
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 const optimist = require('optimist')
-	// .describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('run', 'only run tests matching <relative_file_path>').string('run')
+	.describe('glob', 'only run tests matching <pattern>').string('glob')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('debug', 'do not run browsers headless').alias('debug', ['debug-browser']).boolean('debug')
 	.describe('sequential', 'only run suites for a single browser at a time').boolean('sequential')
@@ -83,7 +83,7 @@ const testModules = (async function () {
 	} else {
 		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
-		const pattern = argv.run || defaultGlob;
+		const pattern = (argv.glob || defaultGlob).replace(new RegExp('^' + out), '').replace(/\.ts$/, '.js');
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {
