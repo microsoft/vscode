@@ -1926,7 +1926,7 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExtensionToggleItemTemplate, onChange: (_: undefined) => void): void {
 		template.elementDisposables.clear();
 
-		const extensionId = dataElement.setting.extensionId!;
+		const extensionId = dataElement.setting.displayExtensionId!;
 		template.elementDisposables.add(template.actionButton.onDidClick(async () => {
 			this._telemetryService.publicLog2<{ extensionId: String }, ManageExtensionClickTelemetryClassification>('ManageExtensionClick', { extensionId });
 			this._commandService.executeCommand('extension.open', extensionId);
