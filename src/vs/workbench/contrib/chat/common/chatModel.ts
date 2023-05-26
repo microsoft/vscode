@@ -502,10 +502,10 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toExport(): IExportableChatData {
 		return {
-			requesterUsername: this._session!.requesterUsername,
-			requesterAvatarIconUri: this._session!.requesterAvatarIconUri,
-			responderUsername: this._session!.responderUsername,
-			responderAvatarIconUri: this._session!.responderAvatarIconUri,
+			requesterUsername: this.requesterUsername,
+			requesterAvatarIconUri: this.requesterAvatarIconUri,
+			responderUsername: this.responderUsername,
+			responderAvatarIconUri: this.responderAvatarIconUri,
 			welcomeMessage: this._welcomeMessage?.content.map(c => {
 				if (Array.isArray(c)) {
 					return c;
