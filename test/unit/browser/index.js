@@ -83,7 +83,7 @@ const testModules = (async function () {
 	} else {
 		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
-		const pattern = (argv.glob || defaultGlob).replace(new RegExp('^' + out), '').replace(/\.ts$/, '.js');
+		const pattern = (argv.glob || defaultGlob).replace(new RegExp(`^(${out}|src)/`), '').replace(/\.ts$/, '.js');
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {
