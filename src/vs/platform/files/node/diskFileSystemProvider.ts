@@ -258,12 +258,16 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 
 			// Rename over existing to ensure atomic replace
-			await this.rename(tempResource, resource, { overwrite: opts.overwrite });
+			await this.rename(tempResource, resource, { overwrite: true });
 
 		} catch (error) {
 
 			// Cleanup in case of rename error
-			await this.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
+			try {
+				await this.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
+			} catch (error) {
+				// ignore - we want the outer error to bubble up
+			}
 
 			throw error;
 		}
@@ -583,12 +587,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		try {
 			const filePath = this.toFilePath(resource);
 			if (opts.recursive) {
-				let atomicDeleteTarget: string | undefined = undefined;
+				let rmMoveToPath: string | undefined = undefined;
 				if (opts?.atomic !== false && opts.atomic.postfix) {
-					atomicDeleteTarget = join(dirname(filePath), `${basename(filePath)}${opts.atomic.postfix}`);
+					rmMoveToPath = join(dirname(filePath), `${basename(filePath)}${opts.atomic.postfix}`);
 				}
 
-				await Promises.rm(filePath, RimRafMode.MOVE, atomicDeleteTarget);
+				await Promises.rm(filePath, RimRafMode.MOVE, rmMoveToPath);
 			} else {
 				try {
 					await Promises.unlink(filePath);

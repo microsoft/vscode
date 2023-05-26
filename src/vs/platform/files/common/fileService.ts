@@ -988,7 +988,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		if (useTrash && atomic) {
-			throw new Error(localize('deleteFailedTrashAndAtomicUnsupported', "Unable to delete file '{0}' with option to use trash and atomic both enabled.", this.resourceForError(resource)));
+			throw new Error(localize('deleteFailedTrashAndAtomicUnsupported', "Unable to atomically delete file '{0}' because using trash is enabled.", this.resourceForError(resource)));
 		}
 
 		// Validate delete
@@ -1167,7 +1167,11 @@ export class FileService extends Disposable implements IFileService {
 		} catch (error) {
 
 			// Cleanup in case of rename error
-			await provider.delete(resource, { recursive: false, useTrash: false, atomic: false });
+			try {
+				await provider.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
+			} catch (error) {
+				// ignore - we want the outer error to bubble up
+			}
 
 			throw error;
 		}
