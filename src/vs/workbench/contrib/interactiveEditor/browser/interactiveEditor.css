@@ -90,10 +90,14 @@
 /* status */
 
 .monaco-editor .interactive-editor .status {
-	margin-top: 4px;
+	margin-top: 3px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
+}
+
+.monaco-editor .interactive-editor .status.actions {
+	margin-top: 6px;
 }
 
 .monaco-editor .interactive-editor .status .actions.hidden {

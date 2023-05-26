@@ -423,6 +423,7 @@ export class InteractiveEditorWidget {
 	updateToolbar(show: boolean) {
 		this._elements.statusToolbar.classList.toggle('hidden', !show);
 		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
+		this._elements.status.classList.toggle('actions', show);
 		this._onDidChangeHeight.fire();
 	}
 
