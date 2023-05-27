@@ -114,10 +114,10 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// Trigger backup if configured and enabled for shutdown reason
 		let backups: IWorkingCopy[] = [];
 		let backupError: Error | undefined = undefined;
-		const copiesToBackup = await this.shouldBackupBeforeShutdown(reason, modifiedWorkingCopies);
-		if (copiesToBackup.length > 0) {
+		const modifiedWorkingCopiesToBackup = await this.shouldBackupBeforeShutdown(reason, modifiedWorkingCopies);
+		if (modifiedWorkingCopiesToBackup.length > 0) {
 			try {
-				const backupResult = await this.backupBeforeShutdown(copiesToBackup);
+				const backupResult = await this.backupBeforeShutdown(modifiedWorkingCopiesToBackup);
 				backups = backupResult.backups;
 				backupError = backupResult.error;
 
@@ -163,47 +163,51 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 	}
 
 	private async shouldBackupBeforeShutdown(reason: ShutdownReason, modifiedWorkingCopies: readonly IWorkingCopy[]): Promise<readonly IWorkingCopy[]> {
-
 		if (!this.filesConfigurationService.isHotExitEnabled) {
 			return []; // never backup when hot exit is disabled via settings
-		} else if (this.environmentService.isExtensionDevelopment) {
+		}
+
+		if (this.environmentService.isExtensionDevelopment) {
 			return modifiedWorkingCopies; // always backup closing extension development window without asking to speed up debugging
-		} else {
+		}
 
-			// When quit is requested skip the confirm callback and attempt to backup all workspaces.
-			// When quit is not requested the confirm callback should be shown when the window being
-			// closed is the only VS Code window open, except for on Mac where hot exit is only
-			// ever activated when quit is requested.
+		switch (reason) {
 
-			switch (reason) {
-				case ShutdownReason.CLOSE:
-					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-						return modifiedWorkingCopies; // backup if a folder is open and onExitAndWindowClose is configured
-					} else if (await this.nativeHostService.getWindowCount() > 1 || isMacintosh) {
-						if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration !== HotExitConfiguration.OFF) {
-							return modifiedWorkingCopies.filter(wc => wc.capabilities & WorkingCopyCapabilities.Scratchpad); // only backup scratchpad working copies
-						}
-						return []; // do not backup if a window is closed that does not cause quitting of the application
-					} else {
-						return modifiedWorkingCopies; // backup if last window is closed on win/linux where the application quits right after
-					}
-				case ShutdownReason.QUIT:
-					return modifiedWorkingCopies; // backup because next start we restore all backups
+			// Window Close
+			case ShutdownReason.CLOSE:
+				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+					return modifiedWorkingCopies; // backup if a workspace/folder is open and onExitAndWindowClose is configured
+				}
 
-				case ShutdownReason.RELOAD:
-					return modifiedWorkingCopies; // backup because after window reload, backups restore
-
-				case ShutdownReason.LOAD:
+				if (isMacintosh || await this.nativeHostService.getWindowCount() > 1) {
 					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-						if (this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-							return modifiedWorkingCopies; // backup if a folder is open and onExitAndWindowClose is configured
-						} else {
-							return modifiedWorkingCopies.filter(wc => wc.capabilities & WorkingCopyCapabilities.Scratchpad); // only backup scratchpads because we are switching contexts
-						}
-					} else {
-						return []; // do not backup because we are switching contexts with no folder open
+						return modifiedWorkingCopies.filter(modifiedWorkingCopy => modifiedWorkingCopy.capabilities & WorkingCopyCapabilities.Scratchpad); // backup scratchpads automatically to avoid user confirmation
 					}
-			}
+
+					return []; // do not backup if a window is closed that does not cause quitting of the application
+				}
+
+				return modifiedWorkingCopies; // backup if last window is closed on win/linux where the application quits right after
+
+			// Application Quit
+			case ShutdownReason.QUIT:
+				return modifiedWorkingCopies; // backup because next start we restore all backups
+
+			// Window Reload
+			case ShutdownReason.RELOAD:
+				return modifiedWorkingCopies; // backup because after window reload, backups restore
+
+			// Workspace Change
+			case ShutdownReason.LOAD:
+				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+					if (this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+						return modifiedWorkingCopies; // backup if a workspace/folder is open and onExitAndWindowClose is configured
+					}
+
+					return modifiedWorkingCopies.filter(modifiedWorkingCopy => modifiedWorkingCopy.capabilities & WorkingCopyCapabilities.Scratchpad); // backup scratchpads automatically to avoid user confirmation
+				}
+
+				return []; // do not backup because we are switching contexts with no workspace/folder open
 		}
 	}
 
