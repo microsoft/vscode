@@ -16,6 +16,7 @@ import { IpcMainEvent } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
+import { deepClone } from 'vs/base/common/objects';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
 
@@ -78,6 +79,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 
 	private _createPtyHostConfiguration(lastPtyId: number) {
 		return {
+			...deepClone(process.env),
 			VSCODE_LAST_PTY_ID: String(lastPtyId),
 			VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
