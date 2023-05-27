@@ -1865,7 +1865,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 				el.appendChild(c);
 			} else if (typeof c === 'string') {
 				el.append(c);
-			} else {
+			} else if ('root' in c) {
 				Object.assign(result, c);
 				el.appendChild(c.root);
 			}

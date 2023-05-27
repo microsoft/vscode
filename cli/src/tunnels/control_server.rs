@@ -611,6 +611,7 @@ async fn handle_serve(
 ) -> Result<EmptyObject, AnyError> {
 	// fill params.extensions into code_server_args.install_extensions
 	let mut csa = c.code_server_args.clone();
+	csa.connection_token = params.connection_token;
 	csa.install_extensions.extend(params.extensions.into_iter());
 
 	let params_raw = ServerParamsRaw {
@@ -1034,8 +1035,7 @@ async fn handle_spawn_cli(
 
 	// CLI args to spawn a server; contracted with clients that they should _not_ provide these.
 	p.arg("--verbose");
-	p.arg("tunnel");
-	p.arg("stdio");
+	p.arg("command-shell");
 
 	p.envs(&params.env);
 	p.stdin(Stdio::piped());

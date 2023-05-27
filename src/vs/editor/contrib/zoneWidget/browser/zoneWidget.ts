@@ -331,6 +331,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this._overlayWidget = null;
 		}
 		this._arrow?.hide();
+		this._positionMarkerId.clear();
 	}
 
 	private _decoratingElementsHeight(): number {
@@ -431,7 +432,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const model = this.editor.getModel();
 		if (model) {
 			const range = model.validateRange(new Range(where.startLineNumber, 1, where.endLineNumber + 1, 1));
-			this.revealRange(range, range.endLineNumber === model.getLineCount());
+			this.revealRange(range, range.startLineNumber === model.getLineCount());
 		}
 	}
 

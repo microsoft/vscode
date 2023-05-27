@@ -44,7 +44,7 @@ export interface ITextResourceConfigurationService {
 	 *
 	 * @param resource - Resource for which the configuration has to be fetched.
 	 * @param position - Position in the resource for which configuration has to be fetched.
-	 * @param section - Section of the configuraion.
+	 * @param section - Section of the configuration.
 	 *
 	 */
 	getValue<T>(resource: URI | undefined, section?: string): T;
