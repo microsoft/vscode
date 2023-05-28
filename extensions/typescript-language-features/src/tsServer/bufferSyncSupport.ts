@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { vscodeNotebookCell } from '../configuration/fileSchemes';
+import { officeScript, vscodeNotebookCell } from '../configuration/fileSchemes';
 import * as languageModeIds from '../configuration/languageIds';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { inMemoryResourcePrefix } from '../typescriptServiceClient';
 import { coalesce } from '../utils/arrays';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
@@ -200,7 +201,7 @@ class SyncedBuffer {
 		const args: Proto.OpenRequestArgs = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
-			projectRootPath: this.client.getWorkspaceRootForResource(this.document.uri),
+			projectRootPath: this.getProjectRootPath(this.document.uri),
 		};
 
 		const scriptKind = mode2ScriptKind(this.document.languageId);
@@ -217,6 +218,16 @@ class SyncedBuffer {
 
 		this.synchronizer.open(this.resource, args);
 		this.state = BufferState.Open;
+	}
+
+	private getProjectRootPath(resource: vscode.Uri): string | undefined {
+		const workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+		if (workspaceRoot) {
+			const tsRoot = this.client.toTsFilePath(workspaceRoot);
+			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;
+		}
+
+		return resource.scheme === officeScript ? '/' : undefined;
 	}
 
 	public get resource(): vscode.Uri {
