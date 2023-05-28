@@ -90,7 +90,7 @@ suite('WorkspaceContextService - Folder', () => {
 		const uriIdentityService = new UriIdentityService(fileService);
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService), new SignService(undefined), new NullLogService()), uriIdentityService, new NullLogService(), new NullPolicyService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService), new SignService(TestProductService), new NullLogService()), uriIdentityService, new NullLogService(), new NullPolicyService()));
 		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 	});
 
@@ -133,7 +133,7 @@ suite('WorkspaceContextService - Folder', () => {
 		const uriIdentityService = new UriIdentityService(fileService);
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
-		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService), new SignService(undefined), new NullLogService()), uriIdentityService, new NullLogService(), new NullPolicyService()));
+		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService), new SignService(TestProductService), new NullLogService()), uriIdentityService, new NullLogService(), new NullPolicyService()));
 		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 
 		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a'));
@@ -156,7 +156,7 @@ suite('WorkspaceContextService - Folder', () => {
 		const uriIdentityService = new UriIdentityService(fileService);
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		const userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
-		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService), new SignService(undefined), new NullLogService()), uriIdentityService, new NullLogService(), new NullPolicyService()));
+		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfileService, userDataProfilesService, fileService, new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, new RemoteAuthorityResolverService(false, undefined, undefined, TestProductService, logService), new SignService(TestProductService), new NullLogService()), uriIdentityService, new NullLogService(), new NullPolicyService()));
 		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 
 

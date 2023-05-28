@@ -14,6 +14,7 @@ import { getDocumentDir } from '../../util/document';
 enum MediaKind {
 	Image,
 	Video,
+	Audio,
 }
 
 export const mediaFileExtensions = new Map<string, MediaKind>([
@@ -35,6 +36,11 @@ export const mediaFileExtensions = new Map<string, MediaKind>([
 	// Videos
 	['ogg', MediaKind.Video],
 	['mp4', MediaKind.Video],
+
+	// Audio Files
+	['mp3', MediaKind.Audio],
+	['aac', MediaKind.Audio],
+	['wav', MediaKind.Audio],
 ]);
 
 export const mediaMimes = new Set([
@@ -45,6 +51,9 @@ export const mediaMimes = new Set([
 	'image/webp',
 	'video/mp4',
 	'video/ogg',
+	'audio/mpeg',
+	'audio/aac',
+	'audio/x-wav',
 ]);
 
 
@@ -97,6 +106,7 @@ export function createUriListSnippet(
 
 	let insertedLinkCount = 0;
 	let insertedImageCount = 0;
+	let insertedAudioVideoCount = 0;
 
 	uris.forEach((uri, i) => {
 		const mdPath = getMdPath(dir, uri);
@@ -104,12 +114,18 @@ export function createUriListSnippet(
 		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
 		const insertAsMedia = typeof options?.insertAsMedia === 'undefined' ? mediaFileExtensions.has(ext) : !!options.insertAsMedia;
 		const insertAsVideo = mediaFileExtensions.get(ext) === MediaKind.Video;
+		const insertAsAudio = mediaFileExtensions.get(ext) === MediaKind.Audio;
 
 		if (insertAsVideo) {
-			insertedImageCount++;
+			insertedAudioVideoCount++;
 			snippet.appendText(`<video src="${mdPath}" controls title="`);
 			snippet.appendPlaceholder('Title');
 			snippet.appendText('"></video>');
+		} else if (insertAsAudio) {
+			insertedAudioVideoCount++;
+			snippet.appendText(`<audio src="${mdPath}" controls title="`);
+			snippet.appendPlaceholder('Title');
+			snippet.appendText('"></audio>');
 		} else {
 			if (insertAsMedia) {
 				insertedImageCount++;
@@ -132,7 +148,13 @@ export function createUriListSnippet(
 	});
 
 	let label: string;
-	if (insertedImageCount > 0 && insertedLinkCount > 0) {
+	if (insertedAudioVideoCount > 0) {
+		if (insertedLinkCount > 0) {
+			label = vscode.l10n.t('Insert Markdown Media and Links');
+		} else {
+			label = vscode.l10n.t('Insert Markdown Media');
+		}
+	} else if (insertedImageCount > 0 && insertedLinkCount > 0) {
 		label = vscode.l10n.t('Insert Markdown Images and Links');
 	} else if (insertedImageCount > 0) {
 		label = insertedImageCount > 1

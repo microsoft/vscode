@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./interactiveEditor';
@@ -29,7 +30,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 
 export abstract class EditModeStrategy {
 
-	dispose(): void { }
+	abstract dispose(): void;
 
 	abstract checkChanges(response: EditResponse): boolean;
 
@@ -67,7 +68,6 @@ export class PreviewStrategy extends EditModeStrategy {
 	override dispose(): void {
 		this._listener.dispose();
 		this._ctxDocumentChanged.reset();
-		super.dispose();
 	}
 
 	checkChanges(response: EditResponse): boolean {
@@ -201,10 +201,11 @@ class InlineDiffDecorations {
 export class LiveStrategy extends EditModeStrategy {
 
 	private static _inlineDiffStorageKey: string = 'interactiveEditor.storage.inlineDiff';
-	private _inlineDiffEnabled: boolean = false;
+	protected _diffEnabled: boolean = false;
 
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
-	protected readonly _ctxShowingDiff: IContextKey<boolean>;
+	private readonly _ctxShowingDiff: IContextKey<boolean>;
+	private readonly _diffToggleListener: IDisposable;
 	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
 
@@ -219,28 +220,34 @@ export class LiveStrategy extends EditModeStrategy {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
-		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
-		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
+		this._diffEnabled = _storageService.getBoolean(LiveStrategy._inlineDiffStorageKey, StorageScope.PROFILE, true);
 
-		this._inlineDiffEnabled = _storageService.getBoolean(LiveStrategy._inlineDiffStorageKey, StorageScope.PROFILE, false);
-		this._ctxShowingDiff.set(this._inlineDiffEnabled);
-		this._inlineDiffDecorations.visible = this._inlineDiffEnabled;
+		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._diffEnabled);
+		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
+		this._ctxShowingDiff.set(this._diffEnabled);
+		this._inlineDiffDecorations.visible = this._diffEnabled;
+		this._diffToggleListener = ModifierKeyEmitter.getInstance().event(e => {
+			if (e.altKey || e.lastKeyReleased === 'alt') {
+				this.toggleDiff();
+			}
+		});
 	}
 
 	override dispose(): void {
-		this._inlineDiffEnabled = this._inlineDiffDecorations.visible;
-		this._storageService.store(LiveStrategy._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
+		this._diffToggleListener.dispose();
 		this._inlineDiffDecorations.clear();
 		this._ctxShowingDiff.reset();
-
-		super.dispose();
 	}
 
 	toggleDiff(): void {
-		this._inlineDiffEnabled = !this._inlineDiffEnabled;
-		this._ctxShowingDiff.set(this._inlineDiffEnabled);
-		this._inlineDiffDecorations.visible = this._inlineDiffEnabled;
-		this._storageService.store(LiveStrategy._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
+		this._diffEnabled = !this._diffEnabled;
+		this._ctxShowingDiff.set(this._diffEnabled);
+		this._storageService.store(LiveStrategy._inlineDiffStorageKey, this._diffEnabled, StorageScope.PROFILE, StorageTarget.USER);
+		this._doToggleDiff();
+	}
+
+	protected _doToggleDiff(): void {
+		this._inlineDiffDecorations.visible = this._diffEnabled;
 	}
 
 	checkChanges(response: EditResponse): boolean {
@@ -319,11 +326,11 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 		let message: string;
 		if (linesChanged === 0) {
-			message = localize('lines.0', "Generated reply");
+			message = localize('lines.0', "Nothing changed");
 		} else if (linesChanged === 1) {
-			message = localize('lines.1', "Generated reply and changed 1 line");
+			message = localize('lines.1', "Changed 1 line");
 		} else {
-			message = localize('lines.N', "Generated reply and changed {0} lines", linesChanged);
+			message = localize('lines.N', "Changed {0} lines", linesChanged);
 		}
 		this._widget.updateStatus(message);
 	}
@@ -364,9 +371,10 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override async renderChanges(response: EditResponse) {
 
-		this._diffZone.show();
 		this._updateSummaryMessage();
-		this._ctxShowingDiff.set(true);
+		if (this._diffEnabled) {
+			this._diffZone.show();
+		}
 
 		if (response.singleCreateFileEdit) {
 			this._previewZone.showCreation(this._session.wholeRange, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
@@ -375,15 +383,12 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 	}
 
-	override toggleDiff(): void {
-		// TODO@jrieken should this be persisted like we do in live-mode?
+	protected override _doToggleDiff(): void {
 		const scrollState = StableEditorScrollState.capture(this._editor);
-		if (this._diffZone.isVisible) {
-			this._diffZone.hide();
-			this._ctxShowingDiff.set(false);
-		} else {
+		if (this._diffEnabled) {
 			this._diffZone.show();
-			this._ctxShowingDiff.set(true);
+		} else {
+			this._diffZone.hide();
 		}
 		scrollState.restore(this._editor);
 	}

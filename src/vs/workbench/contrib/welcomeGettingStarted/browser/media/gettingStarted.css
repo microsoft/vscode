@@ -678,6 +678,7 @@
 	padding: 0 2px 2px;
 	margin: 10px;
 	z-index: 1;
+	display: none;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .prev-button.button-link {

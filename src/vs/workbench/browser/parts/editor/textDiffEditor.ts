@@ -7,13 +7,12 @@ import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
 import { isObject, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput, isTextEditorViewState, createTooLargeFileError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -37,17 +36,17 @@ import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLar
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
  */
 export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> implements ITextDiffEditorPane {
-
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
+	private static widgetCounter = 0; // Just for debugging
 
-	private diffEditorControl: DiffEditorWidget | undefined = undefined;
+	private diffEditorControl: IDiffEditor | undefined = undefined;
 
-	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
 
 	private inputLifecycleStopWatch: StopWatch | undefined = undefined;
@@ -86,7 +85,18 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): void {
-		this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {}));
+		TextDiffEditor.widgetCounter++;
+		let useVersion2 = this.textResourceConfigurationService.getValue(undefined, 'diffEditor.experimental.useVersion2');
+		if (useVersion2 === 'first') {
+			// This allows to have both the old and new diff editor next to each other - just for debugging
+			useVersion2 = TextDiffEditor.widgetCounter === 1;
+		}
+
+		if (useVersion2) {
+			this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget2, parent, configuration, {}));
+		} else {
+			this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {}));
+		}
 	}
 
 	protected updateEditorControlOptions(options: ICodeEditorOptions): void {
@@ -137,12 +147,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				optionsGotApplied = applyTextEditorOptions(options, control, ScrollType.Immediate);
 			}
 
-			// Diff navigator
-			this.diffNavigator = this.instantiationService.createInstance(DiffNavigator, control, {
-				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState, // only reveal first change if we had no options or viewstate
-				findResultLoop: this.getMainControl()?.getOption(EditorOption.find).loop
-			});
-			this.diffNavigatorDisposables.add(this.diffNavigator);
+			if (!optionsGotApplied && !hasPreviousViewState) {
+				control.revealFirstDiff();
+			}
 
 			// Since the resolved model provides information about being readonly
 			// or not, we apply it here to the editor even though the editor input
@@ -333,10 +340,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			editorVisibleTimeMs: duration,
 			languageId: languageId ?? '',
 		});
-	}
-
-	getDiffNavigator(): DiffNavigator | undefined {
-		return this.diffNavigator;
 	}
 
 	override getControl(): IDiffEditor | undefined {

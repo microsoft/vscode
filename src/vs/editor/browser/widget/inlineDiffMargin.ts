@@ -16,6 +16,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
+import { isIOS } from 'vs/base/common/platform';
 
 export interface IDiffLinesChange {
 	readonly originalStartLineNumber: number;
@@ -145,8 +146,11 @@ export class InlineDiffMargin extends Disposable {
 			}));
 		}
 
+		const useShadowDOM = editor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
+
 		const showContextMenu = (x: number, y: number) => {
 			this._contextMenuService.showContextMenu({
+				domForShadowRoot: useShadowDOM ? editor.getDomNode() ?? undefined : undefined,
 				getAnchor: () => {
 					return {
 						x,

@@ -794,6 +794,13 @@ export interface IDiffEditorBaseOptions {
 	 * Whether the diff editor aria label should be verbose.
 	 */
 	accessibilityVerbose?: boolean;
+
+	experimental?: {
+		/**
+		 * Defaults to false.
+		 */
+		collapseUnchangedRegions?: boolean;
+	};
 }
 
 /**
@@ -5077,7 +5084,7 @@ export const EditorOptions = {
 	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
 		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', false,
 		{
-			description: nls.localize('screenReaderAnnounceInlineSuggestion', "Control whether inline suggestions are announced by a screen reader. Note that this does not work on macOS with VoiceOver."),
+			description: nls.localize('screenReaderAnnounceInlineSuggestion', "Control whether inline suggestions are announced by a screen reader."),
 			tags: ['accessibility']
 		}
 	)),
