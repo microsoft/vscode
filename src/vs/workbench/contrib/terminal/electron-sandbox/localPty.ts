@@ -75,6 +75,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		}
 		this._localPtyService.resize(this.id, cols, rows);
 	}
+	async clearBuffer(): Promise<void> {
+		this._localPtyService.clearBuffer?.(this.id);
+	}
 	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
 		if (!this._localPtyService.freePortKillProcess) {
 			throw new Error('freePortKillProcess does not exist on the local pty service');
@@ -158,9 +161,5 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 
 	handleOrphanQuestion() {
 		this._localPtyService.orphanQuestionReply(this.id);
-	}
-
-	async clearBuffer(): Promise<void> {
-		this._localPtyService.clearBuffer?.(this.id);
 	}
 }

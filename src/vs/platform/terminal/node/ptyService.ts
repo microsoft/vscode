@@ -757,6 +757,9 @@ class PersistentTerminalProcess extends Disposable {
 		}
 		return this._terminalProcess.resize(cols, rows);
 	}
+	async clearBuffer(): Promise<void> {
+		this._serializer.clearBuffer();
+	}
 	setUnicodeVersion(version: '6' | '11'): void {
 		this.unicodeVersion = version;
 		this._serializer.setUnicodeVersion?.(version);
@@ -776,9 +779,6 @@ class PersistentTerminalProcess extends Disposable {
 	}
 	getLatency(): Promise<number> {
 		return this._terminalProcess.getLatency();
-	}
-	async clearBuffer(): Promise<void> {
-		this._serializer.clearBuffer();
 	}
 
 	async triggerReplay(): Promise<void> {
@@ -922,6 +922,10 @@ class XtermSerializer implements ITerminalSerializer {
 		this._xterm.resize(cols, rows);
 	}
 
+	clearBuffer(): void {
+		this._xterm.clear();
+	}
+
 	async generateReplayEvent(normalBufferOnly?: boolean, restoreToLastReviveBuffer?: boolean): Promise<IPtyHostProcessReplayEvent> {
 		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
@@ -977,10 +981,6 @@ class XtermSerializer implements ITerminalSerializer {
 		}
 		return SerializeAddon;
 	}
-
-	clearBuffer(): void {
-		this._xterm.clear();
-	}
 }
 
 function printTime(ms: number): string {
@@ -1010,7 +1010,7 @@ interface ITerminalSerializer {
 	handleData(data: string): void;
 	freeRawReviveBuffer(): void;
 	handleResize(cols: number, rows: number): void;
+	clearBuffer(): void;
 	generateReplayEvent(normalBufferOnly?: boolean, restoreToLastReviveBuffer?: boolean): Promise<IPtyHostProcessReplayEvent>;
 	setUnicodeVersion?(version: '6' | '11'): void;
-	clearBuffer(): void;
 }
