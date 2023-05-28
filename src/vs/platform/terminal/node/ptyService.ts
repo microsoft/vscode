@@ -257,6 +257,10 @@ export class PtyService extends Disposable implements IPtyService {
 		this._throwIfNoPty(id).setIcon(userInitiated, icon, color);
 	}
 
+	async clearBuffer(id: number): Promise<void> {
+		this._throwIfNoPty(id).clearBuffer();
+	}
+
 	async refreshProperty<T extends ProcessPropertyType>(id: number, type: T): Promise<IProcessPropertyMap[T]> {
 		return this._throwIfNoPty(id).refreshProperty(type);
 	}
@@ -773,6 +777,9 @@ class PersistentTerminalProcess extends Disposable {
 	getLatency(): Promise<number> {
 		return this._terminalProcess.getLatency();
 	}
+	async clearBuffer(): Promise<void> {
+		this._serializer.clearBuffer();
+	}
 
 	async triggerReplay(): Promise<void> {
 		if (this._interactionState.value === InteractionState.None) {
@@ -970,6 +977,10 @@ class XtermSerializer implements ITerminalSerializer {
 		}
 		return SerializeAddon;
 	}
+
+	clearBuffer(): void {
+		this._xterm.clear();
+	}
 }
 
 function printTime(ms: number): string {
@@ -1001,4 +1012,5 @@ interface ITerminalSerializer {
 	handleResize(cols: number, rows: number): void;
 	generateReplayEvent(normalBufferOnly?: boolean, restoreToLastReviveBuffer?: boolean): Promise<IPtyHostProcessReplayEvent>;
 	setUnicodeVersion?(version: '6' | '11'): void;
+	clearBuffer(): void;
 }

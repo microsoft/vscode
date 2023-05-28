@@ -159,4 +159,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	handleOrphanQuestion() {
 		this._localPtyService.orphanQuestionReply(this.id);
 	}
+
+	async clearBuffer(): Promise<void> {
+		this._localPtyService.clearBuffer?.(this.id);
+	}
 }

@@ -401,6 +401,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): Promise<void>;
 	getBackendOS(): Promise<OperatingSystem>;
 	freePortKillProcess(port: string): Promise<void>;
+	clearBuffer(): Promise<void>;
 }
 
 export const enum ProcessState {

@@ -254,6 +254,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._proxy.acknowledgeDataEvent(id, charCount);
 	}
+	clearBuffer(id: number): Promise<void> {
+		return this._proxy.clearBuffer(id);
+	}
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
 		return this._proxy.setUnicodeVersion(id, version);
 	}
