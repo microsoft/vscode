@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, ByteSize, getPlatformLimits, Arch } from 'vs/platform/files/common/files';
+import { IFileService, IFileReadLimits } from 'vs/platform/files/common/files';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -18,7 +17,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -44,7 +42,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
@@ -54,7 +51,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@ILogService logService: ILogService,
 		@IDecorationsService decorationsService: IDecorationsService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, languageService, logService, elevatedFileService, decorationsService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, languageService, logService, elevatedFileService, decorationsService);
 
 		this.environmentService = environmentService;
 
@@ -81,7 +78,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 	override async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 
-		// ensure size & memory limits
+		// ensure platform limits are applied
 		options = this.ensureLimits(options);
 
 		return super.read(resource, options);
@@ -89,7 +86,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 
-		// ensure size & memory limits
+		// ensure platform limits are applied
 		options = this.ensureLimits(options);
 
 		return super.readStream(resource, options);
@@ -103,25 +100,19 @@ export class NativeTextFileService extends AbstractTextFileService {
 			ensuredOptions = options;
 		}
 
-		let ensuredLimits: { size?: number; memory?: number };
+		let ensuredLimits: IFileReadLimits;
 		if (!ensuredOptions.limits) {
 			ensuredLimits = Object.create(null);
-			ensuredOptions.limits = ensuredLimits;
+			ensuredOptions = {
+				...ensuredOptions,
+				limits: ensuredLimits
+			};
 		} else {
 			ensuredLimits = ensuredOptions.limits;
-		}
-
-		if (typeof ensuredLimits.size !== 'number') {
-			ensuredLimits.size = getPlatformLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxFileSize;
-		}
-
-		if (typeof ensuredLimits.memory !== 'number') {
-			const maxMemory = this.environmentService.args['max-memory'];
-			ensuredLimits.memory = Math.max(typeof maxMemory === 'string' ? parseInt(maxMemory) * ByteSize.MB || 0 : 0, getPlatformLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxHeapSize);
 		}
 
 		return ensuredOptions;
 	}
 }
 
-registerSingleton(ITextFileService, NativeTextFileService);
+registerSingleton(ITextFileService, NativeTextFileService, InstantiationType.Eager);

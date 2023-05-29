@@ -216,6 +216,13 @@ export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoa
 			}
 		})();
 	} else {
-		req([name + suffix], messagesLoaded);
+		req([name + suffix], messagesLoaded, (err: Error) => {
+			if (suffix === '.nls') {
+				console.error('Failed trying to load default language strings', err);
+				return;
+			}
+			console.error(`Failed to load message bundle for language ${language}. Falling back to the default language:`, err);
+			req([name + '.nls'], messagesLoaded);
+		});
 	}
 }

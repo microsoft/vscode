@@ -8,8 +8,8 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
-import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
@@ -55,7 +55,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._startBarrier = new Barrier();
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
+	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		// Fetch the environment to check shell permissions
 		const env = await this._remoteAgentService.getEnvironment();
 		if (!env) {
@@ -67,18 +67,18 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 		const startResult = await this._remoteTerminalChannel.start(this._id);
 
-		if (typeof startResult !== 'undefined') {
+		if (startResult && 'message' in startResult) {
 			// An error occurred
 			return startResult;
 		}
 
 		this._startBarrier.open();
-		return undefined;
+		return startResult;
 	}
 
-	async detach(): Promise<void> {
+	async detach(forcePersist?: boolean): Promise<void> {
 		await this._startBarrier.wait();
-		return this._remoteTerminalChannel.detachFromProcess(this.id);
+		return this._remoteTerminalChannel.detachFromProcess(this.id, forcePersist);
 	}
 
 	shutdown(immediate: boolean): void {
@@ -105,6 +105,13 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 			this._remoteTerminalChannel.resize(this._id, cols, rows);
 		});
+	}
+
+	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		if (!this._remoteTerminalChannel.freePortKillProcess) {
+			throw new Error('freePortKillProcess does not exist on the local pty service');
+		}
+		return this._remoteTerminalChannel.freePortKillProcess(port);
 	}
 
 	acknowledgeDataEvent(charCount: number): void {

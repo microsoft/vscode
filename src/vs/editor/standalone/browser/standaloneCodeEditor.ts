@@ -13,7 +13,6 @@ import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/edit
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -133,7 +132,7 @@ export interface IGlobalEditorOptions {
 	 */
 	'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
 	/**
-	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+	 * Keep peek editors open even when double-clicking their content or when hitting `Escape`.
 	 * Defaults to false.
 	 */
 	stablePeek?: boolean;
@@ -328,7 +327,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
+		const run = (_accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
 			return Promise.resolve(_descriptor.run(this, ...args));
 		};
 
@@ -368,14 +367,14 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			label,
 			label,
 			precondition,
-			run,
+			(...args: unknown[]) => Promise.resolve(_descriptor.run(this, ...args)),
 			this._contextKeyService
 		);
 
 		// Store it under the original id, such that trigger with the original id will work
-		this._actions[id] = internalAction;
+		this._actions.set(id, internalAction);
 		toDispose.add(toDisposable(() => {
-			delete this._actions[id];
+			this._actions.delete(id);
 		}));
 
 		return toDispose;
@@ -471,7 +470,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	override _postDetachModelCleanup(detachedModel: ITextModel): void {
+	protected override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();
@@ -490,14 +489,13 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		_options: Readonly<IStandaloneDiffEditorConstructionOptions> | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService,
+		@IClipboardService clipboardService: IClipboardService
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
@@ -509,7 +507,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
-		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;

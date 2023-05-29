@@ -28,6 +28,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
@@ -39,7 +40,8 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	closeEmptyGroups: true,
 	labelFormat: 'default',
 	splitSizing: 'distribute',
-	splitOnDragAndDrop: true
+	splitOnDragAndDrop: true,
+	centeredLayoutFixedWidth: false,
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
@@ -134,8 +136,6 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly whenRestored: Promise<void>;
 
 	readonly titleHeight: IEditorGroupTitleHeight;
-
-	readonly isMinimized: boolean;
 
 	readonly disposed: boolean;
 

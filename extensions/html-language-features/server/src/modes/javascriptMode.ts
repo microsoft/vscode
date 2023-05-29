@@ -93,6 +93,10 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 	};
 }
 
+const ignoredErrors = [
+	1108,  /* A_return_statement_can_only_be_used_within_a_function_body_1108 */
+	2792, /* Cannot_find_module_0_Did_you_mean_to_set_the_moduleResolution_option_to_node_or_to_add_aliases_to_the_paths_option */
+];
 
 export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace): LanguageMode {
 	const jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
@@ -100,17 +104,24 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	const host = getLanguageServiceHost(languageId === 'javascript' ? ts.ScriptKind.JS : ts.ScriptKind.TS);
 	const globalSettings: Settings = {};
 
+	function updateHostSettings(settings: Settings) {
+		const hostSettings = host.getCompilationSettings();
+		hostSettings.experimentalDecorators = settings?.['js/ts']?.implicitProjectConfig?.experimentalDecorators;
+		hostSettings.strictNullChecks = settings?.['js/ts']?.implicitProjectConfig.strictNullChecks;
+	}
+
 	return {
 		getId() {
 			return languageId;
 		},
 		async doValidation(document: TextDocument, settings = workspace.settings): Promise<Diagnostic[]> {
-			host.getCompilationSettings()['experimentalDecorators'] = settings && settings.javascript && settings.javascript.implicitProjectConfig.experimentalDecorators;
+			updateHostSettings(settings);
+
 			const jsDocument = jsDocuments.get(document);
 			const languageService = await host.getLanguageService(jsDocument);
 			const syntaxDiagnostics: ts.Diagnostic[] = languageService.getSyntacticDiagnostics(jsDocument.uri);
 			const semanticDiagnostics = languageService.getSemanticDiagnostics(jsDocument.uri);
-			return syntaxDiagnostics.concat(semanticDiagnostics).filter(d => d.code !== 1108).map((diag: ts.Diagnostic): Diagnostic => {
+			return syntaxDiagnostics.concat(semanticDiagnostics).filter(d => !ignoredErrors.includes(d.code)).map((diag: ts.Diagnostic): Diagnostic => {
 				return {
 					range: convertRange(jsDocument, diag),
 					severity: DiagnosticSeverity.Error,

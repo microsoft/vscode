@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -35,4 +35,4 @@ export class EncryptionService implements IEncryptionService {
 	}
 }
 
-registerSingleton(IEncryptionService, EncryptionService, true);
+registerSingleton(IEncryptionService, EncryptionService, InstantiationType.Delayed);

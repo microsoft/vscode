@@ -11,7 +11,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
+import { CamelCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
@@ -786,6 +786,49 @@ suite('Editor Contrib - Line Operations', () => {
 
 		withTestCodeEditor(
 			[
+				'camel from words',
+				'from_snake_case',
+				'from-kebab-case',
+				'alreadyCamel',
+				'ReTain_any_CAPitalization',
+				'my_var.test_function()',
+				'öçş_öç_şğü_ğü'
+			], {}, (editor) => {
+				const model = editor.getModel()!;
+				const camelcaseAction = new CamelCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 18));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(1), 'camelFromWords');
+
+				editor.setSelection(new Selection(2, 1, 2, 15));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(2), 'fromSnakeCase');
+
+				editor.setSelection(new Selection(3, 1, 3, 15));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(3), 'fromKebabCase');
+
+				editor.setSelection(new Selection(4, 1, 4, 12));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(4), 'alreadyCamel');
+
+				editor.setSelection(new Selection(5, 1, 5, 26));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(5), 'ReTainAnyCAPitalization');
+
+				editor.setSelection(new Selection(6, 1, 6, 23));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(6), 'myVar.testFunction()');
+
+				editor.setSelection(new Selection(7, 1, 7, 14));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(7), 'öçşÖçŞğüĞü');
+			}
+		);
+
+		withTestCodeEditor(
+			[
 				'',
 				'   '
 			], {}, (editor) => {
@@ -812,6 +855,80 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(lowercaseAction, editor);
 				assert.strictEqual(model.getLineContent(2), '   ');
 				assertSelection(editor, new Selection(2, 2, 2, 2));
+			}
+		);
+
+		withTestCodeEditor(
+			[
+				'hello world',
+				'öçşğü',
+				'parseHTMLString',
+				'getElementById',
+				'PascalCase',
+				'öçşÖÇŞğüĞÜ',
+				'audioConverter.convertM4AToMP3();',
+				'Capital_Snake_Case',
+				'parseHTML4String',
+				'_accessor: ServicesAccessor',
+				'Kebab-Case',
+			], {}, (editor) => {
+				const model = editor.getModel()!;
+				const kebabCaseAction = new KebabCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(1), 'hello world');
+				assertSelection(editor, new Selection(1, 1, 1, 12));
+
+				editor.setSelection(new Selection(2, 1, 2, 6));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(2), 'öçşğü');
+				assertSelection(editor, new Selection(2, 1, 2, 6));
+
+				editor.setSelection(new Selection(3, 1, 3, 16));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(3), 'parse-html-string');
+				assertSelection(editor, new Selection(3, 1, 3, 18));
+
+				editor.setSelection(new Selection(4, 1, 4, 15));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(4), 'get-element-by-id');
+				assertSelection(editor, new Selection(4, 1, 4, 18));
+
+				editor.setSelection(new Selection(5, 1, 5, 11));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(5), 'pascal-case');
+				assertSelection(editor, new Selection(5, 1, 5, 12));
+
+				editor.setSelection(new Selection(6, 1, 6, 11));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(6), 'öçş-öç-şğü-ğü');
+				assertSelection(editor, new Selection(6, 1, 6, 14));
+
+				editor.setSelection(new Selection(7, 1, 7, 34));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(7), 'audio-converter.convert-m4a-to-mp3();');
+				assertSelection(editor, new Selection(7, 1, 7, 38));
+
+				editor.setSelection(new Selection(8, 1, 8, 19));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(8), 'capital-snake-case');
+				assertSelection(editor, new Selection(8, 1, 8, 19));
+
+				editor.setSelection(new Selection(9, 1, 9, 17));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(9), 'parse-html4-string');
+				assertSelection(editor, new Selection(9, 1, 9, 19));
+
+				editor.setSelection(new Selection(10, 1, 10, 28));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(10), '_accessor: services-accessor');
+				assertSelection(editor, new Selection(10, 1, 10, 29));
+
+				editor.setSelection(new Selection(11, 1, 11, 11));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(11), 'kebab-case');
+				assertSelection(editor, new Selection(11, 1, 11, 11));
 			}
 		);
 	});

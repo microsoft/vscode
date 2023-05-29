@@ -262,20 +262,3 @@ export interface ILifecycleService {
 	 */
 	shutdown(): Promise<void>;
 }
-
-export const NullLifecycleService: ILifecycleService = {
-
-	_serviceBrand: undefined,
-
-	onBeforeShutdown: Event.None,
-	onBeforeShutdownError: Event.None,
-	onShutdownVeto: Event.None,
-	onWillShutdown: Event.None,
-	onDidShutdown: Event.None,
-
-	phase: LifecyclePhase.Restored,
-	startupKind: StartupKind.NewWindow,
-
-	async when() { },
-	async shutdown() { }
-};

@@ -14,29 +14,32 @@ export interface ITelemetryData {
 }
 
 export type WorkbenchActionExecutedClassification = {
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
+	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the component the action was run from.' };
+	detail?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Optional details about how the action was run, e.g which keybinding was used.' };
 	owner: 'bpasero';
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	comment: 'Provides insight into actions that are executed within the workbench.';
 };
 
 export type WorkbenchActionExecutedEvent = {
 	id: string;
 	from: string;
+	detail?: string;
 };
 
-export interface IAction extends IDisposable {
+export interface IAction {
 	readonly id: string;
 	label: string;
 	tooltip: string;
 	class: string | undefined;
 	enabled: boolean;
 	checked?: boolean;
-	run(event?: unknown): unknown;
+	run(...args: unknown[]): unknown;
 }
 
 export interface IActionRunner extends IDisposable {
 	readonly onDidRun: Event<IRunEvent>;
-	readonly onBeforeRun: Event<IRunEvent>;
+	readonly onWillRun: Event<IRunEvent>;
 
 	run(action: IAction, context?: unknown): unknown;
 }
@@ -164,10 +167,10 @@ export interface IRunEvent {
 
 export class ActionRunner extends Disposable implements IActionRunner {
 
-	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onBeforeRun = this._onBeforeRun.event;
+	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
+	readonly onWillRun = this._onWillRun.event;
 
-	private _onDidRun = this._register(new Emitter<IRunEvent>());
+	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun = this._onDidRun.event;
 
 	async run(action: IAction, context?: unknown): Promise<void> {
@@ -175,7 +178,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 			return;
 		}
 
-		this._onBeforeRun.fire({ action });
+		this._onWillRun.fire({ action });
 
 		let error: Error | undefined = undefined;
 		try {
@@ -192,7 +195,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	}
 }
 
-export class Separator extends Action {
+export class Separator implements IAction {
 
 	/**
 	 * Joins all non-empty lists of actions with separators.
@@ -214,12 +217,14 @@ export class Separator extends Action {
 
 	static readonly ID = 'vs.actions.separator';
 
-	constructor(label?: string) {
-		super(Separator.ID, label, label ? 'separator text' : 'separator');
+	readonly id: string = Separator.ID;
 
-		this.checked = false;
-		this.enabled = false;
-	}
+	readonly label: string = '';
+	readonly tooltip: string = '';
+	readonly class: string = 'separator';
+	readonly enabled: boolean = false;
+	readonly checked: boolean = false;
+	async run() { }
 }
 
 export class SubmenuAction implements IAction {
@@ -239,12 +244,6 @@ export class SubmenuAction implements IAction {
 		this.label = label;
 		this.class = cssClass;
 		this._actions = actions;
-	}
-
-	dispose(): void {
-		// there is NOTHING to dispose and the SubmenuAction should
-		// never have anything to dispose as it is a convenience type
-		// to bridge into the rendering world.
 	}
 
 	async run(): Promise<void> { }
@@ -267,7 +266,6 @@ export function toAction(props: { id: string; label: string; enabled?: boolean; 
 		enabled: props.enabled ?? true,
 		checked: props.checked ?? false,
 		run: async () => props.run(),
-		tooltip: props.label,
-		dispose: () => { }
+		tooltip: props.label
 	};
 }

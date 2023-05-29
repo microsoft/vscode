@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getNodeFileFS } from './nodeFs';
-import { Disposable, ExtensionContext } from 'vscode';
-import { startClient, LanguageClientConstructor } from '../htmlClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
+import { Disposable, ExtensionContext, l10n } from 'vscode';
+import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
+import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
 import { TextDecoder } from 'util';
 import * as fs from 'fs';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
 
 let telemetry: TelemetryReporter | undefined;
-let client: BaseLanguageClient | undefined;
+let client: AsyncDisposable | undefined;
 
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 
 	const clientPackageJSON = getPackageInfo(context);
-	telemetry = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
+	telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
 
 	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/htmlServerMain`;
 	const serverModule = context.asAbsolutePath(serverMain);
@@ -45,12 +45,16 @@ export async function activate(context: ExtensionContext) {
 		}
 	};
 
+
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
+
 	client = await startClient(context, newLanguageClient, { fileFs: getNodeFileFS(), TextDecoder, telemetry, timer });
 }
 
 export async function deactivate(): Promise<void> {
 	if (client) {
-		await client.stop();
+		await client.dispose();
 		client = undefined;
 	}
 }

@@ -19,13 +19,15 @@ export function register(tree: SymbolsTree, context: vscode.ExtensionContext): v
 		}
 	}
 
-	function setTypeHierarchyDirection(value: TypeHierarchyDirection, anchor: TypeItem | unknown) {
+	function setTypeHierarchyDirection(value: TypeHierarchyDirection, anchor: TypeItem | vscode.Location | unknown) {
 		direction.value = value;
 
 		let newInput: TypesTreeInput | undefined;
 		const oldInput = tree.getInput();
 		if (anchor instanceof TypeItem) {
 			newInput = new TypesTreeInput(new vscode.Location(anchor.item.uri, anchor.item.selectionRange.start), direction.value);
+		} else if (anchor instanceof vscode.Location) {
+			newInput = new TypesTreeInput(anchor, direction.value);
 		} else if (oldInput instanceof TypesTreeInput) {
 			newInput = new TypesTreeInput(oldInput.location, direction.value);
 		}
@@ -36,8 +38,8 @@ export function register(tree: SymbolsTree, context: vscode.ExtensionContext): v
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('references-view.showTypeHierarchy', showTypeHierarchy),
-		vscode.commands.registerCommand('references-view.showSupertypes', (item: TypeItem | unknown) => setTypeHierarchyDirection(TypeHierarchyDirection.Supertypes, item)),
-		vscode.commands.registerCommand('references-view.showSubtypes', (item: TypeItem | unknown) => setTypeHierarchyDirection(TypeHierarchyDirection.Subtypes, item)),
+		vscode.commands.registerCommand('references-view.showSupertypes', (item: TypeItem | vscode.Location | unknown) => setTypeHierarchyDirection(TypeHierarchyDirection.Supertypes, item)),
+		vscode.commands.registerCommand('references-view.showSubtypes', (item: TypeItem | vscode.Location | unknown) => setTypeHierarchyDirection(TypeHierarchyDirection.Subtypes, item)),
 		vscode.commands.registerCommand('references-view.removeTypeItem', removeTypeItem)
 	);
 }

@@ -66,14 +66,14 @@ export class CommentThreadRangeDecorator extends Disposable {
 	}
 
 	private updateCurrent(thread: CommentThread<IRange> | undefined) {
-		if (!this.editor) {
+		if (!this.editor || (thread?.resource && (thread.resource?.toString() !== this.editor.getModel()?.uri.toString()))) {
 			return;
 		}
 		this.currentThreadCollapseStateListener?.dispose();
 		const newDecoration: CommentThreadRangeDecoration[] = [];
 		if (thread) {
 			const range = thread.range;
-			if (!((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn))) {
+			if (range && !((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn))) {
 				if (thread.collapsibleState === CommentThreadCollapsibleState.Expanded) {
 					this.currentThreadCollapseStateListener = thread.onDidChangeCollapsibleState(state => {
 						if (state === CommentThreadCollapsibleState.Collapsed) {
@@ -84,13 +84,15 @@ export class CommentThreadRangeDecorator extends Disposable {
 				}
 			}
 		}
-		this.activeDecorationIds = this.editor.deltaDecorations(this.activeDecorationIds, newDecoration);
-		newDecoration.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		this.editor.changeDecorations((changeAccessor) => {
+			this.activeDecorationIds = changeAccessor.deltaDecorations(this.activeDecorationIds, newDecoration);
+			newDecoration.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		});
 	}
 
-	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
-		const model = editor.getModel();
-		if (!model) {
+	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[]) {
+		const model = editor?.getModel();
+		if (!editor || !model) {
 			return;
 		}
 		dispose(this.threadCollapseStateListeners);
@@ -106,7 +108,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 				const range = thread.range;
 				// We only want to show a range decoration when there's the range spans either multiple lines
 				// or, when is spans multiple characters on the sample line
-				if ((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn)) {
+				if (!range || (range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn)) {
 					return;
 				}
 
@@ -122,8 +124,10 @@ export class CommentThreadRangeDecorator extends Disposable {
 			});
 		}
 
-		this.decorationIds = editor.deltaDecorations(this.decorationIds, commentThreadRangeDecorations);
-		commentThreadRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		editor.changeDecorations((changeAccessor) => {
+			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, commentThreadRangeDecorations);
+			commentThreadRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		});
 	}
 
 	override dispose() {

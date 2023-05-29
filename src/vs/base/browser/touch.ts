@@ -6,7 +6,8 @@
 import * as DomUtils from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export namespace EventType {
 	export const Tap = '-monaco-gesturetap';
@@ -71,11 +72,11 @@ export class Gesture extends Disposable {
 	private static readonly HOLD_DELAY = 700;
 
 	private dispatched = false;
-	private targets: HTMLElement[];
-	private ignoreTargets: HTMLElement[];
+	private readonly targets = new LinkedList<HTMLElement>();
+	private readonly ignoreTargets = new LinkedList<HTMLElement>();
 	private handle: IDisposable | null;
 
-	private activeTouches: { [id: number]: TouchData };
+	private readonly activeTouches: { [id: number]: TouchData };
 
 	private _lastSetTapCountTime: number;
 
@@ -87,8 +88,6 @@ export class Gesture extends Disposable {
 
 		this.activeTouches = {};
 		this.handle = null;
-		this.targets = [];
-		this.ignoreTargets = [];
 		this._lastSetTapCountTime = 0;
 		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
 		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
@@ -103,13 +102,8 @@ export class Gesture extends Disposable {
 			Gesture.INSTANCE = new Gesture();
 		}
 
-		Gesture.INSTANCE.targets.push(element);
-
-		return {
-			dispose: () => {
-				Gesture.INSTANCE.targets = Gesture.INSTANCE.targets.filter(t => t !== element);
-			}
-		};
+		const remove = Gesture.INSTANCE.targets.push(element);
+		return toDisposable(remove);
 	}
 
 	public static ignoreTarget(element: HTMLElement): IDisposable {
@@ -120,13 +114,8 @@ export class Gesture extends Disposable {
 			Gesture.INSTANCE = new Gesture();
 		}
 
-		Gesture.INSTANCE.ignoreTargets.push(element);
-
-		return {
-			dispose: () => {
-				Gesture.INSTANCE.ignoreTargets = Gesture.INSTANCE.ignoreTargets.filter(t => t !== element);
-			}
-		};
+		const remove = Gesture.INSTANCE.ignoreTargets.push(element);
+		return toDisposable(remove);
 	}
 
 	@memoize
@@ -224,7 +213,7 @@ export class Gesture extends Disposable {
 				const deltaY = finalY - data.rollingPageY[0];
 
 				// We need to get all the dispatch targets on the start of the inertia event
-				const dispatchTo = this.targets.filter(t => data.initialTarget instanceof Node && t.contains(data.initialTarget));
+				const dispatchTo = [...this.targets].filter(t => data.initialTarget instanceof Node && t.contains(data.initialTarget));
 				this.inertia(dispatchTo, timestamp,		// time now
 					Math.abs(deltaX) / deltaT,	// speed
 					deltaX > 0 ? 1 : -1,		// x direction
@@ -273,21 +262,23 @@ export class Gesture extends Disposable {
 			this._lastSetTapCountTime = 0;
 		}
 
-		for (let i = 0; i < this.ignoreTargets.length; i++) {
-			if (event.initialTarget instanceof Node && this.ignoreTargets[i].contains(event.initialTarget)) {
-				return;
+		if (event.initialTarget instanceof Node) {
+			for (const ignoreTarget of this.ignoreTargets) {
+				if (ignoreTarget.contains(event.initialTarget)) {
+					return;
+				}
+			}
+
+			for (const target of this.targets) {
+				if (target.contains(event.initialTarget)) {
+					target.dispatchEvent(event);
+					this.dispatched = true;
+				}
 			}
 		}
-
-		this.targets.forEach(target => {
-			if (event.initialTarget instanceof Node && target.contains(event.initialTarget)) {
-				target.dispatchEvent(event);
-				this.dispatched = true;
-			}
-		});
 	}
 
-	private inertia(dispatchTo: EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
+	private inertia(dispatchTo: readonly EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
 		this.handle = DomUtils.scheduleAtNextAnimationFrame(() => {
 			const now = Date.now();
 

@@ -18,7 +18,7 @@ import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/commo
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -30,7 +30,6 @@ import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/commo
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -81,10 +80,11 @@ export interface ExtensionUrlHandlerEvent {
 	readonly extensionId: string;
 }
 
-export interface ExtensionUrlHandlerClassification extends GDPRClassification<ExtensionUrlHandlerEvent> {
+type ExtensionUrlHandlerClassification = {
 	owner: 'joaomoreno';
-	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-}
+	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
+	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
+};
 
 /**
  * This class handles URLs which are directed towards extensions.
@@ -170,8 +170,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					label: localize('rememberConfirmUrl', "Don't ask again for this extension."),
 				},
 				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URI:\n\n${uriString}`,
-				primaryButton: localize('open', "&&Open"),
-				type: 'question'
+				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")
 			});
 
 			if (!result.confirmed) {
@@ -257,8 +256,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			const result = await this.dialogService.confirm({
 				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and open this URL?", galleryExtension.displayName || galleryExtension.name),
 				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('install and open', "&&Install and Open"),
-				type: 'question'
+				primaryButton: localize({ key: 'install and open', comment: ['&& denotes a mnemonic'] }, "&&Install and Open")
 			});
 
 			if (!result.confirmed) {
@@ -285,8 +283,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			const result = await this.dialogService.confirm({
 				message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
 				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('enableAndReload', "&&Enable and Open"),
-				type: 'question'
+				primaryButton: localize({ key: 'enableAndReload', comment: ['&& denotes a mnemonic'] }, "&&Enable and Open")
 			});
 
 			if (!result.confirmed) {
@@ -309,8 +306,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			const result = await this.dialogService.confirm({
 				message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
 				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
-				type: 'question'
+				primaryButton: localize({ key: 'reloadAndOpen', comment: ['&& denotes a mnemonic'] }, "&&Reload Window and Open")
 			});
 
 			if (!result.confirmed) {
@@ -382,7 +378,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 }
 
-registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
+registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler, InstantiationType.Eager);
 
 /**
  * This class handles URLs before `ExtensionUrlHandler` is instantiated.

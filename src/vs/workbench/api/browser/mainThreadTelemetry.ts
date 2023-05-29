@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTelemetryShape, MainContext, MainThreadTelemetryShape } from '../common/extHost.protocol';
@@ -21,20 +22,22 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTelemetry);
 
 		if (supportsTelemetry(this._productService, this._environmentService)) {
-			this._register(_telemetryService.telemetryLevel.onDidChange(level => {
-				this._proxy.$onDidChangeTelemetryLevel(level);
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)) {
+					this._proxy.$onDidChangeTelemetryLevel(this.telemetryLevel);
+				}
 			}));
 		}
-
-		this._proxy.$initializeTelemetryLevel(this.telemetryLevel, this._productService.enabledTelemetryLevels);
+		this._proxy.$initializeTelemetryLevel(this.telemetryLevel, supportsTelemetry(this._productService, this._environmentService), this._productService.enabledTelemetryLevels);
 	}
 
 	private get telemetryLevel(): TelemetryLevel {
@@ -42,7 +45,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 			return TelemetryLevel.NONE;
 		}
 
-		return this._telemetryService.telemetryLevel.value;
+		return this._telemetryService.telemetryLevel;
 	}
 
 	$publicLog(eventName: string, data: any = Object.create(null)): void {
@@ -51,7 +54,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 		this._telemetryService.publicLog(eventName, data);
 	}
 
-	$publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
+	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
 		this.$publicLog(eventName, data as any);
 	}
 }

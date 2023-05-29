@@ -108,3 +108,7 @@
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container {
 	padding-left: 16px;
 }
+
+.comments-panel .hide {
+	display: none;
+}

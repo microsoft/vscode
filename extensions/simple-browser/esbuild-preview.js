@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 const path = require('path');
-const fs = require('fs');
 const esbuild = require('esbuild');
 
 const args = process.argv.slice(2);
@@ -21,18 +20,14 @@ const srcDir = path.join(__dirname, 'preview-src');
 const outDir = path.join(outputRoot, 'media');
 
 async function build() {
-	fs.copyFileSync(
-		path.join(__dirname, 'node_modules', 'vscode-codicons', 'dist', 'codicon.css'),
-		path.join(outDir, 'codicon.css'));
-
-	fs.copyFileSync(
-		path.join(__dirname, 'node_modules', 'vscode-codicons', 'dist', 'codicon.ttf'),
-		path.join(outDir, 'codicon.ttf'));
-
 	await esbuild.build({
-		entryPoints: [
-			path.join(srcDir, 'index.ts')
-		],
+		entryPoints: {
+			'index': path.join(srcDir, 'index.ts'),
+			'codicon': path.join(__dirname, 'node_modules', 'vscode-codicons', 'dist', 'codicon.css'),
+		},
+		loader: {
+			'.ttf': 'dataurl',
+		},
 		bundle: true,
 		minify: true,
 		sourcemap: false,

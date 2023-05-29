@@ -6,6 +6,19 @@ import * as assert from 'assert';
 import * as arrays from 'vs/base/common/arrays';
 
 suite('Arrays', () => {
+
+	test('removeFastWithoutKeepingOrder', () => {
+		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
+		arrays.removeFastWithoutKeepingOrder(array, 1);
+		assert.deepStrictEqual(array, [1, 69, 5, 7, 55, 59, 60, 61, 64]);
+
+		arrays.removeFastWithoutKeepingOrder(array, 0);
+		assert.deepStrictEqual(array, [64, 69, 5, 7, 55, 59, 60, 61]);
+
+		arrays.removeFastWithoutKeepingOrder(array, 7);
+		assert.deepStrictEqual(array, [64, 69, 5, 7, 55, 59, 60]);
+	});
+
 	test('findFirst', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
@@ -391,7 +404,7 @@ suite('Arrays', () => {
 				assert.deepStrictEqual(queue1.takeWhile(x => true), [7, 6]);
 			});
 
-			test('TakeWhile 1', () => {
+			test('TakeFromEndWhile 1', () => {
 				const queue1 = new arrays.ArrayQueue([9, 8, 1, 7, 6]);
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x > 5), [7, 6]);
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x < 2), [1]);

@@ -83,7 +83,7 @@ export class RemoteExtensionsInitializerContribution implements IWorkbenchContri
 
 		const userDataSyncStoreClient = this.instantiationService.createInstance(UserDataSyncStoreClient, this.userDataSyncStoreManagementService.userDataSyncStore.url);
 		userDataSyncStoreClient.setAuthToken(session.accessToken, resolvedAuthority.options.authenticationSession.providerId);
-		const userData = await userDataSyncStoreClient.read(SyncResource.Extensions, null);
+		const userData = await userDataSyncStoreClient.readResource(SyncResource.Extensions, null);
 
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IExtensionManagementService, remoteExtensionManagementServer.extensionManagementService);
@@ -105,9 +105,10 @@ class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IStorageService storageService: IStorageService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(extensionManagementService, ignoredExtensionsManagementService, fileService, userDataProfilesService, environmentService, logService, uriIdentityService);
+		super(extensionManagementService, ignoredExtensionsManagementService, fileService, userDataProfilesService, environmentService, logService, storageService, uriIdentityService);
 	}
 
 	protected override async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

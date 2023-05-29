@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
@@ -48,14 +48,6 @@ configurationRegistry.registerConfiguration({
 	title: localize('timelineConfigurationTitle', "Timeline"),
 	type: 'object',
 	properties: {
-		'timeline.excludeSources': {
-			type: [
-				'array',
-				'null'
-			],
-			default: null,
-			description: localize('timeline.excludeSources', "An array of Timeline sources that should be excluded from the Timeline view."),
-		},
 		'timeline.pageSize': {
 			type: ['number', 'null'],
 			default: null,
@@ -107,4 +99,4 @@ MenuRegistry.appendMenuItem(MenuId.TimelineTitle, <ISubmenuItem>{
 	icon: timelineFilter
 });
 
-registerSingleton(ITimelineService, TimelineService, true);
+registerSingleton(ITimelineService, TimelineService, InstantiationType.Delayed);

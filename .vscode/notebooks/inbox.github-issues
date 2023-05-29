@@ -7,7 +7,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$inbox -label:\"needs more info\" sort:created-desc"
+    "value": "$inbox -label:\"info-needed\" sort:created-desc"
   },
   {
     "kind": 2,

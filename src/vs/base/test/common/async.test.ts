@@ -5,10 +5,12 @@
 
 import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
+import * as MicrotaskDelay from "vs/base/common/symbols";
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 suite('Async', () => {
 
@@ -187,7 +189,7 @@ suite('Async', () => {
 				return Promise.resolve(++count);
 			};
 
-			const delayer = new async.Delayer(async.MicrotaskDelay);
+			const delayer = new async.Delayer(MicrotaskDelay.MicrotaskDelay);
 			const promises: Promise<any>[] = [];
 
 			assert(!delayer.isTriggered());
@@ -250,7 +252,7 @@ suite('Async', () => {
 				return Promise.resolve(++count);
 			};
 
-			const delayer = new async.Delayer(async.MicrotaskDelay);
+			const delayer = new async.Delayer(MicrotaskDelay.MicrotaskDelay);
 
 			assert(!delayer.isTriggered());
 
@@ -393,51 +395,6 @@ suite('Async', () => {
 	});
 
 	suite('Limiter', () => {
-		test('sync', function () {
-			const factoryFactory = (n: number) => () => {
-				return Promise.resolve(n);
-			};
-
-			let limiter = new async.Limiter(1);
-
-			let promises: Promise<any>[] = [];
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-			return Promise.all(promises).then((res) => {
-				assert.strictEqual(10, res.length);
-
-				limiter = new async.Limiter(100);
-
-				promises = [];
-				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-				return Promise.all(promises).then((res) => {
-					assert.strictEqual(10, res.length);
-				});
-			});
-		});
-
-		test('async', function () {
-			const factoryFactory = (n: number) => () => async.timeout(0).then(() => n);
-
-			let limiter = new async.Limiter(1);
-			let promises: Promise<any>[] = [];
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-			return Promise.all(promises).then((res) => {
-				assert.strictEqual(10, res.length);
-
-				limiter = new async.Limiter(100);
-
-				promises = [];
-				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-				return Promise.all(promises).then((res) => {
-					assert.strictEqual(10, res.length);
-				});
-			});
-		});
-
 		test('assert degree of paralellism', function () {
 			let activePromises = 0;
 			const factoryFactory = (n: number) => () => {
@@ -636,29 +593,33 @@ suite('Async', () => {
 
 	suite('retry', () => {
 		test('success case', async () => {
-			let counter = 0;
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let counter = 0;
 
-			const res = await async.retry(() => {
-				counter++;
-				if (counter < 2) {
-					return Promise.reject(new Error('fail'));
-				}
+				const res = await async.retry(() => {
+					counter++;
+					if (counter < 2) {
+						return Promise.reject(new Error('fail'));
+					}
 
-				return Promise.resolve(true);
-			}, 10, 3);
+					return Promise.resolve(true);
+				}, 10, 3);
 
-			assert.strictEqual(res, true);
+				assert.strictEqual(res, true);
+			});
 		});
 
 		test('error case', async () => {
-			const expectedError = new Error('fail');
-			try {
-				await async.retry(() => {
-					return Promise.reject(expectedError);
-				}, 10, 3);
-			} catch (error) {
-				assert.strictEqual(error, error);
-			}
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const expectedError = new Error('fail');
+				try {
+					await async.retry(() => {
+						return Promise.reject(expectedError);
+					}, 10, 3);
+				} catch (error) {
+					assert.strictEqual(error, error);
+				}
+			});
 		});
 	});
 
@@ -667,6 +628,7 @@ suite('Async', () => {
 			const sequentializer = new async.TaskSequentializer();
 
 			assert.ok(!sequentializer.hasPending());
+			assert.ok(!sequentializer.hasNext());
 			assert.ok(!sequentializer.hasPending(2323));
 			assert.ok(!sequentializer.pending);
 
@@ -675,11 +637,13 @@ suite('Async', () => {
 			assert.ok(!sequentializer.hasPending());
 			assert.ok(!sequentializer.hasPending(1));
 			assert.ok(!sequentializer.pending);
+			assert.ok(!sequentializer.hasNext());
 
 			// pending removes itself after done (use async.timeout)
 			sequentializer.setPending(2, async.timeout(1));
 			assert.ok(sequentializer.hasPending());
 			assert.ok(sequentializer.hasPending(2));
+			assert.ok(!sequentializer.hasNext());
 			assert.strictEqual(sequentializer.hasPending(1), false);
 			assert.ok(sequentializer.pending);
 
@@ -699,9 +663,12 @@ suite('Async', () => {
 			let nextDone = false;
 			const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return; }));
 
+			assert.ok(sequentializer.hasNext());
+
 			await res;
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
+			assert.ok(!sequentializer.hasNext());
 		});
 
 		test('pending and next (finishes after timeout)', async function () {
@@ -717,6 +684,42 @@ suite('Async', () => {
 			await res;
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
+			assert.ok(!sequentializer.hasNext());
+		});
+
+		test('join (without next or pending)', async function () {
+			const sequentializer = new async.TaskSequentializer();
+
+			await sequentializer.join();
+			assert.ok(!sequentializer.hasNext());
+		});
+
+		test('join (without next)', async function () {
+			const sequentializer = new async.TaskSequentializer();
+
+			let pendingDone = false;
+			sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+
+			await sequentializer.join();
+			assert.ok(pendingDone);
+			assert.ok(!sequentializer.hasPending());
+		});
+
+		test('join (with next and pending)', async function () {
+			const sequentializer = new async.TaskSequentializer();
+
+			let pendingDone = false;
+			sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+
+			// next finishes after async.timeout
+			let nextDone = false;
+			sequentializer.setNext(() => async.timeout(1).then(() => { nextDone = true; return; }));
+
+			await sequentializer.join();
+			assert.ok(pendingDone);
+			assert.ok(nextDone);
+			assert.ok(!sequentializer.hasPending());
+			assert.ok(!sequentializer.hasNext());
 		});
 
 		test('pending and multiple next (last one wins)', async function () {

@@ -8,10 +8,13 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, MultiEditorAction, registerEditorAction, registerEditorCommand, registerEditorContribution, registerMultiEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, MultiEditorAction, registerEditorAction, registerEditorCommand, registerEditorContribution, registerMultiEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRegistry';
+import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { OverviewRulerLane } from 'vs/editor/common/model';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_REPLACE_INPUT_FOCUSED, FindModelBoundToEditorModel, FIND_IDS, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
 import { FindOptionsWidget } from 'vs/editor/contrib/find/browser/findOptionsWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
@@ -23,9 +26,10 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -180,16 +184,16 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	private saveQueryState(e: FindReplaceStateChangedEvent) {
 		if (e.isRegex) {
-			this._storageService.store('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE, StorageTarget.USER);
+			this._storageService.store('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		if (e.wholeWord) {
-			this._storageService.store('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE, StorageTarget.USER);
+			this._storageService.store('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		if (e.matchCase) {
-			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE, StorageTarget.USER);
+			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		if (e.preserveCase) {
-			this._storageService.store('editor.preserveCase', this._state.actualPreserveCase, StorageScope.WORKSPACE, StorageTarget.USER);
+			this._storageService.store('editor.preserveCase', this._state.actualPreserveCase, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
@@ -368,6 +372,14 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		return false;
 	}
 
+	public goToMatch(index: number): boolean {
+		if (this._model) {
+			this._model.moveToMatch(index);
+			return true;
+		}
+		return false;
+	}
+
 	public replace(): boolean {
 		if (this._model) {
 			this._model.replace();
@@ -484,7 +496,7 @@ export class FindController extends CommonFindController implements IFindControl
 
 	private _createFindWidget() {
 		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService));
-		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService, this._themeService));
+		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService));
 	}
 
 	saveViewState(): any {
@@ -705,6 +717,7 @@ export class NextMatchFindAction extends MatchFindAction {
 	}
 }
 
+
 export class PreviousMatchFindAction extends MatchFindAction {
 
 	constructor() {
@@ -732,6 +745,123 @@ export class PreviousMatchFindAction extends MatchFindAction {
 	}
 }
 
+export class MoveToMatchFindAction extends EditorAction {
+
+	private _highlightDecorations: string[] = [];
+	constructor() {
+		super({
+			id: FIND_IDS.GoToMatchFindAction,
+			label: nls.localize('findMatchAction.goToMatch', "Go to Match..."),
+			alias: 'Go to Match...',
+			precondition: CONTEXT_FIND_WIDGET_VISIBLE
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+		const controller = CommonFindController.get(editor);
+		if (!controller) {
+			return;
+		}
+
+		const matchesCount = controller.getState().matchesCount;
+		if (matchesCount < 1) {
+			const notificationService = accessor.get(INotificationService);
+			notificationService.notify({
+				severity: Severity.Warning,
+				message: nls.localize('findMatchAction.noResults', "No matches. Try searching for something else.")
+			});
+			return;
+		}
+
+		const quickInputService = accessor.get(IQuickInputService);
+		const inputBox = quickInputService.createInputBox();
+		inputBox.placeholder = nls.localize('findMatchAction.inputPlaceHolder', "Type a number to go to a specific match (between 1 and {0})", matchesCount);
+
+		const toFindMatchIndex = (value: string): number | undefined => {
+			const index = parseInt(value);
+			if (isNaN(index)) {
+				return undefined;
+			}
+
+			const matchCount = controller.getState().matchesCount;
+			if (index > 0 && index <= matchCount) {
+				return index - 1; // zero based
+			} else if (index < 0 && index >= -matchCount) {
+				return matchCount + index;
+			}
+
+			return undefined;
+		};
+
+		const updatePickerAndEditor = (value: string) => {
+			const index = toFindMatchIndex(value);
+			if (typeof index === 'number') {
+				// valid
+				inputBox.validationMessage = undefined;
+				controller.goToMatch(index);
+				const currentMatch = controller.getState().currentMatch;
+				if (currentMatch) {
+					this.addDecorations(editor, currentMatch);
+				}
+			} else {
+				inputBox.validationMessage = nls.localize('findMatchAction.inputValidationMessage', "Please type a number between 1 and {0}", controller.getState().matchesCount);
+				this.clearDecorations(editor);
+			}
+		};
+		inputBox.onDidChangeValue(value => {
+			updatePickerAndEditor(value);
+		});
+
+		inputBox.onDidAccept(() => {
+			const index = toFindMatchIndex(inputBox.value);
+			if (typeof index === 'number') {
+				controller.goToMatch(index);
+				inputBox.hide();
+			} else {
+				inputBox.validationMessage = nls.localize('findMatchAction.inputValidationMessage', "Please type a number between 1 and {0}", controller.getState().matchesCount);
+			}
+		});
+
+		inputBox.onDidHide(() => {
+			this.clearDecorations(editor);
+			inputBox.dispose();
+		});
+
+		inputBox.show();
+	}
+
+	private clearDecorations(editor: ICodeEditor): void {
+		editor.changeDecorations(changeAccessor => {
+			this._highlightDecorations = changeAccessor.deltaDecorations(this._highlightDecorations, []);
+		});
+	}
+
+	private addDecorations(editor: ICodeEditor, range: IRange): void {
+		editor.changeDecorations(changeAccessor => {
+			this._highlightDecorations = changeAccessor.deltaDecorations(this._highlightDecorations, [
+				{
+					range,
+					options: {
+						description: 'find-match-quick-access-range-highlight',
+						className: 'rangeHighlight',
+						isWholeLine: true
+					}
+				},
+				{
+					range,
+					options: {
+						description: 'find-match-quick-access-range-highlight-overview',
+						overviewRuler: {
+							color: themeColorFromId(overviewRulerRangeHighlight),
+							position: OverviewRulerLane.Full
+						}
+					}
+				}
+			]);
+		});
+	}
+}
+
 export abstract class SelectionMatchFindAction extends EditorAction {
 	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = CommonFindController.get(editor);
@@ -739,19 +869,15 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 			return;
 		}
 
-		const seedSearchStringFromNonEmptySelection = editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection';
-		let selectionSearchString = null;
-		if (editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never') {
-			selectionSearchString = getSelectionSearchString(editor, 'single', seedSearchStringFromNonEmptySelection);
-		}
+		const selectionSearchString = getSelectionSearchString(editor, 'single', false);
 		if (selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
 		}
 		if (!this._run(controller)) {
 			await controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
-				seedSearchStringFromNonEmptySelection: seedSearchStringFromNonEmptySelection,
+				seedSearchStringFromSelection: 'none',
+				seedSearchStringFromNonEmptySelection: false,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
@@ -865,12 +991,13 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 	});
 });
 
-registerEditorContribution(CommonFindController.ID, FindController);
+registerEditorContribution(CommonFindController.ID, FindController, EditorContributionInstantiation.Eager); // eager because it uses `saveViewState`/`restoreViewState`
 
 registerEditorAction(StartFindWithArgsAction);
 registerEditorAction(StartFindWithSelectionAction);
 registerEditorAction(NextMatchFindAction);
 registerEditorAction(PreviousMatchFindAction);
+registerEditorAction(MoveToMatchFindAction);
 registerEditorAction(NextSelectionMatchFindAction);
 registerEditorAction(PreviousSelectionMatchFindAction);
 

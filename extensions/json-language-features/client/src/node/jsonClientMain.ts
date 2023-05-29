@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, OutputChannel, window, workspace } from 'vscode';
+import { ExtensionContext, OutputChannel, window, workspace, l10n } from 'vscode';
 import { startClient, LanguageClientConstructor, SchemaRequestService, languageServerDescription } from '../jsonClient';
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
 
@@ -20,7 +20,7 @@ let client: BaseLanguageClient | undefined;
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 	const clientPackageJSON = await getPackageInfo(context);
-	telemetry = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
+	telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
 
 	const outputChannel = window.createOutputChannel(languageServerDescription);
 
@@ -43,6 +43,9 @@ export async function activate(context: ExtensionContext) {
 	};
 	const log = getLog(outputChannel);
 	context.subscriptions.push(log);
+
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
 
 	const schemaRequests = await getSchemaRequestService(context, log);
 

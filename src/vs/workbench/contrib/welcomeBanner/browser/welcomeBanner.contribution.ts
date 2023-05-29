@@ -10,7 +10,7 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { URI } from 'vs/base/common/uri';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 class WelcomeBannerContribution {
 

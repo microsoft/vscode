@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { joinPath } from 'vs/base/common/resources';
 
 export class OpenLogsFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.openLogsFolder';
-	static readonly LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
+	static readonly TITLE = { value: nls.localize('openLogsFolder', "Open Logs Folder"), original: 'Open Logs Folder' };
 
 	constructor(id: string, label: string,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
@@ -24,14 +23,14 @@ export class OpenLogsFolderAction extends Action {
 	}
 
 	override run(): Promise<void> {
-		return this.nativeHostService.showItemInFolder(URI.file(join(this.environmentService.logsPath, 'main.log')).fsPath);
+		return this.nativeHostService.showItemInFolder(joinPath(this.environmentService.logsHome, 'main.log').fsPath);
 	}
 }
 
 export class OpenExtensionLogsFolderAction extends Action {
 
 	static readonly ID = 'workbench.action.openExtensionLogsFolder';
-	static readonly LABEL = nls.localize('openExtensionLogsFolder', "Open Extension Logs Folder");
+	static readonly TITLE = { value: nls.localize('openExtensionLogsFolder', "Open Extension Logs Folder"), original: 'Open Extension Logs Folder' };
 
 	constructor(id: string, label: string,
 		@INativeWorkbenchEnvironmentService private readonly environmentSerice: INativeWorkbenchEnvironmentService,

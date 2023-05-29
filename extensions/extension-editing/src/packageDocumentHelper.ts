@@ -5,9 +5,7 @@
 
 import * as vscode from 'vscode';
 import { getLocation, Location } from 'jsonc-parser';
-import * as nls from 'vscode-nls';
 
-const localize = nls.loadMessageBundle();
 
 export class PackageDocument {
 
@@ -40,8 +38,8 @@ export class PackageDocument {
 			}
 
 			return Promise.resolve([this.newSnippetCompletionItem({
-				label: localize('languageSpecificEditorSettings', "Language specific editor settings"),
-				documentation: localize('languageSpecificEditorSettingsDescription', "Override editor settings for language"),
+				label: vscode.l10n.t("Language specific editor settings"),
+				documentation: vscode.l10n.t("Override editor settings for language"),
 				snippet,
 				range
 			})]);

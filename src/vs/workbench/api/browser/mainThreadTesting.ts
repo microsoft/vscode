@@ -7,7 +7,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
-import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
@@ -40,22 +39,29 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		super();
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostTesting);
 
-		const prevResults = resultService.results.map(r => r.toJSON()).filter(isDefined);
-		if (prevResults.length) {
-			this.proxy.$publishTestResults(prevResults);
-		}
-
 		this._register(this.testService.onDidCancelTestRun(({ runId }) => {
 			this.proxy.$cancelExtensionTestRun(runId);
 		}));
 
 		this._register(resultService.onResultsChanged(evt => {
 			const results = 'completed' in evt ? evt.completed : ('inserted' in evt ? evt.inserted : undefined);
-			const serialized = results?.toJSON();
+			const serialized = results?.toJSONWithMessages();
 			if (serialized) {
 				this.proxy.$publishTestResults([serialized]);
 			}
 		}));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$markTestRetired(testId: string): void {
+		for (const result of this.resultService.results) {
+			// all non-live results are already entirely outdated
+			if (result instanceof LiveTestResult) {
+				result.markRetired(testId);
+			}
+		}
 	}
 
 	/**
@@ -177,9 +183,11 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			id: controllerId,
 			label,
 			canRefresh,
+			syncTests: () => this.proxy.$syncTests(),
 			refreshTests: token => this.proxy.$refreshTests(controllerId, token),
 			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
-			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
+			runTests: (reqs, token) => this.proxy.$runControllerTests(reqs, token),
+			startContinuousRun: (reqs, token) => this.proxy.$startContinuousRun(reqs, token),
 			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
 		};
 

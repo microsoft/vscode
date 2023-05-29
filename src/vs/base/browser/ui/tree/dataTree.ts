@@ -16,7 +16,7 @@ export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOp
 
 export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	protected override model!: ObjectTreeModel<T, TFilterData>;
+	protected declare model: ObjectTreeModel<T, TFilterData>;
 	private input: TInput | undefined;
 
 	private identityProvider: IIdentityProvider<T> | undefined;

@@ -14,13 +14,14 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ISerializedTerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IProcessDetails, ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { ICompleteTerminalConfiguration, ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -32,17 +33,14 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
 	) {
-		const remoteAuthority = remoteAgentService.getConnection()?.remoteAuthority;
-		if (remoteAuthority) {
-			const connection = remoteAgentService.getConnection();
-			if (connection) {
-				const channel = instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
-				const backend = instantiationService.createInstance(RemoteTerminalBackend, remoteAuthority, channel);
-				Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-				terminalService.handleNewRegisteredBackend(backend);
-			}
+		const connection = remoteAgentService.getConnection();
+		if (connection?.remoteAuthority) {
+			const channel = instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
+			const backend = instantiationService.createInstance(RemoteTerminalBackend, connection.remoteAuthority, channel);
+			Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
+			terminalInstanceService.didRegisterBackend(backend.remoteAuthority);
 		}
 	}
 }
@@ -52,7 +50,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
-	private readonly _onRestoreCommands = this._register(new Emitter<{ id: number; commands: ISerializedCommand[] }>());
+	private readonly _onRestoreCommands = this._register(new Emitter<{ id: number; commands: ISerializedTerminalCommand[] }>());
 	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	constructor(
@@ -92,6 +90,11 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 		this._remoteTerminalChannel.onExecuteCommand(async e => {
+			// Ensure this request for for this window
+			const pty = this._ptys.get(e.persistentProcessId);
+			if (!pty) {
+				return;
+			}
 			const reqId = e.reqId;
 			const commandId = e.commandId;
 			if (!allowedCommands.includes(commandId)) {
@@ -204,7 +207,10 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			args: shellLaunchConfig.args,
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env,
-			useShellEnvironment: shellLaunchConfig.useShellEnvironment
+			useShellEnvironment: shellLaunchConfig.useShellEnvironment,
+			reconnectionProperties: shellLaunchConfig.reconnectionProperties,
+			type: shellLaunchConfig.type,
+			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal
 		};
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
@@ -239,47 +245,46 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		return undefined;
 	}
 
+	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot create remote terminal when there is no remote!`);
+		}
+
+		try {
+			const newId = await this._remoteTerminalChannel.getRevivedPtyNewId(id) ?? id;
+			return await this.attachToProcess(newId);
+		} catch (e) {
+			this._logService.trace(`Couldn't attach to process ${e.message}`);
+		}
+		return undefined;
+	}
+
 	async listProcesses(): Promise<IProcessDetails[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
-		return terms.map(termDto => {
-			return <IProcessDetails>{
-				id: termDto.id,
-				pid: termDto.pid,
-				title: termDto.title,
-				titleSource: termDto.titleSource,
-				cwd: termDto.cwd,
-				workspaceId: termDto.workspaceId,
-				workspaceName: termDto.workspaceName,
-				icon: termDto.icon,
-				color: termDto.color,
-				isOrphan: termDto.isOrphan,
-				fixedDimensions: termDto.fixedDimensions
-			};
-		});
+		return this._remoteTerminalChannel.listProcesses();
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: any): Promise<void> {
-		await this._remoteTerminalChannel?.updateProperty(id, property, value);
+		await this._remoteTerminalChannel.updateProperty(id, property, value);
 	}
 
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
-		await this._remoteTerminalChannel?.updateTitle(id, title, titleSource);
+		await this._remoteTerminalChannel.updateTitle(id, title, titleSource);
 	}
 
-	async updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void> {
-		await this._remoteTerminalChannel?.updateIcon(id, icon, color);
+	async updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void> {
+		await this._remoteTerminalChannel.updateIcon(id, userInitiated, icon, color);
 	}
 
 	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
-		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
+		return this._remoteTerminalChannel.getDefaultSystemShell(osOverride) || '';
 	}
 
 	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._remoteTerminalChannel?.getProfiles(profiles, defaultProfile, includeDetectedProfiles) || [];
+		return this._remoteTerminalChannel.getProfiles(profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {
-		return this._remoteTerminalChannel?.getEnvironment() || {};
+		return this._remoteTerminalChannel.getEnvironment() || {};
 	}
 
 	async getShellEnvironment(): Promise<IProcessEnvironment | undefined> {
@@ -291,12 +296,12 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		return resolverResult.options?.extensionHostEnv as any;
 	}
 
-	async getWslPath(original: string): Promise<string> {
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env?.os !== OperatingSystem.Windows) {
 			return original;
 		}
-		return this._remoteTerminalChannel?.getWslPath(original) || original;
+		return this._remoteTerminalChannel.getWslPath(original, direction) || original;
 	}
 
 	async setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {

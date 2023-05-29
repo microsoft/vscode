@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -19,14 +21,14 @@ export class TestInstantiationService extends InstantiationService {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
-	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false) {
-		super(_serviceCollection, strict);
+	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: TestInstantiationService) {
+		super(_serviceCollection, strict, parent);
 
 		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
 	}
 
 	public get<T>(service: ServiceIdentifier<T>): T {
-		return super._getOrCreateServiceInstance(service, Trace.traceCreation(TestInstantiationService));
+		return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
 	}
 
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {
@@ -123,9 +125,46 @@ export class TestInstantiationService extends InstantiationService {
 	private isServiceMock(arg1: any): boolean {
 		return typeof arg1 === 'object' && arg1.hasOwnProperty('id');
 	}
+
+	override createChild(services: ServiceCollection): TestInstantiationService {
+		return new TestInstantiationService(services, false, this);
+	}
 }
 
 interface SinonOptions {
 	mock?: boolean;
 	stub?: boolean;
+}
+
+export type ServiceIdCtorPair<T> = [id: ServiceIdentifier<T>, ctorOrInstance: T | (new (...args: any[]) => T)];
+
+export function createServices(disposables: DisposableStore, services: ServiceIdCtorPair<any>[]): TestInstantiationService {
+	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
+	const serviceCollection = new ServiceCollection();
+
+	const define = <T>(id: ServiceIdentifier<T>, ctorOrInstance: T | (new (...args: any[]) => T)) => {
+		if (!serviceCollection.has(id)) {
+			if (typeof ctorOrInstance === 'function') {
+				serviceCollection.set(id, new SyncDescriptor(ctorOrInstance as any));
+			} else {
+				serviceCollection.set(id, ctorOrInstance);
+			}
+		}
+		serviceIdentifiers.push(id);
+	};
+
+	for (const [id, ctor] of services) {
+		define(id, ctor);
+	}
+
+	const instantiationService = new TestInstantiationService(serviceCollection, true);
+	disposables.add(toDisposable(() => {
+		for (const id of serviceIdentifiers) {
+			const instanceOrDescriptor = serviceCollection.get(id);
+			if (typeof instanceOrDescriptor.dispose === 'function') {
+				instanceOrDescriptor.dispose();
+			}
+		}
+	}));
+	return instantiationService;
 }

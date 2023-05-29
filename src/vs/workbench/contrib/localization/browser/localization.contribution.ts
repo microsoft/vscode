@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { WebLocaleService } from 'vs/workbench/contrib/localization/browser/localeService';
-import { ClearDisplayLanguageAction, ConfigureDisplayLanguageAction } from 'vs/workbench/contrib/localization/browser/localizationsActions';
-import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { BaseLocalizationWorkbenchContribution } from 'vs/workbench/contrib/localization/common/localization.contribution';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-registerSingleton(ILocaleService, WebLocaleService, true);
+export class WebLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchContribution { }
 
-// Register action to configure locale and related settings
-registerAction2(ConfigureDisplayLanguageAction);
-registerAction2(ClearDisplayLanguageAction);
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(WebLocalizationWorkbenchContribution, LifecyclePhase.Eventually);

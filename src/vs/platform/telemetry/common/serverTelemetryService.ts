@@ -6,7 +6,7 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -30,25 +30,25 @@ export class ServerTelemetryService extends TelemetryService implements IServerT
 		this._injectedTelemetryLevel = injectedTelemetryLevel;
 	}
 
-	override publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
+	override publicLog(eventName: string, data?: ITelemetryData) {
 		if (this._injectedTelemetryLevel < TelemetryLevel.USAGE) {
-			return Promise.resolve(undefined);
+			return;
 		}
-		return super.publicLog(eventName, data, anonymizeFilePaths);
+		return super.publicLog(eventName, data);
 	}
 
-	override publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void> {
-		return this.publicLog(eventName, data as ITelemetryData | undefined, anonymizeFilePaths);
+	override publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData | undefined);
 	}
 
-	override publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {
+	override publicLogError(errorEventName: string, data?: ITelemetryData) {
 		if (this._injectedTelemetryLevel < TelemetryLevel.ERROR) {
 			return Promise.resolve(undefined);
 		}
 		return super.publicLogError(errorEventName, data);
 	}
 
-	override publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void> {
+	override publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLogError(eventName, data as ITelemetryData | undefined);
 	}
 

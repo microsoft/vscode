@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -31,7 +31,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { diffSets, diffMaps } from 'vs/base/common/collections';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 class TextEditorSnapshot {
@@ -113,7 +113,7 @@ const enum ActiveEditorOrder {
 class MainThreadDocumentAndEditorStateComputer {
 
 	private readonly _toDispose = new DisposableStore();
-	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
+	private readonly _toDisposeOnEditorRemove = new DisposableMap<string>();
 	private _currentState?: DocumentAndEditorState;
 	private _activeEditorOrder: ActiveEditorOrder = ActiveEditorOrder.Editor;
 
@@ -141,6 +141,7 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	dispose(): void {
 		this._toDispose.dispose();
+		this._toDisposeOnEditorRemove.dispose();
 	}
 
 	private _onDidAddEditor(e: ICodeEditor): void {
@@ -153,10 +154,9 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _onDidRemoveEditor(e: ICodeEditor): void {
-		const sub = this._toDisposeOnEditorRemove.get(e.getId());
-		if (sub) {
-			this._toDisposeOnEditorRemove.delete(e.getId());
-			sub.dispose();
+		const id = e.getId();
+		if (this._toDisposeOnEditorRemove.has(id)) {
+			this._toDisposeOnEditorRemove.deleteAndDispose(id);
 			this._updateState();
 		}
 	}
@@ -296,14 +296,14 @@ export class MainThreadDocumentsAndEditors {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IPathService pathService: IPathService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
 		this._mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
 		extHostContext.set(MainContext.MainThreadDocuments, this._mainThreadDocuments);
 
-		this._mainThreadEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, this._editorService, this._editorGroupService));
+		this._mainThreadEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, this._editorService, this._editorGroupService, configurationService));
 		extHostContext.set(MainContext.MainThreadTextEditors, this._mainThreadEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.

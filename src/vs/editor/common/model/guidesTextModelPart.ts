@@ -292,7 +292,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 					endLineNumber,
 					this.textModel.getLineMaxColumn(endLineNumber)
 				)
-			);
+			).toArray();
 
 		let activeBracketPairRange: Range | undefined = undefined;
 		if (activePosition && bracketPairs.length > 0) {
@@ -303,7 +303,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 					? bracketPairs
 					: this.textModel.bracketPairs.getBracketPairsInRange(
 						Range.fromPositions(activePosition)
-					)
+					).toArray()
 			).filter((bp) => Range.strictContainsPosition(bp.range, activePosition));
 
 			activeBracketPairRange = findLast(

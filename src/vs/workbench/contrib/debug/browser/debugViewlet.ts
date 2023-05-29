@@ -98,7 +98,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 			return this.startDebugActionViewItem;
 		}
 		if (action.id === FOCUS_SESSION_ID) {
-			return new FocusSessionActionViewItem(action, undefined, this.debugService, this.themeService, this.contextViewService, this.configurationService);
+			return new FocusSessionActionViewItem(action, undefined, this.debugService, this.contextViewService, this.configurationService);
 		}
 
 		if (action.id === STOP_ID || action.id === DISCONNECT_ID) {
@@ -231,7 +231,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (launch) {
-			await launch.openConfigFile(false);
+			await launch.openConfigFile({ preserveFocus: false });
 		}
 	}
 });

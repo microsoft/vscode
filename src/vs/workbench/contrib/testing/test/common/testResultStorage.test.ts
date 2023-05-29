@@ -6,25 +6,22 @@
 import * as assert from 'assert';
 import { range } from 'vs/base/common/arrays';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { emptyOutputController } from 'vs/workbench/contrib/testing/test/common/testResultService.test';
 import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Workbench - Test Result Storage', () => {
 	let storage: InMemoryResultStorage;
 
-	const makeResult = (addMessage?: string) => {
+	const makeResult = (taskName = 't') => {
 		const t = new LiveTestResult(
 			'',
-			emptyOutputController(),
 			true,
 			{ targets: [] }
 		);
 
-		t.addTask({ id: 't', name: undefined, running: true });
+		t.addTask({ id: taskName, name: undefined, running: true });
 		const tests = testStubs.nested();
 		tests.expand(tests.root.id, Infinity);
 		t.addTestChainToRun('ctrlId', [
@@ -33,15 +30,6 @@ suite('Workbench - Test Result Storage', () => {
 			tests.root.children.get('id-a')!.children.get('id-aa')!.toTestItem(),
 		]);
 
-		if (addMessage) {
-			t.appendMessage(new TestId(['ctrlId', 'id-a']).toString(), 't', {
-				message: addMessage,
-				actual: undefined,
-				expected: undefined,
-				location: undefined,
-				type: 0,
-			});
-		}
 		t.markComplete();
 		return t;
 	};

@@ -100,10 +100,12 @@ class DecorationsManager implements IDisposable {
 			newDecorationsActualIndex.push(i);
 		}
 
-		const decorations = this._editor.deltaDecorations([], newDecorations);
-		for (let i = 0; i < decorations.length; i++) {
-			this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
-		}
+		this._editor.changeDecorations((changeAccessor) => {
+			const decorations = changeAccessor.deltaDecorations([], newDecorations);
+			for (let i = 0; i < decorations.length; i++) {
+				this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
+			}
+		});
 	}
 
 	private _onDecorationChanged(): void {
@@ -151,11 +153,11 @@ class DecorationsManager implements IDisposable {
 		for (let i = 0, len = toRemove.length; i < len; i++) {
 			this._decorations.delete(toRemove[i]);
 		}
-		this._editor.deltaDecorations(toRemove, []);
+		this._editor.removeDecorations(toRemove);
 	}
 
 	removeDecorations(): void {
-		this._editor.deltaDecorations([...this._decorations.keys()], []);
+		this._editor.removeDecorations([...this._decorations.keys()]);
 		this._decorations.clear();
 	}
 }
@@ -311,7 +313,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				enabled: false
 			}
 		};
-		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, this.editor);
+		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, {}, this.editor);
 		dom.hide(this._previewContainer);
 		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService);
 

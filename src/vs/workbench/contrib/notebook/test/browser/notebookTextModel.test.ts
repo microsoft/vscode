@@ -10,6 +10,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellKind, ICellEditOperation, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
@@ -759,5 +760,393 @@ suite('NotebookTextModel', () => {
 			assert.strictEqual(model.cells[0].outputs[2].outputId, 'out3');
 			assert.strictEqual(model.cells[0].outputs[3].outputId, 'out6');
 		});
+	});
+
+	test('computeEdits no insert', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits = NotebookTextModel.computeEdits(model, [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			]);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} }
+			]);
+		});
+	});
+
+	test('computeEdits cell content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Replace, index: 0, count: 1, cells },
+			]);
+		});
+	});
+
+	test('computeEdits last cell content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) },
+			]);
+		});
+	});
+	test('computeEdits first cell content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
+				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits middle cell content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}],
+			['var c = 1;', 'javascript', CellKind.Code, [], {}],
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var c = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1, 2) },
+				{ editType: CellEditType.Metadata, index: 2, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits cell metadata changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { name: 'foo' } },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: { name: 'foo' } },
+				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits cell language changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'typescript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
+				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits cell kind changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Markup, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) },
+			]);
+		});
+	});
+
+	test('computeEdits cell metadata & content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { name: 'foo' } },
+				{ source: 'var b = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { name: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: { name: 'foo' } },
+				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) }
+			]);
+		});
+	});
+
+	test('computeEdits cell internal metadata changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined, internalMetadata: { executionOrder: 1 } },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
+				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits cell insertion', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined, },
+				{ source: 'var c = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined, },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { foo: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.Replace, index: 1, count: 0, cells: cells.slice(1, 2) },
+				{ editType: CellEditType.Metadata, index: 1, metadata: { foo: 'bar' } },
+			]);
+
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 3);
+			assert.equal(model.cells[1].getValue(), 'var c = 1;');
+			assert.equal(model.cells[2].getValue(), 'var b = 1;');
+			assert.deepStrictEqual(model.cells[2].metadata, { foo: 'bar' });
+		});
+	});
+
+	test('computeEdits output changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{
+					source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [{
+						outputId: 'someId',
+						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }]
+					}], metadata: undefined,
+				},
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { foo: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{
+					editType: CellEditType.Output, index: 0, outputs: [{
+						outputId: 'someId',
+						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }]
+					}], append: false
+				},
+				{ editType: CellEditType.Metadata, index: 1, metadata: { foo: 'bar' } },
+			]);
+
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 2);
+			assert.strictEqual(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputId, 'someId');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), '_World_');
+		});
+	});
+
+	test('computeEdits output items changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: 'someId',
+				outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_Hello_') }]
+			}], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{
+					source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [{
+						outputId: 'someId',
+						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }]
+					}], metadata: undefined,
+				},
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { foo: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.OutputItems, outputId: 'someId', items: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }], append: false },
+				{ editType: CellEditType.Metadata, index: 1, metadata: { foo: 'bar' } },
+			]);
+
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 2);
+			assert.strictEqual(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputId, 'someId');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), '_World_');
+		});
+	});
+	test('Append multiple text/plain output items', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'text/plain', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'text/plain', data: VSBuffer.fromString('bar') }, { mime: 'text/plain', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 3);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foo');
+			assert.equal(model.cells[0].outputs[0].outputs[1].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[1].data.toString(), 'bar');
+			assert.equal(model.cells[0].outputs[0].outputs[2].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[2].data.toString(), 'baz');
+		});
+	});
+	test('Append multiple stdout stream output items to an output with another mime', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'text/plain', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('bar') }, { mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 3);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foo');
+			assert.equal(model.cells[0].outputs[0].outputs[1].mime, 'application/vnd.code.notebook.stdout');
+			assert.equal(model.cells[0].outputs[0].outputs[1].data.toString(), 'bar');
+			assert.equal(model.cells[0].outputs[0].outputs[2].mime, 'application/vnd.code.notebook.stdout');
+			assert.equal(model.cells[0].outputs[0].outputs[2].data.toString(), 'baz');
+		});
+	});
+	test('Compress multiple stdout stream output items', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('bar') }, { mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'application/vnd.code.notebook.stdout');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foobarbaz');
+		});
+
+	});
+	test('Compress multiple stderr stream output items', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'application/vnd.code.notebook.stderr', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'application/vnd.code.notebook.stderr', data: VSBuffer.fromString('bar') }, { mime: 'application/vnd.code.notebook.stderr', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'application/vnd.code.notebook.stderr');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foobarbaz');
+		});
+
 	});
 });

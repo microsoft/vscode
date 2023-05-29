@@ -12,6 +12,8 @@ const webviewMimeTypes = new Map([
 	['.txt', Mimes.text],
 	['.css', 'text/css'],
 	['.js', 'application/javascript'],
+	['.cjs', 'application/javascript'],
+	['.mjs', 'application/javascript'],
 	['.json', 'application/json'],
 	['.html', 'text/html'],
 	['.htm', 'text/html'],

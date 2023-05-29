@@ -6,9 +6,9 @@
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename, isEqual } from 'vs/base/common/resources';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
@@ -102,8 +102,8 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		const resource = model.resource;
 
 		let message: string;
-		const primaryActions: IAction[] = [];
-		const secondaryActions: IAction[] = [];
+		const primaryActions: Action[] = [];
+		const secondaryActions: Action[] = [];
 
 		// Dirty write prevention
 		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
@@ -134,7 +134,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		// Any other save error
 		else {
 			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
-			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
+			const triedToUnlock = isWriteLocked && (fileOperationError.options as IWriteFileOptions | undefined)?.unlock;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 			const canSaveElevated = resource.scheme === Schemas.file; // currently only supported for local schemes (https://github.com/microsoft/vscode/issues/48659)
 
@@ -196,9 +196,7 @@ const pendingResolveSaveConflictMessages: INotificationHandle[] = [];
 function clearPendingResolveSaveConflictMessages(): void {
 	while (pendingResolveSaveConflictMessages.length > 0) {
 		const item = pendingResolveSaveConflictMessages.pop();
-		if (item) {
-			item.close();
-		}
+		item?.close();
 	}
 }
 

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { cloneAndChange, mixin } from 'vs/base/common/objects';
-import { MutableObservableValue } from 'vs/base/common/observableValue';
+import { mixin } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
@@ -14,14 +13,14 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from 'vs/platform/telemetry/common/telemetry';
+import { cleanData, getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
 	sendErrorTelemetry?: boolean;
-	commonProperties?: Promise<{ [name: string]: any }>;
+	commonProperties?: ICommonProperties;
 	piiPaths?: string[];
 }
 
@@ -32,13 +31,17 @@ export class TelemetryService implements ITelemetryService {
 
 	declare readonly _serviceBrand: undefined;
 
+	readonly sessionId: string;
+	readonly machineId: string;
+	readonly firstSessionDate: string;
+	readonly msftInternal: boolean | undefined;
+
 	private _appenders: ITelemetryAppender[];
-	private _commonProperties: Promise<{ [name: string]: any }>;
+	private _commonProperties: ICommonProperties;
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
+	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
-
-	public readonly telemetryLevel = new MutableObservableValue<TelemetryLevel>(TelemetryLevel.USAGE);
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
@@ -49,19 +52,39 @@ export class TelemetryService implements ITelemetryService {
 		@IProductService private _productService: IProductService
 	) {
 		this._appenders = config.appenders;
-		this._commonProperties = config.commonProperties || Promise.resolve({});
+		this._commonProperties = config.commonProperties ?? Object.create(null);
+
+		this.sessionId = this._commonProperties['sessionID'] as string;
+		this.machineId = this._commonProperties['common.machineId'] as string;
+		this.firstSessionDate = this._commonProperties['common.firstSessionDate'] as string;
+		this.msftInternal = this._commonProperties['common.msftInternal'] as boolean | undefined;
+
 		this._piiPaths = config.piiPaths || [];
+		this._telemetryLevel = TelemetryLevel.USAGE;
 		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
 
-		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
-		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
+		// static cleanup pattern for: `vscode-file:///DANGEROUS/PATH/resources/app/Useful/Information`
+		this._cleanupPatterns = [/(vscode-)?file:\/\/\/.*?\/resources\/app\//gi];
 
 		for (const piiPath of this._piiPaths) {
 			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
+
+			if (piiPath.indexOf('\\') >= 0) {
+				this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath.replace(/\\/g, '/')), 'gi'));
+			}
 		}
 
 		this._updateTelemetryLevel();
-		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
+		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			// Check on the telemetry settings and update the state if changed
+			const affectsTelemetryConfig =
+				e.affectsConfiguration(TELEMETRY_SETTING_ID)
+				|| e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)
+				|| e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID);
+			if (affectsTelemetryConfig) {
+				this._updateTelemetryLevel();
+			}
+		}));
 	}
 
 	setExperimentProperty(name: string, value: string): void {
@@ -79,166 +102,64 @@ export class TelemetryService implements ITelemetryService {
 			level = Math.min(level, maxCollectableTelemetryLevel);
 		}
 
-		this.telemetryLevel.value = level;
+		this._telemetryLevel = level;
 	}
 
 	get sendErrorTelemetry(): boolean {
 		return this._sendErrorTelemetry;
 	}
 
-	async getTelemetryInfo(): Promise<ITelemetryInfo> {
-		const values = await this._commonProperties;
-
-		// well known properties
-		const sessionId = values['sessionID'];
-		const machineId = values['common.machineId'];
-		const firstSessionDate = values['common.firstSessionDate'];
-		const msftInternal = values['common.msftInternal'];
-
-		return { sessionId, machineId, firstSessionDate, msftInternal };
+	get telemetryLevel(): TelemetryLevel {
+		return this._telemetryLevel;
 	}
 
 	dispose(): void {
 		this._disposables.dispose();
 	}
 
-	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
+	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData) {
 		// don't send events when the user is optout
-		if (this.telemetryLevel.value < eventLevel) {
-			return Promise.resolve(undefined);
+		if (this._telemetryLevel < eventLevel) {
+			return;
 		}
 
-		return this._commonProperties.then(values => {
+		// add experiment properties
+		data = mixin(data, this._experimentProperties);
 
-			// (first) add common properties
-			data = mixin(data, values);
+		// remove all PII from data
+		data = cleanData(data as Record<string, any>, this._cleanupPatterns);
 
-			// (next) add experiment properties
-			data = mixin(data, this._experimentProperties);
+		// add common properties
+		data = mixin(data, this._commonProperties);
 
-			// (last) remove all PII from data
-			data = cloneAndChange(data, value => {
-				if (typeof value === 'string') {
-					return this._cleanupInfo(value, anonymizeFilePaths);
-				}
-				return undefined;
-			});
-
-			// Log to the appenders of sufficient level
-			this._appenders.forEach(a => a.log(eventName, data));
-
-		}, err => {
-			// unsure what to do now...
-			console.error(err);
-		});
+		// Log to the appenders of sufficient level
+		this._appenders.forEach(a => a.log(eventName, data));
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
-		return this._log(eventName, TelemetryLevel.USAGE, data, anonymizeFilePaths);
+	publicLog(eventName: string, data?: ITelemetryData) {
+		this._log(eventName, TelemetryLevel.USAGE, data);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
-		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		this.publicLog(eventName, data as ITelemetryData);
 	}
 
-	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
+	publicLogError(errorEventName: string, data?: ITelemetryData) {
 		if (!this._sendErrorTelemetry) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// Send error event and anonymize paths
-		return this._log(errorEventName, TelemetryLevel.ERROR, data, true);
+		this._log(errorEventName, TelemetryLevel.ERROR, data);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
-		return this.publicLogError(eventName, data as ITelemetryData);
-	}
-
-	private _anonymizeFilePaths(stack: string): string {
-		let updatedStack = stack;
-
-		const cleanUpIndexes: [number, number][] = [];
-		for (const regexp of this._cleanupPatterns) {
-			while (true) {
-				const result = regexp.exec(stack);
-				if (!result) {
-					break;
-				}
-				cleanUpIndexes.push([result.index, regexp.lastIndex]);
-			}
-		}
-
-		const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
-		const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
-		let lastIndex = 0;
-		updatedStack = '';
-
-		while (true) {
-			const result = fileRegex.exec(stack);
-			if (!result) {
-				break;
-			}
-			// Anoynimize user file paths that do not need to be retained or cleaned up.
-			if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
-				updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
-				lastIndex = fileRegex.lastIndex;
-			}
-		}
-		if (lastIndex < stack.length) {
-			updatedStack += stack.substr(lastIndex);
-		}
-
-		return updatedStack;
-	}
-
-	private _removePropertiesWithPossibleUserInfo(property: string): string {
-		// If for some reason it is undefined we skip it (this shouldn't be possible);
-		if (!property) {
-			return property;
-		}
-
-		const value = property.toLowerCase();
-
-		const userDataRegexes = [
-			{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
-			{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
-			{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
-			{ label: 'Email', regex: /@[a-zA-Z0-9-.]+/ } // Regex which matches @*.site
-		];
-
-		// Check for common user data in the telemetry events
-		for (const secretRegex of userDataRegexes) {
-			if (secretRegex.regex.test(value)) {
-				return `<REDACTED: ${secretRegex.label}>`;
-			}
-		}
-
-		return property;
-	}
-
-
-	private _cleanupInfo(property: string, anonymizeFilePaths?: boolean): string {
-		let updatedProperty = property;
-
-		// anonymize file paths
-		if (anonymizeFilePaths) {
-			updatedProperty = this._anonymizeFilePaths(updatedProperty);
-		}
-
-		// sanitize with configured cleanup patterns
-		for (const regexp of this._cleanupPatterns) {
-			updatedProperty = updatedProperty.replace(regexp, '');
-		}
-
-		// remove possible user info
-		updatedProperty = this._removePropertiesWithPossibleUserInfo(updatedProperty);
-
-		return updatedProperty;
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		this.publicLogError(eventName, data as ITelemetryData);
 	}
 }
 
 function getTelemetryLevelSettingDescription(): string {
-	const telemetryText = localize('telemetry.telemetryLevelMd', "Controls {0} telemetry, first-party extension telemetry and participating third-party extension telemetry. Some third party extensions might not respect this setting. Consult the specific extension's documentation to be sure. Telemetry helps us better understand how {0} is performing, where improvements need to be made, and how features are being used.", product.nameLong);
+	const telemetryText = localize('telemetry.telemetryLevelMd', "Controls {0} telemetry, first-party extension telemetry, and participating third-party extension telemetry. Some third party extensions might not respect this setting. Consult the specific extension's documentation to be sure. Telemetry helps us better understand how {0} is performing, where improvements need to be made, and how features are being used.", product.nameLong);
 	const externalLinksStatement = !product.privacyStatementUrl ?
 		localize("telemetry.docsStatement", "Read more about the [data we collect]({0}).", 'https://aka.ms/vscode-telemetry') :
 		localize("telemetry.docsAndPrivacyStatement", "Read more about the [data we collect]({0}) and our [privacy statement]({1}).", 'https://aka.ms/vscode-telemetry', product.privacyStatementUrl);
@@ -277,7 +198,7 @@ ${deprecatedSettingNote}
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
-	'order': 110,
+	'order': 1,
 	'type': 'object',
 	'title': localize('telemetryConfigurationTitle', "Telemetry"),
 	'properties': {

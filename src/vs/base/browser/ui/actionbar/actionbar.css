@@ -46,6 +46,7 @@
 }
 
 .monaco-action-bar .action-label {
+	display: flex;
 	font-size: 11px;
 	padding: 3px;
 	border-radius: 5px;
@@ -105,6 +106,12 @@
 	display: flex;
 }
 
-.monaco-action-bar .action-item.action-dropdown-item > .action-label {
-	margin-right: 1px;
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	display: flex;
+	align-items: center;
+	cursor: default;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	width: 1px;
 }

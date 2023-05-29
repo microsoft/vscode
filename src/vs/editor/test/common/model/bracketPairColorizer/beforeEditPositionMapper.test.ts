@@ -27,8 +27,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'0  0  0  0  0  0  0  0  0  0  ', // the old line numbers
 				'0  1  2  3  4  5  7  8  9  10 ', // the old columns
 
-				'0  0  0  0  0  0  0  0  0  0  ', // line count until next change
-				'4  3  2  1  0  0  3  2  1  0  ', // column count until next change
+				'0  0  0  0  0  0  ∞  ∞  ∞  ∞  ', // line count until next change
+				'4  3  2  1  0  0  ∞  ∞  ∞  ∞  ', // column count until next change
 			]
 		);
 	});
@@ -50,8 +50,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  ',
 				'0  1  2  3  4  5  4  5  6  7  6  7  8  9  10 ',
 
-				'0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  ',
-				'2  1  0  0  0  0  2  1  0  0  4  3  2  1  0  ',
+				'0  0  0  0  0  0  0  0  0  0  ∞  ∞  ∞  ∞  ∞  ',
+				'2  1  0  0  0  0  2  1  0  0  ∞  ∞  ∞  ∞  ∞  ',
 			]
 		);
 	});
@@ -75,16 +75,16 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'0  0  0  0  0  1  1  1  1  1  1  1  1  ',
 				'0  1  2  3  4  3  4  5  6  7  8  9  10 ',
 
-				'0  0  0  0  0  1  1  1  1  1  1  1  1  ',
-				'3  2  1  0  0  10 10 10 10 10 10 10 10 ',
+				"0  0  0  0  0  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ",
+				'3  2  1  0  0  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
 				// ------------------
 				'⁰  ¹  ²  ³  ⁴  ⁵  ⁶  ⁷  ⁸  ⁹  ',
 
 				'2  2  2  2  2  2  2  2  2  2  2  ',
 				'0  1  2  3  4  5  6  7  8  9  10 ',
 
-				'0  0  0  0  0  0  0  0  0  0  0  ',
-				'10 9  8  7  6  5  4  3  2  1  0  ',
+				'∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
+				'∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
 			]
 		);
 	});
@@ -109,16 +109,16 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'0  0  0  0  0  1  1  1  1  1  1  1  1  1  ',
 				'0  1  2  3  4  0  1  2  3  4  5  7  8  9  ',
 
-				'0  0  0  0  0  0  0  0  0  0  0  1  1  1  ',
-				'3  2  1  0  0  5  4  3  2  1  0  10 10 10 ',
+				'0  0  0  0  0  0  0  0  0  0  0  ∞  ∞  ∞  ',
+				'3  2  1  0  0  5  4  3  2  1  0  ∞  ∞  ∞  ',
 				// ------------------
 				'⁰  ¹  ²  ³  ⁴  ⁵  ⁶  ⁷  ⁸  ⁹  ',
 
 				'2  2  2  2  2  2  2  2  2  2  2  ',
 				'0  1  2  3  4  5  6  7  8  9  10 ',
 
-				'0  0  0  0  0  0  0  0  0  0  0  ',
-				'10 9  8  7  6  5  4  3  2  1  0  ',
+				'∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
+				'∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
 			]
 		);
 	});
@@ -144,8 +144,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'0  0  0  0  0  1  1  1  1  1  1  1  1  2  2  2  2  2  2  2  ',
 				'0  1  2  3  4  0  1  2  3  4  5  7  8  4  5  6  7  8  9  10 ',
 
-				'0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  ',
-				'3  2  1  0  0  5  4  3  2  1  0  1  0  6  5  4  3  2  1  0  ',
+				'0  0  0  0  0  0  0  0  0  0  0  0  0  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
+				'3  2  1  0  0  5  4  3  2  1  0  1  0  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
 			]
 		);
 	});
@@ -175,8 +175,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'1  0  0  0  0  0  ',
 				'0  5  6  7  8  9  ',
 
-				'0  0  0  0  0  0  ',
-				'0  4  3  2  1  0  ',
+				'0  ∞  ∞  ∞  ∞  ∞  ',
+				'0  ∞  ∞  ∞  ∞  ∞  ',
 			]
 		);
 	});
@@ -215,8 +215,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'1  0  0  ',
 				'0  8  9  ',
 
-				'0  0  0  ',
-				'0  1  0  ',
+				'0  ∞  ∞  ',
+				'0  ∞  ∞  ',
 			]
 		);
 	});
@@ -247,16 +247,16 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'1  1  1  1  1  1  1  1  1  1  1  1  ',
 				'0  1  2  1  2  3  4  5  6  7  8  9  ',
 
-				'0  0  0  1  1  1  1  1  1  1  1  1  ',
-				'0  0  0  10 10 10 10 10 10 10 10 10 ',
+				'0  0  0  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
+				'0  0  0  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
 				// ------------------
 				'⁰  ¹  ²  ³  ⁴  ⁵  ⁶  ⁷  ⁸  ⁹  ',
 
 				'2  2  2  2  2  2  2  2  2  2  2  ',
 				'0  1  2  3  4  5  6  7  8  9  10 ',
 
-				'0  0  0  0  0  0  0  0  0  0  0  ',
-				'10 9  8  7  6  5  4  3  2  1  0  ',
+				'∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
+				'∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
 			]
 		);
 	});
@@ -306,8 +306,8 @@ suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 				'2  2  2  2  2  2  2  2  ',
 				'0  4  5  6  7  8  9  10 ',
 
-				'0  0  0  0  0  0  0  0  ',
-				'0  6  5  4  3  2  1  0  ',
+				'0  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
+				'0  ∞  ∞  ∞  ∞  ∞  ∞  ∞  ',
 			]
 		);
 	});
@@ -320,7 +320,7 @@ function compute(inputArr: string[], edits: TextEdit[]): string[] {
 		range: Range.fromPositions(lengthToPosition(e.startOffset), lengthToPosition(e.endOffset))
 	}))));
 
-	const mapper = new BeforeEditPositionMapper(edits, lengthOfString(newLines.join('\n')));
+	const mapper = new BeforeEditPositionMapper(edits);
 
 	const result = new Array<string>();
 
@@ -342,9 +342,15 @@ function compute(inputArr: string[], edits: TextEdit[]): string[] {
 			lineLine += rightPad('' + beforeObj.lineCount, 3);
 			colLine += rightPad('' + beforeObj.columnCount, 3);
 
-			const dist = lengthToObj(mapper.getDistanceToNextChange(toLength(lineIdx, colIdx)));
-			lineDist += rightPad('' + dist.lineCount, 3);
-			colDist += rightPad('' + dist.columnCount, 3);
+			const distLen = mapper.getDistanceToNextChange(toLength(lineIdx, colIdx));
+			if (distLen === null) {
+				lineDist += '∞  ';
+				colDist += '∞  ';
+			} else {
+				const dist = lengthToObj(distLen);
+				lineDist += rightPad('' + dist.lineCount, 3);
+				colDist += rightPad('' + dist.columnCount, 3);
+			}
 		}
 		result.push(lineStr);
 

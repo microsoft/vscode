@@ -33,7 +33,7 @@ export class FindDecorations implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._editor.deltaDecorations(this._allDecorations(), []);
+		this._editor.removeDecorations(this._allDecorations());
 
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];
@@ -89,6 +89,14 @@ export class FindDecorations implements IDisposable {
 			return index + 1;
 		}
 		return 1;
+	}
+
+	public getDecorationRangeAt(index: number): Range | null {
+		const decorationId = index < this._decorations.length ? this._decorations[index] : null;
+		if (decorationId) {
+			return this._editor.getModel().getDecorationRange(decorationId);
+		}
+		return null;
 	}
 
 	public getCurrentMatchesPosition(desiredRange: Range): number {

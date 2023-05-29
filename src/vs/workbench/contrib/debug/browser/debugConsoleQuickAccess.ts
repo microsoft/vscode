@@ -11,7 +11,7 @@ import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Pi
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { DEBUG_CONSOLE_QUICK_ACCESS_PREFIX, SELECT_AND_START_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { getStateLabel, IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -54,7 +54,6 @@ export class DebugConsoleQuickAccess extends PickerQuickAccessProvider<IPickerQu
 		if (highlights) {
 			return {
 				label,
-				description: getStateLabel(session.state),
 				highlights: { label: highlights },
 				accept: (keyMod, event) => {
 					this._debugService.focusStackFrame(undefined, undefined, session, { explicit: true });

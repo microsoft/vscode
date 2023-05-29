@@ -26,6 +26,23 @@ declare module 'vscode' {
 		constructor(host: string, port: number, connectionToken?: string);
 	}
 
+	export interface ManagedMessagePassing {
+		onDidReceiveMessage: Event<Uint8Array>;
+		onDidClose: Event<Error | undefined>;
+		onDidEnd: Event<void>;
+
+		send: (data: Uint8Array) => void;
+		end: () => void;
+		drain?: () => Thenable<void>;
+	}
+
+	export class ManagedResolvedAuthority {
+		readonly makeConnection: () => Thenable<ManagedMessagePassing>;
+		readonly connectionToken: string | undefined;
+
+		constructor(makeConnection: () => Thenable<ManagedMessagePassing>, connectionToken?: string);
+	}
+
 	export interface ResolvedOptions {
 		extensionHostEnv?: { [key: string]: string | null };
 
@@ -43,7 +60,14 @@ declare module 'vscode' {
 		label: string;
 	}
 
-	export interface TunnelOptions {
+	export namespace env {
+		/** Quality of the application. May be undefined if running from sources. */
+		export const appQuality: string | undefined;
+		/** Commit of the application. May be undefined if running from sources. */
+		export const appCommit: string | undefined;
+	}
+
+	interface TunnelOptions {
 		remoteAddress: { port: number; host: string };
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
@@ -56,7 +80,7 @@ declare module 'vscode' {
 		protocol?: string;
 	}
 
-	export interface TunnelDescription {
+	interface TunnelDescription {
 		remoteAddress: { port: number; host: string };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number; host: string } | string;
@@ -69,7 +93,7 @@ declare module 'vscode' {
 		protocol?: string;
 	}
 
-	export interface Tunnel extends TunnelDescription {
+	interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
 		dispose(): void | Thenable<void>;
@@ -109,7 +133,7 @@ declare module 'vscode' {
 		Output = 2
 	}
 
-	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
+	export type ResolverResult = (ResolvedAuthority | ManagedResolvedAuthority) & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
@@ -164,29 +188,6 @@ declare module 'vscode' {
 		candidatePortSource?: CandidatePortSource;
 	}
 
-	export namespace workspace {
-		/**
-		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
-		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
-		 *
-		 * @throws When run in an environment without a remote.
-		 *
-		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
-		 */
-		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
-
-		/**
-		 * Gets an array of the currently available tunnels. This does not include environment tunnels, only tunnels that have been created by the user.
-		 * Note that these are of type TunnelDescription and cannot be disposed.
-		 */
-		export let tunnels: Thenable<TunnelDescription[]>;
-
-		/**
-		 * Fired when the list of tunnels has changed.
-		 */
-		export const onDidChangeTunnels: Event<void>;
-	}
-
 	export interface ResourceLabelFormatter {
 		scheme: string;
 		authority?: string;
@@ -196,7 +197,7 @@ declare module 'vscode' {
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
 		// For historic reasons we use an or string here. Once we finalize this API we should start using enums instead and adopt it in extensions.
-		// eslint-disable-next-line vscode-dts-literal-or-types
+		// eslint-disable-next-line local/vscode-dts-literal-or-types, local/vscode-dts-string-type-literals
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;

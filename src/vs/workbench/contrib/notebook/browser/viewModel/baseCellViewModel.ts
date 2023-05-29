@@ -23,7 +23,7 @@ import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/bro
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { getEditorTopPadding, NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -200,7 +200,6 @@ export abstract class BaseCellViewModel extends Disposable {
 
 
 	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
-	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
 	abstract layoutChange(change: any): void;
@@ -219,7 +218,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	// 	}
 	// }
 
-	attachTextEditor(editor: ICodeEditor) {
+	attachTextEditor(editor: ICodeEditor, estimatedHasHorizontalScrolling?: boolean) {
 		if (!editor.hasModel()) {
 			throw new Error('Invalid editor: model is missing');
 		}
@@ -237,13 +236,27 @@ export abstract class BaseCellViewModel extends Disposable {
 
 		if (this._editorViewStates) {
 			this._restoreViewState(this._editorViewStates);
+		} else {
+			// If no real editor view state was persisted, restore a default state.
+			// This forces the editor to measure its content width immediately.
+			if (estimatedHasHorizontalScrolling) {
+				this._restoreViewState({
+					contributionsState: {},
+					cursorState: [],
+					viewState: {
+						scrollLeft: 0,
+						firstPosition: { lineNumber: 1, column: 1 },
+						firstPositionDeltaTop: getEditorTopPadding()
+					}
+				});
+			}
 		}
 
 		if (this._editorTransientState) {
 			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
 		}
 
-		this._textEditor.changeDecorations((accessor) => {
+		this._textEditor?.changeDecorations((accessor) => {
 			this._resolvedDecorations.forEach((value, key) => {
 				if (key.startsWith('_lazy_')) {
 					// lazy ones
@@ -359,7 +372,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._resolvedDecorations.delete(decorationId);
 	}
 
-	deltaModelDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+	deltaModelDecorations(oldDecorations: readonly string[], newDecorations: readonly model.IModelDeltaDecoration[]): string[] {
 		oldDecorations.forEach(id => {
 			this.removeModelDecoration(id);
 		});
@@ -413,7 +426,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		return ret;
 	}
 
-	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookCellStatusBarItem[]): string[] {
+	deltaCellStatusBarItems(oldItems: readonly string[], newItems: readonly INotebookCellStatusBarItem[]): string[] {
 		oldItems.forEach(id => {
 			const item = this._cellStatusBarItems.get(id);
 			if (item) {
@@ -474,13 +487,16 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
-	getPositionScrollTopOffset(line: number, column: number): number {
+	getPositionScrollTopOffset(range: Selection | Range): number {
 		if (!this._textEditor) {
 			return 0;
 		}
 
+
+		const position = range instanceof Selection ? range.getPosition() : range.getStartPosition();
+
 		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
-		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
+		return this._textEditor.getTopForPosition(position.lineNumber, position.column) + editorPadding.top;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {
@@ -608,9 +624,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._undoRedoService.removeElements(this.uri);
 		}
 
-		if (this._textModelRef) {
-			this._textModelRef.dispose();
-		}
+		this._textModelRef?.dispose();
 	}
 
 	toJSON(): object {

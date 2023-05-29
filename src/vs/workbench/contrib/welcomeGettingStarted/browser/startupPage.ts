@@ -10,7 +10,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -24,6 +24,9 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { localize } from 'vs/nls';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -46,7 +49,9 @@ export class StartupPageContribution implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		this.run().then(undefined, onUnexpectedError);
 	}
@@ -79,14 +84,21 @@ export class StartupPageContribution implements IWorkbenchContribution {
 			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
 				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
 
-				// 'readme' should not be set in workspace settings to prevent tracking,
-				// but it can be set as a default (as in codespaces) or a user setting
-				const openWithReadme = startupEditorSetting.value === 'readme' &&
-					(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
 
+				const isStartupEditorReadme = startupEditorSetting.value === 'readme';
+				const isStartupEditorUserReadme = startupEditorSetting.userValue === 'readme';
+				const isStartupEditorDefaultReadme = startupEditorSetting.defaultValue === 'readme';
+
+				// 'readme' should not be set in workspace settings to prevent tracking,
+				// but it can be set as a default (as in codespaces or from configurationDefaults) or a user setting
+				if (isStartupEditorReadme && (!isStartupEditorUserReadme || !isStartupEditorDefaultReadme)) {
+					this.logService.warn(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditorSetting.userValue}, default=${startupEditorSetting.defaultValue})`);
+				}
+
+				const openWithReadme = isStartupEditorReadme && (isStartupEditorUserReadme || isStartupEditorDefaultReadme);
 				if (openWithReadme) {
 					await this.openReadme();
-				} else {
+				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
 					await this.openGettingStarted();
 				}
 			}
@@ -101,7 +113,7 @@ export class StartupPageContribution implements IWorkbenchContribution {
 		else {
 			const restoreData: RestoreWalkthroughsConfigurationValue = JSON.parse(toRestore);
 			const currentWorkspace = this.contextService.getWorkspace();
-			if (restoreData.folder === currentWorkspace.folders[0].uri.toString()) {
+			if (restoreData.folder === currentWorkspace.folders[0].uri.toString() || restoreData.folder === UNKNOWN_EMPTY_WINDOW_WORKSPACE.id) {
 				this.editorService.openEditor(
 					this.instantiationService.createInstance(
 						GettingStartedInput,
@@ -130,11 +142,11 @@ export class StartupPageContribution implements IWorkbenchContribution {
 			if (readmes.length) {
 				const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
 				await Promise.all([
-					this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
+					this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }).catch(error => {
+						this.notificationService.error(localize('startupPage.markdownPreviewError', 'Could not open markdown preview: {0}.\n\nPlease make sure the markdown extension is enabled.', error.message));
+					}),
 					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
 				]);
-			} else {
-				await this.openGettingStarted();
 			}
 		}
 	}
@@ -168,9 +180,6 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 		}
 	}
 
-	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme' && startupEditor.defaultValue !== 'readme') {
-		console.error(`Warning: 'workbench.startupEditor: readme' setting ignored due to being set somewhere other than user or default settings (user=${startupEditor.userValue}, default=${startupEditor.defaultValue})`);
-	}
 	return startupEditor.value === 'welcomePage'
 		|| startupEditor.value === 'readme' && (startupEditor.userValue === 'readme' || startupEditor.defaultValue === 'readme')
 		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && startupEditor.value === 'welcomePageInEmptyWorkbench');

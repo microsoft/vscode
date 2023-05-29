@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerColor, foreground, editorInfoForeground, editorWarningForeground, errorForeground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder, inputBorder, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';

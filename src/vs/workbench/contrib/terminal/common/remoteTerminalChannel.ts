@@ -11,21 +11,23 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
-export type ITerminalEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
+export type ITerminalEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection, ISerializableEnvironmentDescriptionMap][];
 
 export interface IWorkspaceFolderData {
 	uri: UriComponents;
@@ -57,7 +59,6 @@ export interface ICreateTerminalProcessResult {
 }
 
 export class RemoteTerminalChannelClient implements IPtyHostController {
-
 	get onPtyHostExit(): Event<number> {
 		return this._channel.listen<number>('$onPtyHostExitEvent');
 	}
@@ -88,8 +89,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
 	}
-	get onExecuteCommand(): Event<{ reqId: number; commandId: string; commandArgs: any[] }> {
-		return this._channel.listen<{ reqId: number; commandId: string; commandArgs: any[] }>('$onExecuteCommand');
+	get onExecuteCommand(): Event<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }> {
+		return this._channel.listen<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }>('$onExecuteCommand');
 	}
 	get onDidRequestDetach(): Event<{ requestId: number; workspaceId: string; instanceId: number }> {
 		return this._channel.listen<{ requestId: number; workspaceId: string; instanceId: number }>('$onDidRequestDetach');
@@ -151,7 +152,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 
 		const envVariableCollections: ITerminalEnvironmentVariableCollections = [];
 		for (const [k, v] of this._environmentVariableService.collections.entries()) {
-			envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map)]);
+			envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map), serializeEnvironmentDescriptionMap(v.descriptionMap)]);
 		}
 
 		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(this._remoteAuthority);
@@ -195,8 +196,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
 	}
-	detachFromProcess(id: number): Promise<void> {
-		return this._channel.call('$detachFromProcess', [id]);
+	detachFromProcess(id: number, forcePersist?: boolean): Promise<void> {
+		return this._channel.call('$detachFromProcess', [id, forcePersist]);
 	}
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._channel.call('$listProcesses');
@@ -207,7 +208,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	processBinary(id: number, data: string): Promise<void> {
 		return this._channel.call('$processBinary', [id, data]);
 	}
-	start(id: number): Promise<ITerminalLaunchError | void> {
+	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		return this._channel.call('$start', [id]);
 	}
 	input(id: number, data: string): Promise<void> {
@@ -237,7 +238,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
 		return this._channel.call('$sendCommandResult', [reqId, isError, payload]);
 	}
-
+	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		return this._channel.call('$freePortKillProcess', [port]);
+	}
 	installAutoReply(match: string, reply: string): Promise<void> {
 		return this._channel.call('$installAutoReply', [match, reply]);
 	}
@@ -258,8 +261,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$getEnvironment');
 	}
 
-	getWslPath(original: string): Promise<string> {
-		return this._channel.call('$getWslPath', [original]);
+	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
+		return this._channel.call('$getWslPath', [original, direction]);
 	}
 
 	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {
@@ -275,8 +278,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$updateTitle', [id, title, titleSource]);
 	}
 
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<string> {
-		return this._channel.call('$updateIcon', [id, icon, color]);
+	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<string> {
+		return this._channel.call('$updateIcon', [id, userInitiated, icon, color]);
 	}
 
 	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]> {
@@ -297,6 +300,10 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 
 	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
 		return this._channel.call('$reviveTerminalProcesses', [state, dateTimeFormatLocate]);
+	}
+
+	getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		return this._channel.call('$getRevivedPtyNewId', [id]);
 	}
 
 	serializeTerminalState(ids: number[]): Promise<string> {

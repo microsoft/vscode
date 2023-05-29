@@ -1,3 +1,7 @@
+parameters:
+  - name: VSCODE_RELEASE
+    type: boolean
+
 steps:
   - task: NodeTool@0
     inputs:
@@ -20,4 +24,4 @@ steps:
       AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
-      node build/azure-pipelines/common/releaseBuild.js
+      node build/azure-pipelines/common/releaseBuild.js ${{ parameters.VSCODE_RELEASE }}

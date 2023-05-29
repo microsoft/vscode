@@ -16,14 +16,15 @@ import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { CellEditType, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
-import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -55,9 +56,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, undefined, labelService, fileService);
+		super(resource, undefined, labelService, fileService, filesConfigurationService);
 		this._defaultDirtyState = !!options.startDirty;
 
 		// Automatically resolve this input when the "wanted" model comes to life via
@@ -97,7 +99,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
-			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+			if (this.filesConfigurationService.isReadonly(this.resource)) {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		}
@@ -231,12 +233,12 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 	}
 
-	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
+	override async resolve(_options?: IEditorOptions, perf?: NotebookPerfMarks): Promise<IResolvedNotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType)) {
 			return null;
 		}
 
-		mark(this.resource, 'extensionActivated');
+		perf?.mark('extensionActivated');
 
 		// we are now loading the notebook and don't need to listen to
 		// "other" loading anymore

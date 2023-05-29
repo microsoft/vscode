@@ -5,7 +5,8 @@
 
 import { fail, strictEqual } from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
+import { LogService } from 'vs/platform/log/common/logService';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 
 suite('RequestStore', () => {
@@ -17,7 +18,7 @@ suite('RequestStore', () => {
 	});
 
 	test('should resolve requests', async () => {
-		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore, undefined);
+		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore<{ data: string }, { arg: string }>, undefined);
 		let eventArgs: { requestId: number; arg: string } | undefined;
 		store.onCreateRequest(e => eventArgs = e);
 		const request = store.createRequest({ arg: 'foo' });
@@ -29,7 +30,7 @@ suite('RequestStore', () => {
 	});
 
 	test('should reject the promise when the request times out', async () => {
-		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore, 1);
+		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore<{ data: string }, { arg: string }>, 1);
 		const request = store.createRequest({ arg: 'foo' });
 		let threw = false;
 		try {

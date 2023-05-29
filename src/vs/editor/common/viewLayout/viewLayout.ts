@@ -146,6 +146,10 @@ class EditorScrollable extends Disposable {
 	public setScrollPositionSmooth(update: INewScrollPosition): void {
 		this._scrollable.setScrollPositionSmooth(update);
 	}
+
+	public hasPendingScrollAnimation(): boolean {
+		return this._scrollable.hasPendingScrollAnimation();
+	}
 }
 
 export class ViewLayout extends Disposable implements IViewLayout {
@@ -362,8 +366,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		}
 		return hadAChange;
 	}
-	public getVerticalOffsetForLineNumber(lineNumber: number): number {
-		return this._linesLayout.getVerticalOffsetForLineNumber(lineNumber);
+	public getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
+		return this._linesLayout.getVerticalOffsetForLineNumber(lineNumber, includeViewZones);
+	}
+	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones: boolean = false): number {
+		return this._linesLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
 	}
 	public isAfterLines(verticalOffset: number): boolean {
 		return this._linesLayout.isAfterLines(verticalOffset);
@@ -443,6 +450,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		} else {
 			this._scrollable.setScrollPositionSmooth(position);
 		}
+	}
+
+	public hasPendingScrollAnimation(): boolean {
+		return this._scrollable.hasPendingScrollAnimation();
 	}
 
 	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {

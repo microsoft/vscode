@@ -6,10 +6,9 @@
 import * as objects from 'vs/base/common/objects';
 import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { DiffEditorWidget, IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ConfigurationChangedEvent, IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +29,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,
+		codeEditorWidgetOptions: ICodeEditorWidgetOptions,
 		parentEditor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -41,7 +41,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(domElement, { ...parentEditor.getRawOptions(), overflowWidgetsDomNode: parentEditor.getOverflowWidgetsDomNode() }, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, { ...parentEditor.getRawOptions(), overflowWidgetsDomNode: parentEditor.getOverflowWidgetsDomNode() }, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -75,8 +75,8 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
+		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		parentEditor: ICodeEditor,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -86,7 +86,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		@IClipboardService clipboardService: IClipboardService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 	) {
-		super(domElement, parentEditor.getRawOptions(), {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, parentEditor.getRawOptions(), codeEditorWidgetOptions, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

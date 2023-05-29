@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -24,10 +24,10 @@ import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { registerColorThemeSchemas } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ThemeRegistry, registerColorThemeExtensionPoint, registerFileIconThemeExtensionPoint, registerProductIconThemeExtensionPoint } from 'vs/workbench/services/themes/common/themeExtensionPoints';
 import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationSchemas, ThemeConfiguration, updateProductIconThemeConfigurationSchemas } from 'vs/workbench/services/themes/common/themeConfiguration';
 import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
@@ -43,9 +43,6 @@ import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/co
 import { ILanguageService } from 'vs/editor/common/languages/language';
 
 // implementation
-
-const DEFAULT_COLOR_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
-const DEFAULT_LIGHT_COLOR_THEME_ID = 'vs vscode-theme-defaults-themes-light_plus-json';
 
 const PERSISTED_OS_COLOR_SCHEME = 'osColorScheme';
 const PERSISTED_OS_COLOR_SCHEME_SCOPE = StorageScope.APPLICATION; // the OS scheme depends on settings in the OS
@@ -104,19 +101,21 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private themeSettingIdBeforeSchemeSwitch: string | undefined;
 
+	private hasDefaultUpdated: boolean = false;
+
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IBrowserWorkbenchEnvironmentService readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
-		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService,
-		@ILanguageService readonly languageService: ILanguageService
+		@IUserDataInitializationService userDataInitializationService: IUserDataInitializationService,
+		@ILanguageService languageService: ILanguageService
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -144,25 +143,29 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
-		if (themeData && this.settings.colorTheme !== themeData.settingsId && this.settings.isDefaultColorTheme()) {
+		const colorThemeSetting = this.settings.colorTheme;
+		if (themeData && colorThemeSetting !== themeData.settingsId && this.settings.isDefaultColorTheme()) {
+			this.hasDefaultUpdated = themeData.settingsId === ThemeSettingDefaults.COLOR_THEME_DARK_OLD || themeData.settingsId === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD;
+
 			// the web has different defaults than the desktop, therefore do not restore when the setting is the default theme and the storage doesn't match that.
 			themeData = undefined;
 		}
 
 		// the preferred color scheme (high contrast, light, dark) has changed since the last start
 		const preferredColorScheme = this.getPreferredColorScheme();
+		const defaultColorMap = colorThemeSetting === ThemeSettingDefaults.COLOR_THEME_LIGHT ? COLOR_THEME_LIGHT_INITIAL_COLORS : colorThemeSetting === ThemeSettingDefaults.COLOR_THEME_DARK ? COLOR_THEME_DARK_INITIAL_COLORS : undefined;
 
 		if (preferredColorScheme && themeData?.type !== preferredColorScheme && this.storageService.get(PERSISTED_OS_COLOR_SCHEME, PERSISTED_OS_COLOR_SCHEME_SCOPE) !== preferredColorScheme) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(preferredColorScheme);
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(preferredColorScheme, undefined);
 		}
 		if (!themeData) {
 			const initialColorTheme = environmentService.options?.initialColorTheme;
 			if (initialColorTheme) {
-				themeData = ColorThemeData.createUnloadedThemeForThemeType(initialColorTheme.themeType, initialColorTheme.colors);
+				themeData = ColorThemeData.createUnloadedThemeForThemeType(initialColorTheme.themeType, initialColorTheme.colors ?? defaultColorMap);
 			}
 		}
 		if (!themeData) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(isWeb ? ColorScheme.LIGHT : ColorScheme.DARK);
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(isWeb ? ColorScheme.LIGHT : ColorScheme.DARK, defaultColorMap);
 		}
 		themeData.setCustomizations(this.settings);
 		this.applyTheme(themeData, undefined, true);
@@ -206,7 +209,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (devThemes.length) {
 				return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 			}
-			const fallbackTheme = this.currentColorTheme.type === ColorScheme.LIGHT ? DEFAULT_LIGHT_COLOR_THEME_ID : DEFAULT_COLOR_THEME_ID;
+			const fallbackTheme = this.currentColorTheme.type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
 			const theme = this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, fallbackTheme);
 
 			const preferredColorScheme = this.getPreferredColorScheme();
@@ -307,7 +310,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			updateColorThemeConfigurationSchemas(event.themes);
 			if (await this.restoreColorTheme()) { // checks if theme from settings exists and is set
 				// restore theme
-				if (this.currentColorTheme.id === DEFAULT_COLOR_THEME_ID && !types.isUndefined(prevColorId) && await this.colorThemeRegistry.findThemeById(prevColorId)) {
+				if (this.currentColorTheme.settingsId === ThemeSettingDefaults.COLOR_THEME_DARK && !types.isUndefined(prevColorId) && await this.colorThemeRegistry.findThemeById(prevColorId)) {
 					await this.setColorTheme(prevColorId, 'auto');
 					prevColorId = undefined;
 				} else if (event.added.some(t => t.settingsId === this.currentColorTheme.settingsId)) {
@@ -316,7 +319,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			} else if (event.removed.some(t => t.settingsId === this.currentColorTheme.settingsId)) {
 				// current theme is no longer available
 				prevColorId = this.currentColorTheme.id;
-				await this.setColorTheme(DEFAULT_COLOR_THEME_ID, 'auto');
+				const defaultTheme = this.colorThemeRegistry.findThemeBySettingsId(ThemeSettingDefaults.COLOR_THEME_DARK);
+				await this.setColorTheme(defaultTheme, 'auto');
 			}
 		});
 
@@ -421,6 +425,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 		}
 		return null;
+	}
+
+	public hasUpdatedDefaultThemes(): boolean {
+		return this.hasDefaultUpdated;
 	}
 
 	public getColorTheme(): IWorkbenchColorTheme {
@@ -581,11 +589,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (!this.themeExtensionsActivated.get(key)) {
 				type ActivatePluginClassification = {
 					owner: 'aeschli';
-					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-					publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-					themeId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+					comment: 'An event is fired when an color theme extension is first used as it provides the currently shown color theme.';
+					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
+					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension name.' };
+					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the extension is a built-in extension.' };
+					publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension publisher id.' };
+					themeId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the theme that triggered the first extension use.' };
 				};
 				type ActivatePluginEvent = {
 					id: string;
@@ -862,4 +871,7 @@ registerColorThemeSchemas();
 registerFileIconThemeSchemas();
 registerProductIconThemeSchemas();
 
-registerSingleton(IWorkbenchThemeService, WorkbenchThemeService);
+// The WorkbenchThemeService should stay eager as the constructor restores the
+// last used colors / icons from storage. This needs to happen as quickly as possible
+// for a flicker-free startup experience.
+registerSingleton(IWorkbenchThemeService, WorkbenchThemeService, InstantiationType.Eager);
