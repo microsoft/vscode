@@ -233,7 +233,7 @@ export function registerTerminalActions() {
 		title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create New Terminal in Editor Area"), original: 'Create New Terminal in Editor Area' },
 		f1: false,
 		run: async (c, accessor, args) => {
-			// Force the editor into the same editor group is it's locked. This command is only ever
+			// Force the editor into the same editor group if it's locked. This command is only ever
 			// called when a terminal is the active editor
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const instance = await c.service.createTerminal({
