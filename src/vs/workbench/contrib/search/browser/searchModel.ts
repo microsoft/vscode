@@ -1981,7 +1981,7 @@ export class SearchModel extends Disposable {
 
 		const searchComplete = await this.searchService.fileSearch(
 			query,
-			CancellationToken.None
+			token
 		);
 
 		const deserializedNotebooks = new ResourceMap<NotebookTextModel>();
