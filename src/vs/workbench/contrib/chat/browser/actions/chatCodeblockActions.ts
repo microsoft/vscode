@@ -374,15 +374,18 @@ export function registerChatCodeBlockActions() {
 		const editor = codeEditorService.getFocusedCodeEditor();
 		const editorUri = editor?.getModel()?.uri;
 		const curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
+		const focused = !widget.inputEditor.hasWidgetFocus() && widget.getFocus();
+		const focusedResponse = isResponseVM(focused) ? focused : undefined;
 
-		const focusResponse = curCodeBlockInfo ?
+		const currentResponse = curCodeBlockInfo ?
 			curCodeBlockInfo.element :
-			widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
-		if (!focusResponse) {
+			(focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
+		if (!currentResponse) {
 			return;
 		}
 
-		const responseCodeblocks = widget.getCodeBlockInfosForResponse(focusResponse);
+		widget.reveal(currentResponse);
+		const responseCodeblocks = widget.getCodeBlockInfosForResponse(currentResponse);
 		const focusIdx = curCodeBlockInfo ?
 			(curCodeBlockInfo.codeBlockIndex + (reverse ? -1 : 1) + responseCodeblocks.length) % responseCodeblocks.length :
 			reverse ? responseCodeblocks.length - 1 : 0;
