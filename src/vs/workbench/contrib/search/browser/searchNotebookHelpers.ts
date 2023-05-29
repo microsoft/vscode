@@ -82,7 +82,7 @@ export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFin
 export const rawCellPrefix = 'rawCell#';
 
 export class CellSearchModel extends Disposable {
-	constructor(readonly _source: string, private _uri: URI, private _cellIndex: number) {
+	constructor(readonly _source: string, private _textBuffer: IReadonlyTextBuffer | undefined, private _uri: URI, private _cellIndex: number) {
 		// need cell index
 		super();
 	}
@@ -107,7 +107,6 @@ export class CellSearchModel extends Disposable {
 		return this.textBuffer.getLineLength(lineNumber) + 1;
 	}
 
-	private _textBuffer!: IReadonlyTextBuffer;
 	get textBuffer() {
 		if (this._textBuffer) {
 			return this._textBuffer;

@@ -37,6 +37,8 @@ import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/
 import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
@@ -1922,6 +1924,8 @@ export class SearchModel extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@ILogService private readonly logService: ILogService,
+		@INotebookService private readonly notebookService: INotebookService,
+
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
@@ -1971,7 +1975,6 @@ export class SearchModel extends Disposable {
 			folderQueries: textQuery.folderQueries
 		};
 
-		let deserializeTime = 0;
 		const start = Date.now();
 
 		const searchComplete = await this.searchService.fileSearch(
@@ -1979,22 +1982,34 @@ export class SearchModel extends Disposable {
 			CancellationToken.None
 		);
 
-		const filesToSearch = searchComplete.results.filter((result) => !scannedFiles.has(result.resource));
-		for (const fileMatch of filesToSearch) {
+		const deserializedNotebooks = new ResourceMap<NotebookTextModel>();
+		const textModels = this.notebookService.getNotebookTextModels();
+		for (const notebook of textModels) {
+			deserializedNotebooks.set(notebook.uri, notebook);
+		}
+
+		const promises = searchComplete.results.map(async (fm) => {
 			const cellMatches: ICellMatch[] = [];
-			const uri = fileMatch.resource;
+			const uri = fm.resource;
+			if (scannedFiles.has(uri)) {
+				return;
+			}
 
 			try {
-				const deserializeStart = Date.now();
-				const _data = await this._notebookDataCache.getNotebookData(uri);
-				const deserializeEnd = Date.now();
-				deserializeTime += deserializeEnd - deserializeStart;
+				if (token.isCancellationRequested) {
+					return;
+				}
 
-				_data.cells.forEach((cell, index) => {
-					const source = cell.source;
+				const cells = deserializedNotebooks.get(uri)?.cells ?? (await this._notebookDataCache.getNotebookData(uri)).cells;
+
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				cells.forEach((cell, index) => {
 					const target = textQuery.contentPattern.pattern;
+					const cellModel = cell instanceof NotebookCellTextModel ? new CellSearchModel('', cell.textBuffer, uri, index) : new CellSearchModel(cell.source, undefined, uri, index);
 
-					const cellModel = new CellSearchModel(source, uri, index);
 					const matches = cellModel.find(target);
 					if (matches.length > 0) {
 						const cellMatch: ICellMatch = {
@@ -2007,24 +2022,25 @@ export class SearchModel extends Disposable {
 					}
 				});
 
-				if (cellMatches.length > 0) {
-					const fileMatch: IFileMatchWithCells = {
-						resource: uri, cellResults: cellMatches
-					};
-					results.set(uri, fileMatch);
-				}
+				const fileMatch = cellMatches.length > 0 ? {
+					resource: uri, cellResults: cellMatches
+				} : null;
+				results.set(uri, fileMatch);
+				return;
 
 			} catch (e) {
 				this.logService.info('error: ' + e);
-				continue;
+				return;
 			}
-		}
+
+		});
+
+		await Promise.all(promises);
 
 		const end = Date.now();
-		this.logService.info(`query: ${textQuery.contentPattern.pattern}`);
-		this.logService.info(`notebook deserialize END | ${end - start}ms`);
-		this.logService.info(`notebook deserialize time | ${deserializeTime}ms | ${(deserializeTime / (end - start)) * 100}% of total time`);
 
+		this.logService.info(`query: ${textQuery.contentPattern.pattern}`);
+		this.logService.info(`closed notebook search time | ${end - start}ms`);
 		return {
 			results: results,
 			limitHit: false
@@ -2090,13 +2106,17 @@ export class SearchModel extends Disposable {
 	}
 
 	async notebookSearch(query: ITextQuery, token: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
+		const searchStart = Date.now();
 		const localResults = await this.getLocalNotebookResults(query, token);
+		const searchLocalEnd = Date.now();
 		const locallyScannedNotebookFiles = new ResourceSet([...localResults.results.keys()], uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		const closedResults = await this.getClosedNotebookResults(query, locallyScannedNotebookFiles, token);
-
 		if (onProgress) {
 			arrays.coalesce([...localResults.results.values(), ...closedResults.results.values()]).forEach(onProgress);
 		}
+
+
+		this.logService.info(`local notebook search time | ${searchLocalEnd - searchStart}ms`);
 		return {
 			completeData: {
 				messages: [],
@@ -2108,6 +2128,7 @@ export class SearchModel extends Disposable {
 	}
 
 	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		const searchStart = Date.now();
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
 		const onProgressCall = (p: ISearchProgressItem) => {
 			progressEmitter.fire();
@@ -2122,6 +2143,9 @@ export class SearchModel extends Disposable {
 			notebookResult?.scannedFiles
 		);
 		tokenSource.dispose();
+		const searchLength = Date.now() - searchStart;
+		this.logService.info(`whole search time | ${searchLength}ms`);
+		this.logService.info(`-------`);
 		return notebookResult ? { ...currentResult, ...notebookResult.completeData } : currentResult;
 	}
 
@@ -2395,6 +2419,7 @@ class NotebookDataCache {
 	}
 
 	async getNotebookData(notebookUri: URI): Promise<NotebookData> {
+
 		if (notebookUri.scheme === Schemas.vscodeInteractive) {
 			//unsupported
 			throw new Error(`CANNOT parse notebook uri ${notebookUri.toString()}`);
