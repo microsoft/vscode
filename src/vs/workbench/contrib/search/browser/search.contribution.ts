@@ -350,10 +350,9 @@ configurationRegistry.registerConfiguration({
 				nls.localize('scm.defaultViewMode.list', "Shows search results as a list.")
 			],
 			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
-		},
+		}
 	}
-}
-);
+});
 
 CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', async function (accessor, ...args): Promise<IWorkspaceSymbol[]> {
 	const [query] = args;

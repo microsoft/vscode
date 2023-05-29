@@ -47,7 +47,6 @@ import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IFileQuery, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
-
 export class Match {
 
 	private static readonly MAX_PREVIEW_CHARS = 250;
@@ -237,6 +236,7 @@ export class CellMatch {
 
 	public addContext(textSearchMatches: ITextSearchMatch[]) {
 		if (this.cell instanceof CellSearchModel) {
+			// todo: get closed notebook results in search editor
 			return;
 		}
 		this.cell.resolveTextModel().then((textModel) => {
@@ -846,6 +846,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	private async highlightCurrentFindMatchDecoration(match: MatchInNotebook): Promise<number | null> {
 		if (!this._findMatchDecorationModel || match.cell instanceof CellSearchModel) {
+			// match cell should never be a CellSearchModel if the notebook is open
 			return null;
 		}
 		if (match.webviewIndex === undefined) {
@@ -857,6 +858,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	private revealCellRange(match: MatchInNotebook, outputOffset: number | null) {
 		if (!this._notebookEditorWidget || match.cell instanceof CellSearchModel) {
+			// match cell should never be a CellSearchModel if the notebook is open
 			return;
 		}
 		if (match.webviewIndex !== undefined) {
@@ -1925,7 +1927,6 @@ export class SearchModel extends Disposable {
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookService private readonly notebookService: INotebookService,
-
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
@@ -1969,6 +1970,7 @@ export class SearchModel extends Disposable {
 	}
 	private async getClosedNotebookResults(textQuery: ITextQuery, scannedFiles: ResourceSet, token: CancellationToken): Promise<{ results: ResourceMap<IFileMatchWithCells | null>; limitHit: boolean }> {
 		const results = new ResourceMap<IFileMatchWithCells | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		// TODO: support more than just ipynb
 		const query: IFileQuery = {
 			type: QueryType.File,
 			filePattern: '**/*.ipynb',
@@ -2114,8 +2116,6 @@ export class SearchModel extends Disposable {
 		if (onProgress) {
 			arrays.coalesce([...localResults.results.values(), ...closedResults.results.values()]).forEach(onProgress);
 		}
-
-
 		this.logService.info(`local notebook search time | ${searchLocalEnd - searchStart}ms`);
 		return {
 			completeData: {
