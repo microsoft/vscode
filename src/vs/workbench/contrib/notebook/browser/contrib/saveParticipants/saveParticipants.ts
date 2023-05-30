@@ -157,7 +157,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 
 
-		if (!codeActionsOnSave.length) {
+		if (!codeActionsOnSave.length && !notebookCodeActionsOnSave.length) {
 			return undefined;
 		}
 
