@@ -175,7 +175,6 @@ class MoveToFileRefactorCommand implements Command {
 		if (response.type !== 'response' || !response.body) {
 			return;
 		}
-		const defaultUri = this.client.toResource(response.body.newFileName);
 
 		const selectExistingFileItem: vscode.QuickPickItem = {
 			label: vscode.l10n.t("Select existing file..."),
@@ -226,14 +225,14 @@ class MoveToFileRefactorCommand implements Command {
 			const picked = await vscode.window.showOpenDialog({
 				title: vscode.l10n.t("Select move destination"),
 				openLabel: vscode.l10n.t("Move to File"),
-				defaultUri
+				defaultUri: Utils.dirname(document.uri),
 			});
 			return picked?.length ? this.client.toTsFilePath(picked[0]) : undefined;
 		} else if (picked === selectNewFileItem) {
 			const picked = await vscode.window.showSaveDialog({
 				title: vscode.l10n.t("Select move destination"),
 				saveLabel: vscode.l10n.t("Move to File"),
-				defaultUri,
+				defaultUri: this.client.toResource(response.body.newFileName),
 			});
 			return picked ? this.client.toTsFilePath(picked) : undefined;
 		} else {
