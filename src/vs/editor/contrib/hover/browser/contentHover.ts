@@ -452,6 +452,7 @@ const SCROLLBAR_WIDTH = 10;
 const SASH_WIDTH_MINUS_BORDER = 3;
 const BORDER_WIDTH = 1;
 const DELTA_SASH_LENGTH = 4;
+const HORIZONTAL_SCROLLING_BY = 30;
 
 export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentWidget {
 
@@ -465,10 +466,9 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	// TODO: above
 
 	private readonly _hoverWidget: HoverWidget = this._disposableStore.add(new HoverWidget());
-	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this.contextKeyService);
-	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this.contextKeyService);
 	private readonly _focusTracker: dom.IFocusTracker;
-	private readonly _horizontalScrollingBy: number = 30;
+	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
+	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 
 	public get isColorPickerVisible(): boolean {
 		return Boolean(this._visibleData?.colorPicker);
@@ -483,12 +483,12 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	}
 
 	constructor(
-		editor: ICodeEditor,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		_editor: ICodeEditor,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		super(editor);
-		this.resizableNode.domNode.style.zIndex = '50';
-		dom.append(this.resizableNode.domNode, this._hoverWidget.containerDomNode);
+		super(_editor);
+		this._resizableNode.domNode.style.zIndex = '50';
+		dom.append(this._resizableNode.domNode, this._hoverWidget.containerDomNode);
 
 		this._focusTracker = this._disposableStore.add(dom.trackFocus(this._hoverWidget.contentsDomNode));
 		this._disposableStore.add(this._editor.onDidLayoutChange(() => this._layout()));
@@ -498,21 +498,28 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			}
 		}));
 		this._disposableStore.add(this._focusTracker.onDidFocus(() => {
+			console.log('inside of on did focus');
 			this._hoverFocusedKey.set(true);
 		}));
 		this._disposableStore.add(this._focusTracker.onDidBlur(() => {
+			console.log('inside of on did blur');
 			this._hoverFocusedKey.set(false);
 		}));
 		this._setVisibleData(undefined);
 		this._layout();
 	}
 
+	public override dispose(): void {
+		super.dispose();
+		this._visibleData?.disposables.dispose();
+		this._editor.removeContentWidget(this);
+	}
+
 	public getId(): string {
 		return ResizableHoverWidget.ID;
 	}
 
-	public resize(size: dom.Dimension) {
-
+	public _resize(size: dom.Dimension) {
 		this._hoverWidget.contentsDomNode.style.maxHeight = 'none';
 		this._hoverWidget.contentsDomNode.style.maxWidth = 'none';
 		const width = size.width - 2 * SASH_WIDTH_MINUS_BORDER + 'px';
@@ -534,29 +541,29 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			this._hoverWidget.contentsDomNode.style.height = height + 'px';
 		}
 		const horizontalSashLength = size.width - DELTA_SASH_LENGTH + 'px';
-		this.resizableNode.northSash.el.style.width = horizontalSashLength;
-		this.resizableNode.southSash.el.style.width = horizontalSashLength;
-		this.resizableNode.northSash.el.style.left = 2 * BORDER_WIDTH + 'px';
-		this.resizableNode.southSash.el.style.left = 2 * BORDER_WIDTH + 'px';
+		this._resizableNode.northSash.el.style.width = horizontalSashLength;
+		this._resizableNode.southSash.el.style.width = horizontalSashLength;
+		this._resizableNode.northSash.el.style.left = 2 * BORDER_WIDTH + 'px';
+		this._resizableNode.southSash.el.style.left = 2 * BORDER_WIDTH + 'px';
 		const verticalSashLength = size.height - DELTA_SASH_LENGTH + 'px';
-		this.resizableNode.eastSash.el.style.height = verticalSashLength;
-		this.resizableNode.westSash.el.style.height = verticalSashLength;
-		this.resizableNode.eastSash.el.style.top = 2 * BORDER_WIDTH + 'px';
-		this.resizableNode.westSash.el.style.top = 2 * BORDER_WIDTH + 'px';
+		this._resizableNode.eastSash.el.style.height = verticalSashLength;
+		this._resizableNode.westSash.el.style.height = verticalSashLength;
+		this._resizableNode.eastSash.el.style.top = 2 * BORDER_WIDTH + 'px';
+		this._resizableNode.westSash.el.style.top = 2 * BORDER_WIDTH + 'px';
 
-		const maxRenderingWidth = this.findMaximumRenderingWidth();
-		const maxRenderingHeight = this.findMaximumRenderingHeight();
+		const maxRenderingWidth = this._findMaximumRenderingWidth();
+		const maxRenderingHeight = this._findMaximumRenderingHeight();
 		console.log('maxRenderingWidth : ', maxRenderingWidth);
 		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		if (!maxRenderingWidth || !maxRenderingHeight) {
 			return;
 		}
-		this.resizableNode.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
+		this._resizableNode.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
 		this._hoverWidget.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
 	}
 
-	public findAvailableSpaceVertically(): number | undefined {
+	private _findAvailableSpaceVertically(): number | undefined {
 		if (!this._editor || !this._editor.hasModel() || !this._visibleData?.showAtPosition) {
 			return;
 		}
@@ -573,12 +580,12 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		return availableSpace;
 	}
 
-	public findAvailableSpaceHorizontally(): number | undefined {
-		return this.findMaximumRenderingWidth();
+	private _findAvailableSpaceHorizontally(): number | undefined {
+		return this._findMaximumRenderingWidth();
 	}
 
-	public findMaximumRenderingHeight(): number | undefined {
-		const availableSpace = this.findAvailableSpaceVertically();
+	private _findMaximumRenderingHeight(): number | undefined {
+		const availableSpace = this._findAvailableSpaceVertically();
 		if (!availableSpace) {
 			return;
 		}
@@ -592,7 +599,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		return Math.min(availableSpace, divMaxHeight);
 	}
 
-	public findMaximumRenderingWidth(): number | undefined {
+	private _findMaximumRenderingWidth(): number | undefined {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
@@ -602,12 +609,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		const glyphMarginWidth = this._editor.getLayoutInfo().glyphMarginWidth;
 		const leftOfContainer = this._hoverWidget.containerDomNode.offsetLeft;
 		return widthOfEditor + leftOfEditor - leftOfContainer - glyphMarginWidth;
-	}
-
-	public override dispose(): void {
-		super.dispose();
-		this._visibleData?.disposables.dispose();
-		this._editor.removeContentWidget(this);
 	}
 
 	public isMouseGettingCloser(posx: number, posy: number): boolean {
@@ -626,6 +627,8 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		}
 		const distance = computeDistanceFromPointToRectangle(posx, posy, widgetRect.left, widgetRect.top, widgetRect.width, widgetRect.height);
 		// TODO: do we need the following?
+		console.log('distance : ', distance);
+		console.log('this._visibleData.closestMouseDistance : ', this._visibleData.closestMouseDistance);
 		if (!distance || !this._visibleData.closestMouseDistance || distance > this._visibleData.closestMouseDistance + 4 /* tolerance of 4 pixels */) {
 			// The mouse is getting farther away
 			return false;
@@ -635,10 +638,9 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	}
 
 	private _setVisibleData(visibleData: ContentHoverVisibleData | undefined): void {
-		if (this._visibleData) {
-			this._visibleData.disposables.dispose();
-		}
+		this._visibleData?.disposables.dispose();
 		this._visibleData = visibleData;
+		this._position = visibleData?.showAtPosition;
 		this._hoverVisibleKey.set(!!this._visibleData);
 		this._hoverWidget.containerDomNode.classList.toggle('hidden', !this._visibleData);
 	}
@@ -658,11 +660,43 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
+	private _updateContent(node: DocumentFragment): void {
+		this._hoverWidget.contentsDomNode.style.paddingBottom = '';
+		this._hoverWidget.contentsDomNode.textContent = '';
+		this._hoverWidget.contentsDomNode.appendChild(node);
+	}
+
+
+
+	private _getWidgetHeight(): number {
+		const persistedSize = this.findPersistedSize();
+		// If there is no persisted size, then normally render
+		if (!persistedSize) {
+			this._hoverWidget.contentsDomNode.style.maxHeight = `${Math.max(this._editor.getLayoutInfo().height / 4, 250)}px`;
+			this._hoverWidget.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+			this.onContentsChanged();
+			// Simply force a synchronous render on the editor
+			// such that the widget does not really render with left = '0px'
+			this._editor.render();
+			return this._hoverWidget.containerDomNode.clientHeight + 6;
+		}
+		// When there is a persisted size then do not use a maximum height or width
+		else {
+			this._hoverWidget.contentsDomNode.style.maxHeight = 'none';
+			this._hoverWidget.contentsDomNode.style.maxWidth = 'none';
+			return persistedSize.height;
+		}
+	}
+
+	private _layoutContentWidget(): void {
+		this._editor.layoutContentWidget(this);
+		this._hoverWidget.onContentsChanged();
+	}
+
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		this._position = visibleData.showAtPosition;
 		this._setVisibleData(visibleData);
 		const widgetPosition: IContentWidgetPosition = {
 			position: visibleData.showAtPosition,
@@ -670,28 +704,26 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			positionAffinity: visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined,
 			preference: [ContentWidgetPositionPreference.ABOVE]
 		};
-		this.setPosition(widgetPosition);
+		this._contentPosition = widgetPosition;
+		console.log('this._visible : ', this._visible);
+		console.log('this._visibleKey.get() : ', this._hoverVisibleKey.get());
 		if (!this._visible) {
 			this._editor.addContentWidget(this);
 		}
-		this._hoverWidget.contentsDomNode.style.paddingBottom = '';
-		this._hoverWidget.contentsDomNode.textContent = '';
-		this._hoverWidget.contentsDomNode.appendChild(node);
 		this._updateFont();
-
-		this._renderingAbove = this.findRenderingPreference(this._getHeight(), visibleData.showAtPosition);
+		this._updateContent(node);
+		this._renderingAbove = this.findRenderingPreference(this._getWidgetHeight(), visibleData.showAtPosition);
 		if (!this._renderingAbove) {
 			return;
 		}
 		widgetPosition.preference = [this._renderingAbove];
-		this.setPosition(widgetPosition);
+		this._contentPosition = widgetPosition;
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		if (!this.findPersistedSize()) {
 			this.onContentsChanged();
 		}
-
 		if (visibleData.stoleFocus) {
 			this._hoverWidget.containerDomNode.focus();
 		}
@@ -700,10 +732,9 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	}
 
 	public hide(): void {
-
 		this._visible = false;
-		this.resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
-		this.resizableNode.clearSashHoverState();
+		this._resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
+		this._resizableNode.clearSashHoverState();
 		this._editor.removeContentWidget(this);
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
@@ -716,43 +747,14 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		}
 	}
 
-	private _getHeight(): number {
-		let height;
-		const persistedSize = this.findPersistedSize();
-		// If there is no persisted size, then normally render
-		if (!persistedSize) {
-			this._hoverWidget.contentsDomNode.style.maxHeight = `${Math.max(this._editor.getLayoutInfo().height / 4, 250)}px`;
-			this._hoverWidget.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
-			this.onContentsChanged();
-			// Simply force a synchronous render on the editor
-			// such that the widget does not really render with left = '0px'
-			this._editor.render();
-			height = this._hoverWidget.containerDomNode.clientHeight + 6;
-		}
-		// When there is a persisted size then do not use a maximum height or width
-		else {
-			this._hoverWidget.contentsDomNode.style.maxHeight = 'none';
-			this._hoverWidget.contentsDomNode.style.maxWidth = 'none';
-			height = persistedSize.height;
-		}
-		return height;
-	}
-
-	private _layoutContentWidget(): void {
-		this._editor.layoutContentWidget(this);
-		this._hoverWidget.onContentsChanged();
-	}
-
 	public onContentsChanged(): void {
-
-		const persistedSize = this.findPersistedSize();
 		const containerDomNode = this._hoverWidget.containerDomNode;
 		const contentsDomNode = this._hoverWidget.contentsDomNode;
-
+		const persistedSize = this.findPersistedSize();
 		// Suppose a persisted size is defined
 		if (persistedSize) {
-			const width = Math.min(this.findAvailableSpaceHorizontally() ?? Infinity, persistedSize.width - 2 * SASH_WIDTH_MINUS_BORDER);
-			const height = Math.min(this.findAvailableSpaceVertically() ?? Infinity, persistedSize.height - 2 * SASH_WIDTH_MINUS_BORDER);
+			const width = Math.min(this._findAvailableSpaceHorizontally() ?? Infinity, persistedSize.width - 2 * SASH_WIDTH_MINUS_BORDER);
+			const height = Math.min(this._findAvailableSpaceVertically() ?? Infinity, persistedSize.height - 2 * SASH_WIDTH_MINUS_BORDER);
 			containerDomNode.style.width = width + 'px';
 			containerDomNode.style.height = height + 'px';
 			contentsDomNode.style.width = width + 'px';
@@ -764,23 +766,19 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			contentsDomNode.style.width = 'auto';
 			contentsDomNode.style.height = 'auto';
 			// Added because otherwise the initial size of the hover content is smaller than should be
-			this.resizableNode.domNode.style.width = this._editor.getLayoutInfo().width + 'px';
-			this.resizableNode.domNode.style.height = this._editor.getLayoutInfo().height + 'px';
+			this._resizableNode.domNode.style.width = this._editor.getLayoutInfo().width + 'px';
+			this._resizableNode.domNode.style.height = this._editor.getLayoutInfo().height + 'px';
 			this._layoutContentWidget();
 			// Added otherwise rendered too small horizontally
 			containerDomNode.style.width = containerDomNode.clientWidth + 2 * BORDER_WIDTH + 'px';
 		}
-
 		const clientHeight = containerDomNode.clientHeight;
 		const clientWidth = containerDomNode.clientWidth;
-
-		this.resizableNode.layout(clientHeight + 2 * SASH_WIDTH_MINUS_BORDER, clientWidth + 2 * SASH_WIDTH_MINUS_BORDER);
-		this.resizableNode.domNode.style.width = clientWidth + 2 * SASH_WIDTH_MINUS_BORDER + 'px';
-		this.resizableNode.domNode.style.height = clientHeight + 2 * SASH_WIDTH_MINUS_BORDER + 'px';
-
+		this._resizableNode.layout(clientHeight + 2 * SASH_WIDTH_MINUS_BORDER, clientWidth + 2 * SASH_WIDTH_MINUS_BORDER);
+		this._resizableNode.domNode.style.width = clientWidth + 2 * SASH_WIDTH_MINUS_BORDER + 'px';
+		this._resizableNode.domNode.style.height = clientHeight + 2 * SASH_WIDTH_MINUS_BORDER + 'px';
 		containerDomNode.style.top = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
 		containerDomNode.style.left = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
-
 		const scrollDimensions = this._hoverWidget.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
 		if (hasHorizontalScrollbar) {
@@ -788,7 +786,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			if (this._hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this._hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
 			}
-			const maxRenderingHeight = this.findMaximumRenderingHeight();
+			const maxRenderingHeight = this._findMaximumRenderingHeight();
 			if (!maxRenderingHeight) {
 				return;
 			}
@@ -801,18 +799,16 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 				contentsDomNode.style.height = Math.min(maxRenderingHeight, clientHeight - SCROLLBAR_WIDTH) + 'px';
 			}
 		}
-
 		const verticalSashLength = containerDomNode.clientHeight + 2 * BORDER_WIDTH;
 		const horizontalSashLength = containerDomNode.clientWidth + 2 * BORDER_WIDTH;
-
-		this.resizableNode.northSash.el.style.width = horizontalSashLength + 'px';
-		this.resizableNode.southSash.el.style.width = horizontalSashLength + 'px';
-		this.resizableNode.northSash.el.style.left = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
-		this.resizableNode.southSash.el.style.left = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
-		this.resizableNode.eastSash.el.style.height = verticalSashLength + 'px';
-		this.resizableNode.westSash.el.style.height = verticalSashLength + 'px';
-		this.resizableNode.eastSash.el.style.top = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
-		this.resizableNode.westSash.el.style.top = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
+		this._resizableNode.northSash.el.style.width = horizontalSashLength + 'px';
+		this._resizableNode.southSash.el.style.width = horizontalSashLength + 'px';
+		this._resizableNode.northSash.el.style.left = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
+		this._resizableNode.southSash.el.style.left = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
+		this._resizableNode.eastSash.el.style.height = verticalSashLength + 'px';
+		this._resizableNode.westSash.el.style.height = verticalSashLength + 'px';
+		this._resizableNode.eastSash.el.style.top = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
+		this._resizableNode.westSash.el.style.top = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
 		this._layoutContentWidget();
 	}
 
@@ -834,12 +830,12 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 
 	public scrollLeft(): void {
 		const scrollLeft = this._hoverWidget.scrollbar.getScrollPosition().scrollLeft;
-		this._hoverWidget.scrollbar.setScrollPosition({ scrollLeft: scrollLeft - this._horizontalScrollingBy });
+		this._hoverWidget.scrollbar.setScrollPosition({ scrollLeft: scrollLeft - HORIZONTAL_SCROLLING_BY });
 	}
 
 	public scrollRight(): void {
 		const scrollLeft = this._hoverWidget.scrollbar.getScrollPosition().scrollLeft;
-		this._hoverWidget.scrollbar.setScrollPosition({ scrollLeft: scrollLeft + this._horizontalScrollingBy });
+		this._hoverWidget.scrollbar.setScrollPosition({ scrollLeft: scrollLeft + HORIZONTAL_SCROLLING_BY });
 	}
 
 	public pageUp(): void {

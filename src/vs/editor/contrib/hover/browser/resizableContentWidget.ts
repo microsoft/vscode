@@ -6,37 +6,37 @@
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import * as dom from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { clamp } from 'vs/base/common/numbers';
 import { ResourceMap } from 'vs/base/common/map';
 import { IPosition, Position } from 'vs/editor/common/core/position';
+import * as dom from 'vs/base/browser/dom';
 
 abstract class ResizableContentWidget extends Disposable implements IContentWidget {
 
-	allowEditorOverflow?: boolean | undefined;
-	suppressMouseDown?: boolean | undefined;
+	readonly allowEditorOverflow: boolean = true;
+	readonly suppressMouseDown: boolean = false;
 
 	protected readonly _contentNode: HTMLDivElement;
 	protected readonly _resizableNode = this._register(new ResizableHTMLElement());
+	protected _contentPosition: IContentWidgetPosition | null = null;
 
-	private _contentPosition: IContentWidgetPosition | null = null;
 	private _resizing: boolean = false;
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
-		initialSize: dom.IDimension = new dom.Dimension(10, 10)
+		_initialSize: dom.IDimension = new dom.Dimension(10, 10)
 	) {
 		super();
 		this._contentNode = document.createElement('div');
-		this._contentNode.style.width = `${initialSize.width}px`;
-		this._contentNode.style.height = `${initialSize.height}px`;
+		this._contentNode.style.width = `${_initialSize.width}px`;
+		this._contentNode.style.height = `${_initialSize.height}px`;
 		this._resizableNode.domNode.style.position = 'absolute';
 		this._resizableNode.domNode.appendChild(this._contentNode);
 		this._resizableNode.minSize = new dom.Dimension(10, 10);
 		this._resizableNode.enableSashes(true, true, true, true);
-		this._resizableNode.layout(initialSize.height, initialSize.width);
+		this._resizableNode.layout(_initialSize.height, _initialSize.width);
 		this._register(this._resizableNode.onDidResize(e => {
 			this._contentNode.style.width = `${e.dimension.width}px`;
 			this._contentNode.style.height = `${e.dimension.height}px`;
@@ -65,36 +65,26 @@ abstract class ResizableContentWidget extends Disposable implements IContentWidg
 			return;
 		}
 		let height = widgetHeight;
-		// The dimensions of the document in which we are displaying the hover
 		const bodyBox = dom.getClientArea(document.body);
 		// Hard-coded in the hover.css file as 1.5em or 24px
 		const minHeight = 24;
-		// The full height is already passed in as a parameter
-		const fullHeight = widgetHeight;
 		const editorBox = dom.getDomNodePagePosition(editorDomNode);
 		const mouseBox = this._editor.getScrolledVisiblePosition(showAtPosition);
 		if (!mouseBox) {
 			return;
 		}
-		// Position where the editor box starts + the top of the mouse box relatve to the editor + mouse box height
 		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
-		// Total height of the box minus the position of the bottom of the mouse, this is the maximum height below the mouse position
 		const availableSpaceBelow = bodyBox.height - mouseBottom;
-		// Max height below is the minimum of the available space below and the full height of the widget
-		const maxHeightBelow = Math.min(availableSpaceBelow, fullHeight);
-		// The available space above the mouse position is the height of the top of the editor plus the top of the mouse box relative to the editor
+		const maxHeightBelow = Math.min(availableSpaceBelow, widgetHeight);
 		const availableSpaceAbove = editorBox.top + mouseBox.top - 30;
-		const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
-		// We find the maximum height of the widget possible on the top or on the bottom
-		const maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), fullHeight);
-
+		const maxHeightAbove = Math.min(availableSpaceAbove, widgetHeight);
+		const maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), widgetHeight);
 		if (widgetHeight < minHeight) {
 			height = minHeight;
 		}
 		if (height > maxHeight) {
 			height = maxHeight;
 		}
-		// Determining whether we should render above or not ideally
 		let renderingAbove: ContentWidgetPositionPreference;
 		if (this._editor.getOption(EditorOption.hover).above) {
 			renderingAbove = height <= maxHeightAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
@@ -102,18 +92,14 @@ abstract class ResizableContentWidget extends Disposable implements IContentWidg
 			renderingAbove = height <= maxHeightBelow ? ContentWidgetPositionPreference.BELOW : ContentWidgetPositionPreference.ABOVE;
 		}
 		if (renderingAbove === ContentWidgetPositionPreference.ABOVE) {
-			this.resizableNode.enableSashes(true, true, false, false);
+			this._resizableNode.enableSashes(true, true, false, false);
 		} else {
-			this.resizableNode.enableSashes(false, true, true, false);
+			this._resizableNode.enableSashes(false, true, true, false);
 		}
 		return renderingAbove;
 	}
 
-	setPosition(contentPosition: IContentWidgetPosition | null): void {
-		this._contentPosition = contentPosition;
-	}
-
-	abstract resize(dimension: dom.Dimension): void;
+	abstract _resize(dimension: dom.Dimension): void;
 
 	get resizing() {
 		return this._resizing;
@@ -125,10 +111,6 @@ abstract class ResizableContentWidget extends Disposable implements IContentWidg
 
 	afterOnDidResize() {
 		return;
-	}
-
-	get resizableNode(): ResizableHTMLElement {
-		return this._resizableNode;
 	}
 }
 
@@ -187,22 +169,24 @@ export class SingleSizePersistingOptions {
 export abstract class SinglePersistedSizeResizableContentWidget extends ResizableContentWidget {
 
 	private readonly persistedWidgetSize: PersistedWidgetSize | null = null;
+	private readonly _persistingOptions: SingleSizePersistingOptions;
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		private readonly editor: ICodeEditor,
-		private readonly persistingOptions: SingleSizePersistingOptions,
-		initialSize: dom.IDimension
+		_editor: ICodeEditor,
+		_persistingOptions: SingleSizePersistingOptions,
+		_initialSize?: dom.IDimension
 	) {
-		super(editor, initialSize);
-		this.persistedWidgetSize = new PersistedWidgetSize(this.persistingOptions.key, this.persistingOptions.storageService);
+		super(_editor, _initialSize);
+		this._persistingOptions = _persistingOptions;
+		this.persistedWidgetSize = new PersistedWidgetSize(this._persistingOptions.key, this._persistingOptions.storageService);
 		let state: ResizeState | undefined;
-		this.disposables.add(this.resizableNode.onDidWillResize(() => {
+		this.disposables.add(this._resizableNode.onDidWillResize(() => {
 			this.beforeOnDidWillResize();
-			state = new ResizeState(this.persistedWidgetSize!.restore(), this.resizableNode.size);
+			state = new ResizeState(this.persistedWidgetSize!.restore(), this._resizableNode.size);
 		}));
-		this.disposables.add(this.resizableNode.onDidResize(e => {
-			this.resize(new dom.Dimension(e.dimension.width, e.dimension.height));
+		this.disposables.add(this._resizableNode.onDidResize(e => {
+			this._resize(new dom.Dimension(e.dimension.width, e.dimension.height));
 			if (state) {
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
 				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
@@ -211,15 +195,15 @@ export abstract class SinglePersistedSizeResizableContentWidget extends Resizabl
 				return;
 			}
 			if (state) {
-				const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-				const itemHeight = clamp(this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight, 8, 1000);
+				const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+				const itemHeight = clamp(this._editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight, 8, 1000);
 				const threshold = Math.round(itemHeight / 2);
-				let { width, height } = this.resizableNode.size;
+				let { width, height } = this._resizableNode.size;
 				if (!state.persistHeight || Math.abs(state.currentSize.height - height) <= threshold) {
-					height = state.persistedSize?.height ?? this.persistingOptions.defaultSize.height;
+					height = state.persistedSize?.height ?? this._persistingOptions.defaultSize.height;
 				}
 				if (!state.persistWidth || Math.abs(state.currentSize.width - width) <= threshold) {
-					width = state.persistedSize?.width ?? this.persistingOptions.defaultSize.width;
+					width = state.persistedSize?.width ?? this._persistingOptions.defaultSize.width;
 				}
 				this.persistedWidgetSize!.store(new dom.Dimension(width, height));
 			}
@@ -249,12 +233,12 @@ export abstract class MultiplePersistedSizeResizableContentWidget extends Resiza
 	protected _position: Position | undefined;
 
 	constructor(
-		public readonly editor: ICodeEditor,
-		initialSize?: dom.IDimension
+		_editor: ICodeEditor,
+		_initialSize?: dom.IDimension
 	) {
-		super(editor, initialSize);
-		this._disposables.add(this.editor.onDidChangeModelContent((e) => {
-			const uri = this.editor.getModel()?.uri;
+		super(_editor, _initialSize);
+		this._disposables.add(this._editor.onDidChangeModelContent((e) => {
+			const uri = this._editor.getModel()?.uri;
 			if (!uri || !this._persistedWidgetSizes.has(uri)) {
 				return;
 			}
@@ -280,27 +264,27 @@ export abstract class MultiplePersistedSizeResizableContentWidget extends Resiza
 			}
 			this._persistedWidgetSizes.set(uri, updatedPersistedSizesForUri);
 		}));
-		this._disposables.add(this.resizableNode.onDidWillResize(() => {
+		this._disposables.add(this._resizableNode.onDidWillResize(() => {
 			this.beforeOnDidWillResize();
 		}));
-		this._disposables.add(this.resizableNode.onDidResize(e => {
+		this._disposables.add(this._resizableNode.onDidResize(e => {
 			const height = e.dimension.height;
 			const width = e.dimension.width;
-			this.resize(new dom.Dimension(width, height));
+			this._resize(new dom.Dimension(width, height));
 			if (e.done) {
-				if (!this.editor.hasModel()) {
+				if (!this._editor.hasModel()) {
 					return;
 				}
-				const uri = this.editor.getModel().uri;
+				const uri = this._editor.getModel().uri;
 				if (!uri || !this._position) {
 					return;
 				}
 				const persistedSize = new dom.Dimension(width, height);
-				const wordPosition = this.editor.getModel().getWordAtPosition(this._position);
+				const wordPosition = this._editor.getModel().getWordAtPosition(this._position);
 				if (!wordPosition) {
 					return;
 				}
-				const offset = this.editor.getModel().getOffsetAt({ lineNumber: this._position.lineNumber, column: wordPosition.startColumn });
+				const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._position.lineNumber, column: wordPosition.startColumn });
 				const length = wordPosition.word.length;
 
 				if (!this._persistedWidgetSizes.get(uri)) {
@@ -325,16 +309,16 @@ export abstract class MultiplePersistedSizeResizableContentWidget extends Resiza
 	}
 
 	findPersistedSize(): dom.Dimension | undefined {
-		if (!this._position || !this.editor.hasModel()) {
+		if (!this._position || !this._editor.hasModel()) {
 			return;
 		}
-		const wordPosition = this.editor.getModel().getWordAtPosition(this._position);
+		const wordPosition = this._editor.getModel().getWordAtPosition(this._position);
 		if (!wordPosition) {
 			return;
 		}
-		const offset = this.editor.getModel().getOffsetAt({ lineNumber: this._position.lineNumber, column: wordPosition.startColumn });
+		const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._position.lineNumber, column: wordPosition.startColumn });
 		const length = wordPosition.word.length;
-		const uri = this.editor.getModel().uri;
+		const uri = this._editor.getModel().uri;
 		const persistedSizesForUri = this._persistedWidgetSizes.get(uri);
 		if (!persistedSizesForUri) {
 			return;

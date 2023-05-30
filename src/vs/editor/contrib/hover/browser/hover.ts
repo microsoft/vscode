@@ -165,7 +165,7 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
-			// mouse down on top of overlay margin hover widget
+			// mouse moved on top of overlay margin hover widget
 			return;
 		}
 
@@ -691,7 +691,7 @@ class ClearPersistedHoverSizes extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = ModesHoverController.get(editor);
 		if (!controller) {
 			return;
