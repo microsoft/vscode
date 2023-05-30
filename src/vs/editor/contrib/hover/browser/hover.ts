@@ -15,7 +15,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { ContentHoverController, ResizableHoverWidget } from 'vs/editor/contrib/hover/browser/contentHover';
+import { ResizableHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
