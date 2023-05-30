@@ -125,7 +125,10 @@ export function resolveCopyDestination(documentUri: vscode.Uri, fileName: string
 
 
 function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string, dest: string, getWorkspaceFolder: GetWorkspaceFolder): string {
-	let outDest = dest;
+	let outDest = dest.trim();
+	if (!outDest) {
+		outDest = '${fileName}';
+	}
 
 	// Destination that start with `/` implicitly means go to workspace root
 	if (outDest.startsWith('/')) {
