@@ -23,8 +23,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 const getMoveToEditorChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	id: `workbench.action.chat.${providerId}.openInEditor`,
 	title: {
-		value: localize('chat.openInEditor.label', "Open In Editor"),
-		original: 'Open In Editor'
+		value: localize('chat.openInEditor.label', "Open Session In Editor"),
+		original: 'Open Session In Editor'
 	},
 	category: CHAT_CATEGORY,
 	precondition: CONTEXT_PROVIDER_EXISTS,
