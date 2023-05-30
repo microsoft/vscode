@@ -463,7 +463,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	private _renderingAbove: ContentWidgetPositionPreference | undefined;
 
 	private readonly _hoverWidget: HoverWidget = this._disposableStore.add(new HoverWidget());
-	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 
@@ -487,17 +486,17 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		this._resizableNode.domNode.style.zIndex = '50';
 		dom.append(this._resizableNode.domNode, this._hoverWidget.containerDomNode);
 
-		this._focusTracker = this._disposableStore.add(dom.trackFocus(this._resizableNode.domNode));
+		const focusTracker = this._disposableStore.add(dom.trackFocus(this._resizableNode.domNode));
 		this._disposableStore.add(this._editor.onDidLayoutChange(() => this._layout()));
 		this._disposableStore.add(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._updateFont();
 			}
 		}));
-		this._disposableStore.add(this._focusTracker.onDidFocus(() => {
+		this._disposableStore.add(focusTracker.onDidFocus(() => {
 			this._hoverFocusedKey.set(true);
 		}));
-		this._disposableStore.add(this._focusTracker.onDidBlur(() => {
+		this._disposableStore.add(focusTracker.onDidBlur(() => {
 			this._hoverFocusedKey.set(false);
 		}));
 		this._setVisibleData(undefined);
@@ -507,6 +506,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	public override dispose(): void {
 		super.dispose();
 		this._visibleData?.disposables.dispose();
+		this._disposableStore.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
@@ -660,7 +660,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 
 	private _getWidgetHeight(): number {
 		const persistedSize = this.findPersistedSize();
-		// If there is no persisted size, then normally render
+		// If there is no persisted size, then render normally
 		if (!persistedSize) {
 			this._hoverWidget.contentsDomNode.style.maxHeight = `${Math.max(this._editor.getLayoutInfo().height / 4, 250)}px`;
 			this._hoverWidget.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
@@ -733,6 +733,16 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		}
 	}
 
+	private _setSize(width: string, height: string) {
+		const containerDomNode = this._hoverWidget.containerDomNode;
+		const contentsDomNode = this._hoverWidget.contentsDomNode;
+		containerDomNode.style.width = width;
+		containerDomNode.style.height = height;
+		contentsDomNode.style.width = width;
+		contentsDomNode.style.height = height;
+		this._layoutContentWidget();
+	}
+
 	public onContentsChanged(): void {
 		const containerDomNode = this._hoverWidget.containerDomNode;
 		const contentsDomNode = this._hoverWidget.contentsDomNode;
@@ -741,20 +751,12 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		if (persistedSize) {
 			const width = Math.min(this._findAvailableSpaceHorizontally() ?? Infinity, persistedSize.width - 2 * SASH_WIDTH_MINUS_BORDER);
 			const height = Math.min(this._findAvailableSpaceVertically() ?? Infinity, persistedSize.height - 2 * SASH_WIDTH_MINUS_BORDER);
-			containerDomNode.style.width = width + 'px';
-			containerDomNode.style.height = height + 'px';
-			contentsDomNode.style.width = width + 'px';
-			contentsDomNode.style.height = height + 'px';
-			this._layoutContentWidget();
+			this._setSize(width + 'px', height + 'px');
 		} else {
-			containerDomNode.style.width = 'auto';
-			containerDomNode.style.height = 'auto';
-			contentsDomNode.style.width = 'auto';
-			contentsDomNode.style.height = 'auto';
 			// Added because otherwise the initial size of the hover content is smaller than should be
 			this._resizableNode.domNode.style.width = this._editor.getLayoutInfo().width + 'px';
 			this._resizableNode.domNode.style.height = this._editor.getLayoutInfo().height + 'px';
-			this._layoutContentWidget();
+			this._setSize('auto', 'auto');
 			// Added otherwise rendered too small horizontally
 			containerDomNode.style.width = containerDomNode.clientWidth + 2 * BORDER_WIDTH + 'px';
 		}

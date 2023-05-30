@@ -166,11 +166,14 @@ export class SingleSizePersistingOptions {
 	) { }
 }
 
+/**
+ * Abstract class which defines a resizable widgets for which one single global size is persisted.
+ */
 export abstract class SinglePersistedSizeResizableContentWidget extends ResizableContentWidget {
 
-	private readonly persistedWidgetSize: PersistedWidgetSize | null = null;
+	private readonly _persistedWidgetSize: PersistedWidgetSize | undefined;
 	private readonly _persistingOptions: SingleSizePersistingOptions;
-	private readonly disposables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		_editor: ICodeEditor,
@@ -179,22 +182,20 @@ export abstract class SinglePersistedSizeResizableContentWidget extends Resizabl
 	) {
 		super(_editor, _initialSize);
 		this._persistingOptions = _persistingOptions;
-		this.persistedWidgetSize = new PersistedWidgetSize(this._persistingOptions.key, this._persistingOptions.storageService);
+		this._persistedWidgetSize = new PersistedWidgetSize(this._persistingOptions.key, this._persistingOptions.storageService);
 		let state: ResizeState | undefined;
-		this.disposables.add(this._resizableNode.onDidWillResize(() => {
+		this._disposables.add(this._resizableNode.onDidWillResize(() => {
 			this.beforeOnDidWillResize();
-			state = new ResizeState(this.persistedWidgetSize!.restore(), this._resizableNode.size);
+			state = new ResizeState(this._persistedWidgetSize!.restore(), this._resizableNode.size);
 		}));
-		this.disposables.add(this._resizableNode.onDidResize(e => {
+		this._disposables.add(this._resizableNode.onDidResize(e => {
 			this._resize(new dom.Dimension(e.dimension.width, e.dimension.height));
-			if (state) {
-				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
-				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
-			}
 			if (!e.done) {
 				return;
 			}
 			if (state) {
+				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
+				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
 				const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 				const itemHeight = clamp(this._editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight, 8, 1000);
 				const threshold = Math.round(itemHeight / 2);
@@ -205,7 +206,7 @@ export abstract class SinglePersistedSizeResizableContentWidget extends Resizabl
 				if (!state.persistWidth || Math.abs(state.currentSize.width - width) <= threshold) {
 					width = state.persistedSize?.width ?? this._persistingOptions.defaultSize.width;
 				}
-				this.persistedWidgetSize!.store(new dom.Dimension(width, height));
+				this._persistedWidgetSize!.store(new dom.Dimension(width, height));
 			}
 			state = undefined;
 			this.afterOnDidResize();
@@ -213,19 +214,22 @@ export abstract class SinglePersistedSizeResizableContentWidget extends Resizabl
 	}
 
 	findPersistedSize(): dom.Dimension | undefined {
-		return this.persistedWidgetSize?.restore();
+		return this._persistedWidgetSize?.restore();
 	}
 
 	clearPersistedSize(): void {
-		this.persistedWidgetSize?.reset();
+		this._persistedWidgetSize?.reset();
 	}
 
 	override dispose(): void {
 		super.dispose();
-		this.disposables.dispose();
+		this._disposables.dispose();
 	}
 }
 
+/**
+ * Abstract class which defines a resizable widgets for which a size is persisted on a per token basis. The persisted sizes are updated as the the model changes.
+ */
 export abstract class MultiplePersistedSizeResizableContentWidget extends ResizableContentWidget {
 
 	private readonly _persistedWidgetSizes: ResourceMap<Map<string, dom.Dimension>> = new ResourceMap<Map<string, dom.Dimension>>();
@@ -286,7 +290,6 @@ export abstract class MultiplePersistedSizeResizableContentWidget extends Resiza
 				}
 				const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._position.lineNumber, column: wordPosition.startColumn });
 				const length = wordPosition.word.length;
-
 				if (!this._persistedWidgetSizes.get(uri)) {
 					const persistedWidgetSizesForUri = new Map<string, dom.Dimension>([]);
 					persistedWidgetSizesForUri.set(JSON.stringify([offset, length]), persistedSize);
