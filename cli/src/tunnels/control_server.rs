@@ -611,7 +611,7 @@ async fn handle_serve(
 ) -> Result<EmptyObject, AnyError> {
 	// fill params.extensions into code_server_args.install_extensions
 	let mut csa = c.code_server_args.clone();
-	csa.connection_token = params.connection_token;
+	csa.connection_token = params.connection_token.or(csa.connection_token);
 	csa.install_extensions.extend(params.extensions.into_iter());
 
 	let params_raw = ServerParamsRaw {
