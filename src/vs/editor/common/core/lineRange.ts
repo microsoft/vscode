@@ -4,11 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { Range } from 'vs/editor/common/core/range';
 
 /**
  * A range of lines (1-based).
  */
 export class LineRange {
+	public static fromRange(range: Range): LineRange {
+		return new LineRange(range.startLineNumber, range.endLineNumber);
+	}
+
 	/**
 	 * @param lineRanges An array of sorted line ranges.
 	 */
@@ -76,6 +81,10 @@ export class LineRange {
 			result.push(current);
 		}
 		return result;
+	}
+
+	public static ofLength(startLineNumber: number, length: number): LineRange {
+		return new LineRange(startLineNumber, startLineNumber + length);
 	}
 
 	/**
@@ -154,11 +163,26 @@ export class LineRange {
 		return undefined;
 	}
 
+	public intersectsStrict(other: LineRange): boolean {
+		return this.startLineNumber < other.endLineNumberExclusive && other.startLineNumber < this.endLineNumberExclusive;
+	}
+
 	public overlapOrTouch(other: LineRange): boolean {
 		return this.startLineNumber <= other.endLineNumberExclusive && other.startLineNumber <= this.endLineNumberExclusive;
 	}
 
 	public equals(b: LineRange): boolean {
 		return this.startLineNumber === b.startLineNumber && this.endLineNumberExclusive === b.endLineNumberExclusive;
+	}
+
+	public toInclusiveRange(): Range | null {
+		if (this.isEmpty) {
+			return null;
+		}
+		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER);
+	}
+
+	public toExclusiveRange(): Range {
+		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive, 1);
 	}
 }

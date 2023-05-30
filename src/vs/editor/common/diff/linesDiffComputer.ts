@@ -32,6 +32,34 @@ export class LinesDiff {
  * Maps a line range in the original text model to a line range in the modified text model.
  */
 export class LineRangeMapping {
+	public static inverse(mapping: LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[] {
+		const result: LineRangeMapping[] = [];
+		let lastOriginalEndLineNumber = 1;
+		let lastModifiedEndLineNumber = 1;
+
+		for (const m of mapping) {
+			const r = new LineRangeMapping(
+				new LineRange(lastOriginalEndLineNumber, m.originalRange.startLineNumber),
+				new LineRange(lastModifiedEndLineNumber, m.modifiedRange.startLineNumber),
+				undefined
+			);
+			if (!r.modifiedRange.isEmpty) {
+				result.push(r);
+			}
+			lastOriginalEndLineNumber = m.originalRange.endLineNumberExclusive;
+			lastModifiedEndLineNumber = m.modifiedRange.endLineNumberExclusive;
+		}
+		const r = new LineRangeMapping(
+			new LineRange(lastOriginalEndLineNumber, originalLineCount + 1),
+			new LineRange(lastModifiedEndLineNumber, modifiedLineCount + 1),
+			undefined
+		);
+		if (!r.modifiedRange.isEmpty) {
+			result.push(r);
+		}
+		return result;
+	}
+
 	/**
 	 * The line range in the original text model.
 	 */

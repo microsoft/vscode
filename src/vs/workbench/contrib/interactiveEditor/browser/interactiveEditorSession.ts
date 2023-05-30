@@ -13,7 +13,6 @@ import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession,
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceMap } from 'vs/base/common/map';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -266,6 +265,10 @@ export class EditResponse {
 	}
 }
 
+export interface ISessionKeyComputer {
+	getComparisonKey(editor: ICodeEditor, uri: URI): string;
+}
+
 export const IInteractiveEditorSessionService = createDecorator<IInteractiveEditorSessionService>('IInteractiveEditorSessionService');
 
 export interface IInteractiveEditorSessionService {
@@ -276,6 +279,8 @@ export interface IInteractiveEditorSessionService {
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
 
 	releaseSession(session: Session): void;
+
+	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable;
 
 	//
 
@@ -291,7 +296,8 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 	declare _serviceBrand: undefined;
 
-	private readonly _sessions = new Map<ICodeEditor, ResourceMap<SessionData>>();
+	private readonly _sessions = new Map<string, SessionData>();
+	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 	private _recordings: Recording[] = [];
 
 	constructor(
@@ -352,39 +358,35 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 		// install a marker for the decoration range
 		const [wholeRangeDecorationId] = textModel.deltaDecorations([], [{ range: wholeRange, options: { description: 'interactiveEditor/session/wholeRange' } }]);
-		store.add(toDisposable(() => textModel.deltaDecorations([wholeRangeDecorationId], [])));
+		store.add(toDisposable(() => {
+			if (!textModel.isDisposed()) {
+				textModel.deltaDecorations([wholeRangeDecorationId], []);
+			}
+		}));
 
 		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeDecorationId);
 
-		// store: editor -> uri -> session
-		let map = this._sessions.get(editor);
-		if (!map) {
-			map = new ResourceMap<SessionData>();
-			this._sessions.set(editor, map);
+		// store: key -> session
+		const key = this._key(editor, textModel.uri);
+		if (this._sessions.has(key)) {
+			store.dispose();
+			throw new Error(`Session already stored for ${key}`);
 		}
-		if (map.has(textModel.uri)) {
-			throw new Error(`Session already stored for ${textModel.uri}`);
-		}
-		map.set(textModel.uri, { session, store });
+		this._sessions.set(key, { session, store });
 		return session;
 	}
 
 	releaseSession(session: Session): void {
 
-		const { editor, textModelN } = session;
+		const { editor } = session;
 
 		// cleanup
-		const map = this._sessions.get(editor);
-		if (map) {
-			const data = map.get(textModelN.uri);
-			if (data) {
-				data.store.dispose();
-				data.session.session.dispose?.();
-
-				map.delete(textModelN.uri);
-			}
-			if (map.size === 0) {
-				this._sessions.delete(editor);
+		for (const [key, value] of this._sessions) {
+			if (value.session === session) {
+				value.store.dispose();
+				this._sessions.delete(key);
+				this._logService.trace(`[IE] did RELEASED session for ${editor.getId()}, ${session.provider.debugName}`);
+				break;
 			}
 		}
 
@@ -399,7 +401,21 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 	}
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined {
-		return this._sessions.get(editor)?.get(uri)?.session;
+		const key = this._key(editor, uri);
+		return this._sessions.get(key)?.session;
+	}
+
+	private _key(editor: ICodeEditor, uri: URI): string {
+		const item = this._keyComputers.get(uri.scheme);
+		return item
+			? item.getComparisonKey(editor, uri)
+			: `${editor.getId()}@${uri.toString()}`;
+
+	}
+
+	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable {
+		this._keyComputers.set(scheme, value);
+		return toDisposable(() => this._keyComputers.delete(scheme));
 	}
 
 	// --- debug

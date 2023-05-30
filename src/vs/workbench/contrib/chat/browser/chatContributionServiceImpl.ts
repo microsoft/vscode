@@ -18,8 +18,8 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { getClearAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
-import { getMoveToEditorAction, getMoveToSidebarAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
-import { IChatViewOptions, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
+import { getMoveToEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
+import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatContributionService, IChatProviderContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -145,7 +145,6 @@ export class ChatContributionService implements IChatContributionService {
 		disposables.add(registerAction2(getHistoryAction(viewId, providerDescriptor.id)));
 		disposables.add(registerAction2(getClearAction(viewId, providerDescriptor.id)));
 		disposables.add(registerAction2(getMoveToEditorAction(viewId, providerDescriptor.id)));
-		disposables.add(registerAction2(getMoveToSidebarAction(viewId, providerDescriptor.id)));
 
 		// "Open Chat Editor" Action
 		disposables.add(registerAction2(getOpenChatEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when)));

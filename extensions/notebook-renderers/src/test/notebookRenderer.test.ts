@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { activate } from '..';
 import { OutputItem, RendererApi } from 'vscode-notebook-renderer';
-import { IRichRenderContext, RenderOptions } from '../rendererTypes';
+import { IDisposable, IRichRenderContext, RenderOptions } from '../rendererTypes';
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM();
@@ -37,7 +37,15 @@ suite('Notebook builtin output renderer', () => {
 
 	type optionalRenderOptions = { [k in keyof RenderOptions]?: RenderOptions[k] };
 
+	type handler = (e: RenderOptions) => any;
+
+	const settingsChangedHandlers: handler[] = [];
+	function fireSettingsChange(options: optionalRenderOptions) {
+		settingsChangedHandlers.forEach((handler) => handler(options as RenderOptions));
+	}
+
 	function createContext(settings?: optionalRenderOptions): IRichRenderContext {
+		settingsChangedHandlers.length = 0;
 		return {
 			setState(_value: void) { },
 			getState() { return undefined; },
@@ -48,9 +56,16 @@ suite('Notebook builtin output renderer', () => {
 				lineLimit: 30,
 				...settings
 			} as RenderOptions,
-			onDidChangeSettings<T>(_listener: (e: T) => any, _thisArgs?: any, _disposables?: any) {
+			onDidChangeSettings(listener: handler, _thisArgs?: any, disposables?: IDisposable[]) {
+				settingsChangedHandlers.push(listener);
+
+				const dispose = () => {
+					settingsChangedHandlers.splice(settingsChangedHandlers.indexOf(listener), 1);
+				};
+
+				disposables?.push({ dispose });
 				return {
-					dispose(): void { }
+					dispose
 				};
 			},
 			workspace: {
@@ -249,6 +264,34 @@ suite('Notebook builtin output renderer', () => {
 		assert.ok(inserted.innerHTML.indexOf('>first stream content</') === -1, `Content was not cleared: ${outputElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>second stream content</') === -1, `Content was not cleared: ${outputElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>third stream content</') === -1, `Content was not cleared: ${outputElement.innerHTML}`);
+	});
+
+	test(`Rendered output will wrap on settings change event`, async () => {
+		const context = createContext({ outputWordWrap: false, outputScrolling: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const outputItem = createOutputItem('content', stdoutMimeType);
+		await renderer!.renderOutputItem(outputItem, outputElement);
+		fireSettingsChange({ outputWordWrap: true, outputScrolling: true });
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+			`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
+	});
+
+	test(`Settings event change listeners should not grow if output is re-rendered`, async () => {
+		const context = createContext({ outputWordWrap: false });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		await renderer!.renderOutputItem(createOutputItem('content', stdoutMimeType), outputElement);
+		const handlerCount = settingsChangedHandlers.length;
+		await renderer!.renderOutputItem(createOutputItem('content', stdoutMimeType), outputElement);
+
+		assert.equal(settingsChangedHandlers.length, handlerCount);
 	});
 });
 

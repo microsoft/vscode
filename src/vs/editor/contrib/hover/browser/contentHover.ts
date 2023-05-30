@@ -783,6 +783,7 @@ export class ResizableHoverWidget extends ResizableContentWidget {
 		if (this.visibleData) {
 			const stoleFocus = this.visibleData.stoleFocus;
 			this._setVisibleData(null);
+			this._hoverFocusedKey.set(false);
 			this.editor.layoutContentWidget(this);
 			if (stoleFocus) {
 				this.editor.focus();

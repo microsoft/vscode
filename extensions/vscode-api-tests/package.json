@@ -43,10 +43,13 @@
     "tokenInformation",
     "treeItemCheckbox",
     "treeViewReveal",
+    "testInvalidateResults",
     "workspaceTrust",
     "telemetry",
     "windowActivity",
-    "interactiveUserActions"
+    "interactiveUserActions",
+    "envCollectionWorkspace",
+    "envCollectionOptions"
   ],
   "private": true,
   "activationEvents": [],

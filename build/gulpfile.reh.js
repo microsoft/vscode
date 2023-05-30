@@ -309,8 +309,6 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.cmd`)),
-				gulp.src('resources/server/bin/server-old.cmd', { base: '.' })
-					.pipe(rename(`server.cmd`)),
 				gulp.src('resources/server/bin/code-server.cmd', { base: '.' })
 					.pipe(rename(`bin/${product.serverApplicationName}.cmd`)),
 			);
@@ -332,13 +330,6 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(rename(`bin/${product.serverApplicationName}`))
 					.pipe(util.setExecutableBit())
 			);
-			if (type !== 'reh-web') {
-				result = es.merge(result,
-					gulp.src('resources/server/bin/server-old.sh', { base: '.' })
-						.pipe(rename(`server.sh`))
-						.pipe(util.setExecutableBit()),
-				);
-			}
 		}
 
 		return result.pipe(vfs.dest(destination));

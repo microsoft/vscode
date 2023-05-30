@@ -24,11 +24,12 @@ export class MainThreadShare implements MainThreadShareShape {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostShare);
 	}
 
-	$registerShareProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string): void {
+	$registerShareProvider(handle: number, selector: IDocumentFilterDto[], id: string, label: string, priority: number): void {
 		const provider: IShareProvider = {
 			id,
 			label,
 			selector,
+			priority,
 			provideShare: async (item: IShareableItem) => {
 				return URI.revive(await this.proxy.$provideShare(handle, item, new CancellationTokenSource().token));
 			}

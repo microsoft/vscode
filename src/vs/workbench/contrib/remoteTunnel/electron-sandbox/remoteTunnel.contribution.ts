@@ -31,7 +31,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Action } from 'vs/base/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
@@ -687,7 +687,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		let resource;
 		if (folders.length === 1) {
 			resource = folders[0].uri;
-		} else if (workspace.configuration) {
+		} else if (workspace.configuration && !isUntitledWorkspace(workspace.configuration, this.environmentService)) {
 			resource = workspace.configuration;
 		}
 		const link = URI.parse(connectionInfo.link);

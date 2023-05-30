@@ -32,7 +32,7 @@ export class ExtHostShare implements ExtHostShareShape {
 	registerShareProvider(selector: vscode.DocumentSelector, provider: vscode.ShareProvider): vscode.Disposable {
 		const handle = ExtHostShare.handlePool++;
 		this.providers.set(handle, provider);
-		this.proxy.$registerShareProvider(handle, DocumentSelector.from(selector, this.uriTransformer), provider.id, provider.label);
+		this.proxy.$registerShareProvider(handle, DocumentSelector.from(selector, this.uriTransformer), provider.id, provider.label, provider.priority);
 		return {
 			dispose: () => {
 				this.proxy.$unregisterShareProvider(handle);

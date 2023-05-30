@@ -10,7 +10,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -113,7 +113,7 @@ export class StartupPageContribution implements IWorkbenchContribution {
 		else {
 			const restoreData: RestoreWalkthroughsConfigurationValue = JSON.parse(toRestore);
 			const currentWorkspace = this.contextService.getWorkspace();
-			if (restoreData.folder === currentWorkspace.folders[0].uri.toString()) {
+			if (restoreData.folder === currentWorkspace.folders[0].uri.toString() || restoreData.folder === UNKNOWN_EMPTY_WINDOW_WORKSPACE.id) {
 				this.editorService.openEditor(
 					this.instantiationService.createInstance(
 						GettingStartedInput,

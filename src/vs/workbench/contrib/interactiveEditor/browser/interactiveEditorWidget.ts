@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -28,7 +28,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { DropdownWithDefaultActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { DropdownWithDefaultActionViewItem, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
@@ -44,10 +44,12 @@ import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interact
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { assertType } from 'vs/base/common/types';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -136,8 +138,10 @@ export class InteractiveEditorWidget {
 			h('div.previewCreateTitle.show-file-icons@previewCreateTitle'),
 			h('div.previewCreate.hidden@previewCreate'),
 			h('div.status@status', [
+				h('div.label.info.hidden@infoLabel'),
 				h('div.actions.hidden@statusToolbar'),
-				h('div.label.hidden@statusLabel')
+				h('div.label.status.hidden@statusLabel'),
+				h('div.actions.hidden@feedbackToolbar'),
 			]),
 			h('div.markdownMessage.hidden@markdownMessage', [
 				h('div.message@message'),
@@ -286,12 +290,41 @@ export class InteractiveEditorWidget {
 					return this._instantiationService.createInstance(DropdownWithDefaultActionViewItem, action, { ...options, renderKeybindingWithDefaultActionLabel: true, persistLastActionId: false });
 				}
 
+				if (action.id === ACTION_ACCEPT_CHANGES) {
+					const ButtonLikeActionViewItem = class extends MenuEntryActionViewItem {
+
+						override render(container: HTMLElement): void {
+							this.options.icon = false;
+							super.render(container);
+							assertType(this.element);
+							this.element.classList.add('button-item');
+						}
+
+						protected override updateLabel(): void {
+							assertType(this.label);
+							assertType(this.action instanceof MenuItemAction);
+							const label = MenuItemAction.label(this.action.item, { renderShortTitle: true });
+							const labelElements = renderLabelWithIcons(`$(check)${label}`);
+							reset(this.label, ...labelElements);
+						}
+
+						protected override updateClass(): void {
+							// noop
+						}
+					};
+					return this._instantiationService.createInstance(ButtonLikeActionViewItem, <MenuItemAction>action, <IMenuEntryActionViewItemOptions>options);
+				}
+
 				return createActionViewItem(this._instantiationService, action, options);
 			}
 		};
-		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, workbenchToolbarOptions);
+		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
 		this._store.add(statusToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusToolbar);
+
+		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		this._store.add(feedbackToolbar);
 
 		// preview editors
 		this._previewDiffEditor = this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, _previewEditorEditorOptions, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor));
@@ -389,6 +422,9 @@ export class InteractiveEditorWidget {
 
 	updateToolbar(show: boolean) {
 		this._elements.statusToolbar.classList.toggle('hidden', !show);
+		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
+		this._elements.status.classList.toggle('actions', show);
+		this._elements.infoLabel.classList.toggle('hidden', show);
 		this._onDidChangeHeight.fire();
 	}
 
@@ -409,6 +445,12 @@ export class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
+	updateInfo(message: string): void {
+		this._elements.infoLabel.classList.toggle('hidden', !message);
+		this._elements.infoLabel.innerText = message;
+		this._onDidChangeHeight.fire();
+	}
+
 	updateStatus(message: string, ops: { classes?: string[]; resetAfter?: number; keepMessage?: boolean } = {}) {
 		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
@@ -419,7 +461,7 @@ export class InteractiveEditorWidget {
 			}, ops.resetAfter);
 		}
 		reset(this._elements.statusLabel, message);
-		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
+		this._elements.statusLabel.className = `label status ${(ops.classes ?? []).join(' ')}`;
 		this._elements.statusLabel.classList.toggle('hidden', !message);
 		if (isTempMessage) {
 			this._elements.statusLabel.dataset['state'] = 'temp';
@@ -437,6 +479,7 @@ export class InteractiveEditorWidget {
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.statusToolbar.classList.add('hidden');
+		this._elements.feedbackToolbar.classList.add('hidden');
 		this.hideCreatePreview();
 		this.hideEditsPreview();
 		this._onDidChangeHeight.fire();

@@ -35,7 +35,7 @@ use crate::{
 	},
 	util::{
 		app_lock::AppMutex,
-		errors::{wrap, AnyError},
+		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
 };
@@ -247,17 +247,25 @@ pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 }
 
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
-	let status: protocol::singleton::Status = do_single_rpc_call(
+	let status = do_single_rpc_call::<_, protocol::singleton::Status>(
 		&ctx.paths.tunnel_lockfile(),
 		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
 		protocol::EmptyObject {},
 	)
-	.await?;
+	.await;
 
-	ctx.log.result(serde_json::to_string(&status).unwrap());
-
-	Ok(0)
+	match status {
+		Err(CodeError::NoRunningTunnel) => {
+			ctx.log.result(CodeError::NoRunningTunnel.to_string());
+			Ok(1)
+		}
+		Err(e) => Err(e.into()),
+		Ok(s) => {
+			ctx.log.result(serde_json::to_string(&s).unwrap());
+			Ok(0)
+		}
+	}
 }
 
 /// Removes unused servers.
