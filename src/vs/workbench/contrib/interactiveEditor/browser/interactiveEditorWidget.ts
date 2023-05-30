@@ -433,7 +433,7 @@ export class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	expansionState() {
+	get expansionState(): ExpansionState {
 		return this._expansionState;
 	}
 

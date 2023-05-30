@@ -556,7 +556,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.widget.updateStatus('');
 			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.widget.updateToolbar(true);
-			const expansionState = this._activeSession.newlySelected ? (this._activeSession.lastExpansionState ?? this._zone.widget.expansionState()) : this._zone.widget.expansionState();
+			const expansionState = this._activeSession.newlySelected ? (this._activeSession.lastExpansionState ?? this._zone.widget.expansionState) : this._zone.widget.expansionState;
 			this._activeSession.newlySelected = false;
 			this._activeSession.lastExpansionState = expansionState;
 			this._zone.widget.updateMarkdownMessageExpansionState(expansionState);
