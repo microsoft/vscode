@@ -25,6 +25,6 @@ declare module 'vscode' {
 		 *
 		 * @param item Item to mark as outdated. If undefined, all the controller's items are marked outdated.
 		 */
-		invalidateTestResults(item?: TestItem): void;
+		invalidateTestResults(items?: TestItem | readonly TestItem[]): void;
 	}
 }

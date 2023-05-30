@@ -18,6 +18,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { marked } from 'vs/base/common/marked/marked';
 import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -37,6 +38,7 @@ import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTo
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -47,24 +49,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IChatCodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
-import { IChatCodeBlockInfo } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatCodeBlockInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatReplyFollowup, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { marked } from 'vs/base/common/marked/marked';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const $ = dom.$;
-
-export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
 interface IChatListItemTemplate {
 	rowContainer: HTMLElement;

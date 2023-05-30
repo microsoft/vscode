@@ -91,6 +91,7 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { Schemas } from 'vs/base/common/network';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const $ = DOM.$;
 
@@ -2229,18 +2230,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _cellFocusAria(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
 		const index = this._notebookViewModel?.getCellIndex(cell);
-
+		const verboseLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook);
 		if (index !== undefined && index >= 0) {
 			let position = '';
 			switch (focusItem) {
 				case 'editor':
-					position = `the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor is focused, press escape to focus the cell container`;
+					position = `the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor is focused` + (verboseLabel ? `, press escape to focus the cell container` : '');
 					break;
 				case 'output':
-					position = `the cell output is focused, press escape to focus the cell container`;
+					position = `the cell output is focused` + (verboseLabel ? `, press escape to focus the cell container` : '');
 					break;
 				case 'container':
-					position = `the ${cell.cellKind === CellKind.Markup ? 'markdown preview' : 'cell container'} is focused, press enter to focus the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor`;
+					position = `the ${cell.cellKind === CellKind.Markup ? 'markdown preview' : 'cell container'} is focused` + (verboseLabel ? `, press enter to focus the inner ${cell.cellKind === CellKind.Markup ? 'markdown' : 'code'} editor` : '');
 					break;
 				default:
 					break;
@@ -2351,6 +2352,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (!options?.skipReveal) {
 				if (typeof options?.focusEditorLine === 'number') {
 					this._cursorNavMode.set(true);
+					this.revealInView(cell);
+				} else if (options?.minimalScrolling) {
 					this.revealInView(cell);
 				} else {
 					this.revealInCenterIfOutsideViewport(cell);

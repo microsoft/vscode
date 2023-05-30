@@ -12,7 +12,8 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditor = 'accessibility.verbosity.diff-editor',
 	Chat = 'accessibility.verbosity.chat',
 	InteractiveEditor = 'accessibility.verbosity.interactiveEditor',
-	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor'
+	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
+	Notebook = 'accessibility.verbosity.notebook'
 }
 
 const configuration: IConfigurationNode = {
@@ -46,6 +47,12 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
 			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused'),
+			type: 'boolean',
+			default: true,
+			tags: ['accessibility']
+		},
+		[AccessibilityVerbositySettingId.Notebook]: {
+			description: localize('verbosity.notebook', 'Provide information about how to focus the cell container or inner editor when a notebook cell is focused.'),
 			type: 'boolean',
 			default: true,
 			tags: ['accessibility']

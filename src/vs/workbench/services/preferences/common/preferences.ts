@@ -97,7 +97,9 @@ export interface ISetting {
 	categoryLabel?: string;
 
 	// For ExtensionToggle settings
-	extensionId?: string;
+	displayExtensionId?: string;
+	stableExtensionId?: string;
+	prereleaseExtensionId?: string;
 	title?: string;
 	extensionGroupTitle?: string;
 }
