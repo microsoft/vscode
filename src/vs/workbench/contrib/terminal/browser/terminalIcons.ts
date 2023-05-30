@@ -19,3 +19,7 @@ export const terminalDecorationMark = registerIcon('terminal-decoration-mark', C
 export const terminalDecorationIncomplete = registerIcon('terminal-decoration-incomplete', Codicon.circle, localize('terminalDecorationIncomplete', 'Icon for a terminal decoration of a command that was incomplete.'));
 export const terminalDecorationError = registerIcon('terminal-decoration-error', Codicon.errorSmall, localize('terminalDecorationError', 'Icon for a terminal decoration of a command that errored.'));
 export const terminalDecorationSuccess = registerIcon('terminal-decoration-success', Codicon.circleFilled, localize('terminalDecorationSuccess', 'Icon for a terminal decoration of a command that was successful.'));
+
+export const commandHistoryRemoveIcon = registerIcon('terminal-command-history-remove', Codicon.close, localize('terminalCommandHistoryRemove', 'Icon for removing a terminal command from command history.'));
+export const commandHistoryOutputIcon = registerIcon('terminal-command-history-output', Codicon.output, localize('terminalCommandHistoryOutput', 'Icon for viewing output of a terminal command.'));
+export const commandHistoryFuzzySearchIcon = registerIcon('terminal-command-history-fuzzy-search', Codicon.searchFuzzy, localize('terminalCommandHistoryFuzzySearch', 'Icon for toggling fuzzy search of command history.'));

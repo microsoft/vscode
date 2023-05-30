@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { InMemoryDocument } from '../util/inMemoryDocument';
+import { InMemoryDocument } from '../client/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 
 
@@ -30,7 +30,7 @@ suite('markdown.engine', () => {
 		});
 	});
 
-	suite.only('image-caching', () => {
+	suite('image-caching', () => {
 		const input = '![](img.png) [](no-img.png) ![](http://example.org/img.png) ![](img.png) ![](./img2.png)';
 
 		test('Extracts all images', async () => {

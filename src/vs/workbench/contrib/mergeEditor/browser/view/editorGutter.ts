@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, IReader, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
+import { h, reset } from 'vs/base/browser/dom';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { autorun, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, transaction } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 
@@ -22,6 +22,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 
 	private readonly editorOnDidChangeViewZones = observableSignalFromEvent('onDidChangeViewZones', this._editor.onDidChangeViewZones);
 	private readonly editorOnDidContentSizeChange = observableSignalFromEvent('onDidContentSizeChange', this._editor.onDidContentSizeChange);
+	private readonly domNodeSizeChanged = observableSignal('domNodeSizeChanged');
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -35,11 +36,26 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 				.root
 		);
 
+		const o = new ResizeObserver(() => {
+			transaction(tx => {
+				/** @description ResizeObserver: size changed */
+				this.domNodeSizeChanged.trigger(tx);
+			});
+		});
+		o.observe(this._domNode);
+		this._register(toDisposable(() => o.disconnect()));
+
 		this._register(autorun('update scroll decoration', (reader) => {
 			scrollDecoration.className = this.isScrollTopZero.read(reader) ? '' : 'scroll-decoration';
 		}));
 
 		this._register(autorun('EditorGutter.Render', (reader) => this.render(reader)));
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		reset(this._domNode);
 	}
 
 	private readonly views = new Map<string, ManagedGutterItemView>();
@@ -49,6 +65,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 			return;
 		}
 
+		this.domNodeSizeChanged.read(reader);
 		this.editorOnDidChangeViewZones.read(reader);
 		this.editorOnDidContentSizeChange.read(reader);
 
@@ -130,12 +147,6 @@ export interface IGutterItemProvider<TItem extends IGutterItemInfo> {
 export interface IGutterItemInfo {
 	id: string;
 	range: LineRange;
-	/*
-
-	// To accommodate view zones:
-	offsetInPx: number;
-	additionalHeightInPx: number;
-	*/
 }
 
 export interface IGutterItemView<T extends IGutterItemInfo> extends IDisposable {

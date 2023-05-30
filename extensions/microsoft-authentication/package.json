@@ -12,9 +12,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onAuthenticationRequest:microsoft"
-  ],
+  "activationEvents": [],
   "enabledApiProposals": [
     "idToken"
   ],
@@ -33,6 +31,32 @@
       {
         "label": "Microsoft",
         "id": "microsoft"
+      },
+      {
+        "label": "Microsoft Sovereign Cloud",
+        "id": "microsoft-sovereign-cloud"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Microsoft Sovereign Cloud",
+        "properties": {
+          "microsoft-sovereign-cloud.endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "Azure China",
+                  "Azure US Government"
+                ]
+              }
+            ],
+            "description": "%microsoft-sovereign-cloud.endpoint.description%"
+          }
+        }
       }
     ]
   },
@@ -51,17 +75,12 @@
     "@types/node-fetch": "^2.5.7",
     "@types/randombytes": "^2.0.0",
     "@types/sha.js": "^2.4.0",
-    "@types/uuid": "8.0.0"
+    "@types/uuid": "8.0.0",
+    "querystring-es3": "^0.2.1"
   },
   "dependencies": {
-    "buffer": "^5.6.0",
     "node-fetch": "2.6.7",
-    "randombytes": "~2.1.0",
-    "sha.js": "2.4.11",
-    "stream": "0.0.2",
-    "uuid": "^8.2.0",
-    "@vscode/extension-telemetry": "0.6.2",
-    "vscode-nls": "^5.1.0"
+    "@vscode/extension-telemetry": "0.7.5"
   },
   "repository": {
     "type": "git",

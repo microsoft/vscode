@@ -7,6 +7,7 @@ import type * as nbformat from '@jupyterlab/nbformat';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { jupyterCellOutputToCellOutput, jupyterNotebookModelToNotebookData } from '../deserializers';
+import { createMarkdownCellFromNotebookCell, getCellMetadata } from '../serializers';
 
 function deepStripProperties(obj: any, props: string[]) {
 	for (const prop in obj) {
@@ -52,6 +53,71 @@ suite('ipynb serializer', () => {
 
 		assert.deepStrictEqual(notebook.cells, [expectedCodeCell, expectedMarkdownCell]);
 	});
+
+
+	test('Serialize', async () => {
+		const markdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown');
+		markdownCell.metadata = {
+			attachments: {
+				'image.png': {
+					'image/png': 'abc'
+				}
+			},
+			custom: {
+				id: '123',
+				metadata: {
+					foo: 'bar'
+				}
+			}
+		};
+
+		const cellMetadata = getCellMetadata(markdownCell);
+		assert.deepStrictEqual(cellMetadata, {
+			id: '123',
+			metadata: {
+				foo: 'bar',
+			},
+			attachments: {
+				'image.png': {
+					'image/png': 'abc'
+				}
+			}
+		});
+
+		const markdownCell2 = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown');
+		markdownCell2.metadata = {
+			custom: {
+				id: '123',
+				metadata: {
+					foo: 'bar'
+				},
+				attachments: {
+					'image.png': {
+						'image/png': 'abc'
+					}
+				}
+			}
+		};
+
+		const nbMarkdownCell = createMarkdownCellFromNotebookCell(markdownCell);
+		const nbMarkdownCell2 = createMarkdownCellFromNotebookCell(markdownCell2);
+		assert.deepStrictEqual(nbMarkdownCell, nbMarkdownCell2);
+
+		assert.deepStrictEqual(nbMarkdownCell, {
+			cell_type: 'markdown',
+			source: ['# header1'],
+			metadata: {
+				foo: 'bar',
+			},
+			attachments: {
+				'image.png': {
+					'image/png': 'abc'
+				}
+			},
+			id: '123'
+		});
+	});
+
 	suite('Outputs', () => {
 		function validateCellOutputTranslation(
 			outputs: nbformat.IOutput[],

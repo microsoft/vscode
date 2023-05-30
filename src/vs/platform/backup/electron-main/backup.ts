@@ -3,30 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
 
 export interface IBackupMainService {
+
 	readonly _serviceBrand: undefined;
 
 	isHotExitEnabled(): boolean;
 
-	getWorkspaceBackups(): IWorkspaceBackupInfo[];
-	getFolderBackupPaths(): IFolderBackupInfo[];
-	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[];
+	getEmptyWindowBackups(): IEmptyWindowBackupInfo[];
 
-	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string): string;
-	registerFolderBackupSync(folderUri: IFolderBackupInfo): string;
-	registerEmptyWindowBackupSync(backupFolder?: string, remoteAuthority?: string): string;
-
-	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void;
-	unregisterFolderBackupSync(folderUri: URI): void;
-	unregisterEmptyWindowBackupSync(backupFolder: string): void;
+	registerWorkspaceBackup(workspaceInfo: IWorkspaceBackupInfo): string;
+	registerWorkspaceBackup(workspaceInfo: IWorkspaceBackupInfo, migrateFrom: string): Promise<string>;
+	registerFolderBackup(folderInfo: IFolderBackupInfo): string;
+	registerEmptyWindowBackup(emptyWindowInfo: IEmptyWindowBackupInfo): string;
 
 	/**
 	 * All folders or workspaces that are known to have

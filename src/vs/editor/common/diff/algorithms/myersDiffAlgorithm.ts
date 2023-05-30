@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffAlgorithm, ISequence, SequenceDiff, OffsetRange } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { DiffAlgorithmResult, IDiffAlgorithm, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 
 /**
  * An O(ND) diff algorithm that has a quadratic space worst-case complexity.
 */
 export class MyersDiffAlgorithm implements IDiffAlgorithm {
-	compute(seq1: ISequence, seq2: ISequence): SequenceDiff[] {
+	compute(seq1: ISequence, seq2: ISequence, timeout: ITimeout = InfiniteTimeout.instance): DiffAlgorithmResult {
+		// These are common special cases.
+		// The early return improves performance dramatically.
+		if (seq1.length === 0 || seq2.length === 0) {
+			return DiffAlgorithmResult.trivial(seq1, seq2);
+		}
+
 		function getXAfterSnake(x: number, y: number): number {
 			while (x < seq1.length && y < seq2.length && seq1.getElement(x) === seq2.getElement(y)) {
 				x++;
@@ -33,6 +40,10 @@ export class MyersDiffAlgorithm implements IDiffAlgorithm {
 		loop: while (true) {
 			d++;
 			for (k = -d; k <= d; k += 2) {
+				if (!timeout.isValid()) {
+					return DiffAlgorithmResult.trivialTimedOut(seq1, seq2);
+				}
+
 				const maxXofDLineTop = k === d ? -1 : V.get(k + 1); // We take a vertical non-diagonal
 				const maxXofDLineLeft = k === -d ? -1 : V.get(k - 1) + 1; // We take a horizontal non-diagonal (+1 x)
 				const x = Math.min(Math.max(maxXofDLineTop, maxXofDLineLeft), seq1.length);
@@ -73,7 +84,7 @@ export class MyersDiffAlgorithm implements IDiffAlgorithm {
 		}
 
 		result.reverse();
-		return result;
+		return new DiffAlgorithmResult(result, false);
 	}
 }
 

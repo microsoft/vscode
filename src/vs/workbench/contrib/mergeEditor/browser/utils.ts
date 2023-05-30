@@ -4,50 +4,56 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CompareResult, ArrayQueue } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun } from 'vs/base/common/observable';
+import { IObservable, autorun, observableFromEvent } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class ReentrancyBarrier {
-	private isActive = false;
+	private _isActive = false;
+
+	public get isActive() {
+		return this._isActive;
+	}
 
 	public makeExclusive<TFunction extends Function>(fn: TFunction): TFunction {
 		return ((...args: any[]) => {
-			if (this.isActive) {
+			if (this._isActive) {
 				return;
 			}
-			this.isActive = true;
+			this._isActive = true;
 			try {
 				return fn(...args);
 			} finally {
-				this.isActive = false;
+				this._isActive = false;
 			}
 		}) as any;
 	}
 
 	public runExclusively(fn: () => void): void {
-		if (this.isActive) {
+		if (this._isActive) {
 			return;
 		}
-		this.isActive = true;
+		this._isActive = true;
 		try {
 			fn();
 		} finally {
-			this.isActive = false;
+			this._isActive = false;
 		}
 	}
 
 	public runExclusivelyOrThrow(fn: () => void): void {
-		if (this.isActive) {
+		if (this._isActive) {
 			throw new BugIndicatingError();
 		}
-		this.isActive = true;
+		this._isActive = true;
 		try {
 			fn();
 		} finally {
-			this.isActive = false;
+			this._isActive = false;
 		}
 	}
 }
@@ -157,4 +163,52 @@ export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
 		}
 	}
 	return result;
+}
+
+export class PersistentStore<T> {
+	private hasValue = false;
+	private value: Readonly<T> | undefined = undefined;
+
+	constructor(
+		private readonly key: string,
+		@IStorageService private readonly storageService: IStorageService
+	) { }
+
+	public get(): Readonly<T> | undefined {
+		if (!this.hasValue) {
+			const value = this.storageService.get(this.key, StorageScope.PROFILE);
+			if (value !== undefined) {
+				try {
+					this.value = JSON.parse(value) as any;
+				} catch (e) {
+					onUnexpectedError(e);
+				}
+			}
+			this.hasValue = true;
+		}
+
+		return this.value;
+	}
+
+	public set(newValue: T | undefined): void {
+		this.value = newValue;
+
+		this.storageService.store(
+			this.key,
+			JSON.stringify(this.value),
+			StorageScope.PROFILE,
+			StorageTarget.USER
+		);
+	}
+}
+
+export function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
+	return observableFromEvent(
+		(handleChange) => configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(key)) {
+				handleChange(e);
+			}
+		}),
+		() => configurationService.getValue<T>(key) ?? defaultValue,
+	);
 }

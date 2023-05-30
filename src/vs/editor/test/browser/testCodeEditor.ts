@@ -47,7 +47,8 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { NullOpenerService } from 'vs/platform/opener/test/common/nullOpenerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -86,7 +87,7 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	}
 	public registerAndInstantiateContribution<T extends IEditorContribution>(id: string, ctor: new (editor: ICodeEditor, ...services: BrandedService[]) => T): T {
 		const r: T = this._instantiationService.createInstance(ctor, this);
-		this._contributions[id] = r;
+		this._contributions.set(id, r);
 		return r;
 	}
 	public registerDisposable(disposable: IDisposable): void {

@@ -10,6 +10,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { ISerializedTestTreeCollapseState } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
 import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 /**
@@ -24,6 +25,11 @@ export interface ITestTreeProjection extends IDisposable {
 	 * Event that fires when the projection changes.
 	 */
 	onUpdate: Event<void>;
+
+	/**
+	 * State to use for applying default collapse state of items.
+	 */
+	lastState: ISerializedTestTreeCollapseState;
 
 	/**
 	 * Fired when an element in the tree is expanded.

@@ -18,6 +18,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 /**
  * Debug URI format
@@ -89,7 +90,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 
 		if (!session) {
-			return Promise.reject(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
+			return Promise.reject(new ErrorNoTelemetry(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
 		const createErrModel = (errMsg?: string) => {
 			this.debugService.sourceIsNotAvailable(resource);

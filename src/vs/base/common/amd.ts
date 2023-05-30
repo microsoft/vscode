@@ -40,7 +40,10 @@ export abstract class LoaderStats {
 			map.set(stat.detail, duration + stat.timestamp);
 		}
 
-		const stats = require.getStats().slice(0).sort((a, b) => a.timestamp - b.timestamp);
+		let stats: readonly LoaderEvent[] = [];
+		if (typeof require.getStats === 'function') {
+			stats = require.getStats().slice(0).sort((a, b) => a.timestamp - b.timestamp);
+		}
 
 		for (const stat of stats) {
 			switch (stat.type) {

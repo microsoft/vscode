@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -21,11 +21,14 @@ import { IWorkspace, IWorkspaceContextService, WorkbenchState, isUntitledWorkspa
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from '../common/extHost.protocol';
 import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
+import { ICanonicalUriService } from 'vs/platform/workspace/common/canonicalUri';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -40,6 +43,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEditSessionIdentityService private readonly _editSessionIdentityService: IEditSessionIdentityService,
+		@ICanonicalUriService private readonly _canonicalUriService: ICanonicalUriService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -201,8 +205,29 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- save & edit resources ---
 
+	async $save(uriComponents: UriComponents, options: { saveAs: boolean }): Promise<UriComponents | undefined> {
+		const uri = URI.revive(uriComponents);
+
+		const editors = [...this._editorService.findEditors(uri, { supportSideBySide: SideBySideEditor.PRIMARY })];
+		const result = await this._editorService.save(editors, {
+			reason: SaveReason.EXPLICIT,
+			saveAs: options.saveAs,
+			force: !options.saveAs
+		});
+
+		return firstOrDefault(this._saveResultToUris(result));
+	}
+
+	private _saveResultToUris(result: ISaveEditorsResult): URI[] {
+		if (!result.success) {
+			return [];
+		}
+
+		return coalesce(result.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+	}
+
 	$saveAll(includeUntitled?: boolean): Promise<boolean> {
-		return this._editorService.saveAll({ includeUntitled });
+		return this._editorService.saveAll({ includeUntitled }).then(res => res.success);
 	}
 
 	$resolveProxy(url: string): Promise<string | undefined> {
@@ -224,16 +249,51 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	// --- edit sessions ---
-	$registerEditSessionIdentityProvider(scheme: string) {
-		this._editSessionIdentityService.registerEditSessionIdentityProvider({
+	private registeredEditSessionProviders = new Map<number, IDisposable>();
+
+	$registerEditSessionIdentityProvider(handle: number, scheme: string) {
+		const disposable = this._editSessionIdentityService.registerEditSessionIdentityProvider({
 			scheme: scheme,
 			getEditSessionIdentifier: async (workspaceFolder: WorkspaceFolder, token: CancellationToken) => {
 				return this._proxy.$getEditSessionIdentifier(workspaceFolder.uri, token);
+			},
+			provideEditSessionIdentityMatch: async (workspaceFolder: WorkspaceFolder, identity1: string, identity2: string, token: CancellationToken) => {
+				return this._proxy.$provideEditSessionIdentityMatch(workspaceFolder.uri, identity1, identity2, token);
 			}
 		});
+
+		this.registeredEditSessionProviders.set(handle, disposable);
+		this._toDispose.add(disposable);
 	}
 
-	$unregisterEditSessionIdentityProvider(scheme: string) {
-		this._editSessionIdentityService.unregisterEditSessionIdentityProvider(scheme);
+	$unregisterEditSessionIdentityProvider(handle: number) {
+		const disposable = this.registeredEditSessionProviders.get(handle);
+		disposable?.dispose();
+		this.registeredEditSessionProviders.delete(handle);
+	}
+
+	// --- canonical uri identities ---
+	private registeredCanonicalUriProviders = new Map<number, IDisposable>();
+
+	$registerCanonicalUriProvider(handle: number, scheme: string) {
+		const disposable = this._canonicalUriService.registerCanonicalUriProvider({
+			scheme: scheme,
+			provideCanonicalUri: async (uri: UriComponents, targetScheme: string, token: CancellationToken) => {
+				const result = await this._proxy.$provideCanonicalUri(uri, targetScheme, token);
+				if (result) {
+					return URI.revive(result);
+				}
+				return result;
+			}
+		});
+
+		this.registeredCanonicalUriProviders.set(handle, disposable);
+		this._toDispose.add(disposable);
+	}
+
+	$unregisterCanonicalUriProvider(handle: number) {
+		const disposable = this.registeredCanonicalUriProviders.get(handle);
+		disposable?.dispose();
+		this.registeredCanonicalUriProviders.delete(handle);
 	}
 }

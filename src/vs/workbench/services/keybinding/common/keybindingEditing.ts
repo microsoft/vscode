@@ -22,7 +22,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
@@ -293,4 +293,4 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 }
 
-registerSingleton(IKeybindingEditingService, KeybindingsEditingService, true);
+registerSingleton(IKeybindingEditingService, KeybindingsEditingService, InstantiationType.Delayed);

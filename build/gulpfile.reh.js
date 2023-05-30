@@ -9,14 +9,15 @@ const gulp = require('gulp');
 const path = require('path');
 const es = require('event-stream');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
-const common = require('./lib/optimize');
+const optimize = require('./lib/optimize');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
-const _ = require('underscore');
 const { getProductionDependencies } = require('./lib/dependencies');
+const { assetFromGithub } = require('./lib/github');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -30,7 +31,7 @@ const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createVSCodeWebFileCont
 const cp = require('child_process');
 
 const REPO_ROOT = path.dirname(__dirname);
-const commit = util.getVersion(REPO_ROOT);
+const commit = getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 
@@ -58,14 +59,9 @@ const serverResources = [
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
-	'out-build/paths.js',
 
 	// Performance
 	'out-build/vs/base/common/performance.js',
-
-	// main entry points
-	'out-build/server-cli.js',
-	'out-build/server-main.js',
 
 	// Watcher
 	'out-build/vs/platform/files/**/*.exe',
@@ -76,14 +72,13 @@ const serverResources = [
 	'out-build/vs/base/node/ps.sh',
 
 	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.fish',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.fish',
+	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish',
 
 	'!**/test/**'
 ];
@@ -159,7 +154,7 @@ if (defaultNodeTask) {
 }
 
 function nodejs(platform, arch) {
-	const remote = require('gulp-remote-retry-src');
+	const { remote } = require('./lib/gulpRemoteSource');
 	const untar = require('gulp-untar');
 
 	if (arch === 'ia32') {
@@ -167,6 +162,11 @@ function nodejs(platform, arch) {
 	}
 
 	if (platform === 'win32') {
+		if (product.nodejsRepository) {
+			return assetFromGithub(product.nodejsRepository, nodeVersion, name => name === `win-${arch}-node.exe`)
+				.pipe(rename('node.exe'));
+		}
+
 		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' })
 			.pipe(rename('node.exe'));
 	}
@@ -254,14 +254,14 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const date = new Date().toISOString();
 
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date }));
+			.pipe(json({ commit, date, version }));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 
 		const productionDependencies = getProductionDependencies(REMOTE_FOLDER);
-		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
 		const deps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
@@ -309,8 +309,6 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.cmd`)),
-				gulp.src('resources/server/bin/server-old.cmd', { base: '.' })
-					.pipe(rename(`server.cmd`)),
 				gulp.src('resources/server/bin/code-server.cmd', { base: '.' })
 					.pipe(rename(`bin/${product.serverApplicationName}.cmd`)),
 			);
@@ -332,13 +330,6 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(rename(`bin/${product.serverApplicationName}`))
 					.pipe(util.setExecutableBit())
 			);
-			if (type !== 'reh-web') {
-				result = es.merge(result,
-					gulp.src('resources/server/bin/server-old.sh', { base: '.' })
-						.pipe(rename(`server.sh`))
-						.pipe(util.setExecutableBit()),
-				);
-			}
 		}
 
 		return result.pipe(vfs.dest(destination));
@@ -357,23 +348,43 @@ function tweakProductForServerWeb(product) {
 ['reh', 'reh-web'].forEach(type => {
 	const optimizeTask = task.define(`optimize-vscode-${type}`, task.series(
 		util.rimraf(`out-vscode-${type}`),
-		common.optimizeTask({
-			src: 'out-build',
-			entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
-			otherSources: [],
-			resources: type === 'reh' ? serverResources : serverWithWebResources,
-			loaderConfig: common.loaderConfig(),
-			out: `out-vscode-${type}`,
-			inlineAmdImages: true,
-			bundleInfo: undefined,
-			fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
-		})
+		optimize.optimizeTask(
+			{
+				out: `out-vscode-${type}`,
+				amd: {
+					src: 'out-build',
+					entryPoints: (type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints).flat(),
+					otherSources: [],
+					resources: type === 'reh' ? serverResources : serverWithWebResources,
+					loaderConfig: optimize.loaderConfig(),
+					inlineAmdImages: true,
+					bundleInfo: undefined,
+					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
+				},
+				commonJS: {
+					src: 'out-build',
+					entryPoints: [
+						'out-build/server-main.js',
+						'out-build/server-cli.js'
+					],
+					platform: 'node',
+					external: [
+						'minimist',
+						// TODO: we cannot inline `product.json` because
+						// it is being changed during build time at a later
+						// point in time (such as `checksums`)
+						'../product.json',
+						'../package.json'
+					]
+				}
+			}
+		)
 	));
 
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		common.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+		optimize.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
 	));
 	gulp.task(minifyTask);
 

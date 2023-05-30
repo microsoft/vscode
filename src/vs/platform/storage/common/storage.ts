@@ -8,13 +8,13 @@ import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
-const TARGET_KEY = '__$__targetStorageMarker';
+export const TARGET_KEY = '__$__targetStorageMarker';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -98,6 +98,17 @@ export interface IStorageService {
 	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
 
 	/**
+	 * Retrieve an element stored with the given key from storage. Use
+	 * the provided `defaultValue` if the element is `null` or `undefined`.
+	 * The element will be converted to a `object` using `JSON.parse`.
+	 *
+	 * @param scope allows to define the scope of the storage operation
+	 * to either the current workspace only, all workspaces or all profiles.
+	 */
+	getObject<T extends object>(key: string, scope: StorageScope, fallbackValue: T): T;
+	getObject<T extends object>(key: string, scope: StorageScope, fallbackValue?: T): T | undefined;
+
+	/**
 	 * Store a value under the given key to storage. The value will be
 	 * converted to a `string`. Storing either `undefined` or `null` will
 	 * remove the entry under the key.
@@ -108,7 +119,7 @@ export interface IStorageService {
 	 * @param target allows to define the target of the storage operation
 	 * to either the current machine or user.
 	 */
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void;
+	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
@@ -139,6 +150,11 @@ export interface IStorageService {
 	 * Log the contents of the storage to the console.
 	 */
 	log(): void;
+
+	/**
+	 * Returns true if the storage service handles the provided scope.
+	 */
+	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean;
 
 	/**
 	 * Switch storage to another workspace or profile. Optionally preserve the
@@ -230,7 +246,20 @@ interface IKeyTargets {
 }
 
 export interface IStorageServiceOptions {
-	flushInterval: number;
+	readonly flushInterval: number;
+}
+
+export function loadKeyTargets(storage: IStorage): IKeyTargets {
+	const keysRaw = storage.get(TARGET_KEY);
+	if (keysRaw) {
+		try {
+			return JSON.parse(keysRaw);
+		} catch (error) {
+			// Fail gracefully
+		}
+	}
+
+	return Object.create(null);
 }
 
 export abstract class AbstractStorageService extends Disposable implements IStorageService {
@@ -283,8 +312,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 				// Init all storage locations
 				mark('code/willInitStorage');
 				try {
-					// Ask subclasses to initialize storage
-					await this.doInitialize();
+					await this.doInitialize(); // Ask subclasses to initialize storage
 				} finally {
 					mark('code/didInitStorage');
 				}
@@ -354,7 +382,13 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getStorage(scope)?.getNumber(key, fallbackValue);
 	}
 
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void {
+	getObject(key: string, scope: StorageScope, fallbackValue: object): object;
+	getObject(key: string, scope: StorageScope): object | undefined;
+	getObject(key: string, scope: StorageScope, fallbackValue?: object): object | undefined {
+		return this.getStorage(scope)?.getObject(key, fallbackValue);
+	}
+
+	store(key: string, value: string | boolean | number | undefined | null | object, scope: StorageScope, target: StorageTarget): void {
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {
@@ -475,16 +509,9 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	private loadKeyTargets(scope: StorageScope): { [key: string]: StorageTarget } {
-		const keysRaw = this.get(TARGET_KEY, scope);
-		if (keysRaw) {
-			try {
-				return JSON.parse(keysRaw);
-			} catch (error) {
-				// Fail gracefully
-			}
-		}
+		const storage = this.getStorage(scope);
 
-		return Object.create(null);
+		return storage ? loadKeyTargets(storage) : Object.create(null);
 	}
 
 	isNew(scope: StorageScope): boolean {
@@ -595,6 +622,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	// --- abstract
 
+	abstract hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean;
+
 	protected abstract doInitialize(): Promise<void>;
 
 	protected abstract getStorage(scope: StorageScope): IStorage | undefined;
@@ -611,9 +640,9 @@ export function isProfileUsingDefaultStorage(profile: IUserDataProfile): boolean
 
 export class InMemoryStorageService extends AbstractStorageService {
 
-	private readonly applicationStorage = this._register(new Storage(new InMemoryStorageDatabase()));
-	private readonly profileStorage = this._register(new Storage(new InMemoryStorageDatabase()));
-	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase()));
+	private readonly applicationStorage = this._register(new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY }));
+	private readonly profileStorage = this._register(new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY }));
+	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY }));
 
 	constructor() {
 		super();
@@ -653,6 +682,10 @@ export class InMemoryStorageService extends AbstractStorageService {
 
 	protected async switchToWorkspace(): Promise<void> {
 		// no-op when in-memory
+	}
+
+	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean {
+		return false;
 	}
 }
 

@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileExtensionsEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
@@ -64,7 +64,8 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
 					onUninstallExtension: new Emitter<UninstallExtensionEvent>().event,
 					onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
-					onDidChangeProfileExtensions: new Emitter<DidChangeProfileExtensionsEvent>().event,
+					onDidChangeProfile: new Emitter<DidChangeProfileEvent>().event,
+					onDidUpdateExtensionMetadata: new Emitter<ILocalExtension>().event,
 				},
 			}, null, null));
 		const extensionManagementService = instantiationService.createInstance(ExtensionManagementService);
@@ -117,7 +118,7 @@ suite('ExtensionEnablementService Test', () => {
 
 	const didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
-	const didChangeProfileExtensionsEvent = new Emitter<DidChangeProfileExtensionsEvent>();
+	const didChangeProfileExtensionsEvent = new Emitter<DidChangeProfileEvent>();
 	const installed: ILocalExtension[] = [];
 
 	setup(() => {
@@ -130,7 +131,7 @@ suite('ExtensionEnablementService Test', () => {
 			extensionManagementService: <IProfileAwareExtensionManagementService>{
 				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
-				onDidChangeProfileExtensions: didChangeProfileExtensionsEvent.event,
+				onDidChangeProfile: didChangeProfileExtensionsEvent.event,
 				getInstalled: () => Promise.resolve(installed)
 			},
 		}, null, null));
@@ -318,10 +319,10 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
 	});
 
-	test('test enable an extension globally return truthy promise', () => {
-		return testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.DisabledGlobally)
-			.then(() => testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.EnabledGlobally))
-			.then(value => assert.ok(value));
+	test('test enable an extension globally return truthy promise', async () => {
+		await testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.DisabledGlobally);
+		const value = await testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.EnabledGlobally);
+		assert.strictEqual(value[0], true);
 	});
 
 	test('test enable an extension globally triggers change event', () => {
@@ -400,6 +401,32 @@ suite('ExtensionEnablementService Test', () => {
 		assert.ok(testObject.isEnabled(dep));
 		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
 		assert.strictEqual(testObject.getEnablementState(dep), EnablementState.EnabledGlobally);
+	});
+
+	test('test enable an extension in workspace with a dependency extension that has auth providers', async () => {
+		installed.push(...[aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'] }), aLocalExtension('pub.b', { authentication: [{ id: 'a', label: 'a' }] })]);
+		const target = installed[0];
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([target], EnablementState.DisabledWorkspace);
+		await testObject.setEnablement([target], EnablementState.EnabledWorkspace);
+		assert.ok(testObject.isEnabled(target));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledWorkspace);
+	});
+
+	test('test enable an extension with a dependency extension that cannot be enabled', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), null));
+		const localWorkspaceDepExtension = aLocalExtension2('pub.b', { extensionKind: ['workspace'] }, { location: URI.file(`pub.b`) });
+		const remoteWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace'], extensionDependencies: ['pub.b'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const remoteWorkspaceDepExtension = aLocalExtension2('pub.b', { extensionKind: ['workspace'] }, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(localWorkspaceDepExtension, remoteWorkspaceExtension, remoteWorkspaceDepExtension);
+
+		testObject = new TestExtensionEnablementService(instantiationService);
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		await testObject.setEnablement([remoteWorkspaceExtension], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([remoteWorkspaceExtension], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(remoteWorkspaceExtension));
+		assert.strictEqual(testObject.getEnablementState(remoteWorkspaceExtension), EnablementState.EnabledGlobally);
 	});
 
 	test('test enable an extension also enables packed extensions', async () => {
@@ -589,13 +616,6 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.strictEqual(testObject.canChangeEnablement(aLocalExtension('pub.a')), false);
-	});
-
-	test('test canChangeEnablement return false for system extension when extension is disabled in environment', () => {
-		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
-		testObject = new TestExtensionEnablementService(instantiationService);
-		const extension = aLocalExtension('pub.a', undefined, ExtensionType.System);
-		assert.ok(!testObject.canChangeEnablement(extension));
 	});
 
 	test('test extension does not support vitrual workspace is not enabled in virtual workspace', async () => {

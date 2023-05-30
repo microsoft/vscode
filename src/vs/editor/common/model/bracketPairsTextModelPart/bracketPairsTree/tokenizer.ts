@@ -81,7 +81,7 @@ export class TextBufferTokenizer implements Tokenizer {
 	}
 
 	get length() {
-		return toLength(this.textBufferLineCount, this.textBufferLastLineLength);
+		return toLength(this.textBufferLineCount - 1, this.textBufferLastLineLength);
 	}
 
 	getText() {
@@ -143,7 +143,9 @@ class NonPeekableTextBufferTokenizer {
 		// We must not jump into a token!
 		if (lineIdx === this.lineIdx) {
 			this.lineCharOffset = column;
-			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			if (this.line !== null) {
+				this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			}
 		} else {
 			this.lineIdx = lineIdx;
 			this.lineCharOffset = column;
@@ -291,7 +293,7 @@ export class FastTokenizer implements Tokenizer {
 		let lastTokenEndOffset = 0;
 		let lastTokenEndLine = 0;
 
-		const smallTextTokens0Line = new Array<Token>();
+		const smallTextTokens0Line: Token[] = [];
 		for (let i = 0; i < 60; i++) {
 			smallTextTokens0Line.push(
 				new Token(
@@ -301,7 +303,7 @@ export class FastTokenizer implements Tokenizer {
 			);
 		}
 
-		const smallTextTokens1Line = new Array<Token>();
+		const smallTextTokens1Line: Token[] = [];
 		for (let i = 0; i < 60; i++) {
 			smallTextTokens1Line.push(
 				new Token(

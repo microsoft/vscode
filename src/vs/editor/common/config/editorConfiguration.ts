@@ -55,4 +55,8 @@ export interface IEditorConfiguration extends IDisposable {
 	 * Set reserved height above.
 	 */
 	setReservedHeight(reservedHeight: number): void;
+	/**
+	 * Set the number of decoration lanes to be rendered in the glyph margin.
+	 */
+	setGlyphMarginDecorationLaneCount(decorationLaneCount: number): void;
 }

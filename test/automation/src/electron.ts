@@ -49,24 +49,26 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		args.push('--disable-dev-shm-usage');
 	}
 
+	if (process.platform === 'darwin') {
+		// On macOS force software based rendering since we are seeing GPU process
+		// hangs when initializing GL context. This is very likely possible
+		// that there are new displays available in the CI hardware and
+		// the relevant drivers couldn't be loaded via the GPU sandbox.
+		// TODO(deepak1556): remove this switch with Electron update.
+		args.push('--use-gl=swiftshader');
+	}
+
 	if (remote) {
 		// Replace workspace path with URI
 		args[0] = `--${workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(workspacePath).path}`;
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			await measureAndLog(copyExtension(root, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
+			await measureAndLog(() => copyExtension(root, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${userDataDir}-server`;
 		mkdirp.sync(remoteDataDir);
-
-		if (codePath) {
-			// running against a build: copy the test resolver extension into remote extensions dir
-			const remoteExtensionsDir = join(remoteDataDir, 'extensions');
-			mkdirp.sync(remoteExtensionsDir);
-			await measureAndLog(copyExtension(root, remoteExtensionsDir, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', logger);
-		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 		env['TESTRESOLVER_LOGS_FOLDER'] = join(logsPath, 'server');
@@ -74,8 +76,6 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 			env['TESTRESOLVER_LOG_LEVEL'] = 'trace';
 		}
 	}
-
-	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
 
 	if (!codePath) {
 		args.unshift(root);

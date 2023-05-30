@@ -44,7 +44,6 @@ export abstract class BaseTerminalBackend extends Disposable {
 		let unresponsiveNotification: INotificationHandle | undefined;
 		if (eventSource.onPtyHostStart) {
 			this._register(eventSource.onPtyHostStart(() => {
-				this._logService.info(`ptyHost restarted`);
 				this._onPtyHostRestart.fire();
 				unresponsiveNotification?.close();
 				unresponsiveNotification = undefined;

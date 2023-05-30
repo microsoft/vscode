@@ -7,7 +7,7 @@ import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { randomPath } from 'vs/base/common/extpath';
 
-export function createWaitMarkerFile(verbose?: boolean): string | undefined {
+export function createWaitMarkerFileSync(verbose?: boolean): string | undefined {
 	const randomWaitMarkerPath = randomPath(tmpdir());
 
 	try {

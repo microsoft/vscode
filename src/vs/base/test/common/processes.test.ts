@@ -19,7 +19,7 @@ suite('Processes', () => {
 			VSCODE_DEV: 'x',
 			VSCODE_IPC_HOOK: 'x',
 			VSCODE_NLS_CONFIG: 'x',
-			VSCODE_PORTABLE: 'x',
+			VSCODE_PORTABLE: '3',
 			VSCODE_PID: 'x',
 			VSCODE_SHELL_LOGIN: '1',
 			VSCODE_CODE_CACHE_PATH: 'x',
@@ -30,6 +30,7 @@ suite('Processes', () => {
 		processes.sanitizeProcessEnvironment(env);
 		assert.strictEqual(env['FOO'], 'bar');
 		assert.strictEqual(env['VSCODE_SHELL_LOGIN'], '1');
-		assert.strictEqual(Object.keys(env).length, 2);
+		assert.strictEqual(env['VSCODE_PORTABLE'], '3');
+		assert.strictEqual(Object.keys(env).length, 3);
 	});
 });

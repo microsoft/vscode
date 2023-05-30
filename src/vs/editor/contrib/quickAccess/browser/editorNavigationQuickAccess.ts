@@ -16,10 +16,11 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRe
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface IEditorLineDecoration {
-	rangeHighlightId: string;
-	overviewRulerDecorationId: string;
+	readonly rangeHighlightId: string;
+	readonly overviewRulerDecorationId: string;
 }
 
 export interface IEditorNavigationQuickAccessOptions {
@@ -146,6 +147,10 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		if (!options.preserveFocus) {
 			editor.focus();
 		}
+		const model = editor.getModel();
+		if (model && 'getLineContent' in model) {
+			alert(`${model.getLineContent(options.range.startLineNumber)}`);
+		}
 	}
 
 	protected getModel(editor: IEditor | IDiffEditor): ITextModel | undefined {
@@ -176,7 +181,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 	private rangeHighlightDecorationId: IEditorLineDecoration | undefined = undefined;
 
-	protected addDecorations(editor: IEditor, range: IRange): void {
+	addDecorations(editor: IEditor, range: IRange): void {
 		editor.changeDecorations(changeAccessor => {
 
 			// Reset old decorations if any
@@ -220,7 +225,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		});
 	}
 
-	protected clearDecorations(editor: IEditor): void {
+	clearDecorations(editor: IEditor): void {
 		const rangeHighlightDecorationId = this.rangeHighlightDecorationId;
 		if (rangeHighlightDecorationId) {
 			editor.changeDecorations(changeAccessor => {

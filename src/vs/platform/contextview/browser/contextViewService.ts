@@ -17,7 +17,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	private shadowRoot: boolean | undefined;
 
 	constructor(
-		@ILayoutService readonly layoutService: ILayoutService
+		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super();
 

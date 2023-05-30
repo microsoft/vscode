@@ -1,0 +1,19 @@
+{
+	"rules": {
+		"@typescript-eslint/naming-convention": [
+			"warn",
+			{
+				"selector": "default",
+				"modifiers": ["private"],
+				"format": null,
+				"leadingUnderscore": "require"
+			},
+			{
+				"selector": "default",
+				"modifiers": ["public"],
+				"format": null,
+				"leadingUnderscore": "forbid"
+			}
+		]
+	}
+}

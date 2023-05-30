@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Uri } from 'vscode';
+import { AuthProviderType } from '../github';
 
 const VALID_DESKTOP_CALLBACK_SCHEMES = [
 	'vscode',
@@ -15,12 +16,19 @@ const VALID_DESKTOP_CALLBACK_SCHEMES = [
 	'vscode-exploration'
 ];
 
-export function isSupportedEnvironment(uri: Uri): boolean {
+export function isSupportedClient(uri: Uri): boolean {
 	return (
 		VALID_DESKTOP_CALLBACK_SCHEMES.includes(uri.scheme) ||
 		// vscode.dev & insiders.vscode.dev
 		/(?:^|\.)vscode\.dev$/.test(uri.authority) ||
 		// github.dev & codespaces
 		/(?:^|\.)github\.dev$/.test(uri.authority)
+	);
+}
+
+export function isSupportedTarget(type: AuthProviderType, gheUri?: Uri): boolean {
+	return (
+		type === AuthProviderType.github ||
+		/\.ghe\.com$/.test(gheUri!.authority)
 	);
 }

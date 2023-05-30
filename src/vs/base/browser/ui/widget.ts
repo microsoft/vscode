@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Gesture } from 'vs/base/browser/touch';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 export abstract class Widget extends Disposable {
 
@@ -51,7 +51,7 @@ export abstract class Widget extends Disposable {
 		this._register(dom.addDisposableListener(domNode, dom.EventType.CHANGE, listener));
 	}
 
-	protected ignoreGesture(domNode: HTMLElement): void {
-		Gesture.ignoreTarget(domNode);
+	protected ignoreGesture(domNode: HTMLElement): IDisposable {
+		return Gesture.ignoreTarget(domNode);
 	}
 }

@@ -348,6 +348,10 @@ export class Scrollable extends Disposable {
 		});
 	}
 
+	public hasPendingScrollAnimation(): boolean {
+		return Boolean(this._smoothScrolling);
+	}
+
 	private _performSmoothScrolling(): void {
 		if (!this._smoothScrolling) {
 			return;
@@ -404,7 +408,7 @@ export class SmoothScrollingUpdate {
 
 }
 
-export interface IAnimation {
+interface IAnimation {
 	(completion: number): number;
 }
 

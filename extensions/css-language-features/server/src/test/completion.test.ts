@@ -60,8 +60,8 @@ suite('Completions', () => {
 	}
 
 	test('CSS url() Path completion', async function () {
-		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString(true);
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString(true) }];
 
 		await assertCompletions('html { background-image: url("./|")', {
 			items: [
@@ -119,8 +119,8 @@ suite('Completions', () => {
 	});
 
 	test('CSS url() Path Completion - Unquoted url', async function () {
-		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString(true);
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString(true) }];
 
 		await assertCompletions('html { background-image: url(./|)', {
 			items: [
@@ -148,8 +148,8 @@ suite('Completions', () => {
 	});
 
 	test('CSS @import Path completion', async function () {
-		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString(true);
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString(true) }];
 
 		await assertCompletions(`@import './|'`, {
 			items: [
@@ -171,8 +171,8 @@ suite('Completions', () => {
 	 * For SCSS, `@import 'foo';` can be used for importing partial file `_foo.scss`
 	 */
 	test('SCSS @import Path completion', async function () {
-		const testCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString(true);
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString(true) }];
 
 		/**
 		 * We are in a CSS file, so no special treatment for SCSS partial files
@@ -184,7 +184,7 @@ suite('Completions', () => {
 			]
 		}, testCSSUri, folders);
 
-		const testSCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/scss/main.scss')).toString();
+		const testSCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/scss/main.scss')).toString(true);
 		await assertCompletions(`@import './|'`, {
 			items: [
 				{ label: '_foo.scss', resultText: `@import './foo'` }
@@ -193,8 +193,8 @@ suite('Completions', () => {
 	});
 
 	test('Completion should ignore files/folders starting with dot', async function () {
-		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
+		const testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString(true);
+		const folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString(true) }];
 
 		await assertCompletions('html { background-image: url("../|")', {
 			count: 4

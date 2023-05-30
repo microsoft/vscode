@@ -5,7 +5,7 @@
 
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -33,4 +33,4 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 	}
 }
 
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
+registerSingleton(IConfigurationResolverService, ConfigurationResolverService, InstantiationType.Delayed);

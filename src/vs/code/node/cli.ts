@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, spawn, SpawnOptions } from 'child_process';
+import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
-import { isAbsolute, resolve, join } from 'vs/base/common/path';
+import { isAbsolute, resolve, join, dirname } from 'vs/base/common/path';
 import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
-import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
@@ -19,13 +18,15 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { randomPath } from 'vs/base/common/extpath';
+import { isUNC, randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
-import { dirname } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
+import { cwd } from 'vs/base/common/process';
+import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { URI } from 'vs/base/common/uri';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -50,6 +51,33 @@ export async function main(argv: string[]): Promise<any> {
 		return;
 	}
 
+	if (args.tunnel) {
+		if (!product.tunnelApplicationName) {
+			console.error(`'tunnel' command not supported in ${product.applicationName}`);
+			return;
+		}
+		const tunnelArgs = argv.slice(argv.indexOf('tunnel') + 1); // all arguments behind `tunnel`
+		return new Promise((resolve, reject) => {
+			let tunnelProcess: ChildProcess;
+			const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
+			if (process.env['VSCODE_DEV']) {
+				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio });
+			} else {
+				const appPath = process.platform === 'darwin'
+					// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
+					? join(dirname(dirname(process.execPath)), 'Resources', 'app')
+					: dirname(process.execPath);
+				const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
+				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs], { cwd: cwd(), stdio });
+			}
+
+			tunnelProcess.stdout!.pipe(process.stdout);
+			tunnelProcess.stderr!.pipe(process.stderr);
+			tunnelProcess.on('exit', resolve);
+			tunnelProcess.on('error', reject);
+		});
+	}
+
 	// Help
 	if (args.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
@@ -72,10 +100,10 @@ export async function main(argv: string[]): Promise<any> {
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
 			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
-			case 'fish': file = 'shellIntegration.fish'; break;
+			case 'fish': file = 'fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
-		console.log(join(dirname(FileAccess.asFileUri('', require)).fsPath, 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
+		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
 	}
 
 	// Extensions Management
@@ -90,6 +118,16 @@ export async function main(argv: string[]): Promise<any> {
 	else if (args['file-write']) {
 		const source = args._[0];
 		const target = args._[1];
+
+		// Windows: set the paths as allowed UNC paths given
+		// they are explicitly provided by the user as arguments
+		if (isWindows) {
+			for (const path of [source, target]) {
+				if (isUNC(path)) {
+					addUNCHostToAllowlist(URI.file(path).authority);
+				}
+			}
+		}
 
 		// Validate
 		if (
@@ -220,7 +258,7 @@ export async function main(argv: string[]): Promise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string | undefined;
 		if (args.wait) {
-			waitMarkerFilePath = createWaitMarkerFile(verbose);
+			waitMarkerFilePath = createWaitMarkerFileSync(verbose);
 			if (waitMarkerFilePath) {
 				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
@@ -334,7 +372,7 @@ export async function main(argv: string[]): Promise<any> {
 									return false;
 								}
 								if (target.type === 'page') {
-									return target.url.indexOf('workbench/workbench.html') > 0;
+									return target.url.indexOf('workbench/workbench.html') > 0 || target.url.indexOf('workbench/workbench-dev.html') > 0;
 								} else {
 									return true;
 								}
@@ -362,14 +400,6 @@ export async function main(argv: string[]): Promise<any> {
 					console.error('Failed to profile startup. Make sure to quit Code first.');
 				}
 			});
-		}
-
-		const jsFlags = args['js-flags'];
-		if (isString(jsFlags)) {
-			const match = /max_old_space_size=(\d+)/g.exec(jsFlags);
-			if (match && !args['max-memory']) {
-				addArg(argv, `--max-memory=${match[1]}`);
-			}
 		}
 
 		const options: SpawnOptions = {
@@ -465,6 +495,10 @@ export async function main(argv: string[]): Promise<any> {
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
 	}
+}
+
+function getAppRoot() {
+	return dirname(FileAccess.asFileUri('').fsPath);
 }
 
 function eventuallyExit(code: number): void {

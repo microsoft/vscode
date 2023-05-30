@@ -22,19 +22,20 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 	const { serverProcess, endpoint } = await launchServer(options);
 
 	// Launch browser
-	const { browser, context, page } = await launchBrowser(options, endpoint);
+	const { browser, context, page, pageLoadedPromise } = await launchBrowser(options, endpoint);
 
 	return {
 		serverProcess,
-		driver: new PlaywrightDriver(browser, context, page, serverProcess, options)
+		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options)
 	};
 }
 
 async function launchServer(options: LaunchOptions) {
 	const { userDataDir, codePath, extensionsPath, logger, logsPath } = options;
+	const serverLogsPath = join(logsPath, 'server');
 	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
-	await measureAndLog(mkdirp(agentFolder), `mkdirp(${agentFolder})`, logger);
+	await measureAndLog(() => mkdirp(agentFolder), `mkdirp(${agentFolder})`, logger);
 
 	const env = {
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
@@ -49,7 +50,7 @@ async function launchServer(options: LaunchOptions) {
 		`--extensions-dir=${extensionsPath}`,
 		`--server-data-dir=${agentFolder}`,
 		'--accept-server-license-terms',
-		`--logsPath=${logsPath}`
+		`--logsPath=${serverLogsPath}`
 	];
 
 	if (options.verbose) {
@@ -68,7 +69,7 @@ async function launchServer(options: LaunchOptions) {
 		logger.log(`Starting server out of sources from '${serverLocation}'`);
 	}
 
-	logger.log(`Storing log files into '${logsPath}'`);
+	logger.log(`Storing log files into '${serverLogsPath}'`);
 
 	logger.log(`Command line: '${serverLocation}' ${args.join(' ')}`);
 	const serverProcess = spawn(
@@ -81,28 +82,32 @@ async function launchServer(options: LaunchOptions) {
 
 	return {
 		serverProcess,
-		endpoint: await measureAndLog(waitForEndpoint(serverProcess, logger), 'waitForEndpoint(serverProcess)', logger)
+		endpoint: await measureAndLog(() => waitForEndpoint(serverProcess, logger), 'waitForEndpoint(serverProcess)', logger)
 	};
 }
 
 async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const { logger, workspacePath, tracing, headless } = options;
 
-	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: headless ?? false }), 'playwright#launch', logger);
+	const browser = await measureAndLog(() => playwright[options.browser ?? 'chromium'].launch({
+		headless: headless ?? false,
+		timeout: 0
+	}), 'playwright#launch', logger);
+
 	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
 
-	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
+	const context = await measureAndLog(() => browser.newContext(), 'browser.newContext', logger);
 
 	if (tracing) {
 		try {
-			await measureAndLog(context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
+			await measureAndLog(() => context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
 		} catch (error) {
 			logger.log(`Playwright (Browser): Failed to start playwright tracing (${error})`); // do not fail the build when this fails
 		}
 	}
 
-	const page = await measureAndLog(context.newPage(), 'context.newPage()', logger);
-	await measureAndLog(page.setViewportSize({ width: 1200, height: 800 }), 'page.setViewportSize', logger);
+	const page = await measureAndLog(() => context.newPage(), 'context.newPage()', logger);
+	await measureAndLog(() => page.setViewportSize({ width: 1200, height: 800 }), 'page.setViewportSize', logger);
 
 	if (options.verbose) {
 		context.on('page', () => logger.log(`Playwright (Browser): context.on('page')`));
@@ -133,9 +138,12 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		`["logLevel","${options.verbose ? 'trace' : 'info'}"]`
 	].join(',')}]`;
 
-	await measureAndLog(page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
+	const gotoPromise = measureAndLog(() => page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
+	const pageLoadedPromise = page.waitForLoadState('load');
 
-	return { browser, context, page };
+	await gotoPromise;
+
+	return { browser, context, page, pageLoadedPromise };
 }
 
 function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {

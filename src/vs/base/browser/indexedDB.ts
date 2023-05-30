@@ -126,6 +126,7 @@ export class IndexedDB {
 				}
 			};
 			transaction.onerror = () => e(transaction.error);
+			transaction.onabort = () => e(transaction.error);
 			const request = dbRequestFn(transaction.objectStore(store));
 		}).finally(() => this.pendingTransactions.splice(this.pendingTransactions.indexOf(transaction), 1));
 	}

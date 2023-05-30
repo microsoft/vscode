@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -67,6 +67,18 @@ export interface IWorkingCopyService {
 	 * All dirty working copies that are registered.
 	 */
 	readonly dirtyWorkingCopies: readonly IWorkingCopy[];
+
+	/**
+	 * The number of modified working copies that are registered,
+	 * including scratchpads, which are never dirty.
+	 */
+	readonly modifiedCount: number;
+
+	/**
+	 * All working copies with unsaved changes,
+	 * including scratchpads, which are never dirty.
+	 */
+	readonly modifiedWorkingCopies: readonly IWorkingCopy[];
 
 	/**
 	 * Whether there is any registered working copy that is dirty.
@@ -265,6 +277,22 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		return this.workingCopies.filter(workingCopy => workingCopy.isDirty());
 	}
 
+	get modifiedCount(): number {
+		let totalModifiedCount = 0;
+
+		for (const workingCopy of this._workingCopies) {
+			if (workingCopy.isModified()) {
+				totalModifiedCount++;
+			}
+		}
+
+		return totalModifiedCount;
+	}
+
+	get modifiedWorkingCopies(): IWorkingCopy[] {
+		return this.workingCopies.filter(workingCopy => workingCopy.isModified());
+	}
+
 	isDirty(resource: URI, typeId?: string): boolean {
 		const workingCopies = this.mapResourceToWorkingCopies.get(resource);
 		if (workingCopies) {
@@ -290,4 +318,4 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	//#endregion
 }
 
-registerSingleton(IWorkingCopyService, WorkingCopyService, true);
+registerSingleton(IWorkingCopyService, WorkingCopyService, InstantiationType.Delayed);

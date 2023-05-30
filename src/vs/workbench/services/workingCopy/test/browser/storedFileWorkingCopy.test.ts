@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { basename } from 'vs/base/common/resources';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { Promises } from 'vs/base/common/async';
+import { Promises, timeout } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
@@ -146,7 +146,8 @@ suite('StoredFileWorkingCopy', function () {
 		});
 	});
 
-	test('dirty', async () => {
+	test('dirty / modified', async () => {
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 
@@ -172,12 +173,14 @@ suite('StoredFileWorkingCopy', function () {
 		workingCopy.model?.updateContents('hello dirty');
 		assert.strictEqual(contentChangeCounter, 1);
 
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 1);
 
 		await workingCopy.save();
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 2);
@@ -187,25 +190,29 @@ suite('StoredFileWorkingCopy', function () {
 		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello dirty stream')) });
 
 		assert.strictEqual(contentChangeCounter, 2); // content of model did not change
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 3);
 
 		await workingCopy.revert({ soft: true });
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 4);
 
-		// Dirty from: API
-		workingCopy.markDirty();
+		// Modified from: API
+		workingCopy.markModified();
 
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 5);
 
 		await workingCopy.revert();
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 6);
@@ -751,6 +758,39 @@ suite('StoredFileWorkingCopy', function () {
 		await workingCopy.save({ force: true });
 		assert.strictEqual(participationCounter, 1);
 	});
+
+	test('Save Participant, calling save from within is unsupported but does not explode (sync save)', async function () {
+		await workingCopy.resolve();
+
+		await testSaveFromSaveParticipant(workingCopy, false);
+	});
+
+	test('Save Participant, calling save from within is unsupported but does not explode (async save)', async function () {
+		await workingCopy.resolve();
+
+		await testSaveFromSaveParticipant(workingCopy, true);
+	});
+
+	async function testSaveFromSaveParticipant(workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>, async: boolean): Promise<void> {
+
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, false);
+
+		const disposable = accessor.workingCopyFileService.addSaveParticipant({
+			participate: async () => {
+				if (async) {
+					await timeout(10);
+				}
+
+				await workingCopy.save({ force: true });
+			}
+		});
+
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, true);
+
+		await workingCopy.save({ force: true });
+
+		disposable.dispose();
+	}
 
 	test('revert', async () => {
 		await workingCopy.resolve();

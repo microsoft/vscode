@@ -118,17 +118,14 @@ suite('vscode API - commands', () => {
 		await commands.executeCommand('vscode.open', uri);
 		assert.strictEqual(window.tabGroups.all.length, 1);
 		assert.strictEqual(window.tabGroups.all[0].activeTab?.group.viewColumn, ViewColumn.One);
-		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.One);
 
 		await commands.executeCommand('vscode.open', uri, ViewColumn.Two);
 		assert.strictEqual(window.tabGroups.all.length, 2);
 		assert.strictEqual(window.tabGroups.all[1].activeTab?.group.viewColumn, ViewColumn.Two);
-		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.Two);
 
 		await commands.executeCommand('vscode.open', uri, ViewColumn.One);
 		assert.strictEqual(window.tabGroups.all.length, 2);
 		assert.strictEqual(window.tabGroups.all[0].activeTab?.group.viewColumn, ViewColumn.One);
-		assert.strictEqual(window.activeTextEditor?.viewColumn, ViewColumn.One);
 
 		let e1: Error | undefined = undefined;
 		try {

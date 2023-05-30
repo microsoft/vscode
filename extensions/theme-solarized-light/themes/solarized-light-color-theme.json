@@ -17,8 +17,11 @@
 			}
 		},
 		{
-			"name": "Comment",
-			"scope": "comment",
+			"name": "Comments",
+			"scope": [
+				"comment",
+				"string.quoted.docstring"
+			],
 			"settings": {
 				"fontStyle": "italic",
 				"foreground": "#93A1A1"
@@ -327,7 +330,7 @@
 	"colors": {
 		// Base
 		// "foreground": "",
-		"focusBorder": "#D3AF86",
+		"focusBorder": "#b49471",
 		// "contrastActiveBorder": "",
 		// "contrastBorder": "",
 		// "widget.shadow": "",
