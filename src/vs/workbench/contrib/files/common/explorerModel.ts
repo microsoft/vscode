@@ -343,7 +343,7 @@ export class ExplorerItem {
 					itemsToNest,
 					this.getPlatformAwareName(this.name));
 
-				for (const [fileEntryName, fileEntryItem] of fileChildren) {
+				for (const [fileEntryName, fileEntryItem] of this.children.entries()) {
 					const nestedItems = nested.get(fileEntryName);
 					if (nestedItems !== undefined) {
 						fileEntryItem.nestedChildren = [];
@@ -355,13 +355,6 @@ export class ExplorerItem {
 						items.push(fileEntryItem);
 					} else {
 						fileEntryItem.nestedChildren = undefined;
-					}
-				}
-
-				for (const [dirEntryName, dirEntryItem] of dirChildren.values()) {
-					const nestedItems = nested.get(dirEntryName);
-					if (nestedItems !== undefined) {
-						items.push(dirEntryItem);
 					}
 				}
 			} else {
