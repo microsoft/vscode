@@ -145,7 +145,7 @@ class MoveToFileRefactorCommand implements Command {
 		}
 
 		const targetFile = await this.getTargetFile(args.document, file, args.range);
-		if (!targetFile) {
+		if (!targetFile || targetFile.toString() === file.toString()) {
 			return;
 		}
 
