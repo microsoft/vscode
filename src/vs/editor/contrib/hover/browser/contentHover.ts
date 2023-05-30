@@ -461,9 +461,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	private _disposableStore = new DisposableStore();
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _renderingAbove: ContentWidgetPositionPreference | undefined;
-	// TODO: change so as to use directly the _hoverVisibleKey instead of the boolean here
-	private _visible: boolean = false;
-	// TODO: above
 
 	private readonly _hoverWidget: HoverWidget = this._disposableStore.add(new HoverWidget());
 	private readonly _focusTracker: dom.IFocusTracker;
@@ -690,7 +687,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		this._setVisibleData(visibleData);
 		const widgetPosition: IContentWidgetPosition = {
 			position: visibleData.showAtPosition,
 			secondaryPosition: visibleData.showAtSecondaryPosition,
@@ -698,9 +694,10 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			preference: [ContentWidgetPositionPreference.ABOVE]
 		};
 		this._contentPosition = widgetPosition;
-		if (!this._visible) {
+		if (!this._hoverVisibleKey.get()) {
 			this._editor.addContentWidget(this);
 		}
+		this._setVisibleData(visibleData);
 		this._updateFont();
 		this._updateContent(node);
 		this._renderingAbove = this.findRenderingPreference(this._getWidgetHeight(), visibleData.showAtPosition);
@@ -719,11 +716,9 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			this._hoverWidget.containerDomNode.focus();
 		}
 		visibleData.colorPicker?.layout();
-		this._visible = true;
 	}
 
 	public hide(): void {
-		this._visible = false;
 		this._resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
 		this._resizableNode.clearSashHoverState();
 		this._editor.removeContentWidget(this);
