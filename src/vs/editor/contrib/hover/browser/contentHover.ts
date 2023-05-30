@@ -490,7 +490,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		this._resizableNode.domNode.style.zIndex = '50';
 		dom.append(this._resizableNode.domNode, this._hoverWidget.containerDomNode);
 
-		this._focusTracker = this._disposableStore.add(dom.trackFocus(this._hoverWidget.contentsDomNode));
+		this._focusTracker = this._disposableStore.add(dom.trackFocus(this._resizableNode.domNode));
 		this._disposableStore.add(this._editor.onDidLayoutChange(() => this._layout()));
 		this._disposableStore.add(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
@@ -498,11 +498,9 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			}
 		}));
 		this._disposableStore.add(this._focusTracker.onDidFocus(() => {
-			console.log('inside of on did focus');
 			this._hoverFocusedKey.set(true);
 		}));
 		this._disposableStore.add(this._focusTracker.onDidBlur(() => {
-			console.log('inside of on did blur');
 			this._hoverFocusedKey.set(false);
 		}));
 		this._setVisibleData(undefined);
@@ -553,8 +551,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 
 		const maxRenderingWidth = this._findMaximumRenderingWidth();
 		const maxRenderingHeight = this._findMaximumRenderingHeight();
-		console.log('maxRenderingWidth : ', maxRenderingWidth);
-		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		if (!maxRenderingWidth || !maxRenderingHeight) {
 			return;
 		}
@@ -626,10 +622,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			this._visibleData.closestMouseDistance = computeDistanceFromPointToRectangle(this._visibleData.initialMousePosX, this._visibleData.initialMousePosY, widgetRect.left, widgetRect.top, widgetRect.width, widgetRect.height);
 		}
 		const distance = computeDistanceFromPointToRectangle(posx, posy, widgetRect.left, widgetRect.top, widgetRect.width, widgetRect.height);
-		// TODO: do we need the following?
-		console.log('distance : ', distance);
-		console.log('this._visibleData.closestMouseDistance : ', this._visibleData.closestMouseDistance);
-		if (!distance || !this._visibleData.closestMouseDistance || distance > this._visibleData.closestMouseDistance + 4 /* tolerance of 4 pixels */) {
+		if (distance > this._visibleData.closestMouseDistance + 4 /* tolerance of 4 pixels */) {
 			// The mouse is getting farther away
 			return false;
 		}
@@ -705,8 +698,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			preference: [ContentWidgetPositionPreference.ABOVE]
 		};
 		this._contentPosition = widgetPosition;
-		console.log('this._visible : ', this._visible);
-		console.log('this._visibleKey.get() : ', this._hoverVisibleKey.get());
 		if (!this._visible) {
 			this._editor.addContentWidget(this);
 		}
