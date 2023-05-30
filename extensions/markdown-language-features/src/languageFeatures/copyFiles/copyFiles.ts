@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as path from 'path';
 import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
@@ -43,8 +42,9 @@ export class NewFilePathGenerator {
 		const desiredPath = getDesiredNewFilePath(config, document, file);
 
 		const root = Utils.dirname(desiredPath);
-		const ext = path.extname(file.name);
-		const baseName = path.basename(file.name, ext);
+		const ext = Utils.extname(desiredPath);
+		let baseName = Utils.basename(desiredPath);
+		baseName = baseName.slice(0, baseName.length - ext.length);
 		for (let i = 0; ; ++i) {
 			if (token.isCancellationRequested) {
 				return undefined;
