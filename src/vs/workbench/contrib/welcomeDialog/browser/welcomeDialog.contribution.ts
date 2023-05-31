@@ -59,8 +59,8 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 			return; // do not show if this is not the first session
 		}
 
-		const setting = configurationService.inspect<boolean>(configurationKey);
-		if (!setting.value) {
+		const setting = configurationService.getValue<boolean>(configurationKey);
+		if (!setting) {
 			return;
 		}
 
@@ -108,18 +108,18 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WelcomeDialogContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WelcomeDialogContribution, LifecyclePhase.Eventually);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	...applicationConfigurationNodeBase,
 	properties: {
-		'workbench.welcome.experimental.dialog': {
+		'config.welcome.experimental.dialog': {
 			scope: ConfigurationScope.APPLICATION,
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
-			description: localize('workbench.welcome.dialog', "When enabled, a welcome widget is shown in the editor")
+			description: localize('config.welcome.dialog', "When enabled, a welcome widget is shown in the editor")
 		}
 	}
 });
