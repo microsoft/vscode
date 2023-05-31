@@ -638,11 +638,6 @@ export interface IWelcomeDialog {
 	message: string;
 
 	/**
-	 * Context key expression to control the visibility of the welcome dialog.
-	 */
-	when: string;
-
-	/**
 	 * Media to include in the welcome dialog.
 	 */
 	media: { altText: string; path: string };
