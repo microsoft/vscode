@@ -528,7 +528,7 @@ export class ChatService extends Disposable implements IChatService {
 		const request = model.addRequest(message);
 		model.acceptResponseProgress(request, {
 			content: response.message,
-		});
+		}, true);
 		model.completeResponse(request, {
 			session: model.session!,
 			errorDetails: response.errorDetails,
