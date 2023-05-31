@@ -246,14 +246,9 @@ export class SuggestController implements IEditorContribution {
 
 			let noFocus = false;
 			if (e.triggerOptions.auto) {
-				// don't "focus" item when configured to do so or when in snippet mode (and configured to do so)
+				// don't "focus" item when configured to do
 				const options = this.editor.getOption(EditorOption.suggest);
-
-				if (options.snippetsPreventQuickSuggestions && SnippetController2.get(this.editor)?.isInSnippet()) {
-					// SPECIAL: in snippet mode, we never focus unless the user wants to
-					noFocus = true;
-
-				} else if (options.selectionMode === 'never' || options.selectionMode === 'always') {
+				if (options.selectionMode === 'never' || options.selectionMode === 'always') {
 					// simple: always or never
 					noFocus = options.selectionMode === 'never';
 
