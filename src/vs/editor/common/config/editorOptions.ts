@@ -5093,7 +5093,7 @@ export const EditorOptions = {
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
 	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
-		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', false,
+		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', true,
 		{
 			description: nls.localize('screenReaderAnnounceInlineSuggestion', "Control whether inline suggestions are announced by a screen reader."),
 			tags: ['accessibility']
