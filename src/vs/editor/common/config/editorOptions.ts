@@ -4299,7 +4299,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 		const defaults: InternalSuggestOptions = {
 			insertMode: 'insert',
 			filterGraceful: true,
-			snippetsPreventQuickSuggestions: true,
+			snippetsPreventQuickSuggestions: false,
 			localityBonus: false,
 			shareSuggestSelections: false,
 			selectionMode: 'always',
