@@ -14,7 +14,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -51,6 +50,11 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { assertType } from 'vs/base/common/types';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IdleValue } from 'vs/base/common/async';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import * as dom from 'vs/base/browser/dom';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from 'vs/base/common/codicons';
+import { FileAccess } from 'vs/base/common/network';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -145,6 +149,10 @@ export class InteractiveEditorWidget {
 				h('div.actions.hidden@feedbackToolbar'),
 			]),
 			h('div.markdownMessage.hidden@markdownMessage', [
+				h('div.providerInfo@providerInfo', [
+					h('div.providerAvatar@providerAvatar'),
+					h('div.providerName@providerName')
+				]),
 				h('div.message@message'),
 				h('div.messageActions@messageActions')
 			]),
@@ -186,7 +194,8 @@ export class InteractiveEditorWidget {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatService private readonly _chatService: IChatService
 	) {
 
 		// input editor logic
@@ -431,6 +440,32 @@ export class InteractiveEditorWidget {
 
 	updateMarkdownMessage(message: Node | undefined) {
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
+
+		// --- potentially place elsewhere
+		const providerInfo = this._chatService.getProviderInfos()[0];
+		if (!providerInfo) {
+			return;
+		}
+		console.log('providerInfo : ', providerInfo);
+
+		const providerName = providerInfo.displayName;
+		reset(this._elements.providerName, providerName);
+		const providerIconUrl = providerInfo.iconUrl;
+		console.log('providerIconUrl : ', providerIconUrl);
+
+		if (providerIconUrl) {
+			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
+			avatarIcon.style.height = 20 + 'px';
+			avatarIcon.style.width = 20 + 'px';
+			avatarIcon.src = FileAccess.uriToBrowserUri(providerIconUrl).toString(true);
+			reset(this._elements.providerAvatar, avatarIcon);
+		} else {
+			const defaultIcon = Codicon.account;
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
+			reset(this._elements.providerAvatar, avatarIcon);
+		}
+		// ---
+
 		if (!message) {
 			this._ctxMessageCropState.reset();
 			reset(this._elements.message);

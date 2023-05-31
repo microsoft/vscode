@@ -135,6 +135,12 @@
 	display: none;
 }
 
+.monaco-editor .interactive-editor .markdownMessage .providerInfo {
+	margin-left: 5px;
+	margin-bottom: 5px;
+	font-weight: bold;
+}
+
 .monaco-editor .interactive-editor .markdownMessage .message * {
 	margin: unset;
 }
