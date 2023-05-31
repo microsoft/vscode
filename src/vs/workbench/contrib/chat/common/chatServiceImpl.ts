@@ -218,11 +218,13 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	getHistory(): IChatDetail[] {
-		const sessions = Object.values(this._persistedSessions);
+		const sessions = Object.values(this._persistedSessions)
+			.filter(session => session.requests.length > 0);
 		sessions.sort((a, b) => (b.creationDate ?? 0) - (a.creationDate ?? 0));
 
 		return sessions
 			.filter(session => !this._sessionModels.has(session.sessionId))
+			.filter(session => !session.isImported)
 			.map(item => {
 				return <IChatDetail>{
 					sessionId: item.sessionId,
@@ -547,9 +549,7 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		if (model.getRequests().length && !model.isImported) {
-			this._persistedSessions[sessionId] = model.toJSON();
-		}
+		this._persistedSessions[sessionId] = model.toJSON();
 
 		model.dispose();
 		this._sessionModels.delete(sessionId);
