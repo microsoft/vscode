@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
-	DiffEditor = 'accessibility.verbosity.diff-editor',
+	DiffEditor = 'accessibility.verbosity.diffEditor',
 	Chat = 'accessibility.verbosity.chat',
 	InteractiveEditor = 'accessibility.verbosity.interactiveEditor',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
@@ -28,7 +28,7 @@ const configuration: IConfigurationNode = {
 			tags: ['accessibility']
 		},
 		[AccessibilityVerbositySettingId.DiffEditor]: {
-			description: localize('verbosity.diff-editor.description', 'Provide information about how to navigate changes in the diff editor when it is focused'),
+			description: localize('verbosity.diffEditor.description', 'Provide information about how to navigate changes in the diff editor when it is focused'),
 			type: 'boolean',
 			default: true,
 			tags: ['accessibility']

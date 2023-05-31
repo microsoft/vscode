@@ -183,8 +183,8 @@ export class DiffReview extends Disposable {
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('accessibility.verbosity.diff-editor')) {
-				this._diffEditor.updateOptions({ accessibilityVerbose: this._configurationService.getValue('accessibility.verbosity.diff-editor') });
+			if (e.affectsConfiguration('accessibility.verbosity.diffEditor')) {
+				this._diffEditor.updateOptions({ accessibilityVerbose: this._configurationService.getValue('accessibility.verbosity.diffEditor') });
 			}
 		}));
 		this._diffs = [];
