@@ -1095,9 +1095,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
+		// If the panel is activated, whether it is in focus should be compared two viewContainerIds.
 		const activePanel = this.getFocusWebviewPart(part);
-		if (viewContainerId && viewContainerId === activePanel?.getId()) {
-			return true;
+		if (viewContainerId && !!activePanel) {
+			return viewContainerId === activePanel?.getId?.();
 		}
 
 		return !!container && isAncestorUsingFlowTo(activeElement, container);
@@ -1105,7 +1106,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getFocusWebviewPart(part: Parts): IPaneComposite | undefined {
 		let focusPart: IPaneComposite | undefined;
-		// only these two part will combine webview view container
+		// only these three part will combine webview view container
 		switch (part) {
 			case Parts.PANEL_PART: {
 				focusPart = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
