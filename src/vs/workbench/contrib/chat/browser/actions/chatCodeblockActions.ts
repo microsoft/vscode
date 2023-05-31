@@ -321,7 +321,8 @@ export function registerChatCodeBlockActions() {
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 					},
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.EditorContrib,
+					when: CONTEXT_IN_CHAT_SESSION
 				}
 			});
 		}
