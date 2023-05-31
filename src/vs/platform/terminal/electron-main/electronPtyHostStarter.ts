@@ -17,7 +17,7 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { deepClone } from 'vs/base/common/objects';
-import { isLinuxSnap } from 'vs/base/common/platform';
+import { isLinux } from 'vs/base/common/platform';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
 
@@ -88,7 +88,7 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 			VSCODE_RECONNECT_GRACE_TIME: String(this._reconnectConstants.graceTime),
 			VSCODE_RECONNECT_SHORT_GRACE_TIME: String(this._reconnectConstants.shortGraceTime),
 			VSCODE_RECONNECT_SCROLLBACK: String(this._reconnectConstants.scrollback),
-			GTK_PATH: isLinuxSnap ? '/snap/code/current/usr/lib/x86_64-linux-gnu/gtk-3.0' : undefined
+			GTK_PATH: isLinux ? '/usr/lib/x86_64-linux-gnu/gtk-3.0' : undefined
 		};
 	}
 
