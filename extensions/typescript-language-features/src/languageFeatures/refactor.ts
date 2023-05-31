@@ -480,7 +480,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
 				triggerReason: this.toTsTriggerReason(context),
 				kind: context.only?.value,
-				includeInteractiveActions: true,
+				includeInteractiveActions: this.client.apiVersion.gte(API.v520),
 			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});
