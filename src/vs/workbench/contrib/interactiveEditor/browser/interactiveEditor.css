@@ -184,6 +184,7 @@
 	background-color: var(--vscode-button-background);
 	border-radius: 2px;
 	padding: 4px 6px;
+	line-height: 18px;
 }
 
 .monaco-editor .interactive-editor .status .monaco-toolbar .action-item.button-item .action-label>.codicon {
