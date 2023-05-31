@@ -450,7 +450,7 @@ export class InteractiveEditorWidget {
 
 		const providerName = providerInfo.displayName;
 		reset(this._elements.providerName, providerName);
-		const providerIconUrl = providerInfo.iconUrl;
+		const providerIconUrl = providerInfo.iconUri;
 		console.log('providerIconUrl : ', providerIconUrl);
 
 		if (providerIconUrl) {

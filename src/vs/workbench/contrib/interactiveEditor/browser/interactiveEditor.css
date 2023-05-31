@@ -141,6 +141,15 @@
 	font-weight: bold;
 }
 
+.monaco-editor .interactive-editor .markdownMessage .providerAvatar {
+	display: inline-block;
+}
+
+.monaco-editor .interactive-editor .markdownMessage .providerName {
+	display: inline-block;
+	margin-left: 5px;
+}
+
 .monaco-editor .interactive-editor .markdownMessage .message * {
 	margin: unset;
 }

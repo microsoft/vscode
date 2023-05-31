@@ -180,6 +180,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			.forEach((item: ChatResponseViewModel) => item.dispose());
 	}
 }
+
 export class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;

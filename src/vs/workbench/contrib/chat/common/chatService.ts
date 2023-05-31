@@ -49,7 +49,7 @@ export interface IPersistedChatState { }
 export interface IChatProvider {
 	readonly id: string;
 	readonly displayName: string;
-	readonly iconUrl?: URI | undefined;
+	readonly iconUri?: URI | undefined;
 	prepareSession(initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined>;
 	resolveRequest?(session: IChat, context: any, token: CancellationToken): ProviderResult<IChatRequest>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IChatReplyFollowup[])[] | undefined>;
@@ -169,7 +169,7 @@ export interface IChatDetail {
 export interface IChatProviderInfo {
 	id: string;
 	displayName: string;
-	iconUrl?: URI | undefined;
+	iconUri?: URI | undefined;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

@@ -588,7 +588,7 @@ export class ChatService extends Disposable implements IChatService {
 			return {
 				id: provider.id,
 				displayName: provider.displayName,
-				iconUrl: provider.iconUrl
+				iconUri: provider.iconUri
 			};
 		});
 	}
