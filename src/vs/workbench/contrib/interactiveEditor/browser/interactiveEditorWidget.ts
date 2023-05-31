@@ -439,33 +439,25 @@ export class InteractiveEditorWidget {
 	}
 
 	updateMarkdownMessage(message: Node | undefined) {
-		this._elements.markdownMessage.classList.toggle('hidden', !message);
-
-		// --- potentially place elsewhere
 		const providerInfo = this._chatService.getProviderInfos()[0];
 		if (!providerInfo) {
 			return;
 		}
-		console.log('providerInfo : ', providerInfo);
-
 		const providerName = providerInfo.displayName;
 		reset(this._elements.providerName, providerName);
-		const providerIconUrl = providerInfo.iconUri;
-		console.log('providerIconUrl : ', providerIconUrl);
-
-		if (providerIconUrl) {
+		const providerIconUri = providerInfo.iconUri;
+		if (providerIconUri) {
 			const avatarIcon = $<HTMLImageElement>('img.icon');
 			avatarIcon.style.height = 20 + 'px';
 			avatarIcon.style.width = 20 + 'px';
-			avatarIcon.src = FileAccess.uriToBrowserUri(providerIconUrl).toString(true);
+			avatarIcon.src = FileAccess.uriToBrowserUri(providerIconUri).toString(true);
 			reset(this._elements.providerAvatar, avatarIcon);
 		} else {
 			const defaultIcon = Codicon.account;
 			const avatarIcon = $(ThemeIcon.asCSSSelector(defaultIcon));
 			reset(this._elements.providerAvatar, avatarIcon);
 		}
-		// ---
-
+		this._elements.markdownMessage.classList.toggle('hidden', !message);
 		if (!message) {
 			this._ctxMessageCropState.reset();
 			reset(this._elements.message);

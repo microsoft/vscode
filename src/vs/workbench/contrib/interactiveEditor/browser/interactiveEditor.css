@@ -139,10 +139,13 @@
 	margin-left: 5px;
 	margin-bottom: 5px;
 	font-weight: bold;
+	display: flex;
 }
 
 .monaco-editor .interactive-editor .markdownMessage .providerAvatar {
 	display: inline-block;
+	height: 20px;
+	width: 20px;
 }
 
 .monaco-editor .interactive-editor .markdownMessage .providerName {
