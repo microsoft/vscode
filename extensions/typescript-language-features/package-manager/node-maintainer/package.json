@@ -1,0 +1,24 @@
+{
+  "name": "node-maintainer",
+  "collaborators": [
+    "Orogene Maintainers and Contributors"
+  ],
+  "description": "NPM dependency tree resolver for Orogene.",
+  "version": "0.3.23",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/orogene/orogene"
+  },
+  "files": [
+    "node_maintainer_bg.wasm",
+    "node_maintainer.js",
+    "node_maintainer.d.ts"
+  ],
+  "module": "node_maintainer.js",
+  "homepage": "https://orogene.dev",
+  "types": "node_maintainer.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

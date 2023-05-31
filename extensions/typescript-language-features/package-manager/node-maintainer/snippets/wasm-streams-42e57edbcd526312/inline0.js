@@ -1,0 +1,1 @@
+export function bytes_literal() { return "bytes"; }
