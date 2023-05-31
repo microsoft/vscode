@@ -104,8 +104,8 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	diffCodeLens: false,
 	scrollBeyondLastLine: false,
 	stickyScroll: { enabled: false },
-	originalAriaLabel: localize('modified', 'Modified'),
-	modifiedAriaLabel: localize('original', 'Original'),
+	originalAriaLabel: localize('original', 'Original'),
+	modifiedAriaLabel: localize('modified', 'Modified'),
 	diffAlgorithm: 'advanced',
 	readOnly: true,
 	isInEmbeddedEditor: true
