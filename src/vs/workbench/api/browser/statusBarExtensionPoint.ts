@@ -242,7 +242,9 @@ export class StatusBarItemsExtensionPoint {
 						ExtensionIdentifier.toKey(entry.description.identifier),
 						candidate.name ?? entry.description.displayName ?? entry.description.name,
 						candidate.text,
-						undefined, undefined, undefined, undefined,
+						undefined,
+						candidate.command ? { id: candidate.command, title: candidate.name } : undefined,
+						undefined, undefined,
 						candidate.alignment === 'left',
 						candidate.priority,
 						undefined
