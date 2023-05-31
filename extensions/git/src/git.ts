@@ -1588,6 +1588,12 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async deletePrunedBranches(force?: boolean): Promise<void> {
+		force ?
+			await cp.exec('git branch -D `git branch -vv | grep ": gone]" | awk "{print $1}"`') :
+			await cp.exec('git branch -d `git branch -vv | grep ": gone]" | awk "{print $1}"`');
+	}
+
 	async renameBranch(name: string): Promise<void> {
 		const args = ['branch', '-m', name];
 		await this.exec(args);
