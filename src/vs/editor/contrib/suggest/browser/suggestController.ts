@@ -249,7 +249,11 @@ export class SuggestController implements IEditorContribution {
 				// don't "focus" item when configured to do so or when in snippet mode (and configured to do so)
 				const options = this.editor.getOption(EditorOption.suggest);
 
-				if (options.selectionMode === 'never' || options.selectionMode === 'always') {
+				if (options.snippetsPreventQuickSuggestions && SnippetController2.get(this.editor)?.isInSnippet()) {
+					// SPECIAL: in snippet mode, we never focus unless the user wants to
+					noFocus = true;
+
+				} else if (options.selectionMode === 'never' || options.selectionMode === 'always') {
 					// simple: always or never
 					noFocus = options.selectionMode === 'never';
 
@@ -777,7 +781,7 @@ registerEditorCommand(new SuggestCommand({
 	kbOpts: [{
 		// normal tab
 		primary: KeyCode.Tab,
-		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SnippetController2.InSnippetMode.toNegated()),
+		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
 		weight,
 	}, {
 		// accept on enter has special rules
@@ -811,7 +815,7 @@ registerEditorCommand(new SuggestCommand({
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.HasFocusedSuggestion),
 	kbOpts: {
 		weight: weight,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SnippetController2.InSnippetMode.toNegated()),
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.Shift | KeyCode.Enter,
 		secondary: [KeyMod.Shift | KeyCode.Tab],
 	},
