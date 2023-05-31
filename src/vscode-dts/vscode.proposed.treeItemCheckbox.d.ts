@@ -39,7 +39,7 @@ declare module 'vscode' {
 
 	export interface TreeCheckboxChangeEvent<T> {
 		/**
-		* The item that was checked or unchecked.
+		* The items that were checked or unchecked.
 		*/
 		readonly items: ReadonlyArray<[T, TreeItemCheckboxState]>;
 	}
