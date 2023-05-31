@@ -43,8 +43,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 			content.push(localize('interactiveSession.explain', "/explain commands will be run in the chat view."));
 			content.push(localize('interactiveSession.chatViewFocus', "To focus the chat view, run the GitHub Copilot: Focus on GitHub Copilot View command, which will focus the input box."));
 		} else {
-			content.push(localize('interactiveSession.toolbar', "Tab again to reach the action bar, if any, which can be navigated with Left/RightArrow."));
-			content.push(localize('interactiveSession.toolbarButtons', "Tab again to focus the response."));
+			content.push(localize('interactiveSession.toolbar', "Use tab to reach conditional parts like commands, status message, message responses and more."));
 		}
 	}
 	return content.join('\n');
