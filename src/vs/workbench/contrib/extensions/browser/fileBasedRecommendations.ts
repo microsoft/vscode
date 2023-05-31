@@ -151,16 +151,24 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this._register(disposableTimeout(() => this.promptRecommendations(uri, model), 0));
 	}
 
+	private promptRecommendations(uri: URI, model: ITextModel): void {
+		if (this.promptImportantRecommendations(uri, model)) {
+			return;
+		}
+
+		this.promptRecommendedExtensionForFileExtension(uri, extname(uri).toLowerCase());
+	}
+
 	/**
 	 * Prompt the user to either install the recommended extension for the file type in the current editor model
 	 * or prompt to search the marketplace if it has extensions that can support the file type
 	 */
-	private promptRecommendations(uri: URI, model: ITextModel, extensionRecommendations?: IStringDictionary<IFileOpenCondition[]>): void {
+	private promptImportantRecommendations(uri: URI, model: ITextModel, extensionRecommendations?: IStringDictionary<IFileOpenCondition[]>): boolean {
 		const pattern = extname(uri).toLowerCase();
 		extensionRecommendations = extensionRecommendations ?? this.recommendationsByPattern.get(pattern) ?? this.fileOpenRecommendations;
 		const extensionRecommendationEntries = Object.entries(extensionRecommendations);
 		if (extensionRecommendationEntries.length === 0) {
-			return;
+			return false;
 		}
 
 		const processedPathGlobs = new Map<string, boolean>();
@@ -246,10 +254,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			}
 		}
 
-		if (Object.keys(matchedRecommendations).length) {
-			this.promptFromRecommendations(uri, model, matchedRecommendations);
-		}
-
 		this.recommendationsByPattern.set(pattern, recommendationsByPattern);
 		if (Object.keys(unmatchedRecommendations).length) {
 			if (listenOnLanguageChange) {
@@ -258,7 +262,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 					// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
 					disposables.add(disposableTimeout(() => {
 						if (!disposables.isDisposed) {
-							this.promptRecommendations(uri, model, unmatchedRecommendations);
+							this.promptImportantRecommendations(uri, model, unmatchedRecommendations);
 							disposables.dispose();
 						}
 					}, 0));
@@ -266,6 +270,13 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				disposables.add(model.onWillDispose(() => disposables.dispose()));
 			}
 		}
+
+		if (Object.keys(matchedRecommendations).length) {
+			this.promptFromRecommendations(uri, model, matchedRecommendations);
+			return true;
+		}
+
+		return false;
 	}
 
 	private promptFromRecommendations(uri: URI, model: ITextModel, extensionRecommendations: IStringDictionary<IFileOpenCondition[]>): void {
@@ -304,8 +315,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			this.promptRecommendedExtensionForFileType(languageName && isImportantRecommendationForLanguage && language !== PLAINTEXT_LANGUAGE_ID ? localize('languageName', "{0} language", languageName) : basename(uri), language, [...importantRecommendations])) {
 			return;
 		}
-
-		this.promptRecommendedExtensionForFileExtension(uri, extname(uri).toLowerCase());
 	}
 
 	private promptRecommendedExtensionForFileType(name: string, language: string, recommendations: string[]): boolean {
