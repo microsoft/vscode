@@ -1287,6 +1287,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			// never wrap hidden editor
 			result.wordWrapOverride1 = 'off';
 			result.wordWrapOverride2 = 'off';
+			result.stickyScroll = { enabled: false };
 		} else {
 			result.wordWrapOverride1 = this._options.diffWordWrap;
 		}
@@ -1297,7 +1298,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		result.readOnly = !this._options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
-		result.stickyScroll = { enabled: false };
 		return {
 			...result,
 			dimension: {

@@ -281,6 +281,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			// never wrap hidden editor
 			result.wordWrapOverride1 = 'off';
 			result.wordWrapOverride2 = 'off';
+			result.stickyScroll = { enabled: false };
 		} else {
 			result.wordWrapOverride1 = this._options.get().diffWordWrap;
 		}
@@ -291,7 +292,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		result.readOnly = !options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
-		result.stickyScroll = { enabled: false };
 		return result;
 	}
 
