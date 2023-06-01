@@ -23,6 +23,17 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { mock } from 'vs/base/test/common/mock';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IChatProviderInfo, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+
+class TestChatService {
+	constructor() { }
+	getProviderInfos(): IChatProviderInfo[] {
+		return [{
+			id: 'test',
+			displayName: 'Test'
+		}];
+	}
+}
 
 suite('InteractiveEditorController', function () {
 
@@ -56,6 +67,7 @@ suite('InteractiveEditorController', function () {
 	setup(function () {
 
 		const contextKeyService = new MockContextKeyService();
+		const chatService = new TestChatService();
 		interactiveEditorService = new InteractiveEditorServiceImpl(contextKeyService);
 
 		const serviceCollection = new ServiceCollection(
@@ -70,7 +82,8 @@ suite('InteractiveEditorController', function () {
 						done() { },
 					};
 				}
-			}]
+			}],
+			[IChatService, chatService]
 		);
 
 		instaService = workbenchInstantiationService(undefined, store).createChild(serviceCollection);
