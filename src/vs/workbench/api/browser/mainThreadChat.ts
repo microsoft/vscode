@@ -6,8 +6,6 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtHostChatShape, ExtHostContext, IChatRequestDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
@@ -28,8 +26,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatContributionService private readonly chatContribService: IChatContributionService,
-		@IProductService private readonly productService: IProductService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
@@ -40,11 +36,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	}
 
 	async $registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void> {
-		if (this.productService.quality === 'stable') {
-			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);
-			return;
-		}
-
 		const unreg = this._chatService.registerSlashCommandProvider({
 			chatProviderId,
 			provideSlashCommands: async token => {
@@ -63,11 +54,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	}
 
 	async $registerChatProvider(handle: number, id: string): Promise<void> {
-		if (this.productService.quality === 'stable') {
-			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);
-			return;
-		}
-
 		const registration = this.chatContribService.registeredProviders.find(staticProvider => staticProvider.id === id);
 		if (!registration) {
 			throw new Error(`Provider ${id} must be declared in the package.json.`);
