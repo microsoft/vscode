@@ -189,6 +189,7 @@
 .colorpicker-body .insert-button {
 	height: 20px;
 	width: 58px;
+	padding: 0px;
 	position: absolute;
 	right: 8px;
 	bottom: 8px;
