@@ -748,10 +748,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		this._ctxVisible.set(true);
 	}
 
-	protected override revealRange(_range: Range, _isLastLine: boolean) {
-		// disabled
-	}
-
 	override hide(): void {
 		this._ctxVisible.reset();
 		this._ctxCursorPosition.reset();
