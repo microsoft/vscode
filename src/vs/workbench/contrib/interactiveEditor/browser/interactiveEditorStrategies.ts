@@ -226,9 +226,13 @@ export class LiveStrategy extends EditModeStrategy {
 		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
 		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
-		this._diffToggleListener = ModifierKeyEmitter.getInstance().event(e => {
-			if (e.altKey || e.lastKeyReleased === 'alt') {
+		const modKeys = ModifierKeyEmitter.getInstance();
+		let lastIsAlt: boolean | undefined;
+		this._diffToggleListener = modKeys.event(() => {
+			const isAlt = modKeys.keyStatus.altKey && (!modKeys.keyStatus.ctrlKey && !modKeys.keyStatus.metaKey && !modKeys.keyStatus.shiftKey);
+			if (lastIsAlt !== isAlt) {
 				this.toggleDiff();
+				lastIsAlt = isAlt;
 			}
 		});
 	}
