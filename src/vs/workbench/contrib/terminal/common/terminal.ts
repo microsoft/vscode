@@ -527,6 +527,7 @@ export const enum TerminalCommandId {
 	FocusPreviousPane = 'workbench.action.terminal.focusPreviousPane',
 	ShowTabs = 'workbench.action.terminal.showTabs',
 	CreateTerminalEditor = 'workbench.action.createTerminalEditor',
+	CreateTerminalEditorSameGroup = 'workbench.action.createTerminalEditorSameGroup',
 	CreateTerminalEditorSide = 'workbench.action.createTerminalEditorSide',
 	FocusTabs = 'workbench.action.terminal.focusTabs',
 	FocusNextPane = 'workbench.action.terminal.focusNextPane',
