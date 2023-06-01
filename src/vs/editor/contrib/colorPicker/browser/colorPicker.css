@@ -187,10 +187,10 @@
 }
 
 .colorpicker-body .insert-button {
+	position: absolute;
 	height: 20px;
 	width: 58px;
 	padding: 0px;
-	position: absolute;
 	right: 8px;
 	bottom: 8px;
 	background: var(--vscode-button-background);
