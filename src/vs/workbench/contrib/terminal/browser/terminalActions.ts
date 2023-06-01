@@ -1721,14 +1721,19 @@ async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: Cancellation
 	}
 
 	type Item = IQuickPickItem & { pair: WorkspaceFolderCwdPair };
-	const folderPicks: Item[] = shrinkedPairs.map(pair => ({
-		label: pair.folder.name,
-		description: pair.isOverridden
+	const folderPicks: Item[] = shrinkedPairs.map(pair => {
+		const label = pair.folder.name;
+		const description = pair.isOverridden
 			? localize('workbench.action.terminal.overriddenCwdDescription', "(Overriden) {0}", labelService.getUriLabel(pair.cwd, { relative: !pair.isAbsolute }))
-			: labelService.getUriLabel(dirname(pair.cwd), { relative: true }),
-		pair: pair,
-		iconClasses: getIconClasses(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER)
-	}));
+			: labelService.getUriLabel(dirname(pair.cwd), { relative: true });
+
+		return {
+			label,
+			description: description !== label ? description : undefined,
+			pair: pair,
+			iconClasses: getIconClasses(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER)
+		};
+	});
 	const options: IPickOptions<Item> = {
 		placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal"),
 		matchOnDescription: true,
