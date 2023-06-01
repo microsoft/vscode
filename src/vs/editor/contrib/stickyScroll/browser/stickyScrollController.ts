@@ -26,6 +26,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import * as dom from 'vs/base/browser/dom';
 import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 interface CustomMouseEvent {
 	detail: string;
@@ -76,7 +77,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeatureDebounceService _languageFeatureDebounceService: ILanguageFeatureDebounceService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
 	) {
 		super();
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
@@ -297,15 +299,32 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		});
 	}
 
+	private _removeStickyWidget(): void {
+		this._editor.removeOverlayWidget(this._stickyScrollWidget);
+		this._sessionStore.clear();
+		this._enabled = false;
+	}
+
 	private _readConfiguration() {
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 
 		if (options.enabled === false) {
-			this._editor.removeOverlayWidget(this._stickyScrollWidget);
-			this._sessionStore.clear();
-			this._enabled = false;
+			this._removeStickyWidget();
 			return;
 		} else if (options.enabled && !this._enabled) {
+			// Do not render the sticky scroll if the editor is the left side of an inline diff editor
+			let isLeftSideOfInlineDiffEditor = false;
+			if (this._editor.getOption(EditorOption.inDiffEditor)) {
+				for (const diffEditor of this._codeEditorService.listDiffEditors()) {
+					if (diffEditor.getOriginalEditor() === this._editor && !diffEditor.renderSideBySide) {
+						isLeftSideOfInlineDiffEditor = true;
+					}
+				}
+			}
+			if (isLeftSideOfInlineDiffEditor) {
+				this._removeStickyWidget();
+				return;
+			}
 			// When sticky scroll was just enabled, add the listeners on the sticky scroll
 			this._editor.addOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.add(this._editor.onDidScrollChange(() => this._renderStickyScroll()));
