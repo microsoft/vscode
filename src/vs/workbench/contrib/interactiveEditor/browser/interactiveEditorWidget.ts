@@ -158,6 +158,9 @@ export class InteractiveEditorWidget {
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
 	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
+	private readonly _ctxInnerCursorFirst: IContextKey<boolean>;
+	private readonly _ctxInnerCursorLast: IContextKey<boolean>;
+	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
 
 	private readonly _progressBar: ProgressBar;
 
@@ -219,15 +222,15 @@ export class InteractiveEditorWidget {
 		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
 		this._ctxInputEmpty = CTX_INTERACTIVE_EDITOR_EMPTY.bindTo(this._contextKeyService);
 
-		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
-		const ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
-		const ctxInputEditorFocused = CTX_INTERACTIVE_EDITOR_FOCUSED.bindTo(this._contextKeyService);
+		this._ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
+		this._ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
+		this._ctxInputEditorFocused = CTX_INTERACTIVE_EDITOR_FOCUSED.bindTo(this._contextKeyService);
 
 		// (1) inner cursor position (last/first line selected)
 		const updateInnerCursorFirstLast = () => {
 			const { lineNumber } = this._inputEditor.getPosition();
-			ctxInnerCursorFirst.set(lineNumber === 1);
-			ctxInnerCursorLast.set(lineNumber === this._inputModel.getLineCount());
+			this._ctxInnerCursorFirst.set(lineNumber === 1);
+			this._ctxInnerCursorLast.set(lineNumber === this._inputModel.getLineCount());
 		};
 		this._store.add(this._inputEditor.onDidChangeCursorPosition(updateInnerCursorFirstLast));
 		updateInnerCursorFirstLast();
@@ -235,11 +238,16 @@ export class InteractiveEditorWidget {
 		// (2) input editor focused or not
 		const updateFocused = () => {
 			const hasFocus = this._inputEditor.hasWidgetFocus();
-			ctxInputEditorFocused.set(hasFocus);
+			this._ctxInputEditorFocused.set(hasFocus);
 			this._elements.content.classList.toggle('synthetic-focus', hasFocus);
 		};
 		this._store.add(this._inputEditor.onDidFocusEditorWidget(updateFocused));
 		this._store.add(this._inputEditor.onDidBlurEditorWidget(updateFocused));
+		this._store.add(toDisposable(() => {
+			this._ctxInnerCursorFirst.reset();
+			this._ctxInnerCursorLast.reset();
+			this._ctxInputEditorFocused.reset();
+		}));
 		updateFocused();
 
 		// placeholder
@@ -474,6 +482,10 @@ export class InteractiveEditorWidget {
 
 	reset() {
 		this._ctxInputEmpty.reset();
+		this._ctxInnerCursorFirst.reset();
+		this._ctxInnerCursorLast.reset();
+		this._ctxInputEditorFocused.reset();
+
 		this.value = '';
 		this.updateMarkdownMessage(undefined);
 
