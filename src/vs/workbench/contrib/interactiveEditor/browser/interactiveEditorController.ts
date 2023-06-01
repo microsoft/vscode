@@ -613,7 +613,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this[State.PAUSE]();
 
 		this._stashedSession.clear();
-		if (mySession.lastExchange?.response instanceof EditResponse) {
+		if (!mySession.isUnstashed && mySession.lastExchange?.response instanceof EditResponse) {
 			// only stash sessions that had edits
 			this._stashedSession.value = this._instaService.createInstance(StashedSession, this._editor, mySession);
 		} else {
@@ -771,6 +771,7 @@ class StashedSession {
 		}
 		this._listener.dispose();
 		const result = this._session;
+		result.markUnstashed();
 		this._session = undefined;
 		this._logService.debug('[IE] Unstashed session');
 		return result;

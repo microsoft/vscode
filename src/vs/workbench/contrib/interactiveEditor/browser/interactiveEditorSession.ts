@@ -61,6 +61,7 @@ export class Session {
 	private _lastExpansionState: boolean | undefined;
 	private _lastTextModelChanges: LineRangeMapping[] | undefined;
 	private _lastSnapshot: ITextSnapshot | undefined;
+	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
 	private readonly _teldata: Partial<TelemetryData>;
@@ -86,6 +87,14 @@ export class Session {
 
 	addInput(input: string): void {
 		this._lastInput = input;
+	}
+
+	get isUnstashed(): boolean {
+		return this._isUnstashed;
+	}
+
+	markUnstashed() {
+		this._isUnstashed = true;
 	}
 
 	get lastInput() {
@@ -114,6 +123,7 @@ export class Session {
 	}
 
 	addExchange(exchange: SessionExchange): void {
+		this._isUnstashed = false;
 		const newLen = this._exchange.push(exchange);
 		this._teldata.rounds += `${newLen}|`;
 	}
