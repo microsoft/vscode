@@ -135,5 +135,5 @@ export class BufferContentTracker {
 }
 
 export function replaceWithNonBreakingSpaces(s: string): string {
-	return s.replace(new RegExp('  ', 'g'), ' \xA0');
+	return s.replace(new RegExp(' ', 'g'), ' \xA0');
 }
