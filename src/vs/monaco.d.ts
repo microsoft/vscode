@@ -3437,7 +3437,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls what is the condition to spawn a color picker from a color dectorator
 		 */
-		colorDecoratorsActivatedOn?: 'click' | 'hover';
+		colorDecoratorsActivatedOn?: 'click and hover' | 'click' | 'hover';
 		/**
 		 * Controls the max number of color decorators that can be rendered in an editor at once.
 		 */
@@ -4934,7 +4934,7 @@ declare namespace monaco.editor {
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
-		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'click' | 'hover'>;
+		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'click and hover' | 'click' | 'hover'>;
 		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;

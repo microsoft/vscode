@@ -179,6 +179,11 @@ export class ModesHoverController implements IEditorContribution {
 		const onDecorator = target.element?.classList.contains('colorpicker-color-decoration');
 		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
 
+		console.log('onDecorator : ', onDecorator);
+		console.log('decoratorActivatedOn : ', decoratorActivatedOn);
+
+		// TODO: finish the following code whith the option 'click and hover''
+		// TODO: find out why the color hover seems to disappear when clicking on th box
 		if (onDecorator) {
 			if (decoratorActivatedOn === 'click') {
 				if (!this._activatedByColorDecoratorClick) {
