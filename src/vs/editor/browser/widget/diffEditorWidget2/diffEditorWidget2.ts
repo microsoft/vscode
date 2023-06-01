@@ -291,6 +291,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		result.readOnly = !options.originalEditable;
 		result.dropIntoEditor = { enabled: !result.readOnly };
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
+		result.stickyScroll = { enabled: false };
 		return result;
 	}
 
