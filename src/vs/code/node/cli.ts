@@ -414,8 +414,9 @@ export async function main(argv: string[]): Promise<any> {
 		let child: ChildProcess;
 		if (!isMacOSBigSurOrNewer) {
 			if (!verbose && args.status) {
-				options['stdio'] = 'pipe'; // restore ability to see output when --status is used
+				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
 			}
+
 			// We spawn process.execPath directly
 			child = spawn(process.execPath, argv.slice(2), options);
 		} else {
@@ -440,7 +441,7 @@ export async function main(argv: string[]): Promise<any> {
 				// The open command only allows for redirecting stderr and stdout to files,
 				// so we make it redirect those to temp files, and then use a logger to
 				// redirect the file output to the console
-				for (const outputType of ['stdout', 'stderr']) {
+				for (const outputType of verbose ? ['stdout', 'stderr'] : ['stdout']) {
 
 					// Tmp file to target output to
 					const tmpName = randomPath(tmpdir(), `code-${outputType}`);
