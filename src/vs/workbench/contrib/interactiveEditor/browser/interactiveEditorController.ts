@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { Barrier, IdleValue, raceCancellationError } from 'vs/base/common/async';
+import { Barrier, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -38,6 +38,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Lazy } from 'vs/base/common/lazy';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -86,7 +87,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _historyOffset: number = -1;
 
 	private readonly _store = new DisposableStore();
-	private readonly _zone: IdleValue<InteractiveEditorZoneWidget>;
+	private readonly _zone: Lazy<InteractiveEditorZoneWidget>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private readonly _ctxLastResponseType: IContextKey<undefined | InteractiveEditorResponseType>;
 	private readonly _ctxDidEdit: IContextKey<boolean>;
@@ -118,7 +119,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxDidEdit = CTX_INTERACTIVE_EDITOR_DID_EDIT.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.bindTo(contextKeyService);
-		this._zone = new IdleValue(() => this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor)));
+		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor)));
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
 			if (this._activeSession || !e.newModelUrl) {
