@@ -108,7 +108,7 @@ class WelcomeDialogContribution extends Disposable implements IWorkbenchContribu
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WelcomeDialogContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WelcomeDialogContribution, LifecyclePhase.Eventually);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
