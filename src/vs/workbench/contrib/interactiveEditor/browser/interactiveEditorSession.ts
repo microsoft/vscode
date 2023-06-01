@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -60,11 +60,13 @@ export class Session {
 	private _lastInput: string | undefined;
 	private _lastExpansionState: boolean | undefined;
 	private _lastTextModelChanges: LineRangeMapping[] | undefined;
-	private _lastSnapshot: ITextSnapshot | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
 	private readonly _teldata: Partial<TelemetryData>;
+
+	readonly textModelNAltVersion: number;
+	private _textModelNSnapshotAltVersion: number | undefined;
 
 	constructor(
 		readonly editMode: EditMode,
@@ -75,6 +77,7 @@ export class Session {
 		readonly session: IInteractiveEditorSession,
 		private readonly _wholeRangeMarkerId: string
 	) {
+		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
 			extension: provider.debugName,
 			startTime: this._startTime.toISOString(),
@@ -109,8 +112,8 @@ export class Session {
 		this._lastExpansionState = state;
 	}
 
-	get lastSnapshot(): ITextSnapshot | undefined {
-		return this._lastSnapshot;
+	get textModelNSnapshotAltVersion(): number | undefined {
+		return this._textModelNSnapshotAltVersion;
 	}
 
 	get wholeRange(): Range {
@@ -119,7 +122,7 @@ export class Session {
 	}
 
 	createSnapshot(): void {
-		this._lastSnapshot = this.textModelN.createSnapshot();
+		this._textModelNSnapshotAltVersion = this.textModelN.getAlternativeVersionId();
 	}
 
 	addExchange(exchange: SessionExchange): void {
