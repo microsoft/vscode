@@ -46,6 +46,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _hoverClicked: boolean;
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
+	private _spawnedFromDecorator: boolean = false;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -175,7 +176,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (!this._isHoverEnabled) {
+		if (!this._isHoverEnabled && !this._spawnedFromDecorator) {
 			this._hideWidgets();
 			return;
 		}
@@ -219,7 +220,7 @@ export class ModesHoverController implements IEditorContribution {
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
-
+		this._spawnedFromDecorator = false;
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
@@ -236,7 +237,8 @@ export class ModesHoverController implements IEditorContribution {
 		return this._contentWidget?.isColorPickerVisible() || false;
 	}
 
-	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
+	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean, spawnedFromDecorator: boolean = false): void {
+		this._spawnedFromDecorator = spawnedFromDecorator;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
