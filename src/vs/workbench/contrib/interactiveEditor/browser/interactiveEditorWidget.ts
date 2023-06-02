@@ -458,6 +458,7 @@ export class InteractiveEditorWidget {
 			reset(this._elements.message);
 			this._ctxMessageCropState.reset();
 			expansionState = ExpansionState.NOT_CROPPED;
+
 		} else {
 			if (this._preferredExpansionState) {
 				reset(this._elements.message, message);
