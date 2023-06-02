@@ -89,6 +89,9 @@ export interface EditSession {
 export const EDIT_SESSIONS_SIGNED_IN_KEY = 'editSessionsSignedIn';
 export const EDIT_SESSIONS_SIGNED_IN = new RawContextKey<boolean>(EDIT_SESSIONS_SIGNED_IN_KEY, false);
 
+export const EDIT_SESSIONS_PENDING_KEY = 'editSessionsPending';
+export const EDIT_SESSIONS_PENDING = new RawContextKey<boolean>(EDIT_SESSIONS_PENDING_KEY, false);
+
 export const EDIT_SESSIONS_CONTAINER_ID = 'workbench.view.editSessions';
 export const EDIT_SESSIONS_DATA_VIEW_ID = 'workbench.views.editSessions.data';
 export const EDIT_SESSIONS_TITLE = localize('cloud changes', 'Cloud Changes');
