@@ -48,7 +48,7 @@ export class ShareService implements IShareService {
 		return [];
 	}
 
-	async provideShare(item: IShareableItem, token: CancellationToken): Promise<URI | undefined> {
+	async provideShare(item: IShareableItem, token: CancellationToken): Promise<URI | string | undefined> {
 		const language = this.codeEditorService.getActiveCodeEditor()?.getModel()?.getLanguageId() ?? '';
 		const providers = [...this._providers.values()]
 			.filter((p) => score(p.selector, item.resourceUri, language, true, undefined, undefined) > 0)

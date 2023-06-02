@@ -86,28 +86,29 @@ class ShareWorkbenchContribution {
 				const progressService = accessor.get(IProgressService);
 				const selection = accessor.get(ICodeEditorService).getActiveCodeEditor()?.getSelection() ?? undefined;
 
-				const uri = await progressService.withProgress({
+				const result = await progressService.withProgress({
 					location: ProgressLocation.Window,
 					detail: localize('generating link', 'Generating link...')
 				}, async () => shareService.provideShare({ resourceUri, selection }, new CancellationTokenSource().token));
 
-				if (uri) {
-					const uriText = uri.toString();
+				if (result) {
+					const uriText = result.toString();
+					const isResultText = typeof result === 'string';
 					await clipboardService.writeText(uriText);
 
 					dialogService.prompt(
 						{
 							type: Severity.Info,
-							message: localize('shareSuccess', 'Copied link to clipboard!'),
+							message: isResultText ? localize('shareTextSuccess', 'Copied text to clipboard!') : localize('shareSuccess', 'Copied link to clipboard!'),
 							custom: {
 								icon: Codicon.check,
 								markdownDetails: [{
 									markdown: new MarkdownString(`<div aria-label='${uriText}'>${uriText}</div>`, { supportHtml: true }),
-									classes: ['share-dialog-input']
+									classes: [isResultText ? 'share-dialog-input-text' : 'share-dialog-input-link']
 								}]
 							},
 							cancelButton: localize('close', 'Close'),
-							buttons: [{ label: localize('open link', 'Open Link'), run: () => { urlService.open(uri, { openExternal: true }); } }]
+							buttons: isResultText ? [] : [{ label: localize('open link', 'Open Link'), run: () => { urlService.open(result, { openExternal: true }); } }]
 						}
 					);
 				}

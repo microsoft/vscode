@@ -22,7 +22,7 @@ export interface IShareProvider {
 	readonly priority: number;
 	readonly selector: LanguageSelector;
 	prepareShare?(item: IShareableItem, token: CancellationToken): Thenable<boolean | undefined>;
-	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | undefined>;
+	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | string | undefined>;
 }
 
 export const IShareService = createDecorator<IShareService>('shareService');
@@ -31,5 +31,5 @@ export interface IShareService {
 
 	registerShareProvider(provider: IShareProvider): IDisposable;
 	getShareActions(): ISubmenuItem[];
-	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | undefined>;
+	provideShare(item: IShareableItem, token: CancellationToken): Thenable<URI | string | undefined>;
 }
