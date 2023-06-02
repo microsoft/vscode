@@ -29,6 +29,7 @@ import { IShareService } from 'vs/workbench/contrib/share/common/share';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const targetMenus = [
 	MenuId.EditorContextShare,
@@ -83,15 +84,16 @@ class ShareWorkbenchContribution {
 				const dialogService = accessor.get(IDialogService);
 				const urlService = accessor.get(IOpenerService);
 				const progressService = accessor.get(IProgressService);
+				const selection = accessor.get(ICodeEditorService).getActiveCodeEditor()?.getSelection() ?? undefined;
 
-				const uri = await shareService.provideShare({ resourceUri }, new CancellationTokenSource().token);
+				const uri = await progressService.withProgress({
+					location: ProgressLocation.Window,
+					detail: localize('generating link', 'Generating link...')
+				}, async () => shareService.provideShare({ resourceUri, selection }, new CancellationTokenSource().token));
+
 				if (uri) {
 					const uriText = uri.toString();
-
-					await progressService.withProgress({
-						location: ProgressLocation.Window,
-						detail: localize('generating link', 'Generating link...')
-					}, () => clipboardService.writeText(uriText));
+					await clipboardService.writeText(uriText);
 
 					dialogService.prompt(
 						{
