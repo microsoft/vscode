@@ -364,7 +364,7 @@ export interface IDocumentFilterDto {
 
 export interface IShareableItemDto {
 	resourceUri: UriComponents;
-	range?: IRange;
+	selection?: IRange;
 }
 
 export interface ISignatureHelpProviderMetadataDto {

@@ -25,7 +25,7 @@ export class ExtHostShare implements ExtHostShareShape {
 
 	async $provideShare(handle: number, shareableItem: IShareableItemDto, token: CancellationToken): Promise<UriComponents | undefined> {
 		const provider = this.providers.get(handle);
-		const result = await provider?.provideShare({ selection: Range.to(shareableItem.range), resourceUri: URI.revive(shareableItem.resourceUri) }, token);
+		const result = await provider?.provideShare({ selection: Range.to(shareableItem.selection), resourceUri: URI.revive(shareableItem.resourceUri) }, token);
 		return result ?? undefined;
 	}
 
