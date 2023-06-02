@@ -24,7 +24,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorLivePreviewWidget';
 import { EditResponse, Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { InteractiveEditorWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { getValueFromSnapshot } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
 import { CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
@@ -226,9 +225,13 @@ export class LiveStrategy extends EditModeStrategy {
 		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
 		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
-		this._diffToggleListener = ModifierKeyEmitter.getInstance().event(e => {
-			if (e.altKey || e.lastKeyReleased === 'alt') {
+		const modKeys = ModifierKeyEmitter.getInstance();
+		let lastIsAlt: boolean | undefined;
+		this._diffToggleListener = modKeys.event(() => {
+			const isAlt = modKeys.keyStatus.altKey && (!modKeys.keyStatus.ctrlKey && !modKeys.keyStatus.metaKey && !modKeys.keyStatus.shiftKey);
+			if (lastIsAlt !== isAlt) {
 				this.toggleDiff();
+				lastIsAlt = isAlt;
 			}
 		});
 	}
@@ -274,19 +277,13 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	async cancel() {
-		const { textModelN: modelN, textModel0: model0, lastSnapshot } = this._session;
-		if (modelN.isDisposed() || (model0.isDisposed() && !lastSnapshot)) {
+		const { textModelN: modelN, textModelNAltVersion, textModelNSnapshotAltVersion } = this._session;
+		if (modelN.isDisposed()) {
 			return;
 		}
-
-		const newText = lastSnapshot
-			? getValueFromSnapshot(lastSnapshot)
-			: model0.getValue();
-
-		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: newText }]);
-		if (edits) {
-			const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));
-			modelN.pushEditOperations(null, operations, () => null);
+		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
+		while (targetAltVersion < modelN.getAlternativeVersionId() && modelN.canUndo()) {
+			modelN.undo();
 		}
 	}
 

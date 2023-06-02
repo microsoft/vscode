@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from 'vs/base/common/async';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -653,7 +654,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private async _doStopExtensionHostsWithVeto(reason: string): Promise<boolean> {
 		const vetos: (boolean | Promise<boolean>)[] = [];
-		const vetoReasons: string[] = [];
+		const vetoReasons = new Set<string>();
 
 		this._onWillStop.fire({
 			reason,
@@ -662,13 +663,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 				if (typeof value === 'boolean') {
 					if (value === true) {
-						vetoReasons.push(reason);
+						vetoReasons.add(reason);
 					}
 				} else {
 					value.then(value => {
 						if (value) {
-							vetoReasons.push(reason);
+							vetoReasons.add(reason);
 						}
+					}).catch(error => {
+						vetoReasons.add(nls.localize('extensionStopVetoError', "{0} (Error: {1})", reason, toErrorMessage(error)));
 					});
 				}
 			}
@@ -678,13 +681,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!veto) {
 			this._doStopExtensionHosts();
 		} else {
-			this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasons.join(', ')})`);
+			const vetoReasonsArray = Array.from(vetoReasons);
+
+			this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
 
 			await this._dialogService.warn(
 				nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
-				vetoReasons.length === 1 ?
-					nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasons[0]) :
-					nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasons.join('\n -')),
+				vetoReasonsArray.length === 1 ?
+					nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasonsArray[0]) :
+					nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasonsArray.join('\n -')),
 			);
 		}
 

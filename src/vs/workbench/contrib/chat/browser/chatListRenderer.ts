@@ -550,9 +550,9 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 			case 0:
 				return element.response.value;
 			case 1:
-				return localize('singleCodeBlock', "1 code block, {0}", element.response.value);
+				return localize('singleCodeBlock', "1 code block: {0}", element.response.value);
 			default:
-				return localize('multiCodeBlock', "{0} code blocks, {1}", codeBlockCount, element.response.value);
+				return localize('multiCodeBlock', "{0} code blocks: {1}", codeBlockCount, element.response.value);
 		}
 	}
 }
