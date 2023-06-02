@@ -188,13 +188,14 @@ export async function main(argv: string[]): Promise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Promise<void>)[] = [];
 
-		const verbose = args.verbose;
-		if (verbose) {
+		if (args.verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
+		}
 
+		if (args.verbose || args.status) {
 			processCallbacks.push(async child => {
 				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
-				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+				child.stderr?.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
 				await Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
 			});
@@ -219,7 +220,7 @@ export async function main(argv: string[]): Promise<any> {
 
 				// returns a file path where stdin input is written into (write in progress).
 				try {
-					await readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+					await readFromStdin(stdinFilePath, !!args.verbose); // throws error if file can not be written
 
 					// Make sure to open tmp file
 					addArg(argv, stdinFilePath);
@@ -258,7 +259,7 @@ export async function main(argv: string[]): Promise<any> {
 		// is closed and then exit the waiting process.
 		let waitMarkerFilePath: string | undefined;
 		if (args.wait) {
-			waitMarkerFilePath = createWaitMarkerFileSync(verbose);
+			waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);
 			if (waitMarkerFilePath) {
 				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
@@ -407,13 +408,13 @@ export async function main(argv: string[]): Promise<any> {
 			env
 		};
 
-		if (!verbose) {
+		if (!args.verbose) {
 			options['stdio'] = 'ignore';
 		}
 
 		let child: ChildProcess;
 		if (!isMacOSBigSurOrNewer) {
-			if (!verbose && args.status) {
+			if (!args.verbose && args.status) {
 				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
 			}
 
@@ -435,13 +436,13 @@ export async function main(argv: string[]): Promise<any> {
 			// -a opens the given application.
 			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
 
-			if (verbose || args.status) {
+			if (args.verbose || args.status) {
 				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
 
 				// The open command only allows for redirecting stderr and stdout to files,
 				// so we make it redirect those to temp files, and then use a logger to
 				// redirect the file output to the console
-				for (const outputType of verbose ? ['stdout', 'stderr'] : ['stdout']) {
+				for (const outputType of args.verbose ? ['stdout', 'stderr'] : ['stdout']) {
 
 					// Tmp file to target output to
 					const tmpName = randomPath(tmpdir(), `code-${outputType}`);
