@@ -280,19 +280,23 @@ export function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: s
 
 	// rangeMapping describes the edit that replaces `rangeMapping.originalRange` with `newText := getText(modifiedLines, rangeMapping.modifiedRange)`.
 
-	// original: xxx[ \n <- this line is not modified
-	// modified: xxx[ \n
-	if (rangeMapping.modifiedRange.startColumn - 1 >= modifiedLines[rangeMapping.modifiedRange.startLineNumber - 1].length
-		&& rangeMapping.originalRange.startColumn - 1 >= originalLines[rangeMapping.originalRange.startLineNumber - 1].length) {
-		lineStartDelta = 1; // +1 is always possible, as startLineNumber < endLineNumber + 1
-	}
-
 	// original: ]xxx \n <- this line is not modified
 	// modified: ]xx  \n
 	if (rangeMapping.modifiedRange.endColumn === 1 && rangeMapping.originalRange.endColumn === 1
 		&& rangeMapping.originalRange.startLineNumber + lineStartDelta <= rangeMapping.originalRange.endLineNumber
 		&& rangeMapping.modifiedRange.startLineNumber + lineStartDelta <= rangeMapping.modifiedRange.endLineNumber) {
-		lineEndDelta = -1; // We can only do this if the range is not empty yet
+		// We can only do this if the range is not empty yet
+		lineEndDelta = -1;
+	}
+
+	// original: xxx[ \n <- this line is not modified
+	// modified: xxx[ \n
+	if (rangeMapping.modifiedRange.startColumn - 1 >= modifiedLines[rangeMapping.modifiedRange.startLineNumber - 1].length
+		&& rangeMapping.originalRange.startColumn - 1 >= originalLines[rangeMapping.originalRange.startLineNumber - 1].length
+		&& rangeMapping.originalRange.startLineNumber <= rangeMapping.originalRange.endLineNumber + lineEndDelta
+		&& rangeMapping.modifiedRange.startLineNumber <= rangeMapping.modifiedRange.endLineNumber + lineEndDelta) {
+		// We can only do this if the range is not empty yet
+		lineStartDelta = 1;
 	}
 
 	const originalLineRange = new LineRange(
