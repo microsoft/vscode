@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IFeaturedExtension } from 'vs/base/common/product';
@@ -108,7 +108,12 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 					this.ignoredExtensions.add(extension);
 				}
 				else {
-					const galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
+					let galleryExtension: IGalleryExtension | undefined;
+					try {
+						galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
+					} catch (err) {
+						continue;
+					}
 					if (!await this.extensionManagementService.canInstall(galleryExtension)) {
 						this.ignoredExtensions.add(extension);
 					}
@@ -176,32 +181,40 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 
 		const storageKey = FeaturedExtensionsService.STORAGE_KEY + '.' + extensionId;
 		this.storageService.remove(storageKey, StorageScope.APPLICATION);
-
-		const galleryExtension = (await this.galleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 		let metadata: string | undefined;
-		if (galleryExtension) {
-			switch (key) {
-				case FeaturedExtensionMetadataType.Title: {
-					metadata = galleryExtension.displayName;
-					break;
-				}
-				case FeaturedExtensionMetadataType.Description: {
-					metadata = galleryExtension.description;
-					break;
-				}
-				case FeaturedExtensionMetadataType.ImagePath: {
-					metadata = galleryExtension.assets.icon?.uri;
-					break;
-				}
-			}
 
-			this.storageService.store(storageKey, JSON.stringify({
-				title: galleryExtension.displayName,
-				description: galleryExtension.description,
-				imagePath: galleryExtension.assets.icon?.uri,
-				date: new Date().getTime()
-			}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		let galleryExtension: IGalleryExtension | undefined;
+		try {
+			galleryExtension = (await this.galleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
+		} catch (err) {
 		}
+
+		if (!galleryExtension) {
+			return metadata;
+		}
+
+		switch (key) {
+			case FeaturedExtensionMetadataType.Title: {
+				metadata = galleryExtension.displayName;
+				break;
+			}
+			case FeaturedExtensionMetadataType.Description: {
+				metadata = galleryExtension.description;
+				break;
+			}
+			case FeaturedExtensionMetadataType.ImagePath: {
+				metadata = galleryExtension.assets.icon?.uri;
+				break;
+			}
+		}
+
+		this.storageService.store(storageKey, JSON.stringify({
+			title: galleryExtension.displayName,
+			description: galleryExtension.description,
+			imagePath: galleryExtension.assets.icon?.uri,
+			date: new Date().getTime()
+		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
 		return metadata;
 	}
 }
