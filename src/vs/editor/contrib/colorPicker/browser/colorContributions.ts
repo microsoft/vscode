@@ -34,7 +34,7 @@ export class ColorContribution extends Disposable implements IEditorContribution
 	private onMouseDown(mouseEvent: IEditorMouseEvent) {
 
 		const colorDecoratorsActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
-		if (colorDecoratorsActivatedOn !== 'click' && colorDecoratorsActivatedOn !== 'click and hover') {
+		if (colorDecoratorsActivatedOn !== 'click' && colorDecoratorsActivatedOn !== 'clickAndHover') {
 			return;
 		}
 

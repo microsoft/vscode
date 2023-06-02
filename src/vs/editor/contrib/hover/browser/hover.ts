@@ -182,7 +182,7 @@ export class ModesHoverController implements IEditorContribution {
 		if ((mouseOnDecorator && (
 			(decoratorActivatedOn === 'click' && !this._hoverActivatedByColorDecoratorClick) ||
 			(decoratorActivatedOn === 'hover' && !this._isHoverEnabled) ||
-			(decoratorActivatedOn === 'click and hover' && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick)))
+			(decoratorActivatedOn === 'clickAndHover' && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick)))
 			|| !mouseOnDecorator && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick
 		) {
 			this._hideWidgets();
