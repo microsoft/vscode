@@ -1392,13 +1392,12 @@
   dependencies:
     node-addon-api "^3.0.2"
 
-"@vscode/windows-mutex@0.4.2":
-  version "0.4.2"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-mutex/-/windows-mutex-0.4.2.tgz#3f796896c3bc2cf32bfe7148e608edb0cb7247db"
-  integrity sha512-7MSBH22cI7OwxXImjJ3VJ7QeHrEbumtyi/xqTgv6xqZCIZfUk/eu5MMBD2Vkehut8dGZU4xIjqt5AGdm0uPixQ==
+"@vscode/windows-mutex@https://github.com/microsoft/node-windows-mutex#ee2593b7375d8c684b217dff14d87465b134dbf7":
+  version "0.4.3"
+  resolved "https://github.com/microsoft/node-windows-mutex#ee2593b7375d8c684b217dff14d87465b134dbf7"
   dependencies:
     bindings "^1.2.1"
-    nan "^2.14.0"
+    nan "^2.17.0"
 
 "@vscode/windows-process-tree@0.4.2":
   version "0.4.2"
@@ -6824,7 +6823,7 @@ nan@^2.12.1:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
   integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
 
-nan@^2.14.0, nan@^2.17.0:
+nan@^2.17.0:
   version "2.17.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.17.0.tgz#c0150a2368a182f033e9aa5195ec76ea41a199cb"
   integrity sha512-2ZTgtl0nJsO0KQCjEpxcIr5D+Yv90plTitZt9JBfQvVJDS5seMl3FOvsh3+9CoYWXf/1l5OaZzzF6nDm4cagaQ==
