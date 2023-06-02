@@ -616,13 +616,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 							{
 								if (!update.init) {
-									return;
+									continue;
 								}
 
 								const output = this.reversedInsetMapping.get(update.id);
 
 								if (!output) {
-									return;
+									continue;
 								}
 
 								const inset = this.insetMapping.get(output)!;
