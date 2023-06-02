@@ -183,6 +183,7 @@ export class InteractiveEditorWidget {
 
 	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
+	private _preferredExpansionState: ExpansionState | undefined;
 	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
 
 	constructor(
@@ -446,20 +447,42 @@ export class InteractiveEditorWidget {
 		return this._expansionState;
 	}
 
+	set preferredExpansionState(expansionState: ExpansionState | undefined) {
+		this._preferredExpansionState = expansionState;
+	}
+
 	updateMarkdownMessage(message: Node | undefined) {
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
+		let expansionState: ExpansionState;
 		if (!message) {
 			reset(this._elements.message);
 			this._ctxMessageCropState.reset();
-			this._expansionState = ExpansionState.NOT_CROPPED;
+			expansionState = ExpansionState.NOT_CROPPED;
 		} else {
-			this._elements.message.style.webkitLineClamp = MESSAGE_CROPPED_NUMBER_LINES.toString();
-			reset(this._elements.message, message);
-			const expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
+			if (this._preferredExpansionState) {
+				reset(this._elements.message, message);
+				expansionState = this._preferredExpansionState;
+				this._preferredExpansionState = undefined;
+			} else {
+				this._elements.message.style.webkitLineClamp = MESSAGE_CROPPED_NUMBER_LINES.toString();
+				reset(this._elements.message, message);
+				expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
+			}
 			this._ctxMessageCropState.set(expansionState);
-			this._expansionState = expansionState;
+			this.updateLineClamp(expansionState);
 		}
+		this._expansionState = expansionState;
 		this._onDidChangeHeight.fire();
+	}
+
+	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
+		this._ctxMessageCropState.set(expansionState);
+		this.updateLineClamp(expansionState);
+		this._onDidChangeHeight.fire();
+	}
+
+	updateLineClamp(expansionState: ExpansionState) {
+		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? MESSAGE_EXPANDED_NUMBER_LINES.toString() : MESSAGE_CROPPED_NUMBER_LINES.toString());
 	}
 
 	updateInfo(message: string): void {
@@ -508,13 +531,6 @@ export class InteractiveEditorWidget {
 
 	focus() {
 		this._inputEditor.focus();
-	}
-
-	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
-		this._ctxMessageCropState.set(expansionState);
-		this._expansionState = expansionState;
-		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? MESSAGE_EXPANDED_NUMBER_LINES.toString() : MESSAGE_CROPPED_NUMBER_LINES.toString());
-		this._onDidChangeHeight.fire();
 	}
 
 	// --- preview

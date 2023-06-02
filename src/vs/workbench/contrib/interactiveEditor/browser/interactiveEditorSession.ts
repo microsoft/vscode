@@ -63,7 +63,6 @@ export enum ExpansionState {
 
 export class Session {
 
-	private _newlySelected: boolean = false;
 	private _lastInput: string | undefined;
 	private _lastExpansionState: ExpansionState | undefined;
 	private _lastTextModelChanges: LineRangeMapping[] | undefined;
@@ -93,14 +92,6 @@ export class Session {
 			undos: '',
 			editMode
 		};
-	}
-
-	get newlySelected() {
-		return this._newlySelected;
-	}
-
-	set newlySelected(value: boolean) {
-		this._newlySelected = value;
 	}
 
 	addInput(input: string): void {

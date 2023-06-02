@@ -247,7 +247,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 
 		this._activeSession = session;
-		this._activeSession.newlySelected = true;
 		return State.INIT_UI;
 	}
 
@@ -272,6 +271,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.show(this._activeSession.wholeRange.getEndPosition());
+		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -557,10 +557,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.value.widget.updateStatus('');
 			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.value.widget.updateToolbar(true);
-			const expansionState = this._activeSession.newlySelected ? (this._activeSession.lastExpansionState ?? this._zone.value.widget.expansionState) : this._zone.value.widget.expansionState;
-			this._activeSession.newlySelected = false;
-			this._activeSession.lastExpansionState = expansionState;
-			this._zone.value.widget.updateMarkdownMessageExpansionState(expansionState);
+			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;
 
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
