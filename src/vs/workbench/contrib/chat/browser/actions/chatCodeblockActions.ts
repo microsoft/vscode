@@ -317,11 +317,12 @@ export function registerChatCodeBlockActions() {
 					isHiddenByDefault: true,
 				},
 				keybinding: {
-					primary: KeyMod.WinCtrl | KeyCode.Enter,
-					win: {
-						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
+					mac: {
+						primary: KeyMod.WinCtrl | KeyCode.Enter,
 					},
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.EditorContrib,
+					when: CONTEXT_IN_CHAT_SESSION
 				}
 			});
 		}

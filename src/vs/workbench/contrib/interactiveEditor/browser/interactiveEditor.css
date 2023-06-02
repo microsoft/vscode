@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor .zone-widget.interactive-editor-widget {
+	z-index: 3;
+}
+
 .monaco-editor .interactive-editor {
-	z-index: 100;
 	color: inherit;
 	padding: 6px;
 	border-radius: 6px;
@@ -181,6 +184,7 @@
 	background-color: var(--vscode-button-background);
 	border-radius: 2px;
 	padding: 4px 6px;
+	line-height: 18px;
 }
 
 .monaco-editor .interactive-editor .status .monaco-toolbar .action-item.button-item .action-label>.codicon {

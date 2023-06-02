@@ -30,6 +30,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { FuzzyScoreOptions } from 'vs/base/common/filters';
 import { assertType } from 'vs/base/common/types';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -375,6 +376,11 @@ export class SuggestModel implements IDisposable {
 
 		if (QuickSuggestionsOptions.isAllOff(this._editor.getOption(EditorOption.quickSuggestions))) {
 			// not enabled
+			return;
+		}
+
+		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor)?.isInSnippet()) {
+			// no quick suggestion when in snippet mode
 			return;
 		}
 
