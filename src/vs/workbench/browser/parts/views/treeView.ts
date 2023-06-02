@@ -629,7 +629,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 					function checkChildren(currentItem: ITreeItem) {
 						for (const child of (currentItem.children ?? [])) {
-							if (child.checkbox !== undefined && currentItem.checkbox !== undefined) {
+							if ((child.checkbox !== undefined) && (currentItem.checkbox !== undefined) && (child.checkbox.isChecked !== currentItem.checkbox.isChecked)) {
 								child.checkbox.isChecked = currentItem.checkbox.isChecked;
 								additionalItems.push(child);
 								checkChildren(child);
