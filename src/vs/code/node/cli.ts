@@ -194,7 +194,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		if (args.verbose || args.status) {
 			processCallbacks.push(async child => {
-				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+				child.stdout?.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr?.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
 				await Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
