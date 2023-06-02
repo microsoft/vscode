@@ -15,6 +15,13 @@ steps:
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
+
+    - script: |
+        set -e
+        yarn --frozen-lockfile --ignore-optional
+      workingDirectory: build
+      displayName: Install pipeline build
+
     - script: node build/azure-pipelines/distro/apply-cli-patches
       displayName: Apply distro patches
 
