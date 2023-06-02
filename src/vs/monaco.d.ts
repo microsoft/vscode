@@ -34,12 +34,25 @@ declare namespace monaco {
 		 */
 		getWorkerUrl?(workerId: string, label: string): string;
 		/**
-		 * Create a trust types policy (same API as window.trustedTypes.createPolicy)
+		 * Create a trusted types policy (same API as window.trustedTypes.createPolicy)
 		 */
-		createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
+		createTrustedTypesPolicy(
 			policyName: string,
-			policyOptions?: Options,
-		): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
+			policyOptions?: ITrustedTypePolicyOptions,
+		): undefined | ITrustedTypePolicy;
+	}
+
+	export interface ITrustedTypePolicyOptions {
+		createHTML?: (input: string, ...arguments: any[]) => string;
+		createScript?: (input: string, ...arguments: any[]) => string;
+		createScriptURL?: (input: string, ...arguments: any[]) => string;
+	}
+
+	export interface ITrustedTypePolicy {
+		readonly name: string;
+		createHTML?(input: string): any;
+		createScript?(input: string): any;
+		createScriptURL?(input: string): any;
 	}
 
 	export interface IDisposable {
