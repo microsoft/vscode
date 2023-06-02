@@ -570,7 +570,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, true, false);
 			});
 			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function () {
-				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, false, false);
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, false, !!isMacintosh);
 			});
 			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function () {
 				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, true, false);
