@@ -661,11 +661,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 									}
 								}
 							}
-							if (someChecked && !someUnchecked) {
+							if (someChecked && !someUnchecked && (currentItem.parent.checkbox.isChecked !== true)) {
 								currentItem.parent.checkbox.isChecked = true;
 								additionalItems.push(currentItem.parent);
 								checkParents(currentItem.parent);
-							} else if (someUnchecked && !someChecked) {
+							} else if (someUnchecked && (currentItem.parent.checkbox.isChecked !== false)) {
 								currentItem.parent.checkbox.isChecked = false;
 								additionalItems.push(currentItem.parent);
 								checkParents(currentItem.parent);
