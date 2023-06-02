@@ -146,9 +146,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string) {
+	updateContent(responsePart: string, quiet?: boolean) {
 		this._response = new MarkdownString(this.response.value + responsePart);
-		this._onDidChange.fire();
+		if (!quiet) {
+			this._onDidChange.fire();
+		}
 	}
 
 	setProviderResponseId(providerResponseId: string) {
@@ -433,7 +435,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress): void {
+	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void {
 		if (!this._session) {
 			throw new Error('acceptResponseProgress: No session');
 		}
@@ -447,7 +449,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if ('content' in progress) {
-			request.response.updateContent(progress.content);
+			request.response.updateContent(progress.content, quiet);
 		} else {
 			request.setProviderRequestId(progress.requestId);
 			request.response.setProviderResponseId(progress.requestId);
@@ -502,10 +504,10 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toExport(): IExportableChatData {
 		return {
-			requesterUsername: this._session!.requesterUsername,
-			requesterAvatarIconUri: this._session!.requesterAvatarIconUri,
-			responderUsername: this._session!.responderUsername,
-			responderAvatarIconUri: this._session!.responderAvatarIconUri,
+			requesterUsername: this.requesterUsername,
+			requesterAvatarIconUri: this.requesterAvatarIconUri,
+			responderUsername: this.responderUsername,
+			responderAvatarIconUri: this.responderAvatarIconUri,
 			welcomeMessage: this._welcomeMessage?.content.map(c => {
 				if (Array.isArray(c)) {
 					return c;

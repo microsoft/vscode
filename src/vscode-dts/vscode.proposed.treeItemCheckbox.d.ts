@@ -39,7 +39,7 @@ declare module 'vscode' {
 
 	export interface TreeCheckboxChangeEvent<T> {
 		/**
-		* The item that was checked or unchecked.
+		* The items that were checked or unchecked.
 		*/
 		readonly items: ReadonlyArray<[T, TreeItemCheckboxState]>;
 	}
@@ -52,7 +52,38 @@ declare module 'vscode' {
 		 * By default, when the children of a tree item have already been fetched, child checkboxes are automatically managed based on the checked state of the parent tree item.
 		 * If the tree item is collapsed by default (meaning that the children haven't yet been fetched) then child checkboxes will not be updated.
 		 * To override this behavior and manage child and parent checkbox state in the extension, set this to `true`.
+		 *
+		 * Examples where {@link TreeViewOptions.manageCheckboxStateManually} is false, the default behavior:
+		 *
+		 * 1. A tree item is checked, then its children are fetched. The children will be checked. TODO @alexr00 there's a bug here
+		 *
+		 * 2. A tree item's parent is checked. The tree item and all of it's siblings will be checked.
+		 *   - [ ] Parent
+		 *     - [ ] Child 1
+		 *     - [ ] Child 2
+		 *   When the user checks Parent, the tree will look like this:
+		 *   - [x] Parent
+		 *     - [x] Child 1
+		 *     - [x] Child 2
+		 *
+		 * 3. A tree item and all of it's siblings are checked. The parent will be checked.
+		 *   - [ ] Parent
+		 *     - [ ] Child 1
+		 *     - [ ] Child 2
+		 *   When the user checks Child 1 and Child 2, the tree will look like this:
+		 *   - [x] Parent
+		 *     - [x] Child 1
+		 *     - [x] Child 2
+		 *
+		 * 4. A tree item is unchecked. The parent will be unchecked. TODO @alexr00 there's a bug here
+		 *   - [x] Parent
+		 *     - [x] Child 1
+		 *     - [x] Child 2
+		 *   When the user unchecks Child 1, the tree will look like this:
+		 *   - [ ] Parent
+		 *     - [ ] Child 1
+		 *     - [x] Child 2
 		 */
-		manuallyManageCheckboxSelection?: boolean;
+		manageCheckboxStateManually?: boolean;
 	}
 }
