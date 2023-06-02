@@ -46,7 +46,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _hoverClicked: boolean;
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
-	private _activatedByColorDecoratorClick: boolean = false;
+	private _hoverActivatedByColorDecoratorClick: boolean = false;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -176,45 +176,17 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		const onDecorator = target.element?.classList.contains('colorpicker-color-decoration');
+		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
 		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
 
-		console.log('onDecorator : ', onDecorator);
-		console.log('decoratorActivatedOn : ', decoratorActivatedOn);
-
-		// TODO: finish the following code whith the option 'click and hover''
-		// TODO: find out why the color hover seems to disappear when clicking on th box
-		if (onDecorator) {
-			if (decoratorActivatedOn === 'click') {
-				if (!this._activatedByColorDecoratorClick) {
-					this._hideWidgets();
-					return;
-				}
-			} else if (decoratorActivatedOn === 'hover') {
-				if (this._activatedByColorDecoratorClick) {
-					throw new Error('Invalid state');
-				} else {
-					if (!this._isHoverEnabled) {
-						this._hideWidgets();
-						return;
-					}
-				}
-			} else if (decoratorActivatedOn === 'click and hover') {
-				console.log('entered into the third case');
-				if (!this._activatedByColorDecoratorClick) {
-					if (!this._isHoverEnabled) {
-						this._hideWidgets();
-						return;
-					}
-				}
-			} else {
-				throw new Error('Invalid value for EditorOption.colorDecoratorsActivatedOn');
-			}
-		} else {
-			if (!this._isHoverEnabled && !this._activatedByColorDecoratorClick) {
-				this._hideWidgets();
-				return;
-			}
+		if ((mouseOnDecorator && (
+			(decoratorActivatedOn === 'click' && !this._hoverActivatedByColorDecoratorClick) ||
+			(decoratorActivatedOn === 'hover' && !this._isHoverEnabled) ||
+			(decoratorActivatedOn === 'click and hover' && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick)))
+			|| !mouseOnDecorator && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick
+		) {
+			this._hideWidgets();
+			return;
 		}
 
 		const contentWidget = this._getOrCreateContentWidget();
@@ -256,7 +228,7 @@ export class ModesHoverController implements IEditorContribution {
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
-		this._activatedByColorDecoratorClick = false;
+		this._hoverActivatedByColorDecoratorClick = false;
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
@@ -274,7 +246,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean, activatedByColorDecoratorClick: boolean = false): void {
-		this._activatedByColorDecoratorClick = activatedByColorDecoratorClick;
+		this._hoverActivatedByColorDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
