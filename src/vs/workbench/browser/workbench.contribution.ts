@@ -154,7 +154,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'number',
 				'default': 160,
 				'minimum': 50,
-				'markdownDescription': localize('workbench.editor.tabSizingFixedMaxWidth', "Controls the maximum width of tabs when {0} is set to {1}.", '`#workbench.editor.tabSizing#`', '`fixed`')
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMaxWidth' }, "Controls the maximum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',

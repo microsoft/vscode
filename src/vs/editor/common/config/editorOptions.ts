@@ -350,6 +350,10 @@ export interface IEditorOptions {
 	 */
 	colorDecorators?: boolean;
 	/**
+	 * Controls what is the condition to spawn a color picker from a color dectorator
+	 */
+	colorDecoratorsActivatedOn?: 'clickAndHover' | 'click' | 'hover';
+	/**
 	 * Controls the max number of color decorators that can be rendered in an editor at once.
 	 */
 	colorDecoratorsLimit?: number;
@@ -5062,7 +5066,8 @@ export const enum EditorOption {
 	tabFocusMode,
 	layoutInfo,
 	wrappingInfo,
-	defaultColorDecorators
+	defaultColorDecorators,
+	colorDecoratorsActivatedOn
 }
 
 export const EditorOptions = {
@@ -5211,6 +5216,14 @@ export const EditorOptions = {
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
 	)),
+	colorDecoratorActivatedOn: register(new EditorStringEnumOption(EditorOption.colorDecoratorsActivatedOn, 'colorDecoratorsActivatedOn', 'clickAndHover' as 'clickAndHover' | 'hover' | 'click', ['clickAndHover', 'hover', 'click'] as const, {
+		enumDescriptions: [
+			nls.localize('editor.colorDecoratorActivatedOn.clickAndHover', "Make the color picker appear both on click and hover of the color decorator"),
+			nls.localize('editor.colorDecoratorActivatedOn.hover', "Make the color picker appear on hover of the color decorator"),
+			nls.localize('editor.colorDecoratorActivatedOn.click', "Make the color picker appear on click of the color decorator")
+		],
+		description: nls.localize('colorDecoratorActivatedOn', "Controls the condition to make a color picker appear from a color decorator")
+	})),
 	colorDecoratorsLimit: register(new EditorIntOption(
 		EditorOption.colorDecoratorsLimit, 'colorDecoratorsLimit', 500, 1, 1000000,
 		{

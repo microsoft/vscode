@@ -1288,6 +1288,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			// never wrap hidden editor
 			result.wordWrapOverride1 = 'off';
 			result.wordWrapOverride2 = 'off';
+			result.stickyScroll = { enabled: false };
 		} else {
 			result.wordWrapOverride1 = this._options.diffWordWrap;
 		}
