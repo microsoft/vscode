@@ -129,7 +129,10 @@ function __vsc_fish_has_mode_prompt -d "Returns true if fish_mode_prompt is defi
 end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
-functions --copy fish_prompt __vsc_fish_prompt
+if set -q fish_prompt
+	# Preserve the user's existing prompt, to wrap in our escape sequences.
+	functions --copy fish_prompt __vsc_fish_prompt
+end
 
 # Preserve and wrap fish_mode_prompt (which appears to the left of the regular
 # prompt), but only if it's not defined as an empty function (which is the
@@ -143,14 +146,18 @@ if __vsc_fish_has_mode_prompt
 	end
 
 	function fish_prompt
-		__vsc_fish_prompt
+		if set -q __vsc_fish_prompt
+			__vsc_fish_prompt
+		end
 		__vsc_fish_cmd_start
 	end
 else
 	# No fish_mode_prompt, so put everything in fish_prompt.
 	function fish_prompt
 		__vsc_fish_prompt_start
-		__vsc_fish_prompt
+		if set -q __vsc_fish_prompt
+			__vsc_fish_prompt
+		end
 		__vsc_fish_cmd_start
 	end
 end
