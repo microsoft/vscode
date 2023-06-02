@@ -50,6 +50,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { assertType } from 'vs/base/common/types';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IdleValue } from 'vs/base/common/async';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -104,8 +105,8 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	diffCodeLens: false,
 	scrollBeyondLastLine: false,
 	stickyScroll: { enabled: false },
-	originalAriaLabel: localize('modified', 'Modified'),
-	modifiedAriaLabel: localize('original', 'Original'),
+	originalAriaLabel: localize('original', 'Original'),
+	modifiedAriaLabel: localize('modified', 'Modified'),
 	diffAlgorithm: 'advanced',
 	readOnly: true,
 	isInEmbeddedEditor: true
@@ -157,14 +158,17 @@ export class InteractiveEditorWidget {
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
 	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
+	private readonly _ctxInnerCursorFirst: IContextKey<boolean>;
+	private readonly _ctxInnerCursorLast: IContextKey<boolean>;
+	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
 
 	private readonly _progressBar: ProgressBar;
 
-	private readonly _previewDiffEditor: EmbeddedDiffEditorWidget;
+	private readonly _previewDiffEditor: IdleValue<EmbeddedDiffEditorWidget>;
 	private readonly _previewDiffModel = this._store.add(new MutableDisposable());
 
 	private readonly _previewCreateTitle: ResourceLabel;
-	private readonly _previewCreateEditor: ICodeEditor;
+	private readonly _previewCreateEditor: IdleValue<ICodeEditor>;
 	private readonly _previewCreateModel = this._store.add(new MutableDisposable());
 
 	private readonly _onDidChangeHeight = new MicrotaskEmitter<void>();
@@ -218,15 +222,15 @@ export class InteractiveEditorWidget {
 		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
 		this._ctxInputEmpty = CTX_INTERACTIVE_EDITOR_EMPTY.bindTo(this._contextKeyService);
 
-		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
-		const ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
-		const ctxInputEditorFocused = CTX_INTERACTIVE_EDITOR_FOCUSED.bindTo(this._contextKeyService);
+		this._ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
+		this._ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
+		this._ctxInputEditorFocused = CTX_INTERACTIVE_EDITOR_FOCUSED.bindTo(this._contextKeyService);
 
 		// (1) inner cursor position (last/first line selected)
 		const updateInnerCursorFirstLast = () => {
 			const { lineNumber } = this._inputEditor.getPosition();
-			ctxInnerCursorFirst.set(lineNumber === 1);
-			ctxInnerCursorLast.set(lineNumber === this._inputModel.getLineCount());
+			this._ctxInnerCursorFirst.set(lineNumber === 1);
+			this._ctxInnerCursorLast.set(lineNumber === this._inputModel.getLineCount());
 		};
 		this._store.add(this._inputEditor.onDidChangeCursorPosition(updateInnerCursorFirstLast));
 		updateInnerCursorFirstLast();
@@ -234,11 +238,16 @@ export class InteractiveEditorWidget {
 		// (2) input editor focused or not
 		const updateFocused = () => {
 			const hasFocus = this._inputEditor.hasWidgetFocus();
-			ctxInputEditorFocused.set(hasFocus);
+			this._ctxInputEditorFocused.set(hasFocus);
 			this._elements.content.classList.toggle('synthetic-focus', hasFocus);
 		};
 		this._store.add(this._inputEditor.onDidFocusEditorWidget(updateFocused));
 		this._store.add(this._inputEditor.onDidBlurEditorWidget(updateFocused));
+		this._store.add(toDisposable(() => {
+			this._ctxInnerCursorFirst.reset();
+			this._ctxInnerCursorLast.reset();
+			this._ctxInputEditorFocused.reset();
+		}));
 		updateFocused();
 
 		// placeholder
@@ -327,10 +336,10 @@ export class InteractiveEditorWidget {
 		this._store.add(feedbackToolbar);
 
 		// preview editors
-		this._previewDiffEditor = this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, _previewEditorEditorOptions, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor));
+		this._previewDiffEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, _previewEditorEditorOptions, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
 
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
-		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
+		this._previewCreateEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor)));
 
 		this._elements.message.tabIndex = 0;
 		this._elements.statusLabel.tabIndex = 0;
@@ -372,12 +381,12 @@ export class InteractiveEditorWidget {
 				this._inputEditor.layout(new Dimension(innerEditorWidth, this._inputEditor.getContentHeight()));
 				this._elements.placeholder.style.width = `${innerEditorWidth  /* input-padding*/}px`;
 
-				const previewDiffDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())));
-				this._previewDiffEditor.layout(previewDiffDim);
+				const previewDiffDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())));
+				this._previewDiffEditor.value.layout(previewDiffDim);
 				this._elements.previewDiff.style.height = `${previewDiffDim.height}px`;
 
-				const previewCreateDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())));
-				this._previewCreateEditor.layout(previewCreateDim);
+				const previewCreateDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())));
+				this._previewCreateEditor.value.layout(previewCreateDim);
 				this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
 			}
 		} finally {
@@ -389,9 +398,9 @@ export class InteractiveEditorWidget {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this._inputEditor.getContentHeight() + 12 /* padding and border */;
 		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage);
-		const previewDiffHeight = this._previewDiffEditor.getModel().modified ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())) : 0;
+		const previewDiffHeight = this._previewDiffEditor.value.getModel().modified ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
-		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
+		const previewCreateHeight = this._previewCreateEditor.value.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())) : 0;
 		return base + editorHeight + markdownMessageHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
@@ -473,6 +482,10 @@ export class InteractiveEditorWidget {
 
 	reset() {
 		this._ctxInputEmpty.reset();
+		this._ctxInnerCursorFirst.reset();
+		this._ctxInnerCursorLast.reset();
+		this._ctxInputEditorFocused.reset();
+
 		this.value = '';
 		this.updateMarkdownMessage(undefined);
 
@@ -508,7 +521,7 @@ export class InteractiveEditorWidget {
 		const languageSelection: ILanguageSelection = { languageId: textModelv0.getLanguageId(), onDidChange: Event.None };
 		const modified = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModelv0.createSnapshot()), languageSelection, undefined, true);
 		modified.applyEdits(edits, false);
-		this._previewDiffEditor.setModel({ original: textModelv0, modified });
+		this._previewDiffEditor.value.setModel({ original: textModelv0, modified });
 
 		// joined ranges
 		let originalLineRange = changes[0].originalRange;
@@ -531,16 +544,16 @@ export class InteractiveEditorWidget {
 
 		const hiddenOriginal = invertLineRange(originalLineRange, textModelv0);
 		const hiddenModified = invertLineRange(modifiedLineRange, modified);
-		this._previewDiffEditor.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lineRangeAsRange), 'diff-hidden');
-		this._previewDiffEditor.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');
-		this._previewDiffEditor.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
+		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lineRangeAsRange), 'diff-hidden');
+		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');
+		this._previewDiffEditor.value.revealLine(modifiedLineRange.startLineNumber, ScrollType.Immediate);
 
 		this._onDidChangeHeight.fire();
 	}
 
 	hideEditsPreview() {
 		this._elements.previewDiff.classList.add('hidden');
-		this._previewDiffEditor.setModel(null);
+		this._previewDiffEditor.value.setModel(null);
 		this._previewDiffModel.clear();
 		this._onDidChangeHeight.fire();
 	}
@@ -555,14 +568,14 @@ export class InteractiveEditorWidget {
 		const model = this._modelService.createModel('', langSelection, undefined, true);
 		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		this._previewCreateModel.value = model;
-		this._previewCreateEditor.setModel(model);
+		this._previewCreateEditor.value.setModel(model);
 		this._onDidChangeHeight.fire();
 	}
 
 	hideCreatePreview() {
 		this._elements.previewCreateTitle.classList.add('hidden');
 		this._elements.previewCreate.classList.add('hidden');
-		this._previewCreateEditor.setModel(null);
+		this._previewCreateEditor.value.setModel(null);
 		this._previewCreateTitle.element.clear();
 		this._onDidChangeHeight.fire();
 	}
@@ -733,10 +746,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super.show(where, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
-	}
-
-	protected override revealRange(_range: Range, _isLastLine: boolean) {
-		// disabled
 	}
 
 	override hide(): void {

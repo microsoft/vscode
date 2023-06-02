@@ -70,7 +70,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 					return true;
 				}
 				return false; // Don't veto
-			})(), localize('vetoExtHostRestart', "Notebook could not be saved."));
+			})(), localize('vetoExtHostRestart', "Notebook '{0}' could not be saved.", this._workingCopy?.name));
 		}));
 	}
 

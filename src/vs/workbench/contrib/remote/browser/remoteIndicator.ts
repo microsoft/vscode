@@ -373,8 +373,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			return;
 		}
 
-		// Show for remote windows on the desktop, but not when in code server web
-		if (this.remoteAuthority && (!isWeb || this.environmentService.options?.webSocketFactory)) {
+		// Show for remote windows on the desktop
+		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':

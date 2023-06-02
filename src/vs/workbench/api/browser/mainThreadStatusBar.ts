@@ -43,7 +43,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 				entryId,
 				name: item.entry.name,
 				text: item.entry.text,
-				command: typeof item.entry.command === 'string' ? item.entry.command : undefined,
+				command: typeof item.entry.command === 'string' ? item.entry.command : typeof item.entry.command === 'object' ? item.entry.command.id : undefined,
 				priority: item.priority,
 				alignLeft: item.alignment === StatusbarAlignment.LEFT
 			};

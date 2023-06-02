@@ -195,6 +195,7 @@ export interface IChatService {
 	addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): void;
 	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
+	removeHistoryEntry(sessionId: string): void;
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
