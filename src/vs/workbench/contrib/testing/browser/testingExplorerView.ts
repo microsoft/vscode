@@ -1394,12 +1394,6 @@ const getActionableElementActions = (
 		], [
 			TestingContextKeys.supportsContinuousRun.key,
 			supportsCr,
-		], [
-			TestingContextKeys.controllerId.key,
-			test.controllerId,
-		], [
-			TestingContextKeys.testItemExtId.key,
-			test.item.extId,
 		]);
 	}
 

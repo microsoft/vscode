@@ -5,7 +5,7 @@
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseViewModel, IChatViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +35,8 @@ export interface IChatCodeBlockInfo {
 	focus(): void;
 }
 
+export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
+
 export type IChatWidgetViewContext = { viewId: string } | { resource: boolean };
 
 export interface IChatWidget {
@@ -44,6 +46,8 @@ export interface IChatWidget {
 	readonly inputEditor: ICodeEditor;
 	readonly providerId: string;
 
+	reveal(item: ChatTreeItem): void;
+	getFocus(): ChatTreeItem | undefined;
 	acceptInput(query?: string): void;
 	focusLastMessage(): void;
 	focusInput(): void;

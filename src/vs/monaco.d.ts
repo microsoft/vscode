@@ -14,10 +14,32 @@ declare namespace monaco {
 	export type Thenable<T> = PromiseLike<T>;
 
 	export interface Environment {
+		/**
+		 * Define a global `monaco` symbol.
+		 * This is true by default in AMD and false by default in ESM.
+		 */
 		globalAPI?: boolean;
+		/**
+		 * The base url where the editor sources are found (which contains the vs folder)
+		 */
 		baseUrl?: string;
+		/**
+		 * A web worker factory.
+		 * NOTE: If `getWorker` is defined, `getWorkerUrl` is not invoked.
+		 */
 		getWorker?(workerId: string, label: string): Promise<Worker> | Worker;
+		/**
+		 * Return the location for web worker scripts.
+		 * NOTE: If `getWorker` is defined, `getWorkerUrl` is not invoked.
+		 */
 		getWorkerUrl?(workerId: string, label: string): string;
+		/**
+		 * Create a trust types policy (same API as window.trustedTypes.createPolicy)
+		 */
+		createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
+			policyName: string,
+			policyOptions?: Options,
+		): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
 	}
 
 	export interface IDisposable {
@@ -2348,7 +2370,7 @@ declare namespace monaco.editor {
 	 */
 	export interface IDocumentDiffProviderOptions {
 		/**
-		 * When set to true, the diff should ignore whitespace changes.i
+		 * When set to true, the diff should ignore whitespace changes.
 		 */
 		ignoreTrimWhitespace: boolean;
 		/**
@@ -2374,10 +2396,12 @@ declare namespace monaco.editor {
 		 */
 		readonly changes: LineRangeMapping[];
 	}
+
 	/**
 	 * A range of lines (1-based).
 	 */
 	export class LineRange {
+		static fromRange(range: Range): LineRange;
 		/**
 		 * @param lineRanges An array of sorted line ranges.
 		 */
@@ -2387,6 +2411,7 @@ declare namespace monaco.editor {
 		 * @param lineRanges2 Must be sorted.
 		 */
 		static join(lineRanges1: readonly LineRange[], lineRanges2: readonly LineRange[]): readonly LineRange[];
+		static ofLength(startLineNumber: number, length: number): LineRange;
 		/**
 		 * The start line number.
 		 */
@@ -2422,14 +2447,18 @@ declare namespace monaco.editor {
 		 * If the ranges don't even touch, the result is undefined.
 		 */
 		intersect(other: LineRange): LineRange | undefined;
+		intersectsStrict(other: LineRange): boolean;
 		overlapOrTouch(other: LineRange): boolean;
 		equals(b: LineRange): boolean;
+		toInclusiveRange(): Range | null;
+		toExclusiveRange(): Range;
 	}
 
 	/**
 	 * Maps a line range in the original text model to a line range in the modified text model.
 	 */
 	export class LineRangeMapping {
+		static inverse(mapping: LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[];
 		/**
 		 * The line range in the original text model.
 		 */
@@ -3860,6 +3889,12 @@ declare namespace monaco.editor {
 		 * Whether the diff editor aria label should be verbose.
 		 */
 		accessibilityVerbose?: boolean;
+		experimental?: {
+			/**
+			 * Defaults to false.
+			 */
+			collapseUnchangedRegions?: boolean;
+		};
 	}
 
 	/**
@@ -4530,6 +4565,10 @@ declare namespace monaco.editor {
 		 * Enable graceful matching. Defaults to true.
 		 */
 		filterGraceful?: boolean;
+		/**
+		 * Prevent quick suggestions when a snippet is active. Defaults to true.
+		 */
+		snippetsPreventQuickSuggestions?: boolean;
 		/**
 		 * Favors words that appear close to the cursor.
 		 */
