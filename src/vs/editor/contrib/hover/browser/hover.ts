@@ -199,6 +199,14 @@ export class ModesHoverController implements IEditorContribution {
 						return;
 					}
 				}
+			} else if (decoratorActivatedOn === 'click and hover') {
+				console.log('entered into the third case');
+				if (!this._activatedByColorDecoratorClick) {
+					if (!this._isHoverEnabled) {
+						this._hideWidgets();
+						return;
+					}
+				}
 			} else {
 				throw new Error('Invalid value for EditorOption.colorDecoratorsActivatedOn');
 			}
