@@ -31,6 +31,7 @@ import { FuzzyScoreOptions } from 'vs/base/common/filters';
 import { assertType } from 'vs/base/common/types';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -158,6 +159,7 @@ export class SuggestModel implements IDisposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IEnvironmentService private readonly _envService: IEnvironmentService,
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -543,6 +545,15 @@ export class SuggestModel implements IDisposable {
 
 			// finally report telemetry about durations
 			this._reportDurationsTelemetry(completions.durations);
+
+			// report invalid completions by source
+			if (!this._envService.isBuilt || this._envService.isExtensionDevelopment) {
+				for (const item of completions.items) {
+					if (item.isInvalid) {
+						this._logService.warn(`[suggest] did IGNORE invalid completion item from ${item.provider._debugDisplayName}`, item.completion);
+					}
+				}
+			}
 
 		}).catch(onUnexpectedError);
 	}
