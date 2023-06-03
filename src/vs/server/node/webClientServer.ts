@@ -28,6 +28,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { isString } from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -343,9 +344,12 @@ export class WebClientServer {
 		};
 
 		if (useTestResolver) {
-			const filePath = FileAccess.asFileUri(`${builtinExtensionsPath}/vscode-test-resolver/package.json`).fsPath;
-			const packageJSON = JSON.parse((await fsp.readFile(filePath)).toString());
-			values['WORKBENCH_BUILTIN_EXTENSIONS'] = asJSON([{ extensionPath: 'vscode-test-resolver', packageJSON }]);
+			const bundledExtensions: { extensionPath: string; packageJSON: IExtensionManifest }[] = [];
+			for (const extensionPath of ['vscode-test-resolver', 'github-authentication']) {
+				const packageJSON = JSON.parse((await fsp.readFile(FileAccess.asFileUri(`${builtinExtensionsPath}/${extensionPath}/package.json`).fsPath)).toString());
+				bundledExtensions.push({ extensionPath, packageJSON });
+			}
+			values['WORKBENCH_BUILTIN_EXTENSIONS'] = asJSON(bundledExtensions);
 		}
 
 		let data;

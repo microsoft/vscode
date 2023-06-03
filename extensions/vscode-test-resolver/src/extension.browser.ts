@@ -9,6 +9,8 @@ export function activate(_context: vscode.ExtensionContext) {
 	vscode.workspace.registerRemoteAuthorityResolver('test', {
 		async resolve(_authority: string): Promise<vscode.ResolverResult> {
 			console.log(`Resolving ${_authority}`);
+			console.log(`Activating vscode.github-authentication to simulate auth`);
+			await vscode.extensions.getExtension('vscode.github-authentication')?.activate();
 			return new vscode.ManagedResolvedAuthority(async () => {
 				return new InitialManagedMessagePassing();
 			});
