@@ -10419,6 +10419,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The event that is fired when there is a change in {@link TreeView.focus tree view's focus}
+	 */
+	export interface TreeViewFocusChangeEvent<T> {
+
+		/**
+		 * Focused element.
+		 */
+		readonly focus: T | undefined;
+
+	}
+
+	/**
 	 * The event that is fired when there is a change in {@link TreeView.visible tree view's visibility}
 	 */
 	export interface TreeViewVisibilityChangeEvent {
@@ -10632,6 +10644,16 @@ declare module 'vscode' {
 		 * Event that is fired when the {@link TreeView.selection selection} has changed
 		 */
 		readonly onDidChangeSelection: Event<TreeViewSelectionChangeEvent<T>>;
+
+		/**
+		 * Currently focused element.
+		 */
+		readonly focus: T | undefined;
+
+		/**
+		 * Event that is fired when the {@link TreeView.focus focus} has changed
+		 */
+		readonly onDidChangeFocus: Event<TreeViewFocusChangeEvent<T>>;
 
 		/**
 		 * `true` if the {@link TreeView tree view} is visible otherwise `false`.
