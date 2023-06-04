@@ -22,9 +22,13 @@ const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
 const { stripComments } = require('./vs/base/common/stripComments');
+const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
+
+// Enable sandbox globally
+app.enableSandbox();
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -35,6 +39,12 @@ bootstrap.enableASARSupport();
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
+if (process.platform === 'win32') {
+	const userDataUNCHost = getUNCHost(userDataPath);
+	if (userDataUNCHost) {
+		addUNCHostToAllowlist(userDataUNCHost); // enables to use UNC paths in userDataPath
+	}
+}
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path
@@ -439,11 +449,6 @@ function getJSFlags(cliArgs) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'] ?? '')) {
-		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
-	}
-
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
@@ -458,7 +463,6 @@ function parseCLIArgs() {
 			'user-data-dir',
 			'locale',
 			'js-flags',
-			'max-memory',
 			'crash-reporter-directory'
 		]
 	});

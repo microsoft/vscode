@@ -6,7 +6,7 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Attributes, AutoTunnelSource, IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { Attributes, AutoTunnelSource, IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, Tunnel, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID, TunnelCloseReason, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction, openPreviewEnabledContext } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -21,7 +21,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isWeb, OperatingSystem } from 'vs/base/common/platform';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
+import { ITunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -348,6 +348,10 @@ class OnAutoForwardedAction extends Disposable {
 			choices.unshift(this.elevateChoice(tunnel));
 		}
 
+		if (tunnel.privacy === TunnelPrivacyId.Private && isWeb && this.tunnelService.canChangePrivacy) {
+			choices.push(this.makePublicChoice(tunnel));
+		}
+
 		message += this.linkMessage();
 
 		this.lastNotification = this.notificationService.prompt(Severity.Info, message, choices, { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
@@ -357,6 +361,24 @@ class OnAutoForwardedAction extends Disposable {
 			this.lastNotification = undefined;
 			this.lastShownPort = undefined;
 		});
+	}
+
+	private makePublicChoice(tunnel: RemoteTunnel): IPromptChoice {
+		return {
+			label: nls.localize('remote.tunnelsView.makePublic', "Make Public"),
+			run: async () => {
+				const oldTunnelDetails = mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
+				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, TunnelCloseReason.Other);
+				return this.remoteExplorerService.forward({
+					remote: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort },
+					local: tunnel.tunnelLocalPort,
+					name: oldTunnelDetails?.name,
+					elevateIfNeeded: true,
+					privacy: TunnelPrivacyId.Public,
+					source: oldTunnelDetails?.source
+				});
+			}
+		};
 	}
 
 	private openBrowserChoice(tunnel: RemoteTunnel): IPromptChoice {
@@ -380,7 +402,7 @@ class OnAutoForwardedAction extends Disposable {
 			// Privileged ports are not on Windows, so it's ok to stick to just "sudo".
 			label: nls.localize('remote.tunnelsView.elevationButton', "Use Port {0} as Sudo...", tunnel.tunnelRemotePort),
 			run: async () => {
-				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
+				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, TunnelCloseReason.Other);
 				const newTunnel = await this.remoteExplorerService.forward({
 					remote: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort },
 					local: tunnel.tunnelRemotePort,
@@ -621,24 +643,29 @@ class ProcAutomaticPortForwarding extends Disposable {
 
 	private async handleCandidateUpdate(removed: Map<string, { host: string; port: number }>) {
 		const removedPorts: number[] = [];
-		let autoForwarded: Set<string>;
+		let autoForwarded: Map<string, string | Tunnel>;
 		if (this.unforwardOnly) {
-			autoForwarded = new Set();
+			autoForwarded = new Map();
 			for (const entry of this.remoteExplorerService.tunnelModel.forwarded.entries()) {
 				if (entry[1].source.source === TunnelSource.Auto) {
-					autoForwarded.add(entry[0]);
+					autoForwarded.set(entry[0], entry[1]);
 				}
 			}
 		} else {
-			autoForwarded = this.autoForwarded;
+			autoForwarded = new Map(this.autoForwarded.entries());
 		}
 
 		for (const removedPort of removed) {
 			const key = removedPort[0];
-			const value = removedPort[1];
-			if (autoForwarded.has(key)) {
-				await this.remoteExplorerService.close(value);
-				autoForwarded.delete(key);
+			let value = removedPort[1];
+			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(autoForwarded, value.host, value.port);
+			if (forwardedValue) {
+				if (typeof forwardedValue === 'string') {
+					this.autoForwarded.delete(key);
+				} else {
+					value = { host: forwardedValue.remoteHost, port: forwardedValue.remotePort };
+				}
+				await this.remoteExplorerService.close(value, TunnelCloseReason.AutoForwardEnd);
 				removedPorts.push(value.port);
 			} else if (this.notifiedOnly.has(key)) {
 				this.notifiedOnly.delete(key);

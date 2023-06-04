@@ -78,6 +78,7 @@ export const enum Status {
 	UNTRACKED,
 	IGNORED,
 	INTENT_TO_ADD,
+	INTENT_TO_RENAME,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,
@@ -154,6 +155,10 @@ export interface FetchOptions {
 	all?: boolean;
 	prune?: boolean;
 	depth?: number;
+}
+
+export interface InitOptions {
+	defaultBranch?: string;
 }
 
 export interface BranchQuery {
@@ -270,7 +275,12 @@ export interface PushErrorHandler {
 
 export interface BranchProtection {
 	readonly remote: string;
-	readonly branches: string[];
+	readonly rules: BranchProtectionRule[];
+}
+
+export interface BranchProtectionRule {
+	readonly include?: string[];
+	readonly exclude?: string[];
 }
 
 export interface BranchProtectionProvider {
@@ -296,7 +306,7 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
-	init(root: Uri): Promise<Repository | null>;
+	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;

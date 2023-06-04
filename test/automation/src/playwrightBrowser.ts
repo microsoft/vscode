@@ -32,6 +32,7 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 
 async function launchServer(options: LaunchOptions) {
 	const { userDataDir, codePath, extensionsPath, logger, logsPath } = options;
+	const serverLogsPath = join(logsPath, 'server');
 	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
 	await measureAndLog(() => mkdirp(agentFolder), `mkdirp(${agentFolder})`, logger);
@@ -49,7 +50,7 @@ async function launchServer(options: LaunchOptions) {
 		`--extensions-dir=${extensionsPath}`,
 		`--server-data-dir=${agentFolder}`,
 		'--accept-server-license-terms',
-		`--logsPath=${logsPath}`
+		`--logsPath=${serverLogsPath}`
 	];
 
 	if (options.verbose) {
@@ -68,7 +69,7 @@ async function launchServer(options: LaunchOptions) {
 		logger.log(`Starting server out of sources from '${serverLocation}'`);
 	}
 
-	logger.log(`Storing log files into '${logsPath}'`);
+	logger.log(`Storing log files into '${serverLogsPath}'`);
 
 	logger.log(`Command line: '${serverLocation}' ${args.join(' ')}`);
 	const serverProcess = spawn(

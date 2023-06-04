@@ -18,8 +18,8 @@ export const statePriority: { [K in TestResultState]: number } = {
 	[TestResultState.Failed]: 4,
 	[TestResultState.Queued]: 3,
 	[TestResultState.Passed]: 2,
-	[TestResultState.Unset]: 1,
-	[TestResultState.Skipped]: 0,
+	[TestResultState.Unset]: 0,
+	[TestResultState.Skipped]: 1,
 };
 
 export const isFailedState = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed;

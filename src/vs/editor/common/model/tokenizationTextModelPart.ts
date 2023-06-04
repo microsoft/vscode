@@ -472,6 +472,7 @@ class GrammarTokens extends Disposable {
 			if (tokenizationSupport?.backgroundTokenizerShouldOnlyVerifyTokens && tokenizationSupport.createBackgroundTokenizer) {
 				this._debugBackgroundTokens = new ContiguousTokensStore(this._languageIdCodec);
 				this._debugBackgroundStates = new TrackingTokenizationStateStore(this._textModel.getLineCount());
+				this._debugBackgroundTokenizer.clear();
 				this._debugBackgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, {
 					setTokens: (tokens) => {
 						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
@@ -543,7 +544,7 @@ class GrammarTokens extends Disposable {
 			return;
 		}
 
-		startLineNumber = Math.max(1, startLineNumber);
+		startLineNumber = Math.max(1, Math.min(this._textModel.getLineCount(), startLineNumber));
 		endLineNumber = Math.min(this._textModel.getLineCount(), endLineNumber);
 
 		const builder = new ContiguousMultilineTokensBuilder();

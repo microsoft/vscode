@@ -12,12 +12,14 @@ import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { localize } from 'vs/nls';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
@@ -46,14 +48,30 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
-		@IFileService private readonly _fileService: IFileService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super();
 
 		if (this.viewType === 'interactive') {
 			lifecycleService.onBeforeShutdown(async e => e.veto(this.onBeforeShutdown(), 'veto.InteractiveWindow'));
 		}
+
+		this._register(extensionService.onWillStop(e => {
+			if (!this.isDirty()) {
+				return;
+			}
+
+			e.veto((async () => {
+				const didSave = await this._workingCopy?.save();
+				if (!didSave) {
+					// Veto
+					return true;
+				}
+				return false; // Don't veto
+			})(), localize('vetoExtHostRestart', "Notebook '{0}' could not be saved.", this._workingCopy?.name));
+		}));
 	}
 
 	private async onBeforeShutdown() {
@@ -76,6 +94,18 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return Boolean(this._workingCopy?.model?.notebookModel);
 	}
 
+	async canDispose(): Promise<boolean> {
+		if (!this._workingCopy) {
+			return true;
+		}
+
+		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
+			return this._workingCopyManager.stored.canDispose(this._workingCopy);
+		} else {
+			return true;
+		}
+	}
+
 	isDirty(): boolean {
 		return this._workingCopy?.isDirty() ?? false;
 	}
@@ -91,7 +121,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	isReadonly(): boolean {
 		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
 			return this._workingCopy?.isReadonly();
-		} else if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+		} else if (this._filesConfigurationService.isReadonly(this.resource)) {
 			return true;
 		} else {
 			return false;

@@ -5,11 +5,12 @@
 
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
+import { Server as ChildProcessServer } from 'vs/base/parts/ipc/node/ipc.cp';
+import { Server as UtilityProcessServer } from 'vs/base/parts/ipc/node/ipc.mp';
 import { localize } from 'vs/nls';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ConsoleLogger, LogLevel } from 'vs/platform/log/common/log';
+import { ConsoleLogger, getLogLevel } from 'vs/platform/log/common/log';
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
@@ -18,8 +19,16 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IReconnectConstants, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { HeartbeatService } from 'vs/platform/terminal/node/heartbeatService';
 import { PtyService } from 'vs/platform/terminal/node/ptyService';
+import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 
-const server = new Server('ptyHost');
+const _isUtilityProcess = isUtilityProcess(process);
+
+let server: ChildProcessServer<string> | UtilityProcessServer;
+if (_isUtilityProcess) {
+	server = new UtilityProcessServer();
+} else {
+	server = new ChildProcessServer(TerminalIpcChannels.PtyHost);
+}
 
 const lastPtyId = parseInt(process.env.VSCODE_LAST_PTY_ID || '0');
 delete process.env.VSCODE_LAST_PTY_ID;
@@ -28,11 +37,9 @@ const productService: IProductService = { _serviceBrand: undefined, ...product }
 const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 
 // Logging
-const loggerService = new LoggerService(LogLevel.Info, environmentService.logsHome);
+const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 server.registerChannel(TerminalIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
-const isRemote = process.env.VSCODE_PTY_REMOTE === 'true';
-delete process.env.VSCODE_PTY_REMOTE;
-const logger = loggerService.createLogger(isRemote ? 'remoteptyhost' : 'ptyhost', { name: isRemote ? localize('remotePtyHost', "Pty Host (Remote)") : localize('ptyHost', "Pty Host") });
+const logger = loggerService.createLogger('ptyhost', { name: localize('ptyHost', "Pty Host") });
 const logService = new LogService(logger, [new ConsoleLogger()]);
 
 const heartbeatService = new HeartbeatService();
@@ -48,7 +55,11 @@ delete process.env.VSCODE_RECONNECT_SHORT_GRACE_TIME;
 delete process.env.VSCODE_RECONNECT_SCROLLBACK;
 
 const ptyService = new PtyService(lastPtyId, logService, productService, reconnectConstants);
-server.registerChannel(TerminalIpcChannels.PtyHost, ProxyChannel.fromService(ptyService));
+const ptyServiceChannel = ProxyChannel.fromService(ptyService);
+server.registerChannel(TerminalIpcChannels.PtyHost, ptyServiceChannel);
+if (_isUtilityProcess) {
+	server.registerChannel(TerminalIpcChannels.PtyHostWindow, ptyServiceChannel);
+}
 
 process.once('exit', () => {
 	logService.dispose();

@@ -3,236 +3,78 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { Barrier, raceCancellationError } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { splitLines } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import { assertType } from 'vs/base/common/types';
 import 'vs/css!./interactiveEditor';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
-import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
+import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorStrategies';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Lazy } from 'vs/base/common/lazy';
 
-
-type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
-export type Recording = { when: Date; session: IInteractiveEditorSession; value: string; exchanges: Exchange[] };
-
-class SessionRecorder {
-
-	private readonly _data = new LRUCache<IInteractiveEditorSession, Recording>(3);
-
-	add(session: IInteractiveEditorSession, model: ITextModel) {
-		this._data.set(session, { when: new Date(), session, value: model.getValue(), exchanges: [] });
-	}
-
-	addExchange(session: IInteractiveEditorSession, req: IInteractiveEditorRequest, res: IInteractiveEditorResponse) {
-		this._data.get(session)?.exchanges.push({ req, res });
-	}
-
-	getAll(): Recording[] {
-		return [...this._data.values()];
-	}
+export const enum State {
+	CREATE_SESSION = 'CREATE_SESSION',
+	INIT_UI = 'INIT_UI',
+	WAIT_FOR_INPUT = 'WAIT_FOR_INPUT',
+	MAKE_REQUEST = 'MAKE_REQUEST',
+	APPLY_RESPONSE = 'APPLY_RESPONSE',
+	SHOW_RESPONSE = 'SHOW_RESPONSE',
+	PAUSE = 'PAUSE',
+	CANCEL = 'CANCEL',
+	ACCEPT = 'DONE',
 }
 
-type TelemetryData = {
-	extension: string;
-	rounds: string;
-	undos: string;
-	edits: boolean;
-	terminalEdits: boolean;
-	startTime: string;
-	endTime: string;
-	editMode: string;
-};
-
-type TelemetryDataClassification = {
-	owner: 'jrieken';
-	comment: 'Data about an interaction editor session';
-	extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension providing the data' };
-	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of request that were made' };
-	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Requests that have been undone' };
-	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits happen while the session was active' };
-	terminalEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits terminal the session' };
-	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
-	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
-	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
-};
-
-class InlineDiffDecorations {
-
-	private readonly _collection: IEditorDecorationsCollection;
-
-	private _data: { tracking: IModelDeltaDecoration; decorating: IModelDecorationOptions }[] = [];
-	private _visible: boolean = false;
-
-	constructor(editor: ICodeEditor, visible: boolean = false) {
-		this._collection = editor.createDecorationsCollection();
-		this._visible = visible;
-	}
-
-	get visible() {
-		return this._visible;
-	}
-
-	set visible(value: boolean) {
-		this._visible = value;
-		this.update();
-	}
-
-	clear() {
-		this._collection.clear();
-		this._data.length = 0;
-	}
-
-	collectEditOperation(op: IValidEditOperation) {
-		this._data.push(InlineDiffDecorations._asDecorationData(op));
-	}
-
-	update() {
-		this._collection.set(this._data.map(d => {
-			const res = { ...d.tracking };
-			if (this._visible) {
-				res.options = { ...res.options, ...d.decorating };
-			}
-			return res;
-		}));
-	}
-
-	private static _asDecorationData(edit: IValidEditOperation): { tracking: IModelDeltaDecoration; decorating: IModelDecorationOptions } {
-		let content = edit.text;
-		if (content.length > 12) {
-			content = content.substring(0, 12) + '…';
-		}
-		const tracking: IModelDeltaDecoration = {
-			range: edit.range,
-			options: {
-				description: 'interactive-editor-inline-diff',
-			}
-		};
-
-		const decorating: IModelDecorationOptions = {
-			description: 'interactive-editor-inline-diff',
-			className: !edit.range.isEmpty() ? 'interactive-editor-lines-inserted-range' : undefined,
-			showIfCollapsed: true,
-			before: {
-				content,
-				inlineClassName: 'interactive-editor-lines-deleted-range-inline',
-				attachedData: edit,
-			}
-		};
-
-		return { tracking, decorating };
-	}
+const enum Message {
+	NONE = 0,
+	ACCEPT_SESSION = 1 << 0,
+	CANCEL_SESSION = 1 << 1,
+	PAUSE_SESSION = 1 << 2,
+	CANCEL_REQUEST = 1 << 3,
+	CANCEL_INPUT = 1 << 4,
+	ACCEPT_INPUT = 1 << 5
 }
 
-export class EditResponse {
-
-	readonly localEdits: TextEdit[] = [];
-	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
-	readonly workspaceEdits: ResourceEdit[] | undefined;
-	readonly workspaceEditsIncludeLocalEdits: boolean = false;
-
-	constructor(localUri: URI, readonly raw: IInteractiveEditorBulkEditResponse | IInteractiveEditorEditResponse) {
-		if (raw.type === 'editorEdit') {
-			//
-			this.localEdits = raw.edits;
-			this.singleCreateFileEdit = undefined;
-			this.workspaceEdits = undefined;
-
-		} else {
-			//
-			const edits = ResourceEdit.convert(raw.edits);
-			this.workspaceEdits = edits;
-
-			let isComplexEdit = false;
-
-			for (const edit of edits) {
-				if (edit instanceof ResourceFileEdit) {
-					if (!isComplexEdit && edit.newResource && !edit.oldResource) {
-						// file create
-						if (this.singleCreateFileEdit) {
-							isComplexEdit = true;
-							this.singleCreateFileEdit = undefined;
-						} else {
-							this.singleCreateFileEdit = { uri: edit.newResource, edits: [] };
-							if (edit.options.contents) {
-								this.singleCreateFileEdit.edits.push(edit.options.contents.then(x => ({ range: new Range(1, 1, 1, 1), text: x.toString() })));
-							}
-						}
-					}
-				} else if (edit instanceof ResourceTextEdit) {
-					//
-					if (isEqual(edit.resource, localUri)) {
-						this.localEdits.push(edit.textEdit);
-						this.workspaceEditsIncludeLocalEdits = true;
-
-					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
-						this.singleCreateFileEdit!.edits.push(Promise.resolve(edit.textEdit));
-					} else {
-						isComplexEdit = true;
-					}
-				}
-			}
-
-			if (isComplexEdit) {
-				this.singleCreateFileEdit = undefined;
-			}
-		}
-	}
+export interface InteractiveEditorRunOptions {
+	initialRange?: IRange;
+	message?: string;
+	autoSend?: boolean;
+	existingSession?: Session;
+	isUnstashed?: boolean;
 }
-
-class LastEditorState {
-
-	constructor(
-		readonly model: ITextModel,
-		readonly modelVersionId: number,
-		readonly provider: IInteractiveEditorSessionProvider,
-		readonly session: IInteractiveEditorSession,
-		readonly response: EditResponse,
-	) { }
-}
-
-type EditMode = 'live' | 'livePreview' | 'preview';
 
 export class InteractiveEditorController implements IEditorContribution {
 
-	static ID = 'interactiveEditor';
-
 	static get(editor: ICodeEditor) {
-		return editor.getContribution<InteractiveEditorController>(InteractiveEditorController.ID);
+		return editor.getContribution<InteractiveEditorController>(INTERACTIVE_EDITOR_ID);
 	}
-
-	private static _inlineDiffStorageKey: string = 'interactiveEditor.storage.inlineDiff';
 
 	private static _decoBlock = ModelDecorationOptions.register({
 		description: 'interactive-editor',
@@ -241,462 +83,571 @@ export class InteractiveEditorController implements IEditorContribution {
 		className: 'interactive-editor-block-selection',
 	});
 
-	private static _decoWholeRange = ModelDecorationOptions.register({
-		description: 'interactive-editor-marker'
-	});
-
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
 
 	private readonly _store = new DisposableStore();
-	private readonly _recorder = new SessionRecorder();
-	private readonly _zone: InteractiveEditorZoneWidget;
+	private readonly _zone: Lazy<InteractiveEditorZoneWidget>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
-	private readonly _ctxHasResponse: IContextKey<boolean>;
-	private readonly _ctxInlineDiff: IContextKey<boolean>;
-	private readonly _ctxLastEditKind: IContextKey<'' | 'simple'>;
+	private readonly _ctxLastResponseType: IContextKey<undefined | InteractiveEditorResponseType>;
+	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
 
-	private _lastEditState?: LastEditorState;
-	private _strategy?: EditModeStrategy;
-	private _lastInlineDecorations?: InlineDiffDecorations;
-	private _inlineDiffEnabled: boolean = false;
+	private _messages = this._store.add(new Emitter<Message>());
 
-	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
-	private _ctsRequest?: CancellationTokenSource;
+	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	private readonly _stashedSession: MutableDisposable<StashedSession> = this._store.add(new MutableDisposable());
+	private _activeSession?: Session;
+	private _strategy?: EditModeStrategy;
+	private _ignoreModelContentChanged = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
+		@IInteractiveEditorSessionService private readonly _interactiveEditorSessionService: IInteractiveEditorSessionService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IModelService private readonly _modelService: IModelService,
+		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
-		this._ctxHasResponse = CTX_INTERACTIVE_EDITOR_HAS_RESPONSE.bindTo(contextKeyService);
-		this._ctxInlineDiff = CTX_INTERACTIVE_EDITOR_INLNE_DIFF.bindTo(contextKeyService);
-		this._ctxLastEditKind = CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND.bindTo(contextKeyService);
-		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND.bindTo(contextKeyService);
+		this._ctxDidEdit = CTX_INTERACTIVE_EDITOR_DID_EDIT.bindTo(contextKeyService);
+		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
+		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.bindTo(contextKeyService);
+		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor)));
+
+		this._store.add(this._editor.onDidChangeModel(async e => {
+			if (this._activeSession || !e.newModelUrl) {
+				return;
+			}
+
+			const existingSession = this._interactiveEditorSessionService.getSession(this._editor, e.newModelUrl);
+			if (!existingSession) {
+				return;
+			}
+
+			this._log('session RESUMING', e);
+			await this._nextState(State.CREATE_SESSION, { existingSession });
+			this._log('session done or paused');
+		}));
+		this._log('NEW controller');
 	}
 
 	dispose(): void {
+		this._stashedSession.clear();
+		this._finishExistingSession();
 		this._store.dispose();
-		this._ctsSession.dispose(true);
-		this._ctsSession.dispose();
+		this._log('controller disposed');
+	}
+
+	private _log(message: string | Error, ...more: any[]): void {
+		if (message instanceof Error) {
+			this._logService.error(message, ...more);
+		} else {
+			this._logService.trace(`[IE] (editor:${this._editor.getId()})${message}`, ...more);
+		}
 	}
 
 	getId(): string {
-		return InteractiveEditorController.ID;
+		return INTERACTIVE_EDITOR_ID;
 	}
 
 	private _getMode(): EditMode {
-		return this._configurationService.getValue('interactiveEditor.editMode');
+		const editMode = this._configurationService.inspect<EditMode>('interactiveEditor.editMode');
+		let editModeValue = editMode.value;
+		if (this._accessibilityService.isScreenReaderOptimized() && editModeValue === editMode.defaultValue) {
+			// By default, use preview mode for screen reader users
+			editModeValue = EditMode.Preview;
+		}
+		return editModeValue!;
 	}
 
-	async run(initialRange?: Range): Promise<void> {
+	getWidgetPosition(): Position | undefined {
+		return this._zone.value.position;
+	}
 
-		const editMode = this._getMode();
+	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
+		this._log('session starting');
+		await this._finishExistingSession();
+		this._stashedSession.clear();
 
-		this._ctsSession.dispose(true);
+		await this._nextState(State.CREATE_SESSION, options);
+		this._log('session done or paused');
+	}
 
+	private async _finishExistingSession(): Promise<void> {
+		if (this._activeSession) {
+			if (this._activeSession.editMode === EditMode.Preview) {
+				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
+				await this.cancelSession();
+			} else {
+				this._log('finishing existing session, using APPLY', this._activeSession.editMode);
+				await this.applyChanges();
+			}
+		}
+	}
+
+	// ---- state machine
+
+	protected async _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {
+		this._log('setState to ', state);
+		const nextState = await this[state](options);
+		if (nextState) {
+			await this._nextState(nextState, options);
+		}
+	}
+
+	private async [State.CREATE_SESSION](options: InteractiveEditorRunOptions | undefined): Promise<State.CANCEL | State.INIT_UI> {
+		assertType(this._activeSession === undefined);
+		assertType(this._editor.hasModel());
+
+		let session: Session | undefined = options?.existingSession;
+
+		if (!session) {
+			const createSessionCts = new CancellationTokenSource();
+			const msgListener = Event.once(this._messages.event)(m => {
+				this._log('state=_createSession) message received', m);
+				createSessionCts.cancel();
+			});
+
+			session = await this._interactiveEditorSessionService.createSession(
+				this._editor,
+				{ editMode: this._getMode(), wholeRange: options?.initialRange },
+				createSessionCts.token
+			);
+
+			createSessionCts.dispose();
+			msgListener.dispose();
+		}
+
+		delete options?.initialRange;
+		delete options?.existingSession;
+
+		if (!session) {
+			this._dialogService.info(localize('create.fail', "Failed to start editor chat"), localize('create.fail.detail', "Please consult the error log and try again later."));
+			return State.CANCEL;
+		}
+
+		switch (session.editMode) {
+			case EditMode.Live:
+				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value.widget);
+				break;
+			case EditMode.Preview:
+				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value.widget);
+				break;
+			case EditMode.LivePreview:
+			default:
+				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value.widget);
+				break;
+		}
+
+		this._activeSession = session;
+		return State.INIT_UI;
+	}
+
+	private async [State.INIT_UI](options: InteractiveEditorRunOptions | undefined): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
+		assertType(this._activeSession);
+
+		// hide/cancel inline completions when invoking IE
+		InlineCompletionsController.get(this._editor)?.hide();
+
+		this._cancelNotebookSiblingEditors();
+
+		this._sessionStore.clear();
+
+		const wholeRangeDecoration = this._editor.createDecorationsCollection([{
+			range: this._activeSession.wholeRange,
+			options: InteractiveEditorController._decoBlock
+		}]);
+		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
+
+		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
+		this._zone.value.widget.placeholder = this._getPlaceholderText();
+		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
+		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
+		this._zone.value.show(this._activeSession.wholeRange.getEndPosition());
+
+		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
+			const msg = this._activeSession?.lastExchange
+				? Message.PAUSE_SESSION // pause when switching models/tabs and when having a previous exchange
+				: Message.CANCEL_SESSION;
+			this._log('model changed, pause or cancel session', msg, e);
+			this._messages.fire(msg);
+		}));
+
+		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
+			if (this._ignoreModelContentChanged) {
+				return;
+			}
+
+			const wholeRange = this._activeSession!.wholeRange;
+			let editIsOutsideOfWholeRange = false;
+			for (const { range } of e.changes) {
+				editIsOutsideOfWholeRange = !Range.areIntersectingOrTouching(range, wholeRange);
+			}
+
+			this._activeSession!.recordExternalEditOccurred(editIsOutsideOfWholeRange);
+
+			if (editIsOutsideOfWholeRange) {
+				this._log('text changed outside of whole range, FINISH session');
+				this._finishExistingSession();
+			}
+		}));
+
+		if (!this._activeSession.lastExchange) {
+			return State.WAIT_FOR_INPUT;
+		} else if (options?.isUnstashed) {
+			delete options.isUnstashed;
+			return State.APPLY_RESPONSE;
+		} else {
+			return State.SHOW_RESPONSE;
+		}
+	}
+
+	private _getPlaceholderText(): string {
+		if (!this._activeSession) {
+			return '';
+		}
+		let result = this._activeSession.session.placeholder ?? localize('default.placeholder', "Ask a question");
+		if (InteractiveEditorController._promptHistory.length > 0) {
+			const kb1 = this._keybindingService.lookupKeybinding('interactiveEditor.previousFromHistory')?.getLabel();
+			const kb2 = this._keybindingService.lookupKeybinding('interactiveEditor.nextFromHistory')?.getLabel();
+
+			if (kb1 && kb2) {
+				result = localize('default.placeholder.history', "{0} ({1}, {2} for history)", result, kb1, kb2);
+			}
+		}
+		return result;
+	}
+
+	private _cancelNotebookSiblingEditors(): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
-
-		const provider = Iterable.first(this._interactiveEditorService.getAllProvider());
-		if (!provider) {
-			this._logService.trace('[IE] NO provider found');
+		const candidate = CellUri.parse(this._editor.getModel().uri);
+		if (!candidate) {
 			return;
 		}
-
-		const thisSession = this._ctsSession = new CancellationTokenSource();
-		const textModel = this._editor.getModel();
-		const selection = this._editor.getSelection();
-		const session = await provider.prepareInteractiveEditorSession(textModel, selection, this._ctsSession.token);
-		if (!session) {
-			this._logService.trace('[IE] NO session', provider.debugName);
-			return;
-		}
-		this._recorder.add(session, textModel);
-		this._logService.trace('[IE] NEW session', provider.debugName);
-
-		const data: TelemetryData = {
-			extension: provider.debugName,
-			startTime: new Date().toISOString(),
-			endTime: new Date().toISOString(),
-			edits: false,
-			terminalEdits: false,
-			rounds: '',
-			undos: '',
-			editMode
-		};
-
-		this._strategy = this._instaService.createInstance(
-			editMode === 'preview' ? PreviewStrategy : editMode === 'livePreview' ? LivePreviewStrategy : LiveStrategy,
-			textModel, textModel.getAlternativeVersionId()
-		);
-
-		this._inlineDiffEnabled = this._storageService.getBoolean(InteractiveEditorController._inlineDiffStorageKey, StorageScope.PROFILE, false);
-		const inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
-		this._lastInlineDecorations = inlineDiffDecorations;
-		this._ctxInlineDiff.set(this._inlineDiffEnabled);
-
-		const blockDecoration = this._editor.createDecorationsCollection();
-		const wholeRangeDecoration = this._editor.createDecorationsCollection();
-
-		if (!initialRange) {
-			initialRange = session.wholeRange ? Range.lift(session.wholeRange) : selection;
-		}
-		if (initialRange.isEmpty()) {
-			initialRange = new Range(
-				initialRange.startLineNumber, 1,
-				initialRange.startLineNumber, textModel.getLineMaxColumn(initialRange.startLineNumber)
-			);
-		}
-		wholeRangeDecoration.set([{
-			range: initialRange,
-			options: InteractiveEditorController._decoWholeRange
-		}]);
-
-
-		let placeholder = session.placeholder ?? '';
-		let value = '';
-
-		const store = new DisposableStore();
-
-		if (session.slashCommands) {
-			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
-		}
-
-		this._zone.widget.updateMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
-
-		// CANCEL when input changes
-		this._editor.onDidChangeModel(this.cancelSession, this, store);
-
-		// REposition the zone widget whenever the block decoration changes
-		let lastPost: Position | undefined;
-		wholeRangeDecoration.onDidChange(e => {
-			const range = wholeRangeDecoration.getRange(0);
-			if (range && (!lastPost || !lastPost.equals(range.getEndPosition()))) {
-				lastPost = range.getEndPosition();
-				this._zone.updatePosition(lastPost);
-			}
-		}, undefined, store);
-
-		let ignoreModelChanges = false;
-		this._editor.onDidChangeModelContent(e => {
-			if (!ignoreModelChanges) {
-
-				// remove inline diff when the model changes
-				inlineDiffDecorations.clear();
-
-				// note when "other" edits happen
-				data.edits = true;
-
-				// CANCEL if the document has changed outside the current range
-				const wholeRange = wholeRangeDecoration.getRange(0);
-				if (!wholeRange) {
-					this._ctsSession.cancel();
-					this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
-					return;
+		for (const editor of this._notebookEditorService.listNotebookEditors()) {
+			if (isEqual(editor.textModel?.uri, candidate.notebook)) {
+				let found = false;
+				const editors: ICodeEditor[] = [];
+				for (const [, codeEditor] of editor.codeEditors) {
+					editors.push(codeEditor);
+					found = codeEditor === this._editor || found;
 				}
-				for (const change of e.changes) {
-					if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
-						this._ctsSession.cancel();
-						this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
-						data.terminalEdits = true;
-						break;
-					}
-				}
-			}
-
-		}, undefined, store);
-
-		let round = 0;
-		const roundStore = new DisposableStore();
-		store.add(roundStore);
-
-		const diffBaseModel = this._modelService.createModel(textModel.getValue(), { languageId: textModel.getLanguageId(), onDidChange: Event.None }, undefined, true);
-		store.add(diffBaseModel);
-		const diffZone = this._instaService.createInstance(InteractiveEditorDiffWidget, this._editor, diffBaseModel);
-
-		do {
-
-			round += 1;
-
-			const wholeRange = wholeRangeDecoration.getRange(0);
-			if (!wholeRange) {
-				// nuked whole file contents?
-				this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
-				break;
-			}
-
-			if (round > 1 && editMode === 'livePreview') {
-				if (!textModel.equalsTextBuffer(diffBaseModel.getTextBuffer())) {
-					diffZone.show(wholeRangeDecoration.getRange(0)!);
-				} else {
-					diffZone.hide();
-				}
-			}
-
-			// visuals: add block decoration
-			blockDecoration.set([{
-				range: wholeRange,
-				options: InteractiveEditorController._decoBlock
-			}]);
-
-			this._ctsRequest?.dispose(true);
-			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
-
-			this._historyOffset = -1;
-			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
-
-
-			this._ctxLastFeedbackKind.reset();
-
-			// reveal the line after the whole range to ensure that the input box is visible
-			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
-
-			const input = await inputPromise;
-			roundStore.clear();
-
-			if (!input) {
-				continue;
-			}
-
-			if (!InteractiveEditorController._promptHistory.includes(input)) {
-				InteractiveEditorController._promptHistory.unshift(input);
-			}
-
-			const refer = session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
-			if (refer) {
-				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
-				this._editor.setSelection(wholeRange);
-				this._instaService.invokeFunction(sendRequest, input);
-				continue;
-			}
-
-			const sw = StopWatch.create();
-			const request: IInteractiveEditorRequest = {
-				prompt: input,
-				selection: this._editor.getSelection(),
-				wholeRange
-			};
-			const task = provider.provideResponse(session, request, this._ctsRequest.token);
-			this._logService.trace('[IE] request started', provider.debugName, session, request);
-			value = input;
-
-			let reply: IInteractiveEditorResponse | null | undefined;
-			try {
-				this._zone.widget.updateProgress(true);
-				this._ctxHasActiveRequest.set(true);
-				reply = await raceCancellationError(Promise.resolve(task), this._ctsRequest.token);
-
-			} catch (e) {
-				if (!isCancellationError(e)) {
-					this._logService.error('[IE] ERROR during request', provider.debugName);
-					this._logService.error(e);
-					this._zone.widget.updateMessage(toErrorMessage(e), ['error']);
-					// statusWidget
-					continue;
-				}
-			} finally {
-				this._ctxHasActiveRequest.set(false);
-				this._ctxHasResponse.set(!!reply);
-				this._zone.widget.updateProgress(false);
-				this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
-			}
-
-			if (this._ctsRequest.token.isCancellationRequested) {
-				this._logService.trace('[IE] request CANCELED', provider.debugName);
-				continue;
-			}
-
-			if (!reply) {
-				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), ['warn']);
-				continue;
-			}
-
-
-			this._recorder.addExchange(session, request, reply);
-
-			if (reply.type === 'message') {
-				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
-				continue;
-			}
-
-			const editResponse = new EditResponse(textModel.uri, reply);
-
-			const canContinue = this._strategy.update(editResponse);
-			if (!canContinue) {
-				break;
-			}
-
-			this._ctxLastEditKind.set(editResponse.localEdits.length === 1 ? 'simple' : '');
-
-			// inline diff
-			inlineDiffDecorations.clear();
-
-			this._lastEditState = new LastEditorState(textModel, textModel.getAlternativeVersionId(), provider, session, editResponse);
-
-			// use whole range from reply
-			if (reply.wholeRange) {
-				wholeRangeDecoration.set([{
-					range: reply.wholeRange,
-					options: InteractiveEditorController._decoWholeRange
-				}]);
-			}
-
-			if (editMode === 'preview') {
-				// only preview changes
-				if (editResponse.localEdits.length > 0) {
-					this._zone.widget.showEditsPreview(textModel, editResponse.localEdits);
-				} else {
-					this._zone.widget.hideEditsPreview();
-				}
-
-			} else {
-				// make edits more minimal
-				const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, editResponse.localEdits));
-				this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, editResponse.localEdits, moreMinimalEdits);
-
-				try {
-					ignoreModelChanges = true;
-
-					const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
-						let last: Position | null = null;
-						for (const edit of undoEdits) {
-							last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
-							inlineDiffDecorations.collectEditOperation(edit);
-						}
-						return last && [Selection.fromPositions(last)];
-					};
-
-					this._editor.pushUndoStop();
-					this._editor.executeEdits(
-						'interactive-editor',
-						(moreMinimalEdits ?? editResponse.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)),
-						cursorStateComputerAndInlineDiffCollection
-					);
-					this._editor.pushUndoStop();
-
-				} finally {
-					ignoreModelChanges = false;
-				}
-
-				if (editMode === 'live') {
-					inlineDiffDecorations.update();
-				}
-
-				// line count
-				const lineSet = new Set<number>();
-				let addRemoveCount = 0;
-				for (const edit of moreMinimalEdits ?? editResponse.localEdits) {
-
-					const len2 = splitLines(edit.text).length - 1;
-
-					if (Range.isEmpty(edit.range) && len2 > 0) {
-						// insert lines
-						addRemoveCount += len2;
-					} else if (Range.isEmpty(edit.range) && edit.text.length === 0) {
-						// delete
-						addRemoveCount += edit.range.endLineNumber - edit.range.startLineNumber + 1;
-					} else {
-						// edit
-						for (let line = edit.range.startLineNumber; line <= edit.range.endLineNumber; line++) {
-							lineSet.add(line);
+				if (found) {
+					// found the this editor in the outer notebook editor -> make sure to
+					// cancel all sibling sessions
+					for (const editor of editors) {
+						if (editor !== this._editor) {
+							InteractiveEditorController.get(editor)?._finishExistingSession();
 						}
 					}
+					break;
 				}
-				const linesChanged = addRemoveCount + lineSet.size;
-
-				this._zone.widget.updateMessage(linesChanged === 1
-					? localize('lines.1', "Generated reply and changed 1 line.")
-					: localize('lines.N', "Generated reply and changed {0} lines.", linesChanged)
-				);
 			}
-
-			this._zone.widget.updateToolbar(true);
-
-			if (editResponse.singleCreateFileEdit) {
-				this._zone.widget.showCreatePreview(editResponse.singleCreateFileEdit.uri, await Promise.all(editResponse.singleCreateFileEdit.edits));
-			} else {
-				this._zone.widget.hideCreatePreview();
-			}
-
-			placeholder = reply.placeholder ?? session.placeholder ?? '';
-
-			data.rounds += round + '|';
-
-		} while (!thisSession.token.isCancellationRequested);
-
-		this._inlineDiffEnabled = inlineDiffDecorations.visible;
-		this._storageService.store(InteractiveEditorController._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
-
-		diffZone.hide();
-		diffZone.dispose();
-
-		// done, cleanup
-		wholeRangeDecoration.clear();
-		blockDecoration.clear();
-		inlineDiffDecorations.clear();
-
-		store.dispose();
-		session.dispose?.();
-
-		this._ctxLastEditKind.reset();
-		this._ctxHasResponse.reset();
-		this._ctxLastFeedbackKind.reset();
-		this._lastEditState = undefined;
-		this._lastInlineDecorations = undefined;
-
-		this._zone.hide();
-		this._editor.focus();
-
-		this._logService.trace('[IE] session DONE', provider.debugName);
-		data.endTime = new Date().toISOString();
-
-		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', data);
+		}
 	}
 
+	private async [State.WAIT_FOR_INPUT](options: InteractiveEditorRunOptions | undefined): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
+		assertType(this._activeSession);
+
+		this._zone.value.widget.placeholder = this._getPlaceholderText();
+		this._zone.value.show(this._activeSession.wholeRange.getEndPosition());
+
+		if (options?.message) {
+			this._zone.value.widget.value = options?.message;
+			this._zone.value.widget.selectAll();
+			delete options?.message;
+		}
+
+		let message = Message.NONE;
+		if (options?.autoSend) {
+			message = Message.ACCEPT_INPUT;
+			delete options?.autoSend;
+
+		} else {
+			const barrier = new Barrier();
+			const msgListener = Event.once(this._messages.event)(m => {
+				this._log('state=_waitForInput) message received', m);
+				message = m;
+				barrier.open();
+			});
+			await barrier.wait();
+			msgListener.dispose();
+		}
+
+		this._zone.value.widget.selectAll();
+
+		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {
+			return State.CANCEL;
+		}
+
+		if (message & Message.ACCEPT_SESSION) {
+			return State.ACCEPT;
+		}
+
+		if (message & Message.PAUSE_SESSION) {
+			return State.PAUSE;
+		}
+
+		if (!this._zone.value.widget.value) {
+			return State.WAIT_FOR_INPUT;
+		}
+
+		const input = this._zone.value.widget.value;
+
+		if (!InteractiveEditorController._promptHistory.includes(input)) {
+			InteractiveEditorController._promptHistory.unshift(input);
+		}
+
+		const refer = this._activeSession.session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
+		if (refer) {
+			this._log('[IE] seeing refer command, continuing outside editor', this._activeSession.provider.debugName);
+			this._editor.setSelection(this._activeSession.wholeRange);
+			this._instaService.invokeFunction(sendRequest, input);
+
+			if (!this._activeSession.lastExchange) {
+				// DONE when there wasn't any exchange yet. We used the inline chat only as trampoline
+				return State.ACCEPT;
+			}
+			return State.WAIT_FOR_INPUT;
+		}
+
+		this._activeSession.addInput(input);
+		return State.MAKE_REQUEST;
+	}
+
+	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL> {
+		assertType(this._editor.hasModel());
+		assertType(this._activeSession);
+		assertType(this._activeSession.lastInput);
+
+		const requestCts = new CancellationTokenSource();
+
+		let message = Message.NONE;
+		const msgListener = Event.once(this._messages.event)(m => {
+			this._log('state=_makeRequest) message received', m);
+			message = m;
+			requestCts.cancel();
+		});
+
+		const typeListener = this._zone.value.widget.onDidChangeInput(() => {
+			requestCts.cancel();
+		});
+
+		const sw = StopWatch.create();
+		const request: IInteractiveEditorRequest = {
+			prompt: this._activeSession.lastInput,
+			selection: this._editor.getSelection(),
+			wholeRange: this._activeSession.wholeRange,
+			attempt: 0,
+		};
+		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, requestCts.token);
+		this._log('request started', this._activeSession.provider.debugName, this._activeSession.session, request);
+
+		let response: EditResponse | MarkdownResponse | ErrorResponse | EmptyResponse;
+		let reply: IInteractiveEditorResponse | null | undefined;
+		try {
+			this._zone.value.widget.updateProgress(true);
+			this._zone.value.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
+			this._ctxHasActiveRequest.set(true);
+			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
+
+			if (reply?.type === 'message') {
+				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply);
+			} else if (reply) {
+				response = new EditResponse(this._activeSession.textModelN.uri, reply);
+			} else {
+				response = new EmptyResponse();
+			}
+
+		} catch (e) {
+			response = new ErrorResponse(e);
+
+		} finally {
+			this._ctxHasActiveRequest.set(false);
+			this._zone.value.widget.updateProgress(false);
+			this._zone.value.widget.updateInfo('');
+			this._log('request took', sw.elapsed(), this._activeSession.provider.debugName);
+
+		}
+
+		requestCts.dispose();
+		msgListener.dispose();
+		typeListener.dispose();
+
+		this._activeSession.addExchange(new SessionExchange(request.prompt, response));
+
+		if (message & Message.CANCEL_SESSION) {
+			return State.CANCEL;
+		} else if (message & Message.PAUSE_SESSION) {
+			return State.PAUSE;
+		} else {
+			return State.APPLY_RESPONSE;
+		}
+	}
+
+	private async [State.APPLY_RESPONSE](): Promise<State.SHOW_RESPONSE | State.ACCEPT> {
+		assertType(this._activeSession);
+		assertType(this._strategy);
+
+		const { response } = this._activeSession.lastExchange!;
+		if (response instanceof EditResponse) {
+			// edit response -> complex...
+			this._zone.value.widget.updateMarkdownMessage(undefined);
+
+			const canContinue = this._strategy.checkChanges(response);
+			if (!canContinue) {
+				return State.ACCEPT;
+			}
+			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(this._activeSession.textModelN.uri, response.localEdits));
+			const editOperations = (moreMinimalEdits ?? response.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+			this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, response.localEdits, moreMinimalEdits);
+
+			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(this._activeSession.textModelN.createSnapshot()), null, undefined, true);
+			textModelNplus1.applyEdits(editOperations);
+			const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000 }, 'advanced');
+			this._activeSession.lastTextModelChanges = diff?.changes ?? [];
+			textModelNplus1.dispose();
+
+			try {
+				this._ignoreModelContentChanged = true;
+				await this._strategy.makeChanges(response, editOperations);
+				this._ctxDidEdit.set(this._activeSession.hasChangedText);
+			} finally {
+				this._ignoreModelContentChanged = false;
+			}
+		}
+
+		return State.SHOW_RESPONSE;
+	}
+
+	private async [State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT | State.ACCEPT> {
+		assertType(this._activeSession);
+		assertType(this._strategy);
+
+		const { response } = this._activeSession.lastExchange!;
+
+		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
+			? response.raw.type
+			: undefined);
+
+		if (response instanceof EmptyResponse) {
+			// show status message
+			this._zone.value.widget.updateStatus(localize('empty', "No results, please refine your input and try again"), { classes: ['warn'] });
+			return State.WAIT_FOR_INPUT;
+
+		} else if (response instanceof ErrorResponse) {
+			// show error
+			if (!response.isCancellation) {
+				this._zone.value.widget.updateStatus(response.message, { classes: ['error'] });
+			}
+
+		} else if (response instanceof MarkdownResponse) {
+			// clear status, show MD message
+			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
+			this._zone.value.widget.updateStatus('');
+			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
+			this._zone.value.widget.updateToolbar(true);
+			this._zone.value.widget.updateMarkdownMessageExpansionState(this._activeSession.lastExpansionState);
+
+		} else if (response instanceof EditResponse) {
+			// edit response -> complex...
+			this._zone.value.widget.updateMarkdownMessage(undefined);
+			this._zone.value.widget.updateToolbar(true);
+
+			const canContinue = this._strategy.checkChanges(response);
+			if (!canContinue) {
+				return State.ACCEPT;
+			}
+
+			try {
+				this._ignoreModelContentChanged = true;
+				await this._strategy.renderChanges(response);
+				this._ctxDidEdit.set(this._activeSession.hasChangedText);
+			} finally {
+				this._ignoreModelContentChanged = false;
+			}
+		}
+
+		return State.WAIT_FOR_INPUT;
+	}
+
+	private async [State.PAUSE]() {
+		assertType(this._activeSession);
+
+		this._ctxDidEdit.reset();
+		this._ctxLastResponseType.reset();
+		this._ctxLastFeedbackKind.reset();
+
+		this._zone.value.hide();
+
+		// Return focus to the editor only if the current focus is within the editor widget
+		if (this._editor.hasWidgetFocus()) {
+			this._editor.focus();
+		}
+
+		this._sessionStore.clear();
+
+		this._strategy?.dispose();
+		this._strategy = undefined;
+		this._activeSession = undefined;
+	}
+
+	private async [State.ACCEPT]() {
+		assertType(this._activeSession);
+		this._interactiveEditorSessionService.releaseSession(this._activeSession);
+		this[State.PAUSE]();
+	}
+
+	private async [State.CANCEL]() {
+		assertType(this._activeSession);
+		const mySession = this._activeSession;
+
+		this[State.PAUSE]();
+
+		this._stashedSession.clear();
+		if (!mySession.isUnstashed && mySession.lastExchange) {
+			// only stash sessions that had edits
+			this._stashedSession.value = this._instaService.createInstance(StashedSession, this._editor, mySession);
+		} else {
+			this._interactiveEditorSessionService.releaseSession(mySession);
+		}
+	}
+
+	// ---- controller API
+
 	accept(): void {
-		this._zone.widget.acceptInput();
+		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
 	cancelCurrentRequest(): void {
-		this._ctsRequest?.cancel();
+		this._messages.fire(Message.CANCEL_INPUT | Message.CANCEL_REQUEST);
 	}
 
 	arrowOut(up: boolean): void {
-		if (this._zone.position && this._editor.hasModel()) {
+		if (this._zone.value.position && this._editor.hasModel()) {
 			const { column } = this._editor.getPosition();
-			const { lineNumber } = this._zone.position;
+			const { lineNumber } = this._zone.value.position;
 			const newLine = up ? lineNumber : lineNumber + 1;
 			this._editor.setPosition({ lineNumber: newLine, column });
 			this._editor.focus();
 		}
 	}
 
-	toggleInlineDiff(): void {
-		this._inlineDiffEnabled = !this._inlineDiffEnabled;
-		this._ctxInlineDiff.set(this._inlineDiffEnabled);
-		this._storageService.store(InteractiveEditorController._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
-		if (this._lastInlineDecorations) {
-			this._lastInlineDecorations.visible = this._inlineDiffEnabled;
-		}
+	toggleDiff(): void {
+		this._strategy?.toggleDiff();
 	}
 
 	focus(): void {
-		this._zone.widget.focus();
+		this._zone.value.widget.focus();
 	}
 
 	populateHistory(up: boolean) {
@@ -706,246 +657,146 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 		const pos = (len + this._historyOffset + (up ? 1 : -1)) % len;
 		const entry = InteractiveEditorController._promptHistory[pos];
-		this._zone.widget.populateInputField(entry);
+
+		this._zone.value.widget.value = entry;
+		this._zone.value.widget.selectAll();
 		this._historyOffset = pos;
 	}
 
-	recordings() {
-		return this._recorder.getAll();
+	viewInChat() {
+		if (this._activeSession?.lastExchange?.response instanceof MarkdownResponse) {
+			this._instaService.invokeFunction(showMessageResponse, this._activeSession.lastExchange.prompt, this._activeSession.lastExchange.response.raw.message.value);
+		}
 	}
 
-	undoLast(): string | void {
-		if (this._lastEditState) {
-			const { model, modelVersionId } = this._lastEditState;
-			while (model.getAlternativeVersionId() !== modelVersionId) {
-				model.undo();
-			}
-			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, InteractiveEditorResponseFeedbackKind.Undone);
-			return this._lastEditState.response.localEdits[0].text;
+	updateExpansionState(expand: boolean) {
+		if (this._activeSession) {
+			this._zone.value.widget.updateMarkdownMessageExpansionState(expand);
+			this._activeSession.lastExpansionState = expand;
 		}
 	}
 
 	feedbackLast(helpful: boolean) {
-		if (this._lastEditState) {
+		if (this._activeSession?.lastExchange?.response instanceof EditResponse || this._activeSession?.lastExchange?.response instanceof MarkdownResponse) {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
-			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, kind);
+			this._activeSession.provider.handleInteractiveEditorResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
-			this._zone.widget.updateMessage('Thank you for your feedback!', undefined, 1250);
+			this._zone.value.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
-	async applyChanges() {
-		if (!this._lastEditState) {
+	createSnapshot(): void {
+		if (this._activeSession && !this._activeSession.textModel0.equalsTextBuffer(this._activeSession.textModelN.getTextBuffer())) {
+			this._activeSession.createSnapshot();
+		}
+	}
+
+	async applyChanges(): Promise<void> {
+		if (this._strategy) {
+			const strategy = this._strategy;
+			this._strategy = undefined;
+			try {
+				await strategy?.apply();
+			} catch (err) {
+				this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
+				this._log('FAILED to apply changes');
+				this._log(err);
+			}
+			strategy?.dispose();
+			this._messages.fire(Message.ACCEPT_SESSION);
+		}
+	}
+
+	async cancelSession() {
+		if (!this._strategy || !this._activeSession) {
 			return undefined;
 		}
-		const { response } = this._lastEditState;
-		await this._strategy?.apply();
-		this._ctsSession.cancel();
-		return response;
+
+		const changedText = this._activeSession.asChangedText();
+		const strategy = this._strategy;
+		this._strategy = undefined;
+		try {
+			await strategy?.cancel();
+		} catch (err) {
+			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
+			this._log('FAILED to discard changes');
+			this._log(err);
+		}
+		strategy?.dispose();
+		this._messages.fire(Message.CANCEL_SESSION);
+		return changedText;
 	}
 
-	cancelSession() {
-		this._ctsSession.cancel();
-		this._strategy?.cancel();
+	unstashLastSession(): Session | undefined {
+		return this._stashedSession.value?.unstash();
 	}
 }
 
-abstract class EditModeStrategy {
 
-	abstract update(response: EditResponse): boolean;
+class StashedSession {
 
-	abstract apply(): Promise<void>;
-
-	abstract cancel(): void;
-}
-
-class PreviewStrategy extends EditModeStrategy {
-
-	private _lastResponse?: EditResponse;
+	private readonly _listener: IDisposable;
+	private readonly _ctxHasStashedSession: IContextKey<boolean>;
+	private _session: Session | undefined;
 
 	constructor(
-		private readonly _model: ITextModel,
-		private readonly _versionId: number,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		editor: ICodeEditor,
+		session: Session,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInteractiveEditorSessionService private readonly _sessionService: IInteractiveEditorSessionService,
+		@ILogService private readonly _logService: ILogService,
 	) {
-		super();
+		this._ctxHasStashedSession = CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION.bindTo(contextKeyService);
+
+		// keep session for a little bit, only release when user continues to work (type, move cursor, etc.)
+		this._session = session;
+		this._ctxHasStashedSession.set(true);
+		this._listener = Event.once(Event.any(editor.onDidChangeCursorSelection, editor.onDidChangeModelContent, editor.onDidChangeModel))(() => {
+			this._session = undefined;
+			this._sessionService.releaseSession(session);
+			this._ctxHasStashedSession.reset();
+		});
 	}
 
-	update(response: EditResponse): boolean {
-		this._lastResponse = response;
-		if (!response.workspaceEdits || response.singleCreateFileEdit) {
-			// preview stategy can handle simple workspace edit (single file create)
-			return true;
-		}
-		this._bulkEditService.apply(response.workspaceEdits, { showPreview: true });
-		return false;
-	}
-
-	async apply() {
-
-		const response = this._lastResponse;
-		if (!response) {
-			return;
-		}
-
-		if (response.workspaceEdits) {
-			await this._bulkEditService.apply(response.workspaceEdits);
-
-		} else if (!response.workspaceEditsIncludeLocalEdits) {
-			if (this._model.getAlternativeVersionId() === this._versionId) {
-				this._model.pushStackElement();
-				const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-				this._model.pushEditOperations(null, edits, () => null);
-				this._model.pushStackElement();
-			}
+	dispose() {
+		this._listener.dispose();
+		this._ctxHasStashedSession.reset();
+		if (this._session) {
+			this._sessionService.releaseSession(this._session);
 		}
 	}
 
-	cancel(): void {
-		// nothing to do
-	}
-}
-
-class LiveStrategy extends EditModeStrategy {
-
-	constructor(
-		protected readonly _model: ITextModel,
-		protected readonly _versionId: number,
-		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
-	) {
-		super();
-	}
-
-	update(response: EditResponse): boolean {
-		if (response.workspaceEdits) {
-			this._bulkEditService.apply(response.workspaceEdits, { showPreview: true });
-			return false;
+	unstash(): Session | undefined {
+		if (!this._session) {
+			return undefined;
 		}
-		return true;
+		this._listener.dispose();
+		const result = this._session;
+		result.markUnstashed();
+		this._session = undefined;
+		this._logService.debug('[IE] Unstashed session');
+		return result;
 	}
 
-	async apply() {
-		// nothing to do
-	}
-
-	cancel(): void {
-		while (this._model.getAlternativeVersionId() !== this._versionId) {
-			this._model.undo();
-		}
-	}
-}
-
-class LivePreviewStrategy extends LiveStrategy {
-
-	private _lastResponse?: EditResponse;
-
-	override update(response: EditResponse): boolean {
-		this._lastResponse = response;
-		if (response.singleCreateFileEdit) {
-			// preview stategy can handle simple workspace edit (single file create)
-			return true;
-		}
-		return super.update(response);
-	}
-
-	override async apply() {
-		if (this._lastResponse?.workspaceEdits) {
-			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
-		}
-	}
-}
-
-function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveCodeEditor, commands: IInteractiveEditorSlashCommand[]) {
-
-	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-
-	const store = new DisposableStore();
-	const selector: LanguageSelector = { scheme: editor.getModel().uri.scheme, pattern: editor.getModel().uri.path, language: editor.getModel().getLanguageId() };
-	store.add(languageFeaturesService.completionProvider.register(selector, new class implements CompletionItemProvider {
-
-		_debugDisplayName?: string = 'InteractiveEditorSlashCommandProvider';
-
-		readonly triggerCharacters?: string[] = ['/'];
-
-		provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext, token: CancellationToken): ProviderResult<CompletionList> {
-			if (position.lineNumber !== 1 && position.column !== 1) {
-				return undefined;
-			}
-
-			const suggestions: CompletionItem[] = commands.map(command => {
-
-				const withSlash = `/${command.command}`;
-
-				return {
-					label: { label: withSlash, description: command.detail },
-					insertText: `${withSlash} $0`,
-					insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
-					kind: CompletionItemKind.Text,
-					range: new Range(1, 1, 1, 1),
-				};
-			});
-
-			return { suggestions };
-		}
-	}));
-
-	const decorations = editor.createDecorationsCollection();
-
-	const updateSlashDecorations = () => {
-		const newDecorations: IModelDeltaDecoration[] = [];
-		for (const command of commands) {
-			const withSlash = `/${command.command}`;
-			const firstLine = editor.getModel().getLineContent(1);
-			if (firstLine.startsWith(withSlash)) {
-				newDecorations.push({
-					range: new Range(1, 1, 1, withSlash.length + 1),
-					options: {
-						description: 'interactive-editor-slash-command',
-						inlineClassName: 'interactive-editor-slash-command',
-					}
-				});
-
-				// inject detail when otherwise empty
-				if (firstLine === `/${command.command} `) {
-					newDecorations.push({
-						range: new Range(1, withSlash.length + 1, 1, withSlash.length + 2),
-						options: {
-							description: 'interactive-editor-slash-command-detail',
-							after: {
-								content: `${command.detail}`,
-								inlineClassName: 'interactive-editor-slash-command-detail'
-							}
-						}
-					});
-				}
-				break;
-			}
-		}
-		decorations.set(newDecorations);
-	};
-
-	store.add(editor.onDidChangeModelContent(updateSlashDecorations));
-	updateSlashDecorations();
-
-	return store;
 }
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
-	const interactiveSessionService = accessor.get(IInteractiveSessionService);
-	const providerId = interactiveSessionService.getProviderIds()[0];
+	const chatService = accessor.get(IChatService);
+	const providerId = chatService.getProviderInfos()[0]?.id;
 
-	const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
-	const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
+	const chatWidgetService = accessor.get(IChatWidgetService);
+	const widget = await chatWidgetService.revealViewForProvider(providerId);
 	if (widget && widget.viewModel) {
-		interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
+		chatService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
+		widget.focusLastMessage();
 	}
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {
-	const interactiveSessionService = accessor.get(IInteractiveSessionService);
-	const widgetService = accessor.get(IInteractiveSessionWidgetService);
+	const chatService = accessor.get(IChatService);
+	const widgetService = accessor.get(IChatWidgetService);
 
-	const providerId = interactiveSessionService.getProviderIds()[0];
+	const providerId = chatService.getProviderInfos()[0]?.id;
 	const widget = await widgetService.revealViewForProvider(providerId);
 	if (!widget) {
 		return;

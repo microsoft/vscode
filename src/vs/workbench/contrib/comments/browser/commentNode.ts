@@ -47,6 +47,12 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { FileAccess } from 'vs/base/common/network';
 
+class CommentsActionRunner extends ActionRunner {
+	protected override async runAction(action: IAction, context: any[]): Promise<void> {
+		await action.run(...context);
+	}
+}
+
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
@@ -155,12 +161,15 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
-			vertical: ScrollbarVisibility.Hidden
+			vertical: ScrollbarVisibility.Visible
 		}, this._scrollable));
 
 		this._register(this._scrollableElement.onScroll(e => {
 			if (e.scrollLeftChanged) {
 				body.scrollLeft = e.scrollLeft;
+			}
+			if (e.scrollTopChanged) {
+				body.scrollTop = e.scrollTop;
 			}
 		}));
 
@@ -168,9 +177,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(onDidScrollViewContainer(_ => {
 			const position = this._scrollableElement.getScrollPosition();
 			const scrollLeft = Math.abs(body.scrollLeft - position.scrollLeft) <= 1 ? undefined : body.scrollLeft;
+			const scrollTop = Math.abs(body.scrollTop - position.scrollTop) <= 1 ? undefined : body.scrollTop;
 
-			if (scrollLeft !== undefined) {
-				this._scrollableElement.setScrollPosition({ scrollLeft });
+			if (scrollLeft !== undefined || scrollTop !== undefined) {
+				this._scrollableElement.setScrollPosition({ scrollLeft, scrollTop });
 			}
 		}));
 
@@ -245,11 +255,16 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private get commentNodeContext() {
-		return {
+		return [{
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,
 			$mid: MarshalledId.CommentNode
-		};
+		},
+		{
+			commentControlHandle: this.commentThread.controllerHandle,
+			commentThreadHandle: this.commentThread.commentThreadHandle,
+			$mid: MarshalledId.CommentThread
+		}];
 	}
 
 	private createToolbar() {
@@ -274,6 +289,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 
 		this.toolbar.context = this.commentNodeContext;
+		this.toolbar.actionRunner = new CommentsActionRunner();
 
 		this.registerActionBarListeners(this._actionsToolbarContainer);
 		this._register(this.toolbar);
@@ -518,7 +534,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditor?.layout();
 		const scrollWidth = this._body.scrollWidth;
 		const width = dom.getContentWidth(this._body);
-		this._scrollableElement.setScrollDimensions({ width, scrollWidth });
+		const scrollHeight = this._body.scrollHeight;
+		const height = dom.getContentHeight(this._body) + 4;
+		this._scrollableElement.setScrollDimensions({ width, scrollWidth, height, scrollHeight });
 	}
 
 	public switchToEditMode() {
@@ -673,7 +691,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			menuId: MenuId.CommentThreadCommentContext,
 			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: this._contextKeyService,
-			actionRunner: new ActionRunner(),
+			actionRunner: new CommentsActionRunner(),
 			getActionsContext: () => {
 				return this.commentNodeContext;
 			},

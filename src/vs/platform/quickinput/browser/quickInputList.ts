@@ -195,14 +195,14 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Meta
 		if (element.saneDetail) {
+			data.detail.element.style.display = '';
 			data.detail.setLabel(element.saneDetail, undefined, {
 				matches: detailHighlights,
 				title: element.saneDetail
 			});
-		} /* else {
-			// TODO investigate potential detail bleeding into next quickpicks
-			data.detail.setLabel('');
-		} */
+		} else {
+			data.detail.element.style.display = 'none';
+		}
 
 		// Separator
 		if (element.item && element.separator && element.separator.label) {
@@ -802,6 +802,13 @@ export class QuickInputList {
 					element.descriptionHighlights = undefined;
 					element.detailHighlights = undefined;
 					element.hidden = element.item ? !element.item.alwaysShow : true;
+				}
+
+				// Ensure separators are filtered out first before deciding if we need to bring them back
+				if (element.item) {
+					element.separator = undefined;
+				} else if (element.separator) {
+					element.hidden = true;
 				}
 
 				// we can show the separator unless the list gets sorted by match

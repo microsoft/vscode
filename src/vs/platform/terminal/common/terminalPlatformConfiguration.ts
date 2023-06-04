@@ -5,7 +5,7 @@
 
 import { getAllCodicons } from 'vs/base/common/codicons';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { OperatingSystem, Platform, PlatformToString } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -92,6 +92,21 @@ const terminalAutomationProfileSchema: IJSONSchema = {
 		...terminalProfileBaseProperties
 	}
 };
+
+function createTerminalProfileMarkdownDescription(platform: Platform.Linux | Platform.Mac | Platform.Windows): string {
+	const key = platform === Platform.Linux ? 'linux' : platform === Platform.Mac ? 'osx' : 'windows';
+	return localize(
+		{
+			key: 'terminal.integrated.profile',
+			comment: ['{0} is the platform, {1} is a code block, {2} and {3} are a link start and end']
+		},
+		"A set of terminal profile customizations for {0} which allows adding, removing or changing how terminals are launched. Profiles are made up of a mandatory path, optional arguments and other presentation options.\n\nTo override an existing profile use its profile name as the key, for example:\n\n{1}\n\n{2}Read more about configuring profiles{3}.",
+		PlatformToString(platform),
+		'```json\n"terminal.integrated.profile.' + key + '": {\n  "bash": null\n}\n```',
+		'[',
+		'](https://code.visualstudio.com/docs/terminal/profiles)'
+	);
+}
 
 const shellDeprecationMessageLinux = localize('terminal.integrated.shell.linux.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.linux#`', '`#terminal.integrated.defaultProfile.linux#`');
 const shellDeprecationMessageOsx = localize('terminal.integrated.shell.osx.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.osx#`', '`#terminal.integrated.defaultProfile.osx#`');
@@ -255,13 +270,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ProfilesWindows]: {
 			restricted: true,
-			markdownDescription: localize(
-				{
-					key: 'terminal.integrated.profiles.windows',
-					comment: ['{0}, {1}, and {2} are the `source`, `path` and optional `args` settings keys']
-				},
-				"The Windows profiles to present when creating a new terminal via the terminal dropdown. Use the {0} property to automatically detect the shell's location. Or set the {1} property manually with an optional {2}.\n\nSet an existing profile to {3} to hide the profile from the list, for example: {4}.", '`source`', '`path`', '`args`', '`null`', '`"Ubuntu-20.04 (WSL)": null`'
-			),
+			markdownDescription: createTerminalProfileMarkdownDescription(Platform.Windows),
 			type: 'object',
 			default: {
 				'PowerShell': {
@@ -319,13 +328,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ProfilesMacOs]: {
 			restricted: true,
-			markdownDescription: localize(
-				{
-					key: 'terminal.integrated.profile.osx',
-					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
-				},
-				"The macOS profiles to present when creating a new terminal via the terminal dropdown. Set the {0} property manually with an optional {1}.\n\nSet an existing profile to {2} to hide the profile from the list, for example: {3}.", '`path`', '`args`', '`null`', '`"bash": null`'
-			),
+			markdownDescription: createTerminalProfileMarkdownDescription(Platform.Mac),
 			type: 'object',
 			default: {
 				'bash': {
@@ -378,13 +381,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ProfilesLinux]: {
 			restricted: true,
-			markdownDescription: localize(
-				{
-					key: 'terminal.integrated.profile.linux',
-					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
-				},
-				"The Linux profiles to present when creating a new terminal via the terminal dropdown. Set the {0} property manually with an optional {1}.\n\nSet an existing profile to {2} to hide the profile from the list, for example: {3}.", '`path`', '`args`', '`null`', '`"bash": null`'
-			),
+			markdownDescription: createTerminalProfileMarkdownDescription(Platform.Linux),
 			type: 'object',
 			default: {
 				'bash': {
