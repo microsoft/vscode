@@ -130,7 +130,6 @@ end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
 if set -q fish_prompt
-	# Preserve the user's existing prompt, to wrap in our escape sequences.
 	functions --copy fish_prompt __vsc_fish_prompt
 end
 
