@@ -21,13 +21,13 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export function registerChatTitleActions() {
-	registerAction2(class VoteUpAction extends Action2 {
+	registerAction2(class MarkHelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.voteUp',
+				id: 'workbench.action.chat.markHelpful',
 				title: {
-					value: localize('interactive.voteUp.label', "Vote Up"),
-					original: 'Vote Up'
+					value: localize('interactive.helpful.label', "Helpful"),
+					original: 'Helpful'
 				},
 				f1: false,
 				category: CHAT_CATEGORY,
@@ -61,13 +61,13 @@ export function registerChatTitleActions() {
 		}
 	});
 
-	registerAction2(class VoteDownAction extends Action2 {
+	registerAction2(class MarkUnhelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.voteDown',
+				id: 'workbench.action.chat.markUnhelpful',
 				title: {
-					value: localize('interactive.voteDown.label', "Vote Down"),
-					original: 'Vote Down'
+					value: localize('interactive.unhelpful.label', "Unhelpful"),
+					original: 'Unhelpful'
 				},
 				f1: false,
 				category: CHAT_CATEGORY,

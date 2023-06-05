@@ -339,6 +339,11 @@
   resolved "https://registry.yarnpkg.com/@esbuild/win32-x64/-/win32-x64-0.17.14.tgz#e81fb49de05fed91bf74251c9ca0343f4fc77d31"
   integrity sha512-gPQmsi2DKTaEgG14hc3CHXHp62k8g6qr0Pas+I4lUxRMugGSATh/Bi8Dgusoz9IQ0IfdrvLpco6kujEIBoaogA==
 
+"@iarna/toml@^2.2.5":
+  version "2.2.5"
+  resolved "https://registry.yarnpkg.com/@iarna/toml/-/toml-2.2.5.tgz#b32366c89b43c6f8cefbdefac778b9c828e3ba8c"
+  integrity sha512-trnsAYxU3xnS1gPHPyU961coFyLkh4gAD/0zQ5mymY4yOZ+CYvsPqUbOFSw0aDM4y0tV7tiFxL/1XfXPNC6IPg==
+
 "@malept/cross-spawn-promise@^1.1.0":
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/@malept/cross-spawn-promise/-/cross-spawn-promise-1.1.1.tgz#504af200af6b98e198bce768bc1730c6936ae01d"
@@ -500,6 +505,13 @@
     "@types/chokidar" "*"
     "@types/undertaker" "*"
     "@types/vinyl-fs" "*"
+
+"@types/iarna__toml@^2.0.2":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@types/iarna__toml/-/iarna__toml-2.0.2.tgz#2e61b079e50760b477bc70e4df1fe5b633ef6c63"
+  integrity sha512-Q3obxKhBLVVbEQ8zsAmsQVobAAZhi8dFFFjF0q5xKXiaHvH8IkSxcbM27e46M9feUMieR03SPpmp5CtaNzpdBg==
+  dependencies:
+    "@types/node" "*"
 
 "@types/js-beautify@*":
   version "1.8.0"

@@ -50,7 +50,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { assertType } from 'vs/base/common/types';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { ExpansionState } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { IdleValue } from 'vs/base/common/async';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -118,6 +120,9 @@ export interface InteractiveEditorWidgetViewState {
 	placeholder: string;
 }
 
+const MESSAGE_CROPPED_NUMBER_LINES = 3;
+const MESSAGE_EXPANDED_NUMBER_LINES = 10;
+
 export class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
@@ -179,6 +184,8 @@ export class InteractiveEditorWidget {
 
 	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
+	private _preferredExpansionState: ExpansionState | undefined;
+	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
 
 	constructor(
 		parentEditor: ICodeEditor,
@@ -240,6 +247,7 @@ export class InteractiveEditorWidget {
 			const hasFocus = this._inputEditor.hasWidgetFocus();
 			this._ctxInputEditorFocused.set(hasFocus);
 			this._elements.content.classList.toggle('synthetic-focus', hasFocus);
+			this.readPlaceholder();
 		};
 		this._store.add(this._inputEditor.onDidFocusEditorWidget(updateFocused));
 		this._store.add(this._inputEditor.onDidBlurEditorWidget(updateFocused));
@@ -265,6 +273,7 @@ export class InteractiveEditorWidget {
 			const hasText = this._inputModel.getValueLength() > 0;
 			this._elements.placeholder.classList.toggle('hidden', hasText);
 			this._ctxInputEmpty.set(!hasText);
+			this.readPlaceholder();
 
 			const contentHeight = this._inputEditor.getContentHeight();
 			if (contentHeight !== currentContentHeight && this._lastDim) {
@@ -429,6 +438,13 @@ export class InteractiveEditorWidget {
 		this._elements.placeholder.innerText = value;
 	}
 
+	readPlaceholder(): void {
+		const hasText = this._inputModel.getValueLength() > 0;
+		if (!hasText) {
+			aria.status(this._elements.placeholder.innerText);
+		}
+	}
+
 	updateToolbar(show: boolean) {
 		this._elements.statusToolbar.classList.toggle('hidden', !show);
 		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
@@ -437,21 +453,47 @@ export class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
+	get expansionState(): ExpansionState {
+		return this._expansionState;
+	}
+
+	set preferredExpansionState(expansionState: ExpansionState | undefined) {
+		this._preferredExpansionState = expansionState;
+	}
+
 	updateMarkdownMessage(message: Node | undefined) {
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
+		let expansionState: ExpansionState;
 		if (!message) {
-			this._ctxMessageCropState.reset();
 			reset(this._elements.message);
+			this._ctxMessageCropState.reset();
+			expansionState = ExpansionState.NOT_CROPPED;
 
 		} else {
-			reset(this._elements.message, message);
-			if (this._elements.message.scrollHeight > this._elements.message.clientHeight) {
-				this._ctxMessageCropState.set('cropped');
+			if (this._preferredExpansionState) {
+				reset(this._elements.message, message);
+				expansionState = this._preferredExpansionState;
+				this._preferredExpansionState = undefined;
 			} else {
-				this._ctxMessageCropState.set('not_cropped');
+				this._elements.message.style.webkitLineClamp = MESSAGE_CROPPED_NUMBER_LINES.toString();
+				reset(this._elements.message, message);
+				expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
 			}
+			this._ctxMessageCropState.set(expansionState);
+			this.updateLineClamp(expansionState);
 		}
+		this._expansionState = expansionState;
 		this._onDidChangeHeight.fire();
+	}
+
+	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
+		this._ctxMessageCropState.set(expansionState);
+		this.updateLineClamp(expansionState);
+		this._onDidChangeHeight.fire();
+	}
+
+	updateLineClamp(expansionState: ExpansionState) {
+		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? MESSAGE_EXPANDED_NUMBER_LINES.toString() : MESSAGE_CROPPED_NUMBER_LINES.toString());
 	}
 
 	updateInfo(message: string): void {
@@ -500,12 +542,6 @@ export class InteractiveEditorWidget {
 
 	focus() {
 		this._inputEditor.focus();
-	}
-
-	updateMarkdownMessageExpansionState(expand: boolean) {
-		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
-		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
-		this._onDidChangeHeight.fire();
 	}
 
 	// --- preview
