@@ -279,7 +279,7 @@ export class CSSPluginUtilities {
 
 	public static replaceURL(contents: string, replacer: (url: string) => string): string {
 		// Use ")" as the terminator as quotes are oftentimes not used at all
-		return contents.replace(/url\(\s*([^\)]+)\s*\)?/g, (_: string, ...matches: string[]) => {
+		return contents.replace(/url\(\s*([^\)]+)\s*\)?/g, (str: string, ...matches: string[]) => {
 			let url = matches[0];
 			// Eliminate starting quotes (the initial whitespace is not captured)
 			if (url.charAt(0) === '"' || url.charAt(0) === '\'') {
@@ -294,7 +294,12 @@ export class CSSPluginUtilities {
 				url = url.substring(0, url.length - 1);
 			}
 
-			if (!CSSPluginUtilities.startsWith(url, 'data:') && !CSSPluginUtilities.startsWith(url, 'http://') && !CSSPluginUtilities.startsWith(url, 'https://')) {
+			if (CSSPluginUtilities.startsWith(url, 'data:')) {
+				// Don't remove quotes for data urls, they might contain characters that would need to be escaped
+				return str;
+			}
+
+			if (!CSSPluginUtilities.startsWith(url, 'http://') && !CSSPluginUtilities.startsWith(url, 'https://')) {
 				url = replacer(url);
 			}
 
