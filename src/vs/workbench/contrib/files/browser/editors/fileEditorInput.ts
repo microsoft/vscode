@@ -24,7 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { isConfiguredByUser } from 'vs/platform/configuration/common/configuration';
+import { isConfigured } from 'vs/platform/configuration/common/configuration';
 
 const enum ForceOpenAs {
 	None,
@@ -382,7 +382,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		let configuredSizeLimit: number | undefined = undefined;
 
 		const configuredSizeLimitMb = this.textResourceConfigurationService.inspect<number>(this.resource, null, 'workbench.editorLargeFileConfirmation');
-		if (isConfiguredByUser(configuredSizeLimitMb)) {
+		if (isConfigured(configuredSizeLimitMb)) {
 			configuredSizeLimit = configuredSizeLimitMb.value * ByteSize.MB; // normalize to MB
 		}
 
