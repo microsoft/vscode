@@ -204,6 +204,11 @@ stages:
           steps:
             - bash: sudo apt update && sudo apt install -y unzip
               displayName: Install unzip
+            - task: Npm@1
+              displayName: Install yarn
+              inputs:
+                command: custom
+                customCommand: install --global yarn
             - template: ./alpine/cli-build-alpine.yml
               parameters:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
