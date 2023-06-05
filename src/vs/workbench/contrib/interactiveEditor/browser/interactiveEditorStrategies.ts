@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./interactiveEditor';
@@ -204,7 +203,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _ctxShowingDiff: IContextKey<boolean>;
-	private readonly _diffToggleListener: IDisposable;
 	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
 
@@ -225,19 +223,9 @@ export class LiveStrategy extends EditModeStrategy {
 		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
 		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
-		const modKeys = ModifierKeyEmitter.getInstance();
-		let lastIsAlt: boolean | undefined;
-		this._diffToggleListener = modKeys.event(() => {
-			const isAlt = modKeys.keyStatus.altKey && (!modKeys.keyStatus.ctrlKey && !modKeys.keyStatus.metaKey && !modKeys.keyStatus.shiftKey);
-			if (lastIsAlt !== isAlt) {
-				this.toggleDiff();
-				lastIsAlt = isAlt;
-			}
-		});
 	}
 
 	override dispose(): void {
-		this._diffToggleListener.dispose();
 		this._inlineDiffDecorations.clear();
 		this._ctxShowingDiff.reset();
 	}
