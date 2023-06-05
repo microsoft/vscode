@@ -185,7 +185,7 @@ export class InteractiveEditorWidget {
 	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
 
 	constructor(
-		parentEditor: ICodeEditor,
+		private readonly parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -205,7 +205,7 @@ export class InteractiveEditorWidget {
 			])
 		};
 
-		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, parentEditor);
+		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, this.parentEditor);
 		this._updateAriaLabel();
 		this._store.add(this._inputEditor);
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
@@ -395,8 +395,11 @@ export class InteractiveEditorWidget {
 				this._previewCreateEditor.value.layout(previewCreateDim);
 				this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
 
-				this._elements.root.style.setProperty('--vscode-interactive-editor-cropped', String(4));
-				this._elements.root.style.setProperty('--vscode-interactive-editor-expanded', String(4));
+				const lineHeight = this.parentEditor.getOption(EditorOption.lineHeight);
+				const editorHeight = this.parentEditor.getLayoutInfo().height;
+				const editorHeightInLines = Math.floor(editorHeight / lineHeight);
+				this._elements.root.style.setProperty('--vscode-interactive-editor-cropped', String(Math.floor(editorHeightInLines / 5)));
+				this._elements.root.style.setProperty('--vscode-interactive-editor-expanded', String(Math.floor(editorHeightInLines / 3)));
 			}
 		} finally {
 			this._isLayouting = false;
@@ -488,7 +491,12 @@ export class InteractiveEditorWidget {
 
 	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
 		this._ctxMessageCropState.set(expansionState);
+		const heightBefore = this._elements.markdownMessage.scrollHeight;
 		this._updateLineClamp(expansionState);
+		const heightAfter = this._elements.markdownMessage.scrollHeight;
+		if (heightBefore === heightAfter) {
+			this._ctxMessageCropState.set(ExpansionState.NOT_CROPPED);
+		}
 		this._onDidChangeHeight.fire();
 	}
 
