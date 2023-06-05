@@ -137,7 +137,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
 			const result = this._diffEditor.getDiffComputationResult();
 			const hasFocus = this._diffEditor.hasTextFocus();
-			this._updateFromChanges(this._session.wholeRange, result?.changes2 ?? []);
+			this._updateFromChanges(this._session.wholeRange.value, result?.changes2 ?? []);
 			// TODO@jrieken find a better fix for this. this is the challenge:
 			// the _doShowForChanges method invokes show of the zone widget which removes and adds the
 			// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
@@ -146,7 +146,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 				this._diffEditor.focus();
 			}
 		}));
-		this._updateFromChanges(this._session.wholeRange, this._session.lastTextModelChanges);
+		this._updateFromChanges(this._session.wholeRange.value, this._session.lastTextModelChanges);
 		this._isVisible = true;
 	}
 

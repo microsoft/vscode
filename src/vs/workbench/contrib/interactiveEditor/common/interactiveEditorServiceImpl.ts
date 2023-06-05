@@ -32,6 +32,6 @@ export class InteractiveEditorServiceImpl implements IInteractiveEditorService {
 	}
 
 	getAllProvider() {
-		return [...this._entries];
+		return [...this._entries].reverse();
 	}
 }

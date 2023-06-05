@@ -37,7 +37,7 @@ export abstract class EditModeStrategy {
 
 	abstract cancel(): Promise<void>;
 
-	abstract makeChanges(response: EditResponse, edits: ISingleEditOperation[]): Promise<void>;
+	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
@@ -106,7 +106,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async makeChanges(_response: EditResponse, _edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(_edits: ISingleEditOperation[]): Promise<void> {
 		// nothing to do
 	}
 
@@ -287,7 +287,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
+	override async makeChanges(edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -362,10 +362,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		super.dispose();
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
-		super.makeChanges(_response, edits, true);
-	}
-
 	override async renderChanges(response: EditResponse) {
 
 		this._updateSummaryMessage();
@@ -374,7 +370,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.showCreation(this._session.wholeRange, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.hide();
 		}
