@@ -230,7 +230,7 @@ export class LiveStrategy extends EditModeStrategy {
 		this._diffToggleListener = modKeys.event(() => {
 			const isAlt = modKeys.keyStatus.altKey && (!modKeys.keyStatus.ctrlKey && !modKeys.keyStatus.metaKey && !modKeys.keyStatus.shiftKey);
 			if (lastIsAlt !== isAlt) {
-				this.toggleDiff();
+				// this.toggleDiff();
 				lastIsAlt = isAlt;
 			}
 		});
