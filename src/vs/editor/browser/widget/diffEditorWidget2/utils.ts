@@ -5,7 +5,7 @@
 
 import { IDimension } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ISettableObservable, autorun, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, ISettableObservable, autorun, autorunHandleChanges, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -118,4 +118,55 @@ export class ObservableElementSizeObserver extends Disposable {
 			this.elementSizeObserver.stopObserving();
 		}
 	}
+}
+
+export function animatedObservable(base: IObservable<number, boolean>, store: DisposableStore): IObservable<number> {
+	let targetVal = base.get();
+	let startVal = targetVal;
+	let curVal = targetVal;
+	const result = observableValue('animatedValue', targetVal);
+
+	let animationStartMs: number = -1;
+	const durationMs = 300;
+	let animationFrame: number | undefined = undefined;
+
+	store.add(autorunHandleChanges('update value', {
+		createEmptyChangeSummary: () => ({ animate: false }),
+		handleChange: (ctx, s) => {
+			if (ctx.didChange(base)) {
+				s.animate = s.animate || ctx.change;
+			}
+			return true;
+		}
+	}, (reader, s) => {
+		if (animationFrame !== undefined) {
+			cancelAnimationFrame(animationFrame);
+			animationFrame = undefined;
+		}
+
+		startVal = curVal;
+		targetVal = base.read(reader);
+		animationStartMs = Date.now() - (s.animate ? 0 : durationMs);
+
+		update();
+	}));
+
+	function update() {
+		const passedMs = Date.now() - animationStartMs;
+		curVal = Math.floor(easeOutExpo(passedMs, startVal, targetVal - startVal, durationMs));
+
+		if (passedMs < durationMs) {
+			animationFrame = requestAnimationFrame(update);
+		} else {
+			curVal = targetVal;
+		}
+
+		result.set(curVal, undefined);
+	}
+
+	return result;
+}
+
+function easeOutExpo(t: number, b: number, c: number, d: number): number {
+	return t === d ? b + c : c * (-Math.pow(2, -10 * t / d) + 1) + b;
 }

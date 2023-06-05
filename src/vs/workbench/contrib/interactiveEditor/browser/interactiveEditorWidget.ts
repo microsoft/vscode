@@ -554,7 +554,7 @@ export class InteractiveEditorWidget {
 
 	// --- preview
 
-	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: LineRangeMapping[]) {
+	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: readonly LineRangeMapping[]) {
 		if (changes.length === 0) {
 			this.hideEditsPreview();
 			return;

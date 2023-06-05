@@ -1167,6 +1167,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._documentDiffProvider.computeDiff(currentOriginalModel, currentModifiedModel, {
 			ignoreTrimWhitespace: this._options.ignoreTrimWhitespace,
 			maxComputationTimeMs: this._options.maxComputationTime,
+			computeMoves: false,
 		}).then(result => {
 			if (currentToken === this._diffComputationToken
 				&& currentOriginalModel === this._originalEditor.getModel()

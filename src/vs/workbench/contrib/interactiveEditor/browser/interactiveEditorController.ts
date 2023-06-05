@@ -514,7 +514,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(this._activeSession.textModelN.createSnapshot()), null, undefined, true);
 			textModelNplus1.applyEdits(editOperations);
-			const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000 }, 'advanced');
+			const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 			this._activeSession.lastTextModelChanges = diff?.changes ?? [];
 			textModelNplus1.dispose();
 
