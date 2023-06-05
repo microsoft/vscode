@@ -712,6 +712,8 @@
 		"--vscode-editorCodeLens-fontSize",
 		"--vscode-editorCodeLens-lineHeight",
 		"--vscode-explorer-align-offset-margin-left",
+		"--vscode-interactive-editor-cropped",
+		"--vscode-interactive-editor-expanded",
 		"--vscode-interactive-session-foreground",
 		"--vscode-interactive-result-editor-background-color",
 		"--vscode-repl-font-family",

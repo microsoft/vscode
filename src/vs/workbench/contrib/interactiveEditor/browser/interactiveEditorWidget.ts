@@ -120,9 +120,6 @@ export interface InteractiveEditorWidgetViewState {
 	placeholder: string;
 }
 
-const MESSAGE_CROPPED_NUMBER_LINES = 3;
-const MESSAGE_EXPANDED_NUMBER_LINES = 10;
-
 export class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
@@ -397,6 +394,9 @@ export class InteractiveEditorWidget {
 				const previewCreateDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())));
 				this._previewCreateEditor.value.layout(previewCreateDim);
 				this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
+
+				this._elements.root.style.setProperty('--vscode-interactive-editor-cropped', String(4));
+				this._elements.root.style.setProperty('--vscode-interactive-editor-expanded', String(4));
 			}
 		} finally {
 			this._isLayouting = false;
@@ -475,12 +475,12 @@ export class InteractiveEditorWidget {
 				expansionState = this._preferredExpansionState;
 				this._preferredExpansionState = undefined;
 			} else {
-				this._elements.message.style.webkitLineClamp = MESSAGE_CROPPED_NUMBER_LINES.toString();
+				this._updateLineClamp(ExpansionState.CROPPED);
 				reset(this._elements.message, message);
 				expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
 			}
 			this._ctxMessageCropState.set(expansionState);
-			this.updateLineClamp(expansionState);
+			this._updateLineClamp(expansionState);
 		}
 		this._expansionState = expansionState;
 		this._onDidChangeHeight.fire();
@@ -488,12 +488,12 @@ export class InteractiveEditorWidget {
 
 	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
 		this._ctxMessageCropState.set(expansionState);
-		this.updateLineClamp(expansionState);
+		this._updateLineClamp(expansionState);
 		this._onDidChangeHeight.fire();
 	}
 
-	updateLineClamp(expansionState: ExpansionState) {
-		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? MESSAGE_EXPANDED_NUMBER_LINES.toString() : MESSAGE_CROPPED_NUMBER_LINES.toString());
+	private _updateLineClamp(expansionState: ExpansionState) {
+		this._elements.message.setAttribute('state', expansionState);
 	}
 
 	updateInfo(message: string): void {
