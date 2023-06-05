@@ -2526,13 +2526,7 @@ declare namespace monaco.editor {
 		 * Can be empty if the text didn't change (only moved).
 		 */
 		readonly changes: readonly LineRangeMapping[];
-		constructor(lineRangeMapping: SimpleLineRangeMapping,
-			/**
-			 * The diff from the original text to the moved text.
-			 * Must be contained in the original/modified line range.
-			 * Can be empty if the text didn't change (only moved).
-			 */
-			changes: readonly LineRangeMapping[]);
+		constructor(lineRangeMapping: SimpleLineRangeMapping, changes: readonly LineRangeMapping[]);
 	}
 
 	export class SimpleLineRangeMapping {
