@@ -59,3 +59,22 @@
 .merge-editor-conflict-actions > a:hover .codicon::before {
 	cursor: pointer;
 }
+
+.movedOriginal {
+	border: 2px solid var(--vscode-diffEditor-move-border);
+}
+
+.movedModified {
+	border: 2px solid var(--vscode-diffEditor-move-border);
+}
+
+.moved-blocks-lines {
+	position: absolute;
+	pointer-events: none;
+}
+
+.moved-blocks-lines path {
+	fill: none;
+	stroke: var(--vscode-diffEditor-move-border);
+	stroke-width: 2;
+}

@@ -65,7 +65,7 @@ export class Session {
 
 	private _lastInput: string | undefined;
 	private _lastExpansionState: ExpansionState | undefined;
-	private _lastTextModelChanges: LineRangeMapping[] | undefined;
+	private _lastTextModelChanges: readonly LineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
@@ -145,7 +145,7 @@ export class Session {
 		return this._lastTextModelChanges ?? [];
 	}
 
-	set lastTextModelChanges(changes: LineRangeMapping[]) {
+	set lastTextModelChanges(changes: readonly LineRangeMapping[]) {
 		this._lastTextModelChanges = changes;
 	}
 
