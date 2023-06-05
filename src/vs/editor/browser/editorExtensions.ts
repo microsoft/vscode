@@ -450,9 +450,13 @@ export abstract class EditorAction2 extends Action2 {
 		// precondition does hold
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
-			if (kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition))) {
-				return this.runEditorCommand(editorAccessor, editor!, ...args);
+			const logService = editorAccessor.get(ILogService);
+			const enabled = kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition));
+			if (!enabled) {
+				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
+				return;
 			}
+			return this.runEditorCommand(editorAccessor, editor!, ...args);
 		});
 	}
 

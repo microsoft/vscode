@@ -124,6 +124,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 	override hide(): void {
 		this._cleanupFullDiff();
 		this._cleanupInlineDiff();
+		this._sessionStore.clear();
 		super.hide();
 		this._isVisible = false;
 	}

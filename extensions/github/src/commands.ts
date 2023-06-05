@@ -7,11 +7,7 @@ import * as vscode from 'vscode';
 import { API as GitAPI } from './typings/git';
 import { publishRepository } from './publish';
 import { DisposableStore } from './util';
-import { LinkContext, getLink } from './links';
-
-function getVscodeDevHost(): string {
-	return `https://${vscode.env.appName.toLowerCase().includes('insiders') ? 'insiders.' : ''}vscode.dev/github`;
-}
+import { LinkContext, getLink, getVscodeDevHost } from './links';
 
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {

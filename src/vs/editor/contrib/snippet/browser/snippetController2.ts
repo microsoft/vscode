@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -66,7 +66,7 @@ export class SnippetController2 implements IEditorContribution {
 	private _modelVersionId: number = -1;
 	private _currentChoice?: Choice;
 
-	private _choiceCompletionItemProvider?: CompletionItemProvider;
+	private _choiceCompletions?: { provider: CompletionItemProvider; enable(): void; disable(): void };
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -156,7 +156,7 @@ export class SnippetController2 implements IEditorContribution {
 
 		// regster completion item provider when there is any choice element
 		if (this._session?.hasChoice) {
-			this._choiceCompletionItemProvider = {
+			const provider = {
 				provideCompletionItems: (model: ITextModel, position: Position) => {
 					if (!this._session || model !== this._editor.getModel() || !Position.equals(this._editor.getPosition(), position)) {
 						return undefined;
@@ -185,14 +185,29 @@ export class SnippetController2 implements IEditorContribution {
 				}
 			};
 
-			const registration = this._languageFeaturesService.completionProvider.register({
-				language: this._editor.getModel().getLanguageId(),
-				pattern: this._editor.getModel().uri.fsPath,
-				scheme: this._editor.getModel().uri.scheme,
-				exclusive: true
-			}, this._choiceCompletionItemProvider);
+			const model = this._editor.getModel();
+
+			let registration: IDisposable = Disposable.None;
+			let isRegistered = false;
+			const disable = () => {
+				registration.dispose();
+				isRegistered = false;
+			};
+
+			const enable = () => {
+				if (!isRegistered) {
+					registration = this._languageFeaturesService.completionProvider.register({
+						language: model.getLanguageId(),
+						pattern: model.uri.fsPath,
+						scheme: model.uri.scheme,
+						exclusive: true
+					}, provider);
+					isRegistered = true;
+				}
+			};
 
 			this._snippetListener.add(registration);
+			this._choiceCompletions = { provider, enable, disable };
 		}
 
 		this._updateState();
@@ -239,7 +254,8 @@ export class SnippetController2 implements IEditorContribution {
 		}
 
 		const { activeChoice } = this._session;
-		if (!activeChoice || !this._choiceCompletionItemProvider) {
+		if (!activeChoice || !this._choiceCompletions) {
+			this._choiceCompletions?.disable();
 			this._currentChoice = undefined;
 			return;
 		}
@@ -247,9 +263,11 @@ export class SnippetController2 implements IEditorContribution {
 		if (this._currentChoice !== activeChoice.choice) {
 			this._currentChoice = activeChoice.choice;
 
+			this._choiceCompletions.enable();
+
 			// trigger suggest with the special choice completion provider
 			queueMicrotask(() => {
-				showSimpleSuggestions(this._editor, this._choiceCompletionItemProvider!);
+				showSimpleSuggestions(this._editor, this._choiceCompletions!.provider);
 			});
 		}
 	}

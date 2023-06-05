@@ -115,9 +115,8 @@ suite('InteractiveEditorController', function () {
 		ctrl = instaService.createInstance(TestController, editor);
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
 
-		await Event.toPromise(Event.filter(ctrl.onDidChangeState, e => e === State.SHOW_RESPONSE));
+		await Event.toPromise(Event.filter(ctrl.onDidChangeState, e => e === State.WAIT_FOR_INPUT));
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
-
 		await ctrl.cancelSession();
 
 		await run;

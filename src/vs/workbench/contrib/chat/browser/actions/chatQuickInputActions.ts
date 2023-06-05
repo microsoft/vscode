@@ -35,6 +35,7 @@ class AskQuickQuestionAction extends Action2 {
 
 	private _currentSession: InteractiveQuickPickSession | undefined;
 	private _currentQuery: string | undefined;
+	private _lastAcceptedQuery: string | undefined;
 	private _currentTimer: any | undefined;
 	private _input: IQuickPick<IQuickPickItem> | undefined;
 
@@ -93,8 +94,9 @@ class AskQuickQuestionAction extends Action2 {
 		});
 		disposableStore.add(openInChat);
 		disposableStore.add(openInChat.onChange(async () => {
-			await this._currentSession?.openInChat(this._input!.value);
+			await this._currentSession?.openInChat(this._lastAcceptedQuery ?? this._input!.value);
 			this._currentQuery = undefined;
+			this._lastAcceptedQuery = undefined;
 			this._currentSession?.dispose();
 			this._currentSession = undefined;
 		}));
@@ -120,12 +122,14 @@ class AskQuickQuestionAction extends Action2 {
 			this._input = undefined;
 			this._currentTimer = setTimeout(() => {
 				this._currentQuery = undefined;
+				this._lastAcceptedQuery = undefined;
 				this._currentSession?.dispose();
 				this._currentSession = undefined;
 			}, 1000 * 30); // 30 seconds
 		}));
 		disposableStore.add(this._input.onDidAccept(async () => {
 			await this._currentSession?.accept(this._input!.value);
+			this._lastAcceptedQuery = this._input!.value;
 		}));
 
 		//#endregion
@@ -249,10 +253,13 @@ class InteractiveQuickPickSession extends Disposable {
 
 	async accept(query: string) {
 		await this._model.waitForInitialization();
+		const requests = this._model.getRequests();
+		const lastRequest = requests[requests.length - 1];
+		if (lastRequest?.message && lastRequest?.message === query) {
+			return;
+		}
 		if (this._model.requestInProgress) {
-			const requests = this._model.getRequests();
-			const lastRequest = requests[requests.length - 1];
-			this._model.cancelRequest(lastRequest);
+			this._chatService.cancelCurrentRequestForSession(this.sessionId);
 		}
 		await this._chatService.sendRequest(this.sessionId, query);
 	}

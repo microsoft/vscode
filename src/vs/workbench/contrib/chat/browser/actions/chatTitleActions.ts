@@ -9,33 +9,35 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export function registerChatTitleActions() {
-	registerAction2(class VoteUpAction extends Action2 {
+	registerAction2(class MarkHelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.voteUp',
+				id: 'workbench.action.chat.markHelpful',
 				title: {
-					value: localize('interactive.voteUp.label', "Vote Up"),
-					original: 'Vote Up'
+					value: localize('interactive.helpful.label', "Helpful"),
+					original: 'Helpful'
 				},
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('up'),
 				menu: {
-					id: MenuId.ChatTitle,
+					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
-					order: 1
+					order: 1,
+					when: CONTEXT_RESPONSE
 				}
 			});
 		}
@@ -59,22 +61,23 @@ export function registerChatTitleActions() {
 		}
 	});
 
-	registerAction2(class VoteDownAction extends Action2 {
+	registerAction2(class MarkUnhelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.voteDown',
+				id: 'workbench.action.chat.markUnhelpful',
 				title: {
-					value: localize('interactive.voteDown.label', "Vote Down"),
-					original: 'Vote Down'
+					value: localize('interactive.unhelpful.label', "Unhelpful"),
+					original: 'Unhelpful'
 				},
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('down'),
 				menu: {
-					id: MenuId.ChatTitle,
+					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
-					order: 2
+					order: 2,
+					when: CONTEXT_RESPONSE
 				}
 			});
 		}
@@ -110,10 +113,10 @@ export function registerChatTitleActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
 				menu: {
-					id: MenuId.ChatTitle,
+					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					isHiddenByDefault: true,
-					when: NOTEBOOK_IS_ACTIVE_EDITOR
+					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CONTEXT_RESPONSE)
 				}
 			});
 		}
@@ -169,6 +172,40 @@ export function registerChatTitleActions() {
 					],
 					{ quotableLabel: 'Insert into Notebook' }
 				);
+			}
+		}
+	});
+
+
+	registerAction2(class RemoveAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.remove',
+				title: {
+					value: localize('chat.remove.label', "Remove Request and Response"),
+					original: 'Remove Request and Response'
+				},
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.x,
+				menu: {
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 2,
+					when: CONTEXT_REQUEST
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			const item = args[0];
+			if (!isRequestVM(item)) {
+				return;
+			}
+
+			const chatService = accessor.get(IChatService);
+			if (item.providerRequestId) {
+				chatService.removeRequest(item.sessionId, item.providerRequestId);
 			}
 		}
 	});

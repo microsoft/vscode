@@ -869,6 +869,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 				return undefined;
 			}
+			if (!uri.path) {
+				return uri.with({ path: '/' });
+			}
 
 			return uri;
 		} catch (e) {

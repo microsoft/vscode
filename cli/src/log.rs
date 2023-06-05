@@ -26,20 +26,19 @@ pub fn next_counter() -> u32 {
 }
 
 // Log level
-#[derive(clap::ArgEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(
+	clap::ValueEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize, Default,
+)]
 pub enum Level {
 	Trace = 0,
 	Debug,
 	#[default]
- Info,
+	Info,
 	Warn,
 	Error,
 	Critical,
 	Off,
 }
-
-
 
 impl fmt::Display for Level {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -344,8 +343,7 @@ impl log::Log for RustyLogger {
 
 		// exclude noisy log modules:
 		let src = match record.module_path() {
-			Some("russh::cipher") => return,
-			Some("russh::negotiation") => return,
+			Some("russh::cipher" | "russh::negotiation" | "russh::kex::dh") => return,
 			Some(s) => s,
 			None => "<unknown>",
 		};
