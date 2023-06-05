@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -15,7 +15,7 @@ import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget 
 import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsStorageService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService, SyncResource } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsStorageService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService, SyncResource, EDIT_SESSIONS_PENDING_KEY } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
@@ -439,20 +439,22 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	private registerSignInAction() {
 		const that = this;
+		const id = 'workbench.editSessions.actions.signIn';
+		const when = ContextKeyExpr.and(ContextKeyExpr.equals(EDIT_SESSIONS_PENDING_KEY, false), ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false));
 		this._register(registerAction2(class ResetEditSessionAuthenticationAction extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.editSessions.actions.signIn',
+					id,
 					title: localize('sign in', 'Turn on Cloud Changes...'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
-					precondition: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
+					precondition: when,
 					menu: [{
 						id: MenuId.CommandPalette,
 					},
 					{
 						id: MenuId.AccountsContext,
 						group: '2_editSessions',
-						when: ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false),
+						when,
 					}]
 				});
 			}
@@ -460,6 +462,15 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 			async run() {
 				return await that.initialize(false);
 			}
+		}));
+
+		this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+			group: '2_editSessions',
+			command: {
+				id,
+				title: localize('sign in badge', 'Turn on Cloud Changes... (1)'),
+			},
+			when: ContextKeyExpr.and(ContextKeyExpr.equals(EDIT_SESSIONS_PENDING_KEY, true), ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false))
 		}));
 	}
 
