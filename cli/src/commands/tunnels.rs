@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 use async_trait::async_trait;
-use base64::{Engine as _, engine::general_purpose as b64};
 use sha2::{Digest, Sha256};
 use std::{str::FromStr, time::Duration};
 use sysinfo::Pid;
@@ -317,7 +316,7 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
 	let result = hash.finalize();
-	b64::URL_SAFE_NO_PAD.encode(result)
+	base64::encode_config(result, base64::URL_SAFE_NO_PAD)
 }
 
 async fn serve_with_csa(

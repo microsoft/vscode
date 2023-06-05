@@ -11,12 +11,11 @@ pub fn create_challenge() -> String {
 
 #[cfg(not(feature = "vsda"))]
 pub fn sign_challenge(challenge: &str) -> String {
-	use base64::{engine::general_purpose as b64, Engine as _};
 	use sha2::{Digest, Sha256};
 	let mut hash = Sha256::new();
 	hash.update(challenge.as_bytes());
 	let result = hash.finalize();
-	b64::URL_SAFE_NO_PAD.encode(result)
+	base64::encode_config(result, base64::URL_SAFE_NO_PAD)
 }
 
 #[cfg(not(feature = "vsda"))]
