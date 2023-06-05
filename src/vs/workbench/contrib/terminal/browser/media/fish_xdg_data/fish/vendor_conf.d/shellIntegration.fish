@@ -130,7 +130,7 @@ end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
 if not set -q fish_prompt
-	// use the default fish prompt
+	# use the default fish prompt
 	function fish_prompt
 		echo -n (whoami)@(prompt_hostname) (prompt_pwd) '~> '
 	end
