@@ -41,6 +41,15 @@
 	z-index: 641 !important;
 }
 
+/** Temporary fix, similar to microsoft/vscode-internalbacklog#4152 */
+.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .zone-widget.interactive-editor-widget {
+	z-index: 640 !important;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .zone-widget.interactive-editor-widget .interactive-editor .markdownMessage {
+	white-space: normal;
+}
+
 .monaco-workbench .notebookOverlay .cell-list-container {
 	position: relative;
 }

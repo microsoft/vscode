@@ -5,6 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -185,9 +186,20 @@ export function getHistoryAction(viewId: string, providerId: string) {
 			const items = chatService.getHistory();
 			const picks = items.map(i => (<IQuickPickItem & { chat: IChatDetail }>{
 				label: i.title,
-				chat: i
+				chat: i,
+				buttons: [{
+					iconClass: ThemeIcon.asClassName(Codicon.x),
+					tooltip: localize('interactiveSession.history.delete', "Delete"),
+				}]
 			}));
-			const selection = await quickInputService.pick(picks, { placeHolder: localize('interactiveSession.history.pick', "Select a chat session to restore") });
+			const selection = await quickInputService.pick(picks,
+				{
+					placeHolder: localize('interactiveSession.history.pick', "Select a chat session to restore"),
+					onDidTriggerItemButton: context => {
+						chatService.removeHistoryEntry(context.item.chat.sessionId);
+						context.removeItem();
+					}
+				});
 			if (selection) {
 				const sessionId = selection.chat.sessionId;
 				await editorService.openEditor({

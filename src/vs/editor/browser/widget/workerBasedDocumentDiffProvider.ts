@@ -6,7 +6,9 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
+import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 import { DiffAlgorithmName, IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -33,6 +35,26 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
 		if (typeof this.diffAlgorithm !== 'string') {
 			return this.diffAlgorithm.computeDiff(original, modified, options);
+		}
+
+		// This significantly speeds up the case when the original file is empty
+		if (original.getLineCount() === 1 && original.getLineMaxColumn(1) === 1) {
+			return {
+				changes: [
+					new LineRangeMapping(
+						new LineRange(1, 1),
+						new LineRange(1, modified.getLineCount()),
+						[
+							new RangeMapping(
+								original.getFullModelRange(),
+								modified.getFullModelRange(),
+							)
+						]
+					)
+				],
+				identical: false,
+				quitEarly: false,
+			};
 		}
 
 		const sw = StopWatch.create(true);

@@ -59,6 +59,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -223,6 +224,21 @@ export function registerTerminalActions() {
 		run: async (c, _, args) => {
 			const options = (isObject(args) && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
 			const instance = await c.service.createTerminal(options);
+			instance.focusWhenReady();
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.CreateTerminalEditorSameGroup,
+		title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create New Terminal in Editor Area"), original: 'Create New Terminal in Editor Area' },
+		f1: false,
+		run: async (c, accessor, args) => {
+			// Force the editor into the same editor group if it's locked. This command is only ever
+			// called when a terminal is the active editor
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const instance = await c.service.createTerminal({
+				location: { viewColumn: editorGroupsService.activeGroup.index }
+			});
 			instance.focusWhenReady();
 		}
 	});
@@ -1721,14 +1737,19 @@ async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: Cancellation
 	}
 
 	type Item = IQuickPickItem & { pair: WorkspaceFolderCwdPair };
-	const folderPicks: Item[] = shrinkedPairs.map(pair => ({
-		label: pair.folder.name,
-		description: pair.isOverridden
+	const folderPicks: Item[] = shrinkedPairs.map(pair => {
+		const label = pair.folder.name;
+		const description = pair.isOverridden
 			? localize('workbench.action.terminal.overriddenCwdDescription', "(Overriden) {0}", labelService.getUriLabel(pair.cwd, { relative: !pair.isAbsolute }))
-			: labelService.getUriLabel(dirname(pair.cwd), { relative: true }),
-		pair: pair,
-		iconClasses: getIconClasses(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER)
-	}));
+			: labelService.getUriLabel(dirname(pair.cwd), { relative: true });
+
+		return {
+			label,
+			description: description !== label ? description : undefined,
+			pair: pair,
+			iconClasses: getIconClasses(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER)
+		};
+	});
 	const options: IPickOptions<Item> = {
 		placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal"),
 		matchOnDescription: true,

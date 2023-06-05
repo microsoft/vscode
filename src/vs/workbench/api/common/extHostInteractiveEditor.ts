@@ -139,6 +139,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 			prompt: request.prompt,
 			selection: typeConvert.Selection.to(request.selection),
 			wholeRange: typeConvert.Range.to(request.wholeRange),
+			attempt: request.attempt,
 		}, token);
 
 		if (res) {

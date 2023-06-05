@@ -37,6 +37,7 @@ export interface IInteractiveEditorRequest {
 	prompt: string;
 	selection: ISelection;
 	wholeRange: IRange;
+	attempt: number;
 }
 
 export type IInteractiveEditorResponse = IInteractiveEditorEditResponse | IInteractiveEditorBulkEditResponse | IInteractiveEditorMessageResponse;
@@ -99,7 +100,6 @@ export interface IInteractiveEditorService {
 
 export const INTERACTIVE_EDITOR_ID = 'interactiveEditor';
 
-
 export const CTX_INTERACTIVE_EDITOR_HAS_PROVIDER = new RawContextKey<boolean>('interactiveEditorHasProvider', false, localize('interactiveEditorHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INTERACTIVE_EDITOR_VISIBLE = new RawContextKey<boolean>('interactiveEditorVisible', false, localize('interactiveEditorVisible', "Whether the interactive editor input is visible"));
 export const CTX_INTERACTIVE_EDITOR_FOCUSED = new RawContextKey<boolean>('interactiveEditorFocused', false, localize('interactiveEditorFocused', "Whether the interactive editor input is focused"));
@@ -109,6 +109,7 @@ export const CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST = new RawContextKey<boolea
 export const CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE = new RawContextKey<'cropped' | 'not_cropped' | 'expanded'>('interactiveEditorMarkdownMessageCropState', 'not_cropped', localize('interactiveEditorMarkdownMessageCropState', "Whether the interactive editor message is cropped, not cropped or expanded"));
 export const CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION = new RawContextKey<'above' | 'below' | ''>('interactiveEditorOuterCursorPosition', '', localize('interactiveEditorOuterCursorPosition', "Whether the cursor of the outer editor is above or below the interactive editor input"));
 export const CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('interactiveEditorHasActiveRequest', false, localize('interactiveEditorHasActiveRequest', "Whether interactive editor has an active request"));
+export const CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION = new RawContextKey<boolean>('interactiveEditorHasStashedSession', false, localize('interactiveEditorHasStashedSession', "Whether interactive editor has kept a session for quick restore"));
 export const CTX_INTERACTIVE_EDITOR_SHOWING_DIFF = new RawContextKey<boolean>('interactiveEditorDiff', false, localize('interactiveEditorDiff', "Whether interactive editor show diffs for changes"));
 export const CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE = new RawContextKey<InteractiveEditorResponseType | undefined>('interactiveEditorLastResponseType', undefined, localize('interactiveEditorResponseType', "What type was the last response of the current interactive editor session"));
 export const CTX_INTERACTIVE_EDITOR_DID_EDIT = new RawContextKey<boolean>('interactiveEditorDidEdit', false, localize('interactiveEditorDidEdit', "Whether interactive editor did change any code"));
@@ -116,11 +117,16 @@ export const CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK = new RawContextKey<'unhelpful
 export const CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED = new RawContextKey<boolean>('interactiveEditorDocumentChanged', false, localize('interactiveEditorDocumentChanged', "Whether the document has changed concurrently"));
 export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<EditMode>('config.interactiveEditor.editMode', EditMode.Live);
 
+// --- (select) action identifier
+
+export const ACTION_ACCEPT_CHANGES = 'interactive.acceptChanges';
+
 // --- menus
 
 export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidget');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE = MenuId.for('interactiveEditorWidget.markdownMessage');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_STATUS = MenuId.for('interactiveEditorWidget.status');
+export const MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK = MenuId.for('interactiveEditorWidget.feedback');
 export const MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD = MenuId.for('interactiveEditorWidget.undo');
 
 // --- colors

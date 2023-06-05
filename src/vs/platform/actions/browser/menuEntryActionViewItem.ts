@@ -155,7 +155,9 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		super.render(container);
 		container.classList.add('menu-entry');
 
-		this._updateItemClass(this._menuItemAction.item);
+		if (this.options.icon) {
+			this._updateItemClass(this._menuItemAction.item);
+		}
 
 		let mouseOver = false;
 

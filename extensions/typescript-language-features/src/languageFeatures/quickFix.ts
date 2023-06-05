@@ -28,10 +28,9 @@ type ApplyCodeActionCommand_args = {
 
 class EditorChatFollowUp implements Command {
 
-	id: string = 'needsBetterName.editorChateFollowUp';
+	id: string = '_typescript.quickFix.editorChatFollowUp';
 
 	constructor(private readonly prompt: string, private readonly document: vscode.TextDocument, private readonly range: vscode.Range, private readonly client: ITypeScriptServiceClient) {
-
 	}
 
 	async execute() {
@@ -50,7 +49,7 @@ class EditorChatFollowUp implements Command {
 		if (!filepath) {
 			return;
 		}
-		const response = await this.client.execute('navtree', { file: filepath }, (new vscode.CancellationTokenSource()).token);
+		const response = await this.client.execute('navtree', { file: filepath }, nulToken);
 		if (response.type !== 'response' || !response.body?.childItems) {
 			return;
 		}

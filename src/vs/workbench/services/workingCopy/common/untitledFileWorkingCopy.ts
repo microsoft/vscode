@@ -135,7 +135,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		this._register(workingCopyService.registerWorkingCopy(this));
 	}
 
-	//#region Dirty
+	//#region Dirty/Modified
 
 	private modified = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markModified !== false);
 

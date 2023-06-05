@@ -28,7 +28,7 @@ export interface IDocumentDiffProvider {
  */
 export interface IDocumentDiffProviderOptions {
 	/**
-	 * When set to true, the diff should ignore whitespace changes.i
+	 * When set to true, the diff should ignore whitespace changes.
 	 */
 	ignoreTrimWhitespace: boolean;
 

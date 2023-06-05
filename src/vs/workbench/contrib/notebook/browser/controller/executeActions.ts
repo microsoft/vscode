@@ -456,12 +456,12 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			const nextCell = context.notebookEditor.cellAt(idx + 1);
 			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_SELECT_BELOW);
 			if (nextCell) {
-				await context.notebookEditor.focusNotebookCell(nextCell, 'container');
+				await context.notebookEditor.focusNotebookCell(nextCell, 'container', { minimalScrolling: true });
 			} else {
 				const newCell = insertCell(languageService, context.notebookEditor, idx, CellKind.Markup, 'below');
 
 				if (newCell) {
-					await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+					await context.notebookEditor.focusNotebookCell(newCell, 'editor', { minimalScrolling: true });
 				}
 			}
 			return;
@@ -469,12 +469,12 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			// Try to select below, fall back on inserting
 			const nextCell = context.notebookEditor.cellAt(idx + 1);
 			if (nextCell) {
-				await context.notebookEditor.focusNotebookCell(nextCell, 'container');
+				await context.notebookEditor.focusNotebookCell(nextCell, 'container', { minimalScrolling: true });
 			} else {
 				const newCell = insertCell(languageService, context.notebookEditor, idx, CellKind.Code, 'below');
 
 				if (newCell) {
-					await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+					await context.notebookEditor.focusNotebookCell(newCell, 'editor', { minimalScrolling: true });
 				}
 			}
 

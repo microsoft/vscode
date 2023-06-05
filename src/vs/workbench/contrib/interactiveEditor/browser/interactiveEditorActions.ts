@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InteractiveEditorController, InteractiveEditorRunOptions } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED, CTX_INTERACTIVE_EDITOR_DID_EDIT } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_EDIT_MODE, EditMode, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { IAction2Options, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -63,6 +63,34 @@ export class StartSessionAction extends EditorAction2 {
 			options = arg;
 		}
 		InteractiveEditorController.get(editor)?.run(options);
+	}
+}
+
+export class UnstashSessionAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'interactiveEditor.unstash',
+			title: { value: localize('unstash', 'Resume Last Dismissed Code Chat'), original: 'Resume Last Dismissed Code Chat' },
+			category: AbstractInteractiveEditorAction.category,
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION, EditorContextKeys.writable),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyZ,
+			}
+		});
+	}
+
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+		const ctrl = InteractiveEditorController.get(editor);
+		if (ctrl) {
+			const session = ctrl.unstashLastSession();
+			if (session) {
+				ctrl.run({
+					existingSession: session,
+					isUnstashed: true
+				});
+			}
+		}
 	}
 }
 
@@ -194,7 +222,8 @@ export class FocusInteractiveEditor extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'interactiveEditor.focus',
-			title: localize('focus', 'Focus'),
+			title: { value: localize('focus', 'Focus Input'), original: 'Focus Input' },
+			f1: true,
 			category: AbstractInteractiveEditorAction.category,
 			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_FOCUSED.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: [{
@@ -263,7 +292,7 @@ MenuRegistry.appendMenuItem(MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, {
 });
 
 
-export class DicardAction extends AbstractInteractiveEditorAction {
+export class DiscardAction extends AbstractInteractiveEditorAction {
 
 	constructor() {
 		super({
@@ -273,10 +302,11 @@ export class DicardAction extends AbstractInteractiveEditorAction {
 			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.CtrlCmd + KeyCode.Escape
+				primary: KeyCode.Escape
 			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
+				group: '0_main',
 				order: 0
 			}
 		});
@@ -301,6 +331,7 @@ export class DiscardToClipboardAction extends AbstractInteractiveEditorAction {
 			// },
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
+				group: '0_main',
 				order: 1
 			}
 		});
@@ -324,6 +355,7 @@ export class DiscardUndoToNewFileAction extends AbstractInteractiveEditorAction 
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_DID_EDIT),
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
+				group: '0_main',
 				order: 2
 			}
 		});
@@ -348,7 +380,7 @@ export class FeebackHelpfulCommand extends AbstractInteractiveEditorAction {
 			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			toggled: CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.isEqualTo('helpful'),
 			menu: {
-				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK,
 				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
 				group: '2_feedback',
 				order: 1
@@ -370,7 +402,7 @@ export class FeebackUnhelpfulCommand extends AbstractInteractiveEditorAction {
 			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			toggled: CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.isEqualTo('unhelpful'),
 			menu: {
-				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK,
 				when: CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
 				group: '2_feedback',
 				order: 2
@@ -390,13 +422,13 @@ export class ToggleInlineDiff extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.toggleDiff',
 			title: localize('toggleDiff', 'Toggle Diff'),
 			icon: Codicon.diff,
-			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
-			toggled: CTX_INTERACTIVE_EDITOR_SHOWING_DIFF,
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_DID_EDIT),
+			toggled: { condition: CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, title: localize('toggleDiff2', "Show Inline Diff") },
 			menu: {
-				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.Preview), CTX_INTERACTIVE_EDITOR_DID_EDIT),
-				group: '0_main',
-				order: 10
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_DISCARD,
+				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.Preview),
+				group: '1_config',
+				order: 9
 			}
 		});
 	}
@@ -410,21 +442,17 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.applyEdits',
-			title: localize('applyEdits', 'Apply Changes'),
+			id: ACTION_ACCEPT_CHANGES,
+			title: localize('apply1', 'Accept Changes'),
+			shortTitle: localize('apply2', 'Accept'),
 			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, ContextKeyExpr.or(CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED.toNegated(), CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.Preview))),
 			keybinding: [{
 				weight: KeybindingWeight.EditorContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-			}, {
-				weight: KeybindingWeight.EditorContrib + 10,
-				primary: KeyCode.Escape,
-				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.notEqualsTo(EditMode.Preview)
 			}],
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo(EditMode.Preview),
 				group: '0_main',
 				order: 0
 			}

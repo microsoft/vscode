@@ -243,8 +243,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			return this.accountsMenuBadgeDisposable.clear();
 		}
 
-		const badge = new NumberBadge(1, () => localize('check for pending cloud changes', 'Check for pending cloud changes'));
-		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, priority: 1 });
+		const badge = new NumberBadge(1, () => localize('check for pending cloud changes', 'Check for pending cloud changes (1)'));
+		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 	}
 
 	private async autoStoreEditSession() {

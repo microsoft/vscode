@@ -95,17 +95,26 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	const logNormal = log.bind(null, ts.server.LogLevel.normal);
 	const logVerbose = log.bind(null, ts.server.LogLevel.verbose);
 
+	const noopWatcher: ts.FileWatcher = { close() { } };
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
 			if (looksLikeLibDtsPath(path)) { // We don't support watching lib files on web since they are readonly
-				return { close() { } };
+				return noopWatcher;
 			}
 
 			logVerbose('fs.watchFile', { path });
 
+			let uri: URI;
+			try {
+				uri = toResource(path);
+			} catch (e) {
+				console.error(e);
+				return noopWatcher;
+			}
+
 			watchFiles.set(path, { path, callback, pollingInterval, options });
 			watchId++;
-			fsWatcher.postMessage({ type: 'watchFile', uri: toResource(path), id: watchId });
+			fsWatcher.postMessage({ type: 'watchFile', uri, id: watchId });
 			return {
 				close() {
 					logVerbose('fs.watchFile.close', { path });
@@ -118,9 +127,17 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
 			logVerbose('fs.watchDirectory', { path });
 
+			let uri: URI;
+			try {
+				uri = toResource(path);
+			} catch (e) {
+				console.error(e);
+				return noopWatcher;
+			}
+
 			watchDirectories.set(path, { path, callback, recursive, options });
 			watchId++;
-			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: toResource(path), id: watchId });
+			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri, id: watchId });
 			return {
 				close() {
 					logVerbose('fs.watchDirectory.close', { path });
