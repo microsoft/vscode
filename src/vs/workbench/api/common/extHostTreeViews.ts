@@ -100,8 +100,14 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
 			get selection() { return treeView.selectedElements; },
 			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
-			get focus() { return treeView.focusedElement; },
-			get onDidChangeFocus() { return treeView.onDidChangeFocus; },
+			get activeItem() {
+				checkProposedApiEnabled(extension, 'treeViewActiveItem');
+				return treeView.focusedElement;
+			},
+			get onDidChangeActiveItem() {
+				checkProposedApiEnabled(extension, 'treeViewActiveItem');
+				return treeView.onDidChangeActiveItem;
+			},
 			get visible() { return treeView.visible; },
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
 			get onDidChangeCheckboxState() {
@@ -317,8 +323,8 @@ class ExtHostTreeView<T> extends Disposable {
 	private _onDidChangeSelection: Emitter<vscode.TreeViewSelectionChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewSelectionChangeEvent<T>>());
 	readonly onDidChangeSelection: Event<vscode.TreeViewSelectionChangeEvent<T>> = this._onDidChangeSelection.event;
 
-	private _onDidChangeFocus: Emitter<vscode.TreeViewFocusChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewFocusChangeEvent<T>>());
-	readonly onDidChangeFocus: Event<vscode.TreeViewFocusChangeEvent<T>> = this._onDidChangeFocus.event;
+	private _onDidChangeActiveItem: Emitter<vscode.TreeViewActiveItemChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewActiveItemChangeEvent<T>>());
+	readonly onDidChangeActiveItem: Event<vscode.TreeViewActiveItemChangeEvent<T>> = this._onDidChangeActiveItem.event;
 
 	private _onDidChangeVisibility: Emitter<vscode.TreeViewVisibilityChangeEvent> = this._register(new Emitter<vscode.TreeViewVisibilityChangeEvent>());
 	readonly onDidChangeVisibility: Event<vscode.TreeViewVisibilityChangeEvent> = this._onDidChangeVisibility.event;
@@ -496,7 +502,7 @@ class ExtHostTreeView<T> extends Disposable {
 	setFocus(treeItemHandle: TreeItemHandle) {
 		if (this._focusedHandle !== treeItemHandle) {
 			this._focusedHandle = treeItemHandle;
-			this._onDidChangeFocus.fire(Object.freeze({ focus: this.focusedElement }));
+			this._onDidChangeActiveItem.fire(Object.freeze({ activeItem: this.focusedElement }));
 		}
 	}
 
