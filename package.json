@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.80.0",
-  "distro": "72a01ba20044ebdf57ed5d643be558c31be7d4cb",
+  "distro": "c523cf770e3f05498d5d51a3d7d1dd2d04375276",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -100,7 +100,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@playwright/test": "1.32.3",
+    "@playwright/test": "^1.34.3",
     "@swc/cli": "0.1.57",
     "@swc/core": "1.3.32",
     "@types/cookie": "^0.3.3",

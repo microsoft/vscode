@@ -392,6 +392,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	setDimensions(cols: number, rows: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
+	clearBuffer(): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;
 	processBinary(data: string): void;

@@ -10,7 +10,7 @@ import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/workbench/
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId, EDIT_SESSIONS_PENDING } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -120,6 +120,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	private continueEditSessionOptions: ContinueEditSessionItem[] = [];
 
 	private readonly shouldShowViewsContext: IContextKey<boolean>;
+	private readonly pendingEditSessionsContext: IContextKey<boolean>;
 
 	private static APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY = 'applicationLaunchedViaContinueOn';
 	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
@@ -163,6 +164,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
+		this.pendingEditSessionsContext = EDIT_SESSIONS_PENDING.bindTo(this.contextKeyService);
+		this.pendingEditSessionsContext.set(false);
 
 		if (!this.productService['editSessions.store']?.url) {
 			return;
@@ -207,6 +210,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			const handlePendingEditSessions = () => {
 				// display a badge in the accounts menu but do not prompt the user to sign in again
 				this.updateAccountsMenuBadge();
+				this.pendingEditSessionsContext.set(true);
 				// attempt a resume if we are in a pending state and the user just signed in
 				const disposable = this.editSessionsStorageService.onDidSignIn(async () => {
 					disposable.dispose();
@@ -221,6 +225,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				// and user has not yet been prompted to sign in on this machine
 				hasApplicationLaunchedFromContinueOnFlow === false
 			) {
+				// store the fact that we prompted the user
 				this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				await this.editSessionsStorageService.initialize();
 				if (this.editSessionsStorageService.isSignedIn) {
@@ -228,7 +233,6 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				} else {
 					handlePendingEditSessions();
 				}
-				// store the fact that we prompted the user
 			} else if (!this.editSessionsStorageService.isSignedIn &&
 				// and user has been prompted to sign in on this machine
 				hasApplicationLaunchedFromContinueOnFlow === true
@@ -243,7 +247,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			return this.accountsMenuBadgeDisposable.clear();
 		}
 
-		const badge = new NumberBadge(1, () => localize('check for pending cloud changes', 'Check for pending cloud changes (1)'));
+		const badge = new NumberBadge(1, () => localize('check for pending cloud changes', 'Check for pending cloud changes'));
 		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 	}
 

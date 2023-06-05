@@ -43,7 +43,9 @@ export interface IExtensionStatusBarItemService {
 
 	onDidChange: Event<IExtensionStatusBarItemChangeEvent>;
 
-	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): IDisposable;
+	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
+
+	unsetEntry(id: string): void;
 
 	getEntries(): Iterable<ExtensionStatusBarEntry>;
 }
@@ -53,7 +55,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _entries: Map<string, { accessor: IStatusbarEntryAccessor; entry: IStatusbarEntry; alignment: MainThreadStatusBarAlignment; priority: number }> = new Map();
+	private readonly _entries: Map<string, { accessor: IStatusbarEntryAccessor; entry: IStatusbarEntry; alignment: MainThreadStatusBarAlignment; priority: number; disposable: IDisposable }> = new Map();
 
 	private readonly _onDidChange = new Emitter<IExtensionStatusBarItemChangeEvent>();
 	readonly onDidChange: Event<IExtensionStatusBarItemChangeEvent> = this._onDidChange.event;
@@ -66,7 +68,11 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 		this._onDidChange.dispose();
 	}
 
-	setOrUpdateEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): IDisposable {
+	setOrUpdateEntry(entryId: string,
+		id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined,
+		command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined,
+		alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined
+	): void {
 		// if there are icons in the text use the tooltip for the aria label
 		let ariaLabel: string;
 		let role: string | undefined = undefined;
@@ -109,11 +115,17 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 				entryPriority = priority;
 			}
 
+			const accessor = this._statusbarService.addEntry(entry, id, alignment, entryPriority);
 			this._entries.set(entryId, {
-				accessor: this._statusbarService.addEntry(entry, id, alignment, entryPriority),
+				accessor,
 				entry,
 				alignment,
-				priority
+				priority,
+				disposable: toDisposable(() => {
+					accessor.dispose();
+					this._entries.delete(entryId);
+					this._onDidChange.fire({ removed: entryId });
+				})
 			});
 
 			this._onDidChange.fire({ added: [entryId, { entry, alignment, priority }] });
@@ -123,15 +135,10 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 			existingEntry.accessor.update(entry);
 			existingEntry.entry = entry;
 		}
+	}
 
-		return toDisposable(() => {
-			const entry = this._entries.get(entryId);
-			if (entry) {
-				entry.accessor.dispose();
-				this._entries.delete(entryId);
-				this._onDidChange.fire({ removed: entryId });
-			}
-		});
+	unsetEntry(entryId: string): void {
+		this._entries.get(entryId)?.disposable.dispose();
 	}
 
 	getEntries(): Iterable<[string, { entry: IStatusbarEntry; alignment: MainThreadStatusBarAlignment; priority: number }]> {
@@ -236,7 +243,7 @@ export class StatusBarItemsExtensionPoint {
 
 					const fullItemId = asStatusBarItemIdentifier(entry.description.identifier, candidate.id);
 
-					contributions.add(statusBarItemsService.setOrUpdateEntry(
+					statusBarItemsService.setOrUpdateEntry(
 						fullItemId,
 						fullItemId,
 						ExtensionIdentifier.toKey(entry.description.identifier),
@@ -248,7 +255,9 @@ export class StatusBarItemsExtensionPoint {
 						candidate.alignment === 'left',
 						candidate.priority,
 						undefined
-					));
+					);
+
+					contributions.add(toDisposable(() => statusBarItemsService.unsetEntry(fullItemId)));
 				}
 			}
 		});

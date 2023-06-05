@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./interactiveEditor';
@@ -37,7 +36,7 @@ export abstract class EditModeStrategy {
 
 	abstract cancel(): Promise<void>;
 
-	abstract makeChanges(response: EditResponse, edits: ISingleEditOperation[]): Promise<void>;
+	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
@@ -106,7 +105,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async makeChanges(_response: EditResponse, _edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(_edits: ISingleEditOperation[]): Promise<void> {
 		// nothing to do
 	}
 
@@ -204,7 +203,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _ctxShowingDiff: IContextKey<boolean>;
-	private readonly _diffToggleListener: IDisposable;
 	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
 
@@ -225,19 +223,9 @@ export class LiveStrategy extends EditModeStrategy {
 		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
 		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
-		const modKeys = ModifierKeyEmitter.getInstance();
-		let lastIsAlt: boolean | undefined;
-		this._diffToggleListener = modKeys.event(() => {
-			const isAlt = modKeys.keyStatus.altKey && (!modKeys.keyStatus.ctrlKey && !modKeys.keyStatus.metaKey && !modKeys.keyStatus.shiftKey);
-			if (lastIsAlt !== isAlt) {
-				this.toggleDiff();
-				lastIsAlt = isAlt;
-			}
-		});
 	}
 
 	override dispose(): void {
-		this._diffToggleListener.dispose();
 		this._inlineDiffDecorations.clear();
 		this._ctxShowingDiff.reset();
 	}
@@ -287,7 +275,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
+	override async makeChanges(edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -362,10 +350,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		super.dispose();
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
-		super.makeChanges(_response, edits, true);
-	}
-
 	override async renderChanges(response: EditResponse) {
 
 		this._updateSummaryMessage();
@@ -374,7 +358,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.showCreation(this._session.wholeRange, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.hide();
 		}

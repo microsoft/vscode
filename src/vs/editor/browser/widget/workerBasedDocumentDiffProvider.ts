@@ -54,6 +54,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 				],
 				identical: false,
 				quitEarly: false,
+				moves: [],
 			};
 		}
 

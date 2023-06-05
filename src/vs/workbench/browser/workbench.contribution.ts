@@ -350,11 +350,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.commandPalette.experimental.suggestCommands': {
 				'type': 'boolean',
+				tags: ['experimental'],
 				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
 				'default': false
 			},
 			'workbench.commandPalette.experimental.useSemanticSimilarity': {
 				'type': 'boolean',
+				tags: ['experimental'],
 				'description': localize('useSemanticSimilarity', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Semantic Similarity."),
 				'default': false
 			},

@@ -76,7 +76,8 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 			diffCodeLens: false,
 			stickyScroll: { enabled: false },
 			minimap: { enabled: false },
-			isInEmbeddedEditor: true
+			isInEmbeddedEditor: true,
+			overflowWidgetsDomNode: editor.getOverflowWidgetsDomNode()
 		}, {
 			originalEditor: { contributions: diffContributions },
 			modifiedEditor: { contributions: diffContributions }
@@ -136,7 +137,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
 			const result = this._diffEditor.getDiffComputationResult();
 			const hasFocus = this._diffEditor.hasTextFocus();
-			this._updateFromChanges(this._session.wholeRange, result?.changes2 ?? []);
+			this._updateFromChanges(this._session.wholeRange.value, result?.changes2 ?? []);
 			// TODO@jrieken find a better fix for this. this is the challenge:
 			// the _doShowForChanges method invokes show of the zone widget which removes and adds the
 			// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
@@ -145,11 +146,11 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 				this._diffEditor.focus();
 			}
 		}));
-		this._updateFromChanges(this._session.wholeRange, this._session.lastTextModelChanges);
+		this._updateFromChanges(this._session.wholeRange.value, this._session.lastTextModelChanges);
 		this._isVisible = true;
 	}
 
-	private _updateFromChanges(range: Range, changes: LineRangeMapping[]): void {
+	private _updateFromChanges(range: Range, changes: readonly LineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
 
 		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
@@ -173,7 +174,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 	// --- inline diff
 
-	private _renderChangesWithInlineDiff(changes: LineRangeMapping[]) {
+	private _renderChangesWithInlineDiff(changes: readonly LineRangeMapping[]) {
 		const original = this._session.textModel0;
 
 		const decorations: IModelDeltaDecoration[] = [];
@@ -220,7 +221,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 	// --- full diff
 
-	private _renderChangesWithFullDiff(changes: LineRangeMapping[], range: Range) {
+	private _renderChangesWithFullDiff(changes: readonly LineRangeMapping[], range: Range) {
 
 		const modified = this.editor.getModel()!;
 		const ranges = this._computeHiddenRanges(modified, range, changes);
@@ -249,7 +250,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 		super.hide();
 	}
 
-	private _computeHiddenRanges(model: ITextModel, range: Range, changes: LineRangeMapping[]) {
+	private _computeHiddenRanges(model: ITextModel, range: Range, changes: readonly LineRangeMapping[]) {
 		assertType(changes.length > 0);
 
 		let originalLineRange = changes[0].originalRange;

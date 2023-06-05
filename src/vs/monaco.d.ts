@@ -2390,6 +2390,10 @@ declare namespace monaco.editor {
 		 * A diff computation should throw if it takes longer than this value.
 		 */
 		maxComputationTimeMs: number;
+		/**
+		 * If set, the diff computation should compute moves in addition to insertions and deletions.
+		 */
+		computeMoves: boolean;
 	}
 
 	/**
@@ -2407,7 +2411,12 @@ declare namespace monaco.editor {
 		/**
 		 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
 		 */
-		readonly changes: LineRangeMapping[];
+		readonly changes: readonly LineRangeMapping[];
+		/**
+		 * Sorted by original line ranges.
+		 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
+		 */
+		readonly moves: readonly MovedText[];
 	}
 
 	/**
@@ -2415,6 +2424,7 @@ declare namespace monaco.editor {
 	 */
 	export class LineRange {
 		static fromRange(range: Range): LineRange;
+		static subtract(a: LineRange, b: LineRange | undefined): LineRange[];
 		/**
 		 * @param lineRanges An array of sorted line ranges.
 		 */
@@ -2471,7 +2481,7 @@ declare namespace monaco.editor {
 	 * Maps a line range in the original text model to a line range in the modified text model.
 	 */
 	export class LineRangeMapping {
-		static inverse(mapping: LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[];
+		static inverse(mapping: readonly LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[];
 		/**
 		 * The line range in the original text model.
 		 */
@@ -2505,6 +2515,24 @@ declare namespace monaco.editor {
 		 */
 		readonly modifiedRange: Range;
 		constructor(originalRange: Range, modifiedRange: Range);
+		toString(): string;
+	}
+
+	export class MovedText {
+		readonly lineRangeMapping: SimpleLineRangeMapping;
+		/**
+		 * The diff from the original text to the moved text.
+		 * Must be contained in the original/modified line range.
+		 * Can be empty if the text didn't change (only moved).
+		 */
+		readonly changes: readonly LineRangeMapping[];
+		constructor(lineRangeMapping: SimpleLineRangeMapping, changes: readonly LineRangeMapping[]);
+	}
+
+	export class SimpleLineRangeMapping {
+		readonly originalRange: LineRange;
+		readonly modifiedRange: LineRange;
+		constructor(originalRange: LineRange, modifiedRange: LineRange);
 		toString(): string;
 	}
 	export interface IDimension {
@@ -3911,6 +3939,10 @@ declare namespace monaco.editor {
 			 * Defaults to false.
 			 */
 			collapseUnchangedRegions?: boolean;
+			/**
+			 * Defaults to false.
+			 */
+			showMoves?: boolean;
 		};
 	}
 

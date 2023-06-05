@@ -27,7 +27,7 @@ export class OverviewRulerPart extends Disposable {
 		private readonly _originalEditor: CodeEditorWidget,
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _rootElement: HTMLElement,
-		private readonly _diffModel: IObservable<DiffModel | null>,
+		private readonly _diffModel: IObservable<DiffModel | undefined>,
 		private readonly _rootWidth: IObservable<number>,
 		private readonly _rootHeight: IObservable<number>,
 		private readonly _modifiedEditorLayoutInfo: IObservable<EditorLayoutInfo | null>,
@@ -92,7 +92,7 @@ export class OverviewRulerPart extends Disposable {
 
 				store.add(autorun('set overview ruler zones', (reader) => {
 					const colors = currentColors.read(reader);
-					const diff = m?.diff.read(reader)?.changes;
+					const diff = m?.diff.read(reader)?.mappings;
 
 					function createZones(ranges: LineRange[], color: Color) {
 						return ranges
@@ -100,8 +100,8 @@ export class OverviewRulerPart extends Disposable {
 							.map(r => new OverviewRulerZone(r.startLineNumber, r.endLineNumberExclusive, r.length, color.toString()));
 					}
 
-					originalOverviewRuler?.setZones(createZones((diff || []).map(d => d.originalRange), colors.removeColor));
-					modifiedOverviewRuler?.setZones(createZones((diff || []).map(d => d.modifiedRange), colors.insertColor));
+					originalOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.originalRange), colors.removeColor));
+					modifiedOverviewRuler?.setZones(createZones((diff || []).map(d => d.lineRangeMapping.modifiedRange), colors.insertColor));
 				}));
 
 				store.add(autorun('layout overview ruler', (reader) => {
