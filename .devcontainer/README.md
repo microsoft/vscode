@@ -52,4 +52,4 @@ Enjoy!
 
 # Notes
 
-The container comes with VS Code Insiders installed. To run it from an Integrated Terminal use `VSCODE_IPC_HOOK_CLI= /usr/bin/code-insiders .`.
+The container comes with VS Code Insiders installed. To run it from an Integrated Terminal use `env -i HOME="$HOME" DISPLAY="$DISPLAY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" $SHELL -lic code-insiders`.
