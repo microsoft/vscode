@@ -23,6 +23,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { mock } from 'vs/base/test/common/mock';
 import { Emitter, Event } from 'vs/base/common/event';
+import { equals } from 'vs/base/common/arrays';
 
 suite('InteractiveEditorController', function () {
 
@@ -32,6 +33,25 @@ suite('InteractiveEditorController', function () {
 		readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
 
 		readonly states: readonly State[] = [];
+
+		waitFor(states: State[]): Promise<void> {
+			const actual: State[] = [];
+
+			return new Promise<void>((resolve, reject) => {
+				const d = this.onDidChangeState(state => {
+					actual.push(state);
+					if (equals(states, actual)) {
+						d.dispose();
+						resolve();
+					}
+				});
+
+				setTimeout(() => {
+					d.dispose();
+					reject(`timeout, \nWANTED ${states.join('>')}, \nGOT ${actual.join('>')}`);
+				}, 1000);
+			});
+		}
 
 		protected override _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {
 			this._onDidChangeState.fire(state);
@@ -181,5 +201,20 @@ suite('InteractiveEditorController', function () {
 
 		ctrl.cancelSession();
 		d.dispose();
+	});
+
+	test('typing outside of wholeRange finishes session', async function () {
+		ctrl = instaService.createInstance(TestController, editor);
+		ctrl.run({ message: 'Hello', autoSend: true });
+
+		await ctrl.waitFor([State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+
+		const session = interactiveEditorSessionService.getSession(editor, editor.getModel()!.uri);
+		assert.deepStrictEqual(session?.wholeRange, new Range(1, 1, 1, 11));
+
+		editor.setSelection(new Range(2, 1, 2, 1));
+		editor.trigger('test', 'type', { text: 'a' });
+
+		await ctrl.waitFor([State.ACCEPT]);
 	});
 });
