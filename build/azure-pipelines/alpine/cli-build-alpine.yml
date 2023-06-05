@@ -16,11 +16,13 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
 
-    - task: Npm@1
-      displayName: Install yarn
-      inputs:
-        command: custom
-        customCommand: install --global yarn
+    # Install yarn as the ARM64 build agent is using vanilla Ubuntu
+    - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+      - task: Npm@1
+        displayName: Install yarn
+        inputs:
+          command: custom
+          customCommand: install --global yarn
 
     - script: |
         set -e
