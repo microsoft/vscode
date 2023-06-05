@@ -99,7 +99,7 @@ export interface IConfigurationValue<T> {
 	readonly overrideIdentifiers?: string[];
 }
 
-export function isConfiguredByUser<T>(configValue: IConfigurationValue<T>): configValue is IConfigurationValue<T> & { value: T } {
+export function isConfigured<T>(configValue: IConfigurationValue<T>): configValue is IConfigurationValue<T> & { value: T } {
 	return configValue.applicationValue !== undefined ||
 		configValue.userValue !== undefined ||
 		configValue.userLocalValue !== undefined ||
