@@ -51,6 +51,7 @@ suite('InteractiveEditorController', function () {
 	let ctrl: TestController;
 	// let contextKeys: MockContextKeyService;
 	let interactiveEditorService: InteractiveEditorServiceImpl;
+	let interactiveEditorSessionService: IInteractiveEditorSessionService;
 	let instaService: TestInstantiationService;
 
 	setup(function () {
@@ -74,6 +75,7 @@ suite('InteractiveEditorController', function () {
 		);
 
 		instaService = workbenchInstantiationService(undefined, store).createChild(serviceCollection);
+		interactiveEditorSessionService = instaService.get(IInteractiveEditorSessionService);
 
 		model = instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null);
 		editor = instantiateTestCodeEditor(instaService, model);
@@ -122,5 +124,62 @@ suite('InteractiveEditorController', function () {
 		await run;
 
 		assert.ok(ctrl.getWidgetPosition() === undefined);
+	});
+
+	test('wholeRange expands to whole lines, editor selection default', async function () {
+
+		editor.setSelection(new Range(1, 1, 1, 3));
+		ctrl = instaService.createInstance(TestController, editor);
+
+		const d = interactiveEditorService.addProvider({
+			debugName: 'Unit Test',
+			prepareInteractiveEditorSession() {
+				return {
+					id: Math.random()
+				};
+			},
+			provideResponse(session, request) {
+				throw new Error();
+			}
+		});
+
+		ctrl.run({});
+		await Event.toPromise(Event.filter(ctrl.onDidChangeState, e => e === State.WAIT_FOR_INPUT));
+
+		const session = interactiveEditorSessionService.getSession(editor, editor.getModel()!.uri);
+
+		assert.deepStrictEqual(session?.wholeRange, new Range(1, 1, 1, 6));
+
+		ctrl.cancelSession();
+		d.dispose();
+	});
+
+	test('wholeRange expands to whole lines, session provided', async function () {
+
+		editor.setSelection(new Range(1, 1, 1, 1));
+		ctrl = instaService.createInstance(TestController, editor);
+
+		const d = interactiveEditorService.addProvider({
+			debugName: 'Unit Test',
+			prepareInteractiveEditorSession() {
+				return {
+					id: Math.random(),
+					wholeRange: new Range(1, 1, 1, 3)
+				};
+			},
+			provideResponse(session, request) {
+				throw new Error();
+			}
+		});
+
+		ctrl.run({});
+		await Event.toPromise(Event.filter(ctrl.onDidChangeState, e => e === State.WAIT_FOR_INPUT));
+
+		const session = interactiveEditorSessionService.getSession(editor, editor.getModel()!.uri);
+
+		assert.deepStrictEqual(session?.wholeRange, new Range(1, 1, 1, 6));
+
+		ctrl.cancelSession();
+		d.dispose();
 	});
 });

@@ -371,9 +371,9 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 		if (!wholeRange) {
 			wholeRange = raw.wholeRange ? Range.lift(raw.wholeRange) : editor.getSelection();
 		}
-		if (Range.isEmpty(wholeRange)) {
-			wholeRange = new Range(wholeRange.startLineNumber, 1, wholeRange.endLineNumber, textModel.getLineMaxColumn(wholeRange.endLineNumber));
-		}
+
+		// expand to whole lines
+		wholeRange = new Range(wholeRange.startLineNumber, 1, wholeRange.endLineNumber, textModel.getLineMaxColumn(wholeRange.endLineNumber));
 
 		// install a marker for the decoration range
 		const [wholeRangeDecorationId] = textModel.deltaDecorations([], [{ range: wholeRange, options: { description: 'interactiveEditor/session/wholeRange' } }]);
