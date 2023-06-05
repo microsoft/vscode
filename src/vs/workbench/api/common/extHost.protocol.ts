@@ -364,7 +364,7 @@ export interface IDocumentFilterDto {
 
 export interface IShareableItemDto {
 	resourceUri: UriComponents;
-	range?: IRange;
+	selection?: IRange;
 }
 
 export interface ISignatureHelpProviderMetadataDto {
@@ -2032,7 +2032,7 @@ export interface ExtHostQuickDiffShape {
 }
 
 export interface ExtHostShareShape {
-	$provideShare(handle: number, shareableItem: IShareableItemDto, token: CancellationToken): Promise<UriComponents | undefined>;
+	$provideShare(handle: number, shareableItem: IShareableItemDto, token: CancellationToken): Promise<UriComponents | string | undefined>;
 }
 
 export interface ExtHostTaskShape {

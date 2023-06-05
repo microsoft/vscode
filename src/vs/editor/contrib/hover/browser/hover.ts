@@ -46,6 +46,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _hoverClicked: boolean;
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
+	private _hoverActivatedByColorDecoratorClick: boolean = false;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -175,7 +176,15 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (!this._isHoverEnabled) {
+		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
+		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
+
+		if ((mouseOnDecorator && (
+			(decoratorActivatedOn === 'click' && !this._hoverActivatedByColorDecoratorClick) ||
+			(decoratorActivatedOn === 'hover' && !this._isHoverEnabled) ||
+			(decoratorActivatedOn === 'clickAndHover' && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick)))
+			|| !mouseOnDecorator && !this._isHoverEnabled && !this._hoverActivatedByColorDecoratorClick
+		) {
 			this._hideWidgets();
 			return;
 		}
@@ -219,7 +228,7 @@ export class ModesHoverController implements IEditorContribution {
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
-
+		this._hoverActivatedByColorDecoratorClick = false;
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
@@ -236,7 +245,8 @@ export class ModesHoverController implements IEditorContribution {
 		return this._contentWidget?.isColorPickerVisible() || false;
 	}
 
-	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
+	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean, activatedByColorDecoratorClick: boolean = false): void {
+		this._hoverActivatedByColorDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 

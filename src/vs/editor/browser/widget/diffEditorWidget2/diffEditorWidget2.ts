@@ -281,6 +281,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			// never wrap hidden editor
 			result.wordWrapOverride1 = 'off';
 			result.wordWrapOverride2 = 'off';
+			result.stickyScroll = { enabled: false };
 		} else {
 			result.wordWrapOverride1 = this._options.get().diffWordWrap;
 		}

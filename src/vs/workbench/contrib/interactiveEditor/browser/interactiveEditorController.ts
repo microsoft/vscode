@@ -29,7 +29,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorStrategies';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
 import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
@@ -271,6 +271,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.show(this._activeSession.wholeRange.getEndPosition());
+		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -556,7 +557,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.value.widget.updateStatus('');
 			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.value.widget.updateToolbar(true);
-			this._zone.value.widget.updateMarkdownMessageExpansionState(this._activeSession.lastExpansionState);
+			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;
 
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
@@ -671,8 +672,9 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	updateExpansionState(expand: boolean) {
 		if (this._activeSession) {
-			this._zone.value.widget.updateMarkdownMessageExpansionState(expand);
-			this._activeSession.lastExpansionState = expand;
+			const expansionState = expand ? ExpansionState.EXPANDED : ExpansionState.CROPPED;
+			this._zone.value.widget.updateMarkdownMessageExpansionState(expansionState);
+			this._activeSession.lastExpansionState = expansionState;
 		}
 	}
 

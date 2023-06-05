@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/5e7dd90d2af9817b0dfb614b21c79a3e81882d9f",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/2918bd69cfcc658bd5b4ec1b106bb008e5c21120",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -57,10 +57,10 @@
 		"script-top-level": {
 			"patterns": [
 				{
-					"include": "#method-declaration"
+					"include": "#statement"
 				},
 				{
-					"include": "#statement"
+					"include": "#method-declaration"
 				},
 				{
 					"include": "#punctuation-semicolon"
@@ -91,10 +91,10 @@
 					"include": "#interface-declaration"
 				},
 				{
-					"include": "#record-declaration"
+					"include": "#struct-declaration"
 				},
 				{
-					"include": "#struct-declaration"
+					"include": "#record-declaration"
 				},
 				{
 					"include": "#attribute-section"
@@ -421,7 +421,7 @@
 					]
 				},
 				{
-					"begin": "\\b(using)\\s*",
+					"begin": "\\b(using)\\s*(?!\\(|\\s|var)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.other.using.cs"
@@ -577,26 +577,32 @@
 			"match": "(?<!\\.)\\b(new|public|protected|internal|private|abstract|virtual|override|sealed|static|partial|readonly|volatile|const|extern|async|unsafe|ref|required)\\b"
 		},
 		"class-declaration": {
-			"begin": "(?=\\bclass\\b)",
-			"end": "(?<=\\})",
+			"begin": "(?=(\\brecord\\b\\s+)?\\bclass\\b)",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
-					"begin": "(?x)\n\\b(class)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*",
+					"begin": "(?x)\n(\\b(record)\\b\\s+)?\n\\b(class)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.record.cs"
+						},
+						"3": {
 							"name": "keyword.other.class.cs"
 						},
-						"2": {
+						"4": {
 							"name": "entity.name.type.class.cs"
 						}
 					},
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
 						},
 						{
 							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#parenthesized-parameter-list"
 						},
 						{
 							"include": "#base-types"
@@ -820,7 +826,7 @@
 		},
 		"record-declaration": {
 			"begin": "(?=\\brecord\\b)",
-			"end": "(?<=\\})",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
 					"begin": "(?x)\n(record)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
@@ -829,16 +835,19 @@
 							"name": "keyword.other.record.cs"
 						},
 						"2": {
-							"name": "entity.name.type.record.cs"
+							"name": "entity.name.type.class.cs"
 						}
 					},
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
 						},
 						{
 							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#parenthesized-parameter-list"
 						},
 						{
 							"include": "#base-types"
@@ -876,26 +885,32 @@
 			]
 		},
 		"struct-declaration": {
-			"begin": "(?=\\bstruct\\b)",
-			"end": "(?<=\\})",
+			"begin": "(?=(\\brecord\\b\\s+)?\\bstruct\\b)",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
-					"begin": "(?x)\n(struct)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
+					"begin": "(?x)\n(\\b(record)\\b\\s+)?\n(struct)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.record.cs"
+						},
+						"3": {
 							"name": "keyword.other.struct.cs"
 						},
-						"2": {
+						"4": {
 							"name": "entity.name.type.struct.cs"
 						}
 					},
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
 						},
 						{
 							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#parenthesized-parameter-list"
 						},
 						{
 							"include": "#base-types"
@@ -980,7 +995,7 @@
 					"name": "punctuation.separator.colon.cs"
 				}
 			},
-			"end": "(?=\\{|where)",
+			"end": "(?=\\{|where|;)",
 			"patterns": [
 				{
 					"include": "#type"
@@ -3006,7 +3021,7 @@
 			"match": "(?<!\\.)\\bnull\\b"
 		},
 		"numeric-literal": {
-			"match": "(?<!\\w)\\.?\\d(?:(?:[0-9a-zA-Z_\\.]|_)|(?<=[eE])[+-])*",
+			"match": "(?<!\\w)\\.?\\d(?:(?:[0-9a-zA-Z_]|_)|(?<=[eE])[+-]|\\.\\d)*",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -3152,7 +3167,7 @@
 									}
 								},
 								{
-									"match": "(?:(?:[0-9a-zA-Z_\\.]|_)|(?<=[eE])[+-])+",
+									"match": "(?:(?:[0-9a-zA-Z_]|_)|(?<=[eE])[+-]|\\.\\d)+",
 									"name": "invalid.illegal.constant.numeric.cs"
 								}
 							]

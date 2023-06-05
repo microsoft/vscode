@@ -55,10 +55,16 @@ type TelemetryDataClassification = {
 	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
 };
 
+export enum ExpansionState {
+	EXPANDED = 'expanded',
+	CROPPED = 'cropped',
+	NOT_CROPPED = 'not_cropped'
+}
+
 export class Session {
 
 	private _lastInput: string | undefined;
-	private _lastExpansionState: boolean | undefined;
+	private _lastExpansionState: ExpansionState | undefined;
 	private _lastTextModelChanges: LineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
@@ -104,11 +110,11 @@ export class Session {
 		return this._lastInput;
 	}
 
-	get lastExpansionState() {
-		return this._lastExpansionState ?? false;
+	get lastExpansionState(): ExpansionState | undefined {
+		return this._lastExpansionState;
 	}
 
-	set lastExpansionState(state: boolean) {
+	set lastExpansionState(state: ExpansionState) {
 		this._lastExpansionState = state;
 	}
 
