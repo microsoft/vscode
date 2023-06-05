@@ -66,16 +66,16 @@ export async function findPreferredPM(pkgPath: string): Promise<{ name: string; 
 		detectedPackageManagerProperties.push(npmPreferred);
 	}
 
-	const yarnPreferred = await isYarnPreferred(pkgPath);
-	if (yarnPreferred.isPreferred) {
-		detectedPackageManagerNames.push('yarn');
-		detectedPackageManagerProperties.push(yarnPreferred);
-	}
-
 	const pnpmPreferred = await isPNPMPreferred(pkgPath);
 	if (pnpmPreferred.isPreferred) {
 		detectedPackageManagerNames.push('pnpm');
 		detectedPackageManagerProperties.push(pnpmPreferred);
+	}
+
+	const yarnPreferred = await isYarnPreferred(pkgPath);
+	if (yarnPreferred.isPreferred) {
+		detectedPackageManagerNames.push('yarn');
+		detectedPackageManagerProperties.push(yarnPreferred);
 	}
 
 	const pmUsedForInstallation: { name: string } | null = await whichPM(pkgPath);

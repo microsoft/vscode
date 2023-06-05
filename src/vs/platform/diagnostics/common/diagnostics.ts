@@ -52,6 +52,10 @@ export interface SystemInfo extends IMachineInfo {
 
 export interface IRemoteDiagnosticInfo extends IDiagnosticInfo {
 	hostName: string;
+	latency?: {
+		current: number;
+		average: number;
+	};
 }
 
 export interface IRemoteDiagnosticError {
@@ -124,16 +128,23 @@ export class NullDiagnosticsService implements IDiagnosticsService {
 }
 
 export interface IWindowDiagnostics {
+	readonly id: number;
 	readonly pid: number;
 	readonly title: string;
 	readonly folderURIs: UriComponents[];
 	readonly remoteAuthority?: string;
 }
 
+export interface IProcessDiagnostics {
+	readonly pid: number;
+	readonly name: string;
+}
+
 export interface IMainProcessDiagnostics {
 	readonly mainPID: number;
 	readonly mainArguments: string[]; // All arguments after argv[0], the exec path
 	readonly windows: IWindowDiagnostics[];
+	readonly pidToNames: IProcessDiagnostics[];
 	readonly screenReader: boolean;
 	readonly gpuFeatureStatus: any;
 }

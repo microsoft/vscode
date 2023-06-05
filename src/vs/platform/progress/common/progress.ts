@@ -8,6 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { NotificationPriority } from 'vs/platform/notification/common/notification';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -63,7 +64,7 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly primaryActions?: readonly IAction[];
 	readonly secondaryActions?: readonly IAction[];
 	readonly delay?: number;
-	readonly silent?: boolean;
+	readonly priority?: NotificationPriority;
 	readonly type?: 'syncing' | 'loading';
 }
 

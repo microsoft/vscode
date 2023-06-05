@@ -49,7 +49,7 @@ struct AuthenticationError {
 	error_description: Option<String>,
 }
 
-#[derive(clap::ArgEnum, Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(clap::ValueEnum, Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum AuthProvider {
 	Microsoft,
 	Github,
@@ -183,6 +183,9 @@ where
 	T: Serialize + ?Sized,
 {
 	let dec = serde_json::to_string(value).expect("expected to serialize");
+	if std::env::var("VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT").is_ok() {
+		return dec;
+	}
 	encrypt(&dec)
 }
 
@@ -191,7 +194,7 @@ fn unseal<T>(value: &str) -> Option<T>
 where
 	T: DeserializeOwned,
 {
-	// small back-compat for old unencrypted values
+	// small back-compat for old unencrypted values, or if VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT set
 	if let Ok(v) = serde_json::from_str::<T>(value) {
 		return Some(v);
 	}
@@ -219,7 +222,7 @@ macro_rules! get_next_entry {
 		match $self.entries.get($i) {
 			Some(e) => e,
 			None => {
-				let e = keyring::Entry::new("vscode-cli", &format!("vscode-cli-{}", $i));
+				let e = keyring::Entry::new("vscode-cli", &format!("vscode-cli-{}", $i)).unwrap();
 				$self.entries.push(e);
 				$self.entries.last().unwrap()
 			}

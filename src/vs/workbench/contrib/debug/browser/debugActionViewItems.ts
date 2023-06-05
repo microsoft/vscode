@@ -75,6 +75,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
 		this.start.title = this.action.label + keybindingLabel;
 		this.start.setAttribute('role', 'button');
+		this.start.ariaLabel = this.start.title;
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
 			this.start.blur();
@@ -253,7 +254,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	}
 }
 
-export class FocusSessionActionViewItem extends SelectActionViewItem {
+export class FocusSessionActionViewItem extends SelectActionViewItem<IDebugSession> {
 	constructor(
 		action: IAction,
 		session: IDebugSession | undefined,
@@ -286,7 +287,7 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		this.update(selectedSession);
 	}
 
-	protected override getActionContext(_: string, index: number): any {
+	protected override getActionContext(_: string, index: number): IDebugSession {
 		return this.getSessions()[index];
 	}
 

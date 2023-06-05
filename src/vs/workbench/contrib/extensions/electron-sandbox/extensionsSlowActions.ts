@@ -15,7 +15,7 @@ import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { joinPath } from 'vs/base/common/resources';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Utils } from 'vs/platform/profiling/common/profiling';
 import { IFileService } from 'vs/platform/files/common/files';

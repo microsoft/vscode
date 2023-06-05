@@ -2,13 +2,13 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"lib": [
-			"dom"
-		]
+		"lib": ["dom"]
 	},
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.documentPaste.d.ts"
+		"../../src/vscode-dts/vscode.proposed.documentPaste.d.ts",
+		"../../src/vscode-dts/vscode.proposed.dropMetadata.d.ts"
+
 	]
 }

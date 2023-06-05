@@ -4,33 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isStatusbarEntryLocation, IStatusbarEntryLocation, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { isStatusbarEntryLocation, IStatusbarEntryPriority, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { hide, show, isAncestor } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter } from 'vs/base/common/event';
-
-export interface IStatusbarEntryPriority {
-
-	/**
-	 * The main priority of the entry that
-	 * defines the order of appearance:
-	 * either a number or a reference to
-	 * another status bar entry to position
-	 * relative to.
-	 *
-	 * May not be unique across all entries.
-	 */
-	readonly primary: number | IStatusbarEntryLocation;
-
-	/**
-	 * The secondary priority of the entry
-	 * is used in case the main priority
-	 * matches another one's priority.
-	 *
-	 * Should be unique across all entries.
-	 */
-	readonly secondary: number;
-}
 
 export interface IStatusbarViewModelEntry {
 	readonly id: string;

@@ -13,6 +13,9 @@ export const enum Testing {
 	ExplorerViewId = 'workbench.view.testing',
 	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
 	DecorationsContributionId = 'editor.contrib.testingDecorations',
+
+	ResultsPanelId = 'workbench.panel.testResults',
+	ResultsViewId = 'workbench.panel.testResults.view',
 }
 
 export const enum TestExplorerViewMode {
@@ -53,6 +56,7 @@ export const enum TestCommandId {
 	ClearTestResultsAction = 'testing.clearTestResults',
 	CollapseAllAction = 'testing.collapseAll',
 	ConfigureTestProfilesAction = 'testing.configureProfile',
+	ContinousRunUsingForTest = 'testing.continuousRunUsingForTest',
 	DebugAction = 'testing.debug',
 	DebugAllAction = 'testing.debugAll',
 	DebugAtCursor = 'testing.debugAtCursor',
@@ -61,6 +65,8 @@ export const enum TestCommandId {
 	DebugLastRun = 'testing.debugLastRun',
 	DebugSelectedAction = 'testing.debugSelected',
 	FilterAction = 'workbench.actions.treeView.testExplorer.filter',
+	GetExplorerSelection = '_testing.getExplorerSelection',
+	GetSelectedProfiles = 'testing.getSelectedProfiles',
 	GoToTest = 'testing.editFocusedTest',
 	HideTestAction = 'testing.hideTest',
 	OpenOutputPeek = 'testing.openOutputPeek',
@@ -83,6 +89,7 @@ export const enum TestCommandId {
 	TestingSortByStatusAction = 'testing.sortByStatus',
 	TestingViewAsListAction = 'testing.viewAsList',
 	TestingViewAsTreeAction = 'testing.viewAsTree',
+	ToggleContinousRunForTest = 'testing.toggleContinuousRunForTest',
 	ToggleInlineTestOutput = 'testing.toggleInlineTestOutput',
 	UnhideAllTestsAction = 'testing.unhideAllTests',
 	UnhideTestAction = 'testing.unhideTest',

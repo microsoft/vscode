@@ -21,9 +21,9 @@ This extension provides basic preview for images, audio and video files.
 
 - `.mp3`
 - `.wav`
-- `.ogg`
+- `.ogg`, `.oga`
 
 ### Supported video formats
 
-- `.mp4` (does not support `aac` audio track)
+- `.mp4` (does not support `aac` audio tracks)
 - `.webm` (vp8 only)

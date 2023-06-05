@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import { SelectTypeScriptVersionCommand } from '../commands/selectTypeScriptVersion';
+import { jsTsLanguageModes } from '../configuration/languageIds';
 import { TypeScriptVersion } from '../tsServer/versionProvider';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
-import { jsTsLanguageModes } from '../utils/languageIds';
 
 
 export class VersionStatus extends Disposable {

@@ -114,7 +114,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 		// IMPORTANT: Only allow the default profile name to find non-auto detected profiles as
 		// to avoid unsafe path profiles being picked up.
-		return this.availableProfiles.find(e => e.profileName === this._defaultProfileName && !e.isAutoDetected);
+		return this.availableProfiles.find(e => e.profileName === defaultProfileName && !e.isAutoDetected);
 	}
 
 	private _getOsKey(os: OperatingSystem): string {

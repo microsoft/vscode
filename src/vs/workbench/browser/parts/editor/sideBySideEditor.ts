@@ -203,7 +203,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		// Splitview widget
 		this.splitview = this.splitviewDisposables.add(new SplitView(parent, { orientation: this.orientation }));
 		this.splitviewDisposables.add(this.splitview.onDidSashReset(() => this.splitview?.distributeViewSizes()));
-		this.splitview.orthogonalEndSash = this._boundarySashes?.bottom;
+
+		if (this.orientation === Orientation.HORIZONTAL) {
+			this.splitview.orthogonalEndSash = this._boundarySashes?.bottom;
+		} else {
+			this.splitview.orthogonalStartSash = this._boundarySashes?.left;
+			this.splitview.orthogonalEndSash = this._boundarySashes?.right;
+		}
 
 		// Figure out sizing
 		let leftSizing: number | Sizing = Sizing.Distribute;

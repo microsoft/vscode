@@ -10,7 +10,7 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
+import { FindReplaceState, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -37,11 +37,12 @@ interface IFindOptions {
 	appendCaseSensitiveLabel?: string;
 	appendRegexLabel?: string;
 	appendWholeWordsLabel?: string;
+	matchesLimit?: number;
 	type?: 'Terminal' | 'Webview';
 }
 
 const SIMPLE_FIND_WIDGET_INITIAL_WIDTH = 310;
-const MATCHES_COUNT_WIDTH = 68;
+const MATCHES_COUNT_WIDTH = 73;
 
 export abstract class SimpleFindWidget extends Widget {
 	private readonly _findInput: FindInput;
@@ -52,20 +53,24 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly _updateHistoryDelayer: Delayer<void>;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
+	private readonly _matchesLimit: number;
 	private _matchesCount: HTMLElement | undefined;
 
 	private _isVisible: boolean = false;
 	private _foundMatch: boolean = false;
 	private _width: number = 0;
 
+	readonly state: FindReplaceState = new FindReplaceState();
+
 	constructor(
-		state: FindReplaceState = new FindReplaceState(),
 		options: IFindOptions,
 		contextViewService: IContextViewService,
 		contextKeyService: IContextKeyService,
 		private readonly _keybindingService: IKeybindingService
 	) {
 		super();
+
+		this._matchesLimit = options.matchesLimit ?? Number.MAX_SAFE_INTEGER;
 
 		this._findInput = this._register(new ContextScopedFindInput(null, contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
@@ -106,22 +111,22 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		}));
 
-		this._findInput.setRegex(!!state.isRegex);
-		this._findInput.setCaseSensitive(!!state.matchCase);
-		this._findInput.setWholeWords(!!state.wholeWord);
+		this._findInput.setRegex(!!this.state.isRegex);
+		this._findInput.setCaseSensitive(!!this.state.matchCase);
+		this._findInput.setWholeWords(!!this.state.wholeWord);
 
 		this._register(this._findInput.onDidOptionChange(() => {
-			state.change({
+			this.state.change({
 				isRegex: this._findInput.getRegex(),
 				wholeWord: this._findInput.getWholeWords(),
 				matchCase: this._findInput.getCaseSensitive()
 			}, true);
 		}));
 
-		this._register(state.onFindReplaceStateChange(() => {
-			this._findInput.setRegex(state.isRegex);
-			this._findInput.setWholeWords(state.wholeWord);
-			this._findInput.setCaseSensitive(state.matchCase);
+		this._register(this.state.onFindReplaceStateChange(() => {
+			this._findInput.setRegex(this.state.isRegex);
+			this._findInput.setWholeWords(this.state.wholeWord);
+			this._findInput.setCaseSensitive(this.state.matchCase);
 			this.findFirst();
 		}));
 
@@ -186,14 +191,12 @@ export abstract class SimpleFindWidget extends Widget {
 			this._matchesCount = document.createElement('div');
 			this._matchesCount.className = 'matchesCount';
 			this._findInput.domNode.insertAdjacentElement('afterend', this._matchesCount);
-			this._register(this._findInput.onDidChange(() => {
-				this.updateResultCount();
-				this.updateButtons(this._foundMatch);
+			this._register(this._findInput.onDidChange(async () => {
+				await this.updateResultCount();
 			}));
 			this._register(this._findInput.onDidOptionChange(async () => {
 				this._foundMatch = this._onInputChanged();
 				await this.updateResultCount();
-				this.updateButtons(this._foundMatch);
 				this.focusFindBox();
 				this._delayedUpdateHistory();
 			}));
@@ -252,7 +255,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
-		this.updateButtons(this._foundMatch);
+		this.updateResultCount();
 		this.layout();
 
 		setTimeout(() => {
@@ -349,24 +352,36 @@ export abstract class SimpleFindWidget extends Widget {
 
 	async updateResultCount(): Promise<void> {
 		if (!this._matchesCount) {
+			this.updateButtons(this._foundMatch);
 			return;
 		}
 
 		const count = await this._getResultCount();
 		this._matchesCount.innerText = '';
+		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0);
+		this._matchesCount.classList.toggle('no-results', showRedOutline);
 		let label = '';
-		this._matchesCount.classList.toggle('no-results', false);
-		if (count?.resultCount !== undefined && count?.resultCount === 0) {
-			label = NLS_NO_RESULTS;
-			if (!!this.inputValue) {
-				this._matchesCount.classList.toggle('no-results', true);
+		if (count?.resultCount) {
+			let matchesCount: string = String(count.resultCount);
+			if (count.resultCount >= this._matchesLimit) {
+				matchesCount += '+';
 			}
-		} else if (count?.resultCount) {
-			label = strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
+			let matchesPosition: string = String(count.resultIndex + 1);
+			if (matchesPosition === '0') {
+				matchesPosition = '?';
+			}
+			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+		} else {
+			label = NLS_NO_RESULTS;
 		}
 		alertFn(this._announceSearchResults(label, this.inputValue));
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._foundMatch = !!count && count.resultCount > 0;
+		this.updateButtons(this._foundMatch);
+	}
+
+	changeState(state: INewFindReplaceState) {
+		this.state.change(state, false);
 	}
 
 	private _announceSearchResults(label: string, searchString?: string): string {

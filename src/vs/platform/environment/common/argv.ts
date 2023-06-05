@@ -67,6 +67,8 @@ export interface NativeParsedArgs {
 	'inspect-brk-search'?: string;
 	'inspect-ptyhost'?: string;
 	'inspect-brk-ptyhost'?: string;
+	'inspect-sharedprocess'?: string;
+	'inspect-brk-sharedprocess'?: string;
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string[]; // undefined or array of 1 or more
 	'list-extensions'?: boolean;
@@ -91,7 +93,6 @@ export interface NativeParsedArgs {
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;
 	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'enable-smoke-test-driver'?: boolean;
@@ -121,6 +122,7 @@ export interface NativeParsedArgs {
 	'inspect-brk'?: string;
 	'js-flags'?: string;
 	'disable-gpu'?: boolean;
+	'disable-gpu-sandbox'?: boolean;
 	'nolazy'?: boolean;
 	'force-device-scale-factor'?: string;
 	'force-renderer-accessibility'?: boolean;

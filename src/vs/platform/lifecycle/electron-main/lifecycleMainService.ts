@@ -14,7 +14,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -65,7 +65,7 @@ export interface ShutdownEvent {
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 */
-	join(promise: Promise<void>): void;
+	join(id: string, promise: Promise<void>): void;
 }
 
 export interface ILifecycleMainService {
@@ -226,7 +226,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) {
 		super();
@@ -236,11 +236,11 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	private resolveRestarted(): void {
-		this._wasRestarted = !!this.stateMainService.getItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
+		this._wasRestarted = !!this.stateService.getItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
 
 		if (this._wasRestarted) {
 			// remove the marker right after if found
-			this.stateMainService.removeItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
+			this.stateService.removeItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
 		}
 	}
 
@@ -286,7 +286,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		// will-quit: an event that is fired after all windows have been
 		// closed, but before actually quitting.
 		app.once('will-quit', e => {
-			this.trace('Lifecycle#app.on(will-quit)');
+			this.trace('Lifecycle#app.on(will-quit) - begin');
 
 			// Prevent the quit until the shutdown promise was resolved
 			e.preventDefault();
@@ -296,6 +296,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 			// Wait until shutdown is signaled to be complete
 			shutdownPromise.finally(() => {
+				this.trace('Lifecycle#app.on(will-quit) - after fireOnWillShutdown');
 
 				// Resolve pending quit promise now without veto
 				this.resolvePendingQuitPromise(false /* no veto */);
@@ -303,8 +304,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				// Quit again, this time do not prevent this, since our
 				// will-quit listener is only installed "once". Also
 				// remove any listener we have that is no longer needed
+
 				app.removeListener('before-quit', beforeQuitListener);
 				app.removeListener('window-all-closed', windowAllClosedListener);
+
+				this.trace('Lifecycle#app.on(will-quit) - calling app.quit()');
+
 				app.quit();
 			});
 		});
@@ -315,14 +320,18 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			return this.pendingWillShutdownPromise; // shutdown is already running
 		}
 
+		const logService = this.logService;
 		this.trace('Lifecycle#onWillShutdown.fire()');
 
 		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
 			reason,
-			join(promise) {
-				joiners.push(promise);
+			join(id, promise) {
+				logService.trace(`Lifecycle#onWillShutdown - begin '${id}'`);
+				joiners.push(promise.finally(() => {
+					logService.trace(`Lifecycle#onWillShutdown - end '${id}'`);
+				}));
 			}
 		});
 
@@ -338,7 +347,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// Then, always make sure at the end
 			// the state service is flushed.
 			try {
-				await this.stateMainService.close();
+				await this.stateService.close();
 			} catch (error) {
 				this.logService.error(error);
 			}
@@ -554,7 +563,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Remember if we are about to restart
 		if (willRestart) {
-			this.stateMainService.setItem(LifecycleMainService.QUIT_AND_RESTART_KEY, true);
+			this.stateService.setItem(LifecycleMainService.QUIT_AND_RESTART_KEY, true);
 		}
 
 		this.pendingQuitPromise = new Promise(resolve => {

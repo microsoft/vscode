@@ -7,7 +7,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IdleValue } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeyCodeChord } from 'vs/base/common/keybindings';
@@ -246,14 +246,9 @@ export class SuggestController implements IEditorContribution {
 
 			let noFocus = false;
 			if (e.triggerOptions.auto) {
-				// don't "focus" item when configured to do so or when in snippet mode (and configured to do so)
+				// don't "focus" item when configured to do
 				const options = this.editor.getOption(EditorOption.suggest);
-
-				if (options.snippetsPreventQuickSuggestions && SnippetController2.get(this.editor)?.isInSnippet()) {
-					// SPECIAL: in snippet mode, we never focus unless the user wants to
-					noFocus = true;
-
-				} else if (options.selectionMode === 'never' || options.selectionMode === 'always') {
+				if (options.selectionMode === 'never' || options.selectionMode === 'always') {
 					// simple: always or never
 					noFocus = options.selectionMode === 'never';
 
@@ -339,6 +334,10 @@ export class SuggestController implements IEditorContribution {
 
 
 		if (Array.isArray(item.completion.additionalTextEdits)) {
+
+			// cancel -> stops all listening and closes widget
+			this.model.cancel();
+
 			// sync additional edits
 			const scrollState = StableEditorScrollState.capture(this.editor);
 			this.editor.executeEdits(
@@ -432,7 +431,13 @@ export class SuggestController implements IEditorContribution {
 				this.model.trigger({ auto: true, retrigger: true });
 			} else {
 				// exec command, done
-				tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(onUnexpectedError));
+				tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(e => {
+					if (item.completion.extensionId) {
+						onUnexpectedExternalError(e);
+					} else {
+						onUnexpectedError(e);
+					}
+				}));
 			}
 		}
 
@@ -845,7 +850,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectNextSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectNextSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -858,7 +863,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectNextPageSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectNextPageSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -870,13 +875,13 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectLastSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectLastSuggestion()
 }));
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectPrevSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -889,7 +894,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevPageSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectPrevPageSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -901,13 +906,13 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectFirstSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectFirstSuggestion()
 }));
 
 registerEditorCommand(new SuggestCommand({
 	id: 'focusSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion.negate(), ContextKeyExpr.equals('config.editor.suggest.selectQuickSuggestions', false)),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion.negate()),
 	handler: x => x.focusSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -916,6 +921,15 @@ registerEditorCommand(new SuggestCommand({
 		secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KeyI] }
 	},
+}));
+
+registerEditorCommand(new SuggestCommand({
+	id: 'focusAndAcceptSuggestion',
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion.negate()),
+	handler: c => {
+		c.focusSuggestion();
+		c.acceptSelectedSuggestion(true, false);
+	}
 }));
 
 registerEditorCommand(new SuggestCommand({

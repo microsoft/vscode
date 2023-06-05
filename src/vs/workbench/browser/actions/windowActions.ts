@@ -22,7 +22,7 @@ import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from '
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
-import { splitName } from 'vs/base/common/labels';
+import { splitRecentLabel } from 'vs/base/common/labels';
 import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
@@ -43,8 +43,6 @@ interface IRecentlyOpenedPick extends IQuickPickItem {
 	openable: IWindowOpenable;
 	remoteAuthority: string | undefined;
 }
-
-const fileCategory = { value: localize('file', "File"), original: 'File' };
 
 abstract class BaseOpenRecentAction extends Action2 {
 
@@ -216,7 +214,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			fullLabel = recent.label || labelService.getUriLabel(resource);
 		}
 
-		const { name, parentPath } = splitName(fullLabel);
+		const { name, parentPath } = splitRecentLabel(fullLabel);
 
 		return {
 			iconClasses,
@@ -243,7 +241,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
 				original: 'Open Recent...'
 			},
-			category: fileCategory,
+			category: Categories.File,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -269,7 +267,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 		super({
 			id: 'workbench.action.quickOpenRecent',
 			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
-			category: fileCategory,
+			category: Categories.File,
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}

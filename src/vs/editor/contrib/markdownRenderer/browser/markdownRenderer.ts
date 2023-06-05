@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./renderedMarkdown';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -17,13 +19,13 @@ import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IMarkdownRenderResult extends IDisposable {
-	element: HTMLElement;
+	readonly element: HTMLElement;
 }
 
 export interface IMarkdownRendererOptions {
-	editor?: ICodeEditor;
-	codeBlockFontFamily?: string;
-	codeBlockFontSize?: string;
+	readonly editor?: ICodeEditor;
+	readonly codeBlockFontFamily?: string;
+	readonly codeBlockFontSize?: string;
 }
 
 /**
@@ -32,7 +34,7 @@ export interface IMarkdownRendererOptions {
  */
 export class MarkdownRenderer {
 
-	private static _ttpTokenizer = window.trustedTypes?.createPolicy('tokenizeToString', {
+	private static _ttpTokenizer = createTrustedTypesPolicy('tokenizeToString', {
 		createHTML(html: string) {
 			return html;
 		}
@@ -59,6 +61,7 @@ export class MarkdownRenderer {
 
 		const disposables = new DisposableStore();
 		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, markedOptions));
+		rendered.element.classList.add('rendered-markdown');
 		return {
 			element: rendered.element,
 			dispose: () => disposables.dispose()

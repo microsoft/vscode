@@ -7,11 +7,11 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
@@ -59,7 +59,6 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILayoutService protected readonly layoutService: ILayoutService
 	) {
 		super(themeService);
@@ -70,9 +69,15 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			idPrefix: 'quickInput_',
 			container: host.container,
 			ignoreFocusOut: () => false,
-			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
 			backKeybindingLabel: () => undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
+			linkOpenerDelegate: (content) => {
+				// HACK: https://github.com/microsoft/vscode/issues/173691
+				this.instantiationService.invokeFunction(accessor => {
+					const openerService = accessor.get(IOpenerService);
+					openerService.open(content, { allowCommands: true, fromUserGesture: true });
+				});
+			},
 			returnFocus: () => host.focus(),
 			createList: <T>(
 				user: string,
@@ -81,6 +86,12 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				renderers: IListRenderer<T, any>[],
 				options: IWorkbenchListOptions<T>
 			) => this.instantiationService.createInstance(WorkbenchList, user, container, delegate, renderers, options) as List<T>,
+			hoverDelegate: {
+				showHover(options, focus) {
+					return undefined;
+				},
+				delay: 200
+			},
 			styles: this.computeStyles()
 		};
 

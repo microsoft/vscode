@@ -733,7 +733,7 @@ declare module 'vscode' {
 		 */
 		OpenOpen = 0,
 		/**
-		 * The decoration's range will not widen when edits occur at the start of end.
+		 * The decoration's range will not widen when edits occur at the start or end.
 		 */
 		ClosedClosed = 1,
 		/**
@@ -2483,19 +2483,32 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The code action interface defines the contract between extensions and
-	 * the [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+	 * Provides contextual actions for code. Code actions typically either fix problems or beautify/refactor code.
 	 *
-	 * A code action can be any command that is {@link commands.getCommands known} to the system.
+	 * Code actions are surfaced to users in a few different ways:
+	 *
+	 * - The [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature, which shows
+	 *   a list of code actions at the current cursor position. The lightbulb's list of actions includes both quick fixes
+	 *   and refactorings.
+	 * - As commands that users can run, such as `Refactor`. Users can run these from the command palette or with keybindings.
+	 * - As source actions, such `Organize Imports`.
+	 * - {@link CodeActionKind.QuickFix Quick fixes} are shown in the problems view.
+	 * - Change applied on save by the `editor.codeActionsOnSave` setting.
 	 */
 	export interface CodeActionProvider<T extends CodeAction = CodeAction> {
 		/**
-		 * Provide commands for the given document and range.
+		 * Get code actions for a given range in a document.
+		 *
+		 * Only return code actions that are relevant to user for the requested range. Also keep in mind how the
+		 * returned code actions will appear in the UI. The lightbulb widget and `Refactor` commands for instance show
+		 * returned code actions as a list, so do not return a large number of code actions that will overwhelm the user.
 		 *
 		 * @param document The document in which the command was invoked.
-		 * @param range The selector or range for which the command was invoked. This will always be a selection if
-		 * there is a currently active editor.
-		 * @param context Context carrying additional information.
+		 * @param range The selector or range for which the command was invoked. This will always be a
+		 * {@link Selection selection} if the actions are being requested in the currently active editor.
+		 * @param context Provides additional information about what code actions are being requested. You can use this
+		 * to see what specific type of code actions are being requested by the editor in order to return more relevant
+		 * actions and avoid returning irrelevant code actions that the editor will discard.
 		 * @param token A cancellation token.
 		 *
 		 * @return An array of code actions, such as quick fixes or refactorings. The lack of a result can be signaled
@@ -3697,7 +3710,18 @@ declare module 'vscode' {
 		 * the file is being created with.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: {
+			readonly overwrite?: boolean;
+			readonly ignoreIfExists?: boolean;
+
+			/**
+			 * The initial contents of the new file.
+			 *
+			 * If creating a file from a {@link DocumentDropEditProvider drop operation}, you can
+			 * pass in a {@link DataTransferFile} to improve performance by avoiding extra data copying.
+			 */
+			readonly contents?: Uint8Array | DataTransferFile;
+		}, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
@@ -6486,7 +6510,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given trace message to the channel. Use this method to log verbose information.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Trace trace} log level.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Trace trace} log level.
 		 *
 		 * @param message trace message to log
 		 */
@@ -6495,7 +6519,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given debug message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Debug debug} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Debug debug} log level or lower.
 		 *
 		 * @param message debug message to log
 		 */
@@ -6504,7 +6528,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given information message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Info info} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Info info} log level or lower.
 		 *
 		 * @param message info message to log
 		 */
@@ -6513,7 +6537,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given warning message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Warning warning} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Warning warning} log level or lower.
 		 *
 		 * @param message warning message to log
 		 */
@@ -6522,7 +6546,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given error or error message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Error error} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Error error} log level or lower.
 		 *
 		 * @param error Error or error message to log
 		 */
@@ -7419,6 +7443,11 @@ declare module 'vscode' {
 		 * Controls whether the terminal is cleared before executing the task.
 		 */
 		clear?: boolean;
+
+		/**
+		 * Controls whether the terminal is closed after executing the task.
+		 */
+		close?: boolean;
 	}
 
 	/**
@@ -10129,21 +10158,22 @@ declare module 'vscode' {
 		/**
 		 * Creates a status bar {@link StatusBarItem item}.
 		 *
-		 * @param alignment The alignment of the item.
-		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
-		 * @return A new status bar item.
-		 */
-		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
-
-		/**
-		 * Creates a status bar {@link StatusBarItem item}.
-		 *
-		 * @param id The unique identifier of the item.
+		 * @param id The identifier of the item. Must be unique within the extension.
 		 * @param alignment The alignment of the item.
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(id: string, alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+
+		/**
+		 * Creates a status bar {@link StatusBarItem item}.
+		 *
+		 * @see {@link createStatusBarItem} for creating a status bar item with an identifier.
+		 * @param alignment The alignment of the item.
+		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
+		 * @return A new status bar item.
+		 */
+		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
 		/**
 		 * Creates a {@link Terminal} with a backing shell process. The cwd of the terminal will be the workspace
@@ -10401,6 +10431,8 @@ declare module 'vscode' {
 
 	/**
 	 * A file associated with a {@linkcode DataTransferItem}.
+	 *
+	 * Instances of this type can only be created by the editor and not by extensions.
 	 */
 	export interface DataTransferFile {
 		/**
@@ -10468,6 +10500,7 @@ declare module 'vscode' {
 		 * Retrieves the data transfer item for a given mime type.
 		 *
 		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
+		 * Mimes type look ups are case-insensitive.
 		 *
 		 * Special mime types:
 		 * - `text/uri-list` — A string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
@@ -10477,7 +10510,8 @@ declare module 'vscode' {
 
 		/**
 		 * Sets a mime type to data transfer item mapping.
-		 * @param mimeType The mime type to set the data for.
+		 *
+		 * @param mimeType The mime type to set the data for. Mimes types stored in lower case, with case-insensitive looks up.
 		 * @param value The data transfer item for the given mime type.
 		 */
 		set(mimeType: string, value: DataTransferItem): void;
@@ -11030,7 +11064,7 @@ declare module 'vscode' {
 		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const closeEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
+		 * const closeEmitter = new vscode.EventEmitter<void>();
 		 * const pty: vscode.Pseudoterminal = {
 		 *   onDidWrite: writeEmitter.event,
 		 *   onDidClose: closeEmitter.event,
@@ -11043,7 +11077,8 @@ declare module 'vscode' {
 		 *     closeEmitter.fire();
 		 *   }
 		 * };
-		 * vscode.window.createTerminal({ name: 'Exit example', pty });
+		 * const terminal = vscode.window.createTerminal({ name: 'Exit example', pty });
+		 * terminal.show(true);
 		 * ```
 		 */
 		onDidClose?: Event<void | number>;
@@ -12248,7 +12283,7 @@ declare module 'vscode' {
 		 * If you want to monitor file events across all opened workspace folders:
 		 *
 		 * ```ts
-		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
+		 * vscode.workspace.createFileSystemWatcher('**​/*.js');
 		 * ```
 		 *
 		 * *Note:* the array of workspace folders can be empty if no workspace is opened (empty window).
@@ -12473,6 +12508,21 @@ declare module 'vscode' {
 		 * An event that is emitted when a {@link NotebookDocument notebook} has changed.
 		 */
 		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook document} will be saved to disk.
+		 *
+		 * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrity the editor
+		 * might save without firing this event. For instance when shutting down with dirty files.
+		 *
+		 * *Note 2:* Subscribers are called sequentially and they can {@link NotebookDocumentWillSaveEvent.waitUntil delay} saving
+		 * by registering asynchronous work. Protection against misbehaving listeners is implemented as such:
+		 *  * there is an overall time budget that all listeners share and if that is exhausted no further listener is called
+		 *  * listeners that take a long time or produce errors frequently will not be called anymore
+		 *
+		 * The current thresholds are 1.5 seconds as overall time budget and a listener can misbehave 3 times before being ignored.
+		 */
+		export const onWillSaveNotebookDocument: Event<NotebookDocumentWillSaveEvent>;
 
 		/**
 		 * An event that is emitted when a {@link NotebookDocument notebook} is saved.
@@ -13541,6 +13591,61 @@ declare module 'vscode' {
 		 * An array of {@link NotebookDocumentCellChange cell changes}.
 		 */
 		readonly cellChanges: readonly NotebookDocumentCellChange[];
+	}
+
+	/**
+	 * An event that is fired when a {@link NotebookDocument notebook document} will be saved.
+	 *
+	 * To make modifications to the document before it is being saved, call the
+	 * {@linkcode NotebookDocumentWillSaveEvent.waitUntil waitUntil}-function with a thenable
+	 * that resolves to a {@link WorkspaceEdit workspace edit}.
+	 */
+	export interface NotebookDocumentWillSaveEvent {
+		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
+		 * The {@link NotebookDocument notebook document} that will be saved.
+		 */
+		readonly notebook: NotebookDocument;
+
+		/**
+		 * The reason why save was triggered.
+		 */
+		readonly reason: TextDocumentSaveReason;
+
+		/**
+		 * Allows to pause the event loop and to apply {@link WorkspaceEdit workspace edit}.
+		 * Edits of subsequent calls to this function will be applied in order. The
+		 * edits will be *ignored* if concurrent modifications of the notebook document happened.
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillSaveNotebookDocument(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that resolves to {@link WorkspaceEdit workspace edit}.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event loop until the provided thenable resolved.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	/**
@@ -15549,17 +15654,34 @@ declare module 'vscode' {
 		readonly label: string;
 	}
 
+	/**
+	 * Optional options to be used when calling {@link authentication.getSession} with the flag `forceNewSession`.
+	 */
+	export interface AuthenticationForceNewSessionOptions {
+		/**
+		 * An optional message that will be displayed to the user when we ask to re-authenticate. Providing additional context
+		 * as to why you are asking a user to re-authenticate can help increase the odds that they will accept.
+		 */
+		detail?: string;
+	}
 
 	/**
 	 * Options to be used when getting an {@link AuthenticationSession} from an {@link AuthenticationProvider}.
 	 */
 	export interface AuthenticationGetSessionOptions {
 		/**
-		 * Whether the existing user session preference should be cleared.
+		 * Whether the existing session preference should be cleared.
 		 *
 		 * For authentication providers that support being signed into multiple accounts at once, the user will be
 		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
 		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 *
+		 * Note:
+		 * The preference is extension specific. So if one extension calls {@link authentication.getSession getSession}, it will not
+		 * affect the session preference for another extension calling {@link authentication.getSession getSession}. Additionally,
+		 * the preference is set for the current workspace and also globally. This means that new workspaces will use the "global"
+		 * value at first and then when this flag is provided, a new value can be set for that workspace. This also means
+		 * that pre-existing workspaces will not lose their preference if a new workspace sets this flag.
 		 *
 		 * Defaults to false.
 		 */
@@ -15592,7 +15714,7 @@ declare module 'vscode' {
 		 *
 		 * This defaults to false.
 		 */
-		forceNewSession?: boolean | { detail: string };
+		forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
 
 		/**
 		 * Whether we should show the indication to sign in in the Accounts menu.
@@ -15742,7 +15864,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -15795,12 +15917,15 @@ declare module 'vscode' {
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
 		 * value will be returned (with injected {@link args} values for any templated values).
+		 *
 		 * @param message - The message to localize. Supports index templating where strings like `{0}` and `{1}` are
 		 * replaced by the item at that index in the {@link args} array.
 		 * @param args - The arguments to be used in the localized string. The index of the argument is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.t('Hello {0}!', 'World');`
+		 *
+		 * @example
+		 * l10n.t('Hello {0}!', 'World');
 		 */
 		export function t(message: string, ...args: Array<string | number | boolean>): string;
 
@@ -15808,18 +15933,22 @@ declare module 'vscode' {
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
 		 * value will be returned (with injected {@link args} values for any templated values).
+		 *
 		 * @param message The message to localize. Supports named templating where strings like `{foo}` and `{bar}` are
 		 * replaced by the value in the Record for that key (foo, bar, etc).
 		 * @param args The arguments to be used in the localized string. The name of the key in the record is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.t('Hello {name}', { name: 'Erich' });`
+		 *
+		 * @example
+		 * l10n.t('Hello {name}', { name: 'Erich' });
 		 */
 		export function t(message: string, args: Record<string, any>): string;
 		/**
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
 		 * value will be returned (with injected args values for any templated values).
+		 *
 		 * @param options The options to use when localizing the message.
 		 * @returns localized string with injected arguments.
 		 */
@@ -15932,6 +16061,13 @@ declare module 'vscode' {
 		isDefault: boolean;
 
 		/**
+		 * Whether this profile supports continuous running of requests. If so,
+		 * then {@link TestRunRequest.continuous} may be set to `true`. Defaults
+		 * to false.
+		 */
+		supportsContinuousRun: boolean;
+
+		/**
 		 * Associated tag for the profile. If this is set, only {@link TestItem}
 		 * instances with the same tag will be eligible to execute in this profile.
 		 */
@@ -15950,6 +16086,11 @@ declare module 'vscode' {
 		 * {@link TestController.createTestRun} at least once, and all test runs
 		 * associated with the request should be created before the function returns
 		 * or the returned promise is resolved.
+		 *
+		 * If {@link supportsContinuousRun} is set, then {@link TestRunRequest.continuous}
+		 * may be `true`. In this case, the profile should observe changes to
+		 * source code and create new test runs by calling {@link TestController.createTestRun},
+		 * until the cancellation is requested on the `token`.
 		 *
 		 * @param request Request information for the test run.
 		 * @param cancellationToken Token that signals the used asked to abort the
@@ -16005,10 +16146,11 @@ declare module 'vscode' {
 		 * @param runHandler Function called to start a test run.
 		 * @param isDefault Whether this is the default action for its kind.
 		 * @param tag Profile test tag.
+		 * @param supportsContinuousRun Whether the profile supports continuous running.
 		 * @returns An instance of a {@link TestRunProfile}, which is automatically
 		 * associated with this controller.
 		 */
-		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag): TestRunProfile;
+		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag, supportsContinuousRun?: boolean): TestRunProfile;
 
 		/**
 		 * A function provided by the extension that the editor may call to request
@@ -16124,11 +16266,18 @@ declare module 'vscode' {
 		readonly profile: TestRunProfile | undefined;
 
 		/**
+		 * Whether the profile should run continuously as source code changes. Only
+		 * relevant for profiles that set {@link TestRunProfile.supportsContinuousRun}.
+		 */
+		readonly continuous?: boolean;
+
+		/**
 		 * @param include Array of specific tests to run, or undefined to run all tests
 		 * @param exclude An array of tests to exclude from the run.
 		 * @param profile The run profile used for this request.
+		 * @param continuous Whether to run tests continuously as source changes.
 		 */
-		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile);
+		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile, continuous?: boolean);
 	}
 
 	/**
@@ -16202,7 +16351,8 @@ declare module 'vscode' {
 		/**
 		 * Appends raw output from the test runner. On the user's request, the
 		 * output will be displayed in a terminal. ANSI escape sequences,
-		 * such as colors and text styles, are supported.
+		 * such as colors and text styles, are supported. New lines must be given
+		 * as CRLF (`\r\n`) rather than LF (`\n`).
 		 *
 		 * @param output Output text to append.
 		 * @param location Indicate that the output was logged at the given
@@ -16212,7 +16362,7 @@ declare module 'vscode' {
 		appendOutput(output: string, location?: Location, test?: TestItem): void;
 
 		/**
-		 * Signals that the end of the test run. Any tests included in the run whose
+		 * Signals the end of the test run. Any tests included in the run whose
 		 * states have not been updated will have their state reset.
 		 */
 		end(): void;
@@ -16638,7 +16788,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents the main editor area which consists of multple groups which contain tabs.
+	 * Represents the main editor area which consists of multiple groups which contain tabs.
 	 */
 	export interface TabGroups {
 		/**

@@ -9,5 +9,4 @@ pub mod args;
 pub mod tunnels;
 pub mod update;
 pub mod version;
-pub mod internal_wsl;
 pub use context::CommandContext;

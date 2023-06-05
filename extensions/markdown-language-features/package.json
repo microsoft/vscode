@@ -16,7 +16,8 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "documentPaste"
+    "documentPaste",
+    "dropMetadata"
   ],
   "activationEvents": [
     "onLanguage:markdown",
@@ -401,6 +402,22 @@
           "description": "%configuration.markdown.suggest.paths.enabled.description%",
           "scope": "resource"
         },
+        "markdown.suggest.paths.includeWorkspaceHeaderCompletions": {
+          "type": "string",
+          "default": "onDoubleHash",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions%",
+          "enum": [
+            "never",
+            "onDoubleHash",
+            "onSingleOrDoubleHash"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.never%",
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onDoubleHash%",
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
+          ]
+        },
         "markdown.trace.extension": {
           "type": "string",
           "enum": [
@@ -422,19 +439,53 @@
           "default": "off",
           "description": "%markdown.trace.server.desc%"
         },
+        "markdown.server.log": {
+          "type": "string",
+          "scope": "window",
+          "enum": [
+            "off",
+            "debug",
+            "trace"
+          ],
+          "default": "off",
+          "description": "%markdown.server.log.desc%"
+        },
         "markdown.editor.drop.enabled": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
           "scope": "resource"
         },
-        "markdown.experimental.editor.pasteLinks.enabled": {
+        "markdown.editor.drop.copyIntoWorkspace": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.drop.copyIntoWorkspace%",
+          "default": "mediaFiles",
+          "enum": [
+            "mediaFiles",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.copyIntoWorkspace.mediaFiles%",
+            "%configuration.copyIntoWorkspace.never%"
+          ]
+        },
+        "markdown.editor.filePaste.enabled": {
           "type": "boolean",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
-          "default": true,
-          "tags": [
-            "experimental"
+          "markdownDescription": "%configuration.markdown.editor.filePaste.enabled%",
+          "default": true
+        },
+        "markdown.editor.filePaste.copyIntoWorkspace": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.filePaste.copyIntoWorkspace%",
+          "default": "mediaFiles",
+          "enum": [
+            "mediaFiles",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.copyIntoWorkspace.mediaFiles%",
+            "%configuration.copyIntoWorkspace.never%"
           ]
         },
         "markdown.validate.enabled": {
@@ -560,12 +611,40 @@
           "description": "%configuration.markdown.occurrencesHighlight.enabled%",
           "scope": "resource"
         },
-        "markdown.experimental.copyFiles.destination": {
+        "markdown.copyFiles.destination": {
           "type": "object",
           "markdownDescription": "%configuration.markdown.copyFiles.destination%",
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "markdown.copyFiles.overwriteBehavior": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.copyFiles.overwriteBehavior%",
+          "default": "nameIncrementally",
+          "enum": [
+            "nameIncrementally",
+            "overwrite"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.copyFiles.overwriteBehavior.nameIncrementally%",
+            "%configuration.markdown.copyFiles.overwriteBehavior.overwrite%"
+          ]
+        },
+        "markdown.preferredMdPathExtensionStyle": {
+          "type": "string",
+          "default": "auto",
+          "markdownDescription": "%configuration.markdown.preferredMdPathExtensionStyle%",
+          "enum": [
+            "auto",
+            "includeExtension",
+            "removeExtension"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.preferredMdPathExtensionStyle.auto%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.includeExtension%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
+          ]
         }
       }
     },

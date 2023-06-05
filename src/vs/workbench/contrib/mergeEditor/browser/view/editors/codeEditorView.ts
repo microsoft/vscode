@@ -7,12 +7,14 @@ import { h } from 'vs/base/browser/dom';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
-import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { CodeLensContribution } from 'vs/editor/contrib/codelens/browser/codelensController';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -102,8 +104,8 @@ export abstract class CodeEditorView extends Disposable {
 
 	}
 
-	protected getEditorContributions(): IEditorContributionDescription[] | undefined {
-		return undefined;
+	protected getEditorContributions(): IEditorContributionDescription[] {
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== FoldingController.ID && c.id !== CodeLensContribution.ID);
 	}
 }
 

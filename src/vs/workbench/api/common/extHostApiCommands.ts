@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import type * as vscode from 'vscode';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto, ITypeHierarchyItemDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
-import * as search from 'vs/workbench/contrib/search/common/search';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { validateWhenClauses } from 'vs/platform/contextkey/common/contextkey';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto, IRawColorInfo, ITypeHierarchyItemDto, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IRange } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
-import { Schemas } from 'vs/base/common/network';
+import * as search from 'vs/workbench/contrib/search/common/search';
+import type * as vscode from 'vscode';
 
 //#region --- NEW world
 
@@ -474,9 +475,15 @@ const newCommands: ApiCommand[] = [
 export class ExtHostApiCommands {
 
 	static register(commands: ExtHostCommands) {
+
 		newCommands.forEach(commands.registerApiCommand, commands);
+
+		this._registerValidateWhenClausesCommand(commands);
 	}
 
+	private static _registerValidateWhenClausesCommand(commands: ExtHostCommands) {
+		commands.registerCommand(false, '_validateWhenClauses', validateWhenClauses);
+	}
 }
 
 function tryMapWith<T, R>(f: (x: T) => R) {

@@ -146,7 +146,6 @@
 	margin-left: auto;
 	display: flex;
 	align-items: center;
-	transition: width 200ms ease-out;
 }
 
 .monaco-workbench .feedback-form .form-buttons .send .codicon {

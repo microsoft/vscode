@@ -89,6 +89,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.taskFailed', "Plays a sound when a task fails (non-zero exit code)."),
 			...audioCueFeatureBase,
 		},
+		'audioCues.terminalCommandFailed': {
+			'description': localize('audioCues.terminalCommandFailed', "Plays a sound when a terminal command fails (non-zero exit code)."),
+			...audioCueFeatureBase,
+		},
 		'audioCues.terminalQuickFix': {
 			'description': localize('audioCues.terminalQuickFix', "Plays a sound when terminal Quick Fixes are available."),
 			...audioCueFeatureBase,

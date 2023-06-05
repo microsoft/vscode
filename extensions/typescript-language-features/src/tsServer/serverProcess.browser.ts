@@ -6,9 +6,9 @@
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
 import { ApiService, Requests } from '@vscode/sync-api-service';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { FileWatcherManager } from './fileWatchingManager';
+import type * as Proto from './protocol/protocol';
 import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
