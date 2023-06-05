@@ -121,6 +121,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 			placeholder: session.placeholder,
 			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer })),
 			wholeRange: typeConvert.Range.from(session.wholeRange),
+			message: session.message
 		};
 	}
 

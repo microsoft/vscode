@@ -17,7 +17,7 @@ declare module 'vscode' {
 		placeholder?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
-		message?: MarkdownString | string;
+		message?: string;
 	}
 
 	// todo@API make classes
