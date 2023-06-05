@@ -27,7 +27,7 @@ export interface IInteractiveEditorSlashCommand {
 export interface IInteractiveEditorSession {
 	id: number;
 	placeholder?: string;
-	message?: string;
+	message?: IMarkdownString | string;
 	slashCommands?: IInteractiveEditorSlashCommand[];
 	wholeRange?: IRange;
 	dispose?(): void;

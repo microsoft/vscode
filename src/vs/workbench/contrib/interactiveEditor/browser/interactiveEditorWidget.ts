@@ -53,6 +53,8 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ExpansionState } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -496,9 +498,14 @@ export class InteractiveEditorWidget {
 		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? MESSAGE_EXPANDED_NUMBER_LINES.toString() : MESSAGE_CROPPED_NUMBER_LINES.toString());
 	}
 
-	updateInfo(message: string): void {
+	updateInfo(message: IMarkdownString | string): void {
 		this._elements.infoLabel.classList.toggle('hidden', !message);
-		this._elements.infoLabel.innerText = message;
+		if (isMarkdownString(message)) {
+			const renderedMarkdown = renderMarkdown(message, { inline: true });
+			reset(this._elements.infoLabel, renderedMarkdown.element);
+		} else {
+			this._elements.infoLabel.innerText = message;
+		}
 		this._onDidChangeHeight.fire();
 	}
 
