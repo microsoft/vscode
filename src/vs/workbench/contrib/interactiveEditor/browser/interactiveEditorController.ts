@@ -261,7 +261,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._sessionStore.clear();
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection([{
-			range: this._activeSession.wholeRange,
+			range: this._activeSession.wholeRange.value,
 			options: InteractiveEditorController._decoBlock
 		}]);
 		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
@@ -270,7 +270,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
-		this._zone.value.show(this._activeSession.wholeRange.getEndPosition());
+		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
@@ -289,7 +289,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			const wholeRange = this._activeSession!.wholeRange;
 			let editIsOutsideOfWholeRange = false;
 			for (const { range } of e.changes) {
-				editIsOutsideOfWholeRange = !Range.areIntersectingOrTouching(range, wholeRange);
+				editIsOutsideOfWholeRange = !Range.areIntersectingOrTouching(range, wholeRange.value);
 			}
 
 			this._activeSession!.recordExternalEditOccurred(editIsOutsideOfWholeRange);
@@ -360,7 +360,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		assertType(this._activeSession);
 
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
-		this._zone.value.show(this._activeSession.wholeRange.getEndPosition());
+		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 
 		if (options?.message) {
 			this._zone.value.widget.value = options?.message;
@@ -411,7 +411,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		const refer = this._activeSession.session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
 		if (refer) {
 			this._log('[IE] seeing refer command, continuing outside editor', this._activeSession.provider.debugName);
-			this._editor.setSelection(this._activeSession.wholeRange);
+			this._editor.setSelection(this._activeSession.wholeRange.value);
 			this._instaService.invokeFunction(sendRequest, input);
 
 			if (!this._activeSession.lastExchange) {
@@ -447,7 +447,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		const request: IInteractiveEditorRequest = {
 			prompt: this._activeSession.lastInput,
 			selection: this._editor.getSelection(),
-			wholeRange: this._activeSession.wholeRange,
+			wholeRange: this._activeSession.wholeRange.value,
 			attempt: 0,
 		};
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, requestCts.token);
@@ -520,7 +520,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			try {
 				this._ignoreModelContentChanged = true;
-				await this._strategy.makeChanges(response, editOperations);
+				this._activeSession.wholeRange.trackEdits(editOperations);
+				await this._strategy.makeChanges(editOperations);
 				this._ctxDidEdit.set(this._activeSession.hasChangedText);
 			} finally {
 				this._ignoreModelContentChanged = false;
@@ -569,13 +570,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				return State.ACCEPT;
 			}
 
-			try {
-				this._ignoreModelContentChanged = true;
-				await this._strategy.renderChanges(response);
-				this._ctxDidEdit.set(this._activeSession.hasChangedText);
-			} finally {
-				this._ignoreModelContentChanged = false;
-			}
+			await this._strategy.renderChanges(response);
 		}
 
 		return State.WAIT_FOR_INPUT;
