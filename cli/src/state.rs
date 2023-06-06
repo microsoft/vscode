@@ -6,7 +6,7 @@
 extern crate dirs;
 
 use std::{
-	fs::{create_dir, read_to_string, remove_dir_all, write},
+	fs::{create_dir_all, read_to_string, remove_dir_all, write},
 	path::{Path, PathBuf},
 	sync::{Arc, Mutex},
 };
@@ -14,7 +14,7 @@ use std::{
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-	constants::VSCODE_CLI_QUALITY,
+	constants::{DEFAULT_DATA_PARENT_DIR, VSCODE_CLI_QUALITY},
 	download_cache::DownloadCache,
 	util::errors::{wrap, AnyError, NoHomeForLauncherError, WrappedError},
 };
@@ -107,8 +107,38 @@ where
 }
 
 impl LauncherPaths {
-	pub fn new(root: &Option<String>) -> Result<LauncherPaths, AnyError> {
-		let root = root.as_deref().unwrap_or("~/.vscode-cli");
+	/// todo@conno4312: temporary migration from the old CLI data directory
+	pub fn migrate(root: Option<String>) -> Result<LauncherPaths, AnyError> {
+		if root.is_some() {
+			return Self::new(root);
+		}
+
+		let home_dir = match dirs::home_dir() {
+			None => return Self::new(root),
+			Some(d) => d,
+		};
+
+		let old_dir = home_dir.join(".vscode-cli");
+		let mut new_dir = home_dir;
+		new_dir.push(DEFAULT_DATA_PARENT_DIR);
+		new_dir.push("cli");
+		if !old_dir.exists() || new_dir.exists() {
+			return Self::new_for_path(new_dir);
+		}
+
+		if let Err(e) = std::fs::rename(&old_dir, &new_dir) {
+			// no logger exists at this point in the lifecycle, so just log to stderr
+			eprintln!(
+				"Failed to migrate old CLI data directory, will create a new one ({})",
+				e
+			);
+		}
+
+		Self::new_for_path(new_dir)
+	}
+
+	pub fn new(root: Option<String>) -> Result<LauncherPaths, AnyError> {
+		let root = root.unwrap_or_else(|| format!("~/{}/cli", DEFAULT_DATA_PARENT_DIR));
 		let mut replaced = root.to_owned();
 		for token in HOME_DIR_ALTS {
 			if root.contains(token) {
@@ -120,14 +150,16 @@ impl LauncherPaths {
 			}
 		}
 
-		if !Path::new(&replaced).exists() {
-			create_dir(&replaced)
-				.map_err(|e| wrap(e, format!("error creating directory {}", &replaced)))?;
+		Self::new_for_path(PathBuf::from(replaced))
+	}
+
+	fn new_for_path(root: PathBuf) -> Result<LauncherPaths, AnyError> {
+		if !root.exists() {
+			create_dir_all(&root)
+				.map_err(|e| wrap(e, format!("error creating directory {}", root.display())))?;
 		}
 
-		Ok(LauncherPaths::new_without_replacements(PathBuf::from(
-			replaced,
-		)))
+		Ok(LauncherPaths::new_without_replacements(root))
 	}
 
 	pub fn new_without_replacements(root: PathBuf) -> LauncherPaths {

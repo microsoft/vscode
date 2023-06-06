@@ -62,9 +62,9 @@ export class IntellisenseStatus extends Disposable {
 
 		commandManager.register({
 			id: this.openOpenConfigCommandId,
-			execute: async (rootPath: string, projectType: ProjectType) => {
+			execute: async (root: vscode.Uri, projectType: ProjectType) => {
 				if (this._state.type === IntellisenseState.Type.Resolved) {
-					await openProjectConfigOrPromptToCreate(projectType, this._client, rootPath, this._state.configFile);
+					await openProjectConfigOrPromptToCreate(projectType, this._client, root, this._state.configFile);
 				} else if (this._state.type === IntellisenseState.Type.Pending) {
 					await openProjectConfigForFile(projectType, this._client, this._state.resource);
 				}
@@ -72,8 +72,8 @@ export class IntellisenseStatus extends Disposable {
 		});
 		commandManager.register({
 			id: this.createOrOpenConfigCommandId,
-			execute: async (rootPath: string, projectType: ProjectType) => {
-				await openOrCreateConfig(projectType, rootPath, this._client.configuration);
+			execute: async (root: vscode.Uri, projectType: ProjectType) => {
+				await openOrCreateConfig(projectType, root, this._client.configuration);
 			},
 		});
 

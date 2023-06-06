@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IInteractiveEditorSession, IInteractiveEditorRequest, InteractiveEditorResponseFeedbackKind, InteractiveEditorResponseType } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorSession, IInteractiveEditorRequest, InteractiveEditorResponseFeedbackKind, InteractiveEditorResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveEditorShape, IInteractiveEditorResponseDto, IMainContext, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -15,6 +15,8 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { IRange } from 'vs/editor/common/core/range';
 
 class ProviderWrapper {
 
@@ -47,10 +49,40 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 
 	constructor(
 		mainContext: IMainContext,
+		extHostCommands: ExtHostCommands,
 		private readonly _documents: ExtHostDocuments,
 		private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadInteractiveEditor);
+
+		type EditorChatApiArg = {
+			initialRange?: vscode.Range;
+			message?: string;
+			autoSend?: boolean;
+		};
+
+		type InteractiveEditorRunOptions = {
+			initialRange?: IRange;
+			message?: string;
+			autoSend?: boolean;
+		};
+
+		extHostCommands.registerApiCommand(new ApiCommand(
+			'vscode.editorChat.start', 'interactiveEditor.start', 'Invoke a new editor chat session',
+			[new ApiCommandArgument<EditorChatApiArg | undefined, InteractiveEditorRunOptions | undefined>('Run arguments', '', _v => true, v => {
+
+				if (!v) {
+					return undefined;
+				}
+
+				return {
+					initialRange: v.initialRange ? typeConvert.Range.from(v.initialRange) : undefined,
+					message: v.message,
+					autoSend: v.autoSend
+				};
+			})],
+			ApiCommandResult.Void
+		));
 	}
 
 	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider): vscode.Disposable {
@@ -89,6 +121,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 			placeholder: session.placeholder,
 			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer })),
 			wholeRange: typeConvert.Range.from(session.wholeRange),
+			message: session.message
 		};
 	}
 
@@ -107,6 +140,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 			prompt: request.prompt,
 			selection: typeConvert.Selection.to(request.selection),
 			wholeRange: typeConvert.Range.to(request.wholeRange),
+			attempt: request.attempt,
 		}, token);
 
 		if (res) {

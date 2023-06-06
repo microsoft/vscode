@@ -1394,14 +1394,14 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		if (node.collapsible) {
-			// Do not set this before calling a handler on the super class, because it will reject it as handled
-			e.browserEvent.isHandledByList = true;
 			const location = this.tree.getNodeLocation(node);
 			const recursive = e.browserEvent.altKey;
 			this.tree.setFocus([location]);
 			this.tree.toggleCollapsed(location, recursive);
 
 			if (expandOnlyOnTwistieClick && onTwistie) {
+				// Do not set this before calling a handler on the super class, because it will reject it as handled
+				e.browserEvent.isHandledByList = true;
 				return;
 			}
 		}
@@ -1706,8 +1706,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.contentHeight;
 	}
 
+	get contentWidth(): number {
+		return this.view.contentWidth;
+	}
+
 	get onDidChangeContentHeight(): Event<number> {
 		return this.view.onDidChangeContentHeight;
+	}
+
+	get onDidChangeContentWidth(): Event<number> {
+		return this.view.onDidChangeContentWidth;
 	}
 
 	get scrollTop(): number {

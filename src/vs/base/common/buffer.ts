@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Lazy } from 'vs/base/common/lazy';
 import * as streams from 'vs/base/common/stream';
 
 declare const Buffer: any;
 
 const hasBuffer = (typeof Buffer !== 'undefined');
+const indexOfTable = new Lazy(() => new Uint8Array(256));
 
 let textEncoder: TextEncoder | null;
 let textDecoder: TextDecoder | null;
@@ -168,6 +170,52 @@ export class VSBuffer {
 
 	writeUInt8(value: number, offset: number): void {
 		writeUInt8(this.buffer, value, offset);
+	}
+
+	indexOf(subarray: VSBuffer | Uint8Array) {
+		const needle = subarray instanceof VSBuffer ? subarray.buffer : subarray;
+		const needleLen = needle.byteLength;
+		const haystack = this.buffer;
+		const haystackLen = haystack.byteLength;
+
+		if (needleLen === 0) {
+			return 0;
+		}
+
+		if (needleLen === 1) {
+			return haystack.indexOf(needle[0]);
+		}
+
+		if (needleLen > haystackLen) {
+			return -1;
+		}
+
+		// find index of the subarray using boyer-moore-horspool algorithm
+		const table = indexOfTable.value;
+		table.fill(needle.length);
+		for (let i = 0; i < needle.length; i++) {
+			table[needle[i]] = needle.length - i - 1;
+		}
+
+		let i = needle.length - 1;
+		let j = i;
+		let result = -1;
+		while (i < haystackLen) {
+			if (haystack[i] === needle[j]) {
+				if (j === 0) {
+					result = i;
+					break;
+				}
+
+				i--;
+				j--;
+			} else {
+				i += Math.max(needle.length - j, table[haystack[i]]);
+				j = needle.length - 1;
+			}
+		}
+
+		return result;
 	}
 }
 

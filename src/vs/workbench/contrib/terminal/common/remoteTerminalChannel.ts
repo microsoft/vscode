@@ -226,6 +226,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._channel.call('$resize', [id, cols, rows]);
 	}
+	clearBuffer(id: number): Promise<void> {
+		return this._channel.call('$clearBuffer', [id]);
+	}
 	getInitialCwd(id: number): Promise<string> {
 		return this._channel.call('$getInitialCwd', [id]);
 	}

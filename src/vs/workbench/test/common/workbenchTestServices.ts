@@ -17,7 +17,7 @@ import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/wo
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IBaseFileStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason, GroupIdentifier } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import product from 'vs/platform/product/common/product';
@@ -27,6 +27,7 @@ import { AbstractLoggerService, ILogger, LogLevel, NullLogger } from 'vs/platfor
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { AutoSaveMode, IAutoSaveConfiguration, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class TestLoggerService extends AbstractLoggerService {
 	constructor(logsHome?: URI) {
@@ -202,6 +203,10 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 		return this.dirty;
 	}
 
+	isModified(): boolean {
+		return this.isDirty();
+	}
+
 	async save(options?: ISaveOptions, stat?: IFileStatWithMetadata): Promise<boolean> {
 		this._onDidSave.fire({ reason: options?.reason ?? SaveReason.EXPLICIT, stat: stat ?? createFileStat(this.resource), source: options?.source });
 
@@ -228,6 +233,7 @@ export function createFileStat(resource: URI, readonly = false): IFileStatWithMe
 		isDirectory: false,
 		isSymbolicLink: false,
 		readonly,
+		locked: false,
 		name: basename(resource),
 		children: undefined
 	};
@@ -290,3 +296,22 @@ export class TestActivityService implements IActivityService {
 
 	dispose() { }
 }
+
+export const NullFilesConfigurationService = new class implements IFilesConfigurationService {
+
+	_serviceBrand: undefined;
+
+	readonly onAutoSaveConfigurationChange = Event.None;
+	readonly onReadonlyChange = Event.None;
+	readonly onFilesAssociationChange = Event.None;
+
+	readonly isHotExitEnabled = false;
+	readonly hotExitConfiguration = undefined;
+
+	getAutoSaveConfiguration(): IAutoSaveConfiguration { throw new Error('Method not implemented.'); }
+	getAutoSaveMode(): AutoSaveMode { throw new Error('Method not implemented.'); }
+	toggleAutoSave(): Promise<void> { throw new Error('Method not implemented.'); }
+	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
+	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
+	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }
+};

@@ -189,6 +189,7 @@ export interface INotebookStaticPreloadInfo {
 	readonly type: string;
 	readonly entrypoint: URI;
 	readonly extensionLocation: URI;
+	readonly localResourceRoots: readonly URI[];
 }
 
 export interface IOrderedMimeType {
@@ -937,7 +938,8 @@ export const NotebookSetting = {
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	formatOnSave: 'notebook.formatOnSave.enabled',
-	codeActionsOnSave: 'notebook.experimental.codeActionsOnSave',
+	formatOnCellExecution: 'notebook.formatOnCellExecution',
+	codeActionsOnSave: 'notebook.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',
 	outputLineHeightDeprecated: 'notebook.outputLineHeight',
 	outputLineHeight: 'notebook.output.lineHeight',
