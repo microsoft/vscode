@@ -20,19 +20,23 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDisposable } from 'xterm';
 
-interface IAccessibleViewProvider { id: string; provideContent(): string; onClose(): void }
+interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; options?: IAccessibleViewOptions }
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
 	show(providerId: string): void;
-	registerProvider(provider: IAccessibleViewProvider): void;
+	registerProvider(provider: IAccessibleContentProvider): void;
+}
+
+export interface IAccessibleViewOptions {
+	isHelpMenu: boolean;
 }
 
 export class AccessibleViewService extends Disposable implements IAccessibleViewService {
 	_serviceBrand: undefined;
 
-	private _providers: Map<string, IAccessibleViewProvider> = new Map();
+	private _providers: Map<string, IAccessibleContentProvider> = new Map();
 	private _editorWidget: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
 
@@ -66,7 +70,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
 	}
 
-	registerProvider(provider: IAccessibleViewProvider): void {
+	registerProvider(provider: IAccessibleContentProvider): void {
 		this._providers.set(provider.id, provider);
 	}
 
@@ -83,16 +87,21 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		this._contextViewService.showContextView(delegate);
 	}
 
-	private _getContent(providerId: string): string {
+	private _getProviderOrThrow(providerId: string): IAccessibleContentProvider {
 		const provider = this._providers.get(providerId);
 		if (!provider) {
 			throw new Error(`No accessible view provider with id: ${providerId}`);
 		}
-		return provider.provideContent();
+		return provider;
+	}
+
+	private _getContent(providerId: string): string {
+		return this._getProviderOrThrow(providerId).provideContent();
 	}
 
 	private _render(providerId: string, container: HTMLElement): IDisposable {
-		const fragment = localize('introMsg', "Welcome to {0} Accessibility Help. Exit this menu and return to the terminal via the Escape key.\n", providerId) + this._getContent(providerId);
+		const provider = this._getProviderOrThrow(providerId);
+		const fragment = provider.options?.isHelpMenu ? localize('introMsg', "Welcome to {0} Accessibility Help. Exit this menu and return to the {0} via the Escape key.\n", providerId) : '' + this._getContent(providerId);
 		this._getTextModel(URI.from({ path: `accessible-view-${providerId}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
 				return;

@@ -32,7 +32,7 @@ export class AccessibilityHelpWidget {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
 	) {
-		this._accessibleViewService.registerProvider({ id: 'terminal', provideContent: () => this._getContent(), onClose: () => _instance.focus() });
+		this._accessibleViewService.registerProvider({ id: 'terminal', provideContent: () => this._getContent(), onClose: () => _instance.focus(), options: { isHelpMenu: true } });
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
 	}
 

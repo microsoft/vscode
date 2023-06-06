@@ -74,12 +74,15 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type, type === 'editor' ? cachedInput : undefined);
 	accessibleViewService.registerProvider({
-		id: 'chat', provideContent: () => helpText, onClose: () => {
+		id: 'chat',
+		provideContent: () => helpText,
+		onClose: () => {
 			if (cachedPosition) {
 				inputEditor.setPosition(cachedPosition);
 				inputEditor.focus();
 			}
-		}
+		},
+		options: { isHelpMenu: true }
 	});
 	accessibleViewService.show('chat');
 }
