@@ -10,7 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, isConfigured } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -200,11 +200,13 @@ suite('ConfigurationService', () => {
 		assert.strictEqual(res.value, undefined);
 		assert.strictEqual(res.defaultValue, undefined);
 		assert.strictEqual(res.userValue, undefined);
+		assert.strictEqual(isConfigured(res), false);
 
 		res = testObject.inspect('lookup.service.testSetting');
 		assert.strictEqual(res.defaultValue, 'isSet');
 		assert.strictEqual(res.value, 'isSet');
 		assert.strictEqual(res.userValue, undefined);
+		assert.strictEqual(isConfigured(res), false);
 
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "lookup.service.testSetting": "bar" }'));
 
@@ -213,6 +215,7 @@ suite('ConfigurationService', () => {
 		assert.strictEqual(res.defaultValue, 'isSet');
 		assert.strictEqual(res.userValue, 'bar');
 		assert.strictEqual(res.value, 'bar');
+		assert.strictEqual(isConfigured(res), true);
 
 	}));
 
