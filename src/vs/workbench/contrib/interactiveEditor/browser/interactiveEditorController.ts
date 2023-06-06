@@ -184,10 +184,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
 				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
-				await this.cancelSession();
+				this.cancelSession();
 			} else {
 				this._log('finishing existing session, using APPLY', this._activeSession.editMode);
-				await this.applyChanges();
+				this.acceptSession();
 			}
 		}
 	}
@@ -425,7 +425,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return State.MAKE_REQUEST;
 	}
 
-	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL> {
+	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
 		assertType(this._activeSession.lastInput);
@@ -490,6 +490,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			return State.CANCEL;
 		} else if (message & Message.PAUSE_SESSION) {
 			return State.PAUSE;
+		} else if (message & Message.ACCEPT_SESSION) {
+			return State.ACCEPT;
 		} else {
 			return State.APPLY_RESPONSE;
 		}
@@ -599,13 +601,34 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	private async [State.ACCEPT]() {
 		assertType(this._activeSession);
+		assertType(this._strategy);
+
+		try {
+			await this._strategy.apply();
+		} catch (err) {
+			this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
+			this._log('FAILED to apply changes');
+			this._log(err);
+		}
+
 		this._interactiveEditorSessionService.releaseSession(this._activeSession);
+
 		this[State.PAUSE]();
 	}
 
 	private async [State.CANCEL]() {
 		assertType(this._activeSession);
+		assertType(this._strategy);
+
 		const mySession = this._activeSession;
+
+		try {
+			await this._strategy.cancel();
+		} catch (err) {
+			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
+			this._log('FAILED to discard changes');
+			this._log(err);
+		}
 
 		this[State.PAUSE]();
 
@@ -620,7 +643,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	// ---- controller API
 
-	accept(): void {
+	acceptInput(): void {
 		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
@@ -688,38 +711,17 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	async applyChanges(): Promise<void> {
-		if (this._strategy) {
-			const strategy = this._strategy;
-			this._strategy = undefined;
-			try {
-				await strategy?.apply();
-			} catch (err) {
-				this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
-				this._log('FAILED to apply changes');
-				this._log(err);
-			}
-			strategy?.dispose();
-			this._messages.fire(Message.ACCEPT_SESSION);
-		}
+	acceptSession(): void {
+		this._messages.fire(Message.ACCEPT_SESSION);
 	}
 
-	async cancelSession() {
+	cancelSession() {
 		if (!this._strategy || !this._activeSession) {
 			return undefined;
 		}
 
 		const changedText = this._activeSession.asChangedText();
-		const strategy = this._strategy;
-		this._strategy = undefined;
-		try {
-			await strategy?.cancel();
-		} catch (err) {
-			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
-			this._log('FAILED to discard changes');
-			this._log(err);
-		}
-		strategy?.dispose();
+
 		this._messages.fire(Message.CANCEL_SESSION);
 		return changedText;
 	}

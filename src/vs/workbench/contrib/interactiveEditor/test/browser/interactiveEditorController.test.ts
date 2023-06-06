@@ -24,6 +24,7 @@ import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/co
 import { mock } from 'vs/base/test/common/mock';
 import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
+import { timeout } from 'vs/base/common/async';
 
 suite('InteractiveEditorController', function () {
 
@@ -140,9 +141,9 @@ suite('InteractiveEditorController', function () {
 		ctrl = instaService.createInstance(TestController, editor);
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
 
-		await Event.toPromise(Event.filter(ctrl.onDidChangeState, e => e === State.WAIT_FOR_INPUT));
+		await ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
-		await ctrl.cancelSession();
+		ctrl.cancelSession();
 
 		await run;
 
@@ -255,10 +256,45 @@ suite('InteractiveEditorController', function () {
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 12));
 
-		ctrl.accept();
+		ctrl.acceptInput();
 
 		await ctrl.waitFor([State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 12));
+	});
+
+	test('Stuck inline chat widget #211', async function () {
+		const d = interactiveEditorService.addProvider({
+			debugName: 'Unit Test',
+			prepareInteractiveEditorSession() {
+				return {
+					id: Math.random(),
+					wholeRange: new Range(3, 1, 3, 3)
+				};
+			},
+			async provideResponse(session, request) {
+
+				// SLOW response
+				await timeout(50000);
+
+				return {
+					type: InteractiveEditorResponseType.EditorEdit,
+					id: Math.random(),
+					edits: [{
+						range: new Range(1, 1, 1, 1), // EDIT happens outside of whole range
+						text: `${request.prompt}\n${request.prompt}`
+					}]
+				};
+			}
+		});
+		store.add(d);
+		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.run({ message: 'Hello', autoSend: true });
+
+		await ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST]);
+		ctrl.acceptSession();
+
+		await p;
+		assert.strictEqual(ctrl.getWidgetPosition(), undefined);
 	});
 });
