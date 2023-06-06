@@ -496,13 +496,10 @@ export class InteractiveEditorWidget {
 		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? MESSAGE_EXPANDED_NUMBER_LINES.toString() : MESSAGE_CROPPED_NUMBER_LINES.toString());
 	}
 
-	updateInfo(message: string | Array<HTMLSpanElement | string>): void {
+	updateInfo(message: string): void {
 		this._elements.infoLabel.classList.toggle('hidden', !message);
-		if (message instanceof Array) {
-			reset(this._elements.infoLabel, ...message);
-		} else {
-			this._elements.infoLabel.innerText = message;
-		}
+		const renderedMessage = renderLabelWithIcons(message);
+		reset(this._elements.infoLabel, ...renderedMessage);
 		this._onDidChangeHeight.fire();
 	}
 

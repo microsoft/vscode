@@ -124,8 +124,10 @@
 	padding-left: 2px;
 }
 
-.monaco-editor .interactive-editor .status .label.info > * {
-	padding-right: 5px;
+.monaco-editor .interactive-editor .status .label.info > .codicon {
+	padding: 0 5px;
+	font-size: 12px;
+	line-height: 18px;
 }
 
 .monaco-editor .interactive-editor .status .label.status {

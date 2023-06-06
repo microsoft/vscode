@@ -39,7 +39,6 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Lazy } from 'vs/base/common/lazy';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -270,8 +269,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
-		const sessionMessage = this._activeSession.session.message;
-		this._zone.value.widget.updateInfo(sessionMessage ? renderLabelWithIcons(sessionMessage) : localize('welcome.1', "AI-generated code may be incorrect"));
+		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 
