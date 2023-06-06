@@ -9,7 +9,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { AccessibleView } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal } from 'xterm';
@@ -23,22 +23,21 @@ export const enum ClassName {
 export class AccessibilityHelpWidget {
 
 	private readonly _hasShellIntegration: boolean = false;
-	private _accessibleView: AccessibleView | undefined;
 	constructor(
 
 		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,
 		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
 	) {
-		this._accessibleView = _instantiationService.createInstance(AccessibleView);
-		this._accessibleView.registerProvider({ id: 'terminal', provideContent: () => this._getContent(), onClose: () => _instance.focus() });
+		this._accessibleViewService.registerProvider({ id: 'terminal', provideContent: () => this._getContent(), onClose: () => _instance.focus() });
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
 	}
 
 	show(): void {
-		this._accessibleView?.show('terminal');
+		this._accessibleViewService.show('terminal');
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {

@@ -14,7 +14,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDisposable } from 'xterm';
@@ -24,8 +24,16 @@ interface IAccessibleViewProvider {
 	provideContent(): string;
 	onClose(): void;
 }
+export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibilityViewService');
 
-export class AccessibleView extends Disposable {
+export interface IAccessibleViewService {
+	readonly _serviceBrand: undefined;
+	show(providerId: string): void;
+	registerProvider(provider: IAccessibleViewProvider): void;
+}
+
+export class AccessibleViewService extends Disposable implements IAccessibleViewService {
+	_serviceBrand: undefined;
 
 	private _editorWidget: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
