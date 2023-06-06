@@ -506,7 +506,8 @@ export class InteractiveEditorWidget {
 
 	updateInfo(message: string): void {
 		this._elements.infoLabel.classList.toggle('hidden', !message);
-		this._elements.infoLabel.innerText = message;
+		const renderedMessage = renderLabelWithIcons(message);
+		reset(this._elements.infoLabel, ...renderedMessage);
 		this._onDidChangeHeight.fire();
 	}
 
