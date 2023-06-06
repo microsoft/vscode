@@ -56,6 +56,7 @@ export class AccessibilityHelpWidget {
 	private _getContent(): string {
 		const content = [];
 		content.push(localize('introMsg', "Welcome to Terminal Accessibility Help"));
+		content.push(localize('dismiss', "Return to the terminal via Escape"));
 		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.'), localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
 			content.push(localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience"));
@@ -74,7 +75,6 @@ export class AccessibilityHelpWidget {
 		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.'), localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.')));
 		content.push(localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.'));
 		content.push(localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)'));
-		content.push(localize('dismiss', "You can dismiss this dialog by pressing Escape, tab, or focusing elsewhere."));
 		return content.join('\n');
 	}
 }
