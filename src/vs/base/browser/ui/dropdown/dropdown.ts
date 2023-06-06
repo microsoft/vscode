@@ -158,24 +158,17 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 	readonly actionProvider?: IActionProvider;
 	menuClassName?: string;
 	menuAsChild?: boolean; // scope down for #99448
+	readonly skipTelemetry?: boolean;
 }
 
 export class DropdownMenu extends BaseDropdown {
-	private _contextMenuProvider: IContextMenuProvider;
 	private _menuOptions: IMenuOptions | undefined;
 	private _actions: readonly IAction[] = [];
-	private actionProvider?: IActionProvider;
-	private menuClassName: string;
-	private menuAsChild?: boolean;
 
-	constructor(container: HTMLElement, options: IDropdownMenuOptions) {
-		super(container, options);
+	constructor(container: HTMLElement, private readonly _options: IDropdownMenuOptions) {
+		super(container, _options);
 
-		this._contextMenuProvider = options.contextMenuProvider;
-		this.actions = options.actions || [];
-		this.actionProvider = options.actionProvider;
-		this.menuClassName = options.menuClassName || '';
-		this.menuAsChild = !!options.menuAsChild;
+		this.actions = _options.actions || [];
 	}
 
 	set menuOptions(options: IMenuOptions | undefined) {
@@ -187,8 +180,8 @@ export class DropdownMenu extends BaseDropdown {
 	}
 
 	private get actions(): readonly IAction[] {
-		if (this.actionProvider) {
-			return this.actionProvider.getActions();
+		if (this._options.actionProvider) {
+			return this._options.actionProvider.getActions();
 		}
 
 		return this._actions;
@@ -203,17 +196,18 @@ export class DropdownMenu extends BaseDropdown {
 
 		this.element.classList.add('active');
 
-		this._contextMenuProvider.showContextMenu({
+		this._options.contextMenuProvider.showContextMenu({
 			getAnchor: () => this.element,
 			getActions: () => this.actions,
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionViewItem: (action, options) => this.menuOptions && this.menuOptions.actionViewItemProvider ? this.menuOptions.actionViewItemProvider(action, options) : undefined,
 			getKeyBinding: action => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : undefined,
-			getMenuClassName: () => this.menuClassName,
+			getMenuClassName: () => this._options.menuClassName || '',
 			onHide: () => this.onHide(),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : undefined,
 			anchorAlignment: this.menuOptions ? this.menuOptions.anchorAlignment : AnchorAlignment.LEFT,
-			domForShadowRoot: this.menuAsChild ? this.element : undefined
+			domForShadowRoot: this._options.menuAsChild ? this.element : undefined,
+			skipTelemetry: this._options.skipTelemetry
 		});
 	}
 
