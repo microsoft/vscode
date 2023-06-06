@@ -17,8 +17,8 @@ import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkey
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { InteractiveEditorController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';

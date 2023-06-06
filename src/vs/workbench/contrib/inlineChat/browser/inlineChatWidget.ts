@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./interactiveEditor';
+import 'vs/css!./inlineChat';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -40,7 +40,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
+import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -50,7 +50,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { assertType } from 'vs/base/common/types';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ExpansionState } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 

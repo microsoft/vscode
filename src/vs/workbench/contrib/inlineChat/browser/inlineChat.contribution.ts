@@ -5,16 +5,16 @@
 
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import * as interactiveEditorActions from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorActions';
-import { IInteractiveEditorService, INTERACTIVE_EDITOR_ID } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { InteractiveEditorController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import * as interactiveEditorActions from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
+import { IInteractiveEditorService, INTERACTIVE_EDITOR_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { InteractiveEditorServiceImpl } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditorServiceImpl';
-import { IInteractiveEditorSessionService, InteractiveEditorSessionService } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { InteractiveEditorServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
+import { IInteractiveEditorSessionService, InteractiveEditorSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { InteractiveEditorNotebookContribution } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorNotebook';
+import { InteractiveEditorNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
 
 registerSingleton(IInteractiveEditorService, InteractiveEditorServiceImpl, InstantiationType.Delayed);
 registerSingleton(IInteractiveEditorSessionService, InteractiveEditorSessionService, InstantiationType.Delayed);

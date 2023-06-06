@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
