@@ -1,0 +1,2 @@
+@vscode/windows-mutex/index.js
+@vscode/windows-mutex/**/*.node
