@@ -110,7 +110,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 				}
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
-			this._editorWidget.updateOptions({ ariaLabel: localize('accessible-view-label', "{0} accessible view", providerId) });
+			this._editorWidget.updateOptions({ ariaLabel: localize('accessible-view-label', "{0} accessibility help", providerId) });
 			this._editorWidget.focus();
 		});
 		return { dispose: () => { this._providers.get(providerId)?.onClose(); } } as IDisposable;
