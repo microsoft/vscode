@@ -12,6 +12,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -109,6 +110,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 				}
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
+			this._editorWidget.updateOptions({ ariaLabel: localize('accessible-view-label', "{0} accessible view", providerId) });
 			this._editorWidget.focus();
 		});
 		return { dispose: () => { this._providers.get(providerId)?.onClose(); } } as IDisposable;
