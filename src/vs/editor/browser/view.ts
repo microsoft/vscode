@@ -11,7 +11,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
+import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
@@ -20,7 +20,6 @@ import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/c
 import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
-import { GlyphMarginOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
@@ -52,6 +51,7 @@ import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/b
 import { inputLatency } from 'vs/base/browser/performance';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
+import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 
 
 export interface IContentWidgetData {
@@ -62,6 +62,11 @@ export interface IContentWidgetData {
 export interface IOverlayWidgetData {
 	widget: IOverlayWidget;
 	position: IOverlayWidgetPosition | null;
+}
+
+export interface IGlyphMarginWidgetData {
+	widget: IGlyphMarginWidget;
+	position: IGlyphMarginWidgetPosition;
 }
 
 export class View extends ViewEventHandler {
@@ -77,6 +82,7 @@ export class View extends ViewEventHandler {
 	private readonly _viewZones: ViewZones;
 	private readonly _contentWidgets: ViewContentWidgets;
 	private readonly _overlayWidgets: ViewOverlayWidgets;
+	private readonly _glyphMarginWidgets: GlyphMarginWidgets;
 	private readonly _viewCursors: ViewCursors;
 	private readonly _viewParts: ViewPart[];
 
@@ -160,7 +166,6 @@ export class View extends ViewEventHandler {
 		const marginViewOverlays = new MarginViewOverlays(this._context);
 		this._viewParts.push(marginViewOverlays);
 		marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context));
-		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
@@ -169,6 +174,11 @@ export class View extends ViewEventHandler {
 		margin.getDomNode().appendChild(this._viewZones.marginDomNode);
 		margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
 		this._viewParts.push(margin);
+
+		// Glyph margin widgets
+		this._glyphMarginWidgets = new GlyphMarginWidgets(this._context);
+		this._viewParts.push(this._glyphMarginWidgets);
+		margin.getDomNode().appendChild(this._glyphMarginWidgets.domNode);
 
 		// Content widgets
 		this._contentWidgets = new ViewContentWidgets(this._context, this.domNode);
@@ -202,6 +212,7 @@ export class View extends ViewEventHandler {
 		this._linesContent.appendChild(this._viewZones.domNode);
 		this._linesContent.appendChild(this._viewLines.getDomNode());
 		this._linesContent.appendChild(this._contentWidgets.domNode);
+		// this._linesContent.appendChild(this._glyphMarginWidgets.domNode);
 		this._linesContent.appendChild(this._viewCursors.getDomNode());
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
@@ -545,6 +556,24 @@ export class View extends ViewEventHandler {
 
 	public removeOverlayWidget(widgetData: IOverlayWidgetData): void {
 		this._overlayWidgets.removeWidget(widgetData.widget);
+		this._scheduleRender();
+	}
+
+	public addGlyphMarginWidget(widgetData: IGlyphMarginWidgetData): void {
+		this._glyphMarginWidgets.addWidget(widgetData.widget);
+		this._scheduleRender();
+	}
+
+	public layoutGlyphMarginWidget(widgetData: IGlyphMarginWidgetData): void {
+		const newPreference = widgetData.position;
+		const shouldRender = this._glyphMarginWidgets.setWidgetPosition(widgetData.widget, newPreference);
+		if (shouldRender) {
+			this._scheduleRender();
+		}
+	}
+
+	public removeGlyphMarginWidget(widgetData: IGlyphMarginWidgetData): void {
+		this._glyphMarginWidgets.removeWidget(widgetData.widget);
 		this._scheduleRender();
 	}
 
