@@ -430,17 +430,18 @@ export class GlyphMarginWidgets extends ViewPart {
 			if (lineNumber < 0 || decorations.length === 0) {
 				continue;
 			}
-			decorations.forEach((widget) => this._renderWidget(widget));
+			decorations.forEach((widget) => this._renderWidget(ctx, widget));
 		}
 		return;
 	}
 
-	private _renderWidget(renderedWidget: GlyphMarginWidget): void {
+	private _renderWidget(ctx: RestrictedRenderingContext, renderedWidget: GlyphMarginWidget): void {
 		renderedWidget.domNode.setClassName(`cgmr codicon ${renderedWidget.className}`);
 		renderedWidget.domNode.setLeft(renderedWidget.left);
 		renderedWidget.domNode.setWidth(renderedWidget.width);
 		renderedWidget.domNode.setHeight(this._lineHeight);
-		renderedWidget.domNode.setTop((renderedWidget.lineNumber - 1) * this._lineHeight);
+
+		renderedWidget.domNode.setTop(ctx.getVerticalOffsetForLineNumber(renderedWidget.lineNumber, true));
 		renderedWidget.domNode.setVisibility('inherit');
 		renderedWidget.domNode.setDisplay('block');
 		this.domNode.appendChild(renderedWidget.domNode);
