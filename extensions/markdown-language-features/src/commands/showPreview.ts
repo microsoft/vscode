@@ -68,18 +68,6 @@ export class ShowPreviewCommand implements Command {
 	}
 }
 
-export class CopyImageCommand implements Command {
-	public readonly id = '_markdown.copyImage';
-
-	public constructor(
-		private readonly _webviewManager: MarkdownPreviewManager,
-	) { }
-
-	public execute(args: { id: string }) {
-		this._webviewManager.activePreview?.copyImage(args.id);
-	}
-}
-
 export class ShowPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showPreviewToSide';
 

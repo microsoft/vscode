@@ -13,7 +13,8 @@ import { InsertLinkFromWorkspace, InsertImageFromWorkspace } from './insertResou
 import { RefreshPreviewCommand } from './refreshPreview';
 import { ReloadPlugins } from './reloadPlugins';
 import { RenderDocument } from './renderDocument';
-import { ShowLockedPreviewToSideCommand, ShowPreviewCommand, ShowPreviewToSideCommand, CopyImageCommand } from './showPreview';
+import { ShowLockedPreviewToSideCommand, ShowPreviewCommand, ShowPreviewToSideCommand } from './showPreview';
+import { CopyImageCommand } from './copyImage';
 import { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelector';
 import { ShowSourceCommand } from './showSource';
 import { ToggleLockCommand } from './toggleLock';
