@@ -1196,6 +1196,10 @@ export class Repository implements Disposable {
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
+		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
+			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+
 		if (this.rebaseCommit) {
 			await this.run(
 				Operation.RebaseContinue,
@@ -1206,7 +1210,7 @@ export class Repository implements Disposable {
 					}
 
 					await this.repository.rebaseContinue();
-					await this.commitOperationCleanup(message, opts);
+					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
 				},
 				() => this.commitOperationGetOptimisticResourceGroups(opts));
 		} else {
@@ -1229,7 +1233,7 @@ export class Repository implements Disposable {
 					}
 
 					await this.repository.commit(message, opts);
-					await this.commitOperationCleanup(message, opts);
+					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
 				},
 				() => this.commitOperationGetOptimisticResourceGroups(opts));
 
@@ -1240,15 +1244,10 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async commitOperationCleanup(message: string | undefined, opts: CommitOptions) {
+	private async commitOperationCleanup(message: string | undefined, indexResources: string[], workingGroupResources: string[]) {
 		if (message) {
 			this.inputBox.value = await this.getInputTemplate();
 		}
-
-		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
-		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
-			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
-
 		this.closeDiffEditors(indexResources, workingGroupResources);
 	}
 
