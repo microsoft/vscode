@@ -27,7 +27,7 @@ export function registerMarkdownCommands(
 ): vscode.Disposable {
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
 
-	commandManager.register(new CopyImageCommand(previewManager, telemetryReporter));
+	commandManager.register(new CopyImageCommand(previewManager));
 	commandManager.register(new ShowPreviewCommand(previewManager, telemetryReporter));
 	commandManager.register(new ShowPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));

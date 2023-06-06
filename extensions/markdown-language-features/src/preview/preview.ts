@@ -435,7 +435,6 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 }
 
 export interface IManagedMarkdownPreview {
-	copyImage(id: string): void;
 
 	readonly resource: vscode.Uri;
 	readonly resourceColumn: vscode.ViewColumn;
@@ -443,8 +442,8 @@ export interface IManagedMarkdownPreview {
 	readonly onDispose: vscode.Event<void>;
 	readonly onDidChangeViewState: vscode.Event<vscode.WebviewPanelOnDidChangeViewStateEvent>;
 
+	copyImage(id: string): void;
 	dispose(): void;
-
 	refresh(): void;
 	updateConfiguration(): void;
 

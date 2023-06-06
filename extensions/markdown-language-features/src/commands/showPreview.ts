@@ -69,17 +69,14 @@ export class ShowPreviewCommand implements Command {
 }
 
 export class CopyImageCommand implements Command {
-	public readonly id = 'markdown.copyImage';
+	public readonly id = '_markdown.copyImage';
 
 	public constructor(
 		private readonly _webviewManager: MarkdownPreviewManager,
-		_telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(args: { id: string }) {
-		if (this._webviewManager._activePreview) {
-			this._webviewManager._activePreview.copyImage(args.id);
-		}
+		this._webviewManager._activePreview?.copyImage(args.id);
 	}
 }
 
