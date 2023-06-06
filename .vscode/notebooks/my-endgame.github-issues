@@ -2,22 +2,22 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "#### Macros"
+    "value": "#### Macros\n"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS=repo:microsoft/vscode repo:microsoft/vscode-remote-release repo:microsoft/vscode-js-debug repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-dev repo:microsoft/vscode-unpkg repo:microsoft/vscode-references-view repo:microsoft/vscode-anycode repo:microsoft/vscode-hexeditor repo:microsoft/vscode-extension-telemetry repo:microsoft/vscode-livepreview repo:microsoft/vscode-remotehub repo:microsoft/vscode-settings-sync-server repo:microsoft/vscode-remote-repositories-github repo:microsoft/monaco-editor repo:microsoft/vscode-vsce repo:microsoft/vscode-dev-chrome-launcher repo:microsoft/vscode-emmet-helper repo:microsoft/vscode-livepreview repo:microsoft/vscode-livepreview repo:microsoft/vscode-python repo:microsoft/vscode-jupyter repo:microsoft/vscode-jupyter-internal repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-l10n repo:microsoft/vscode-remote-tunnels\n\n$MILESTONE=milestone:\"May 2023\"\n\n$MINE=assignee:@me"
+    "value": "$REPOS=repo:microsoft/vscode repo:microsoft/vscode-remote-release repo:microsoft/vscode-js-debug repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-dev repo:microsoft/vscode-unpkg repo:microsoft/vscode-references-view repo:microsoft/vscode-anycode repo:microsoft/vscode-hexeditor repo:microsoft/vscode-extension-telemetry repo:microsoft/vscode-livepreview repo:microsoft/vscode-remotehub repo:microsoft/vscode-settings-sync-server repo:microsoft/vscode-remote-repositories-github repo:microsoft/monaco-editor repo:microsoft/vscode-vsce repo:microsoft/vscode-dev-chrome-launcher repo:microsoft/vscode-emmet-helper repo:microsoft/vscode-livepreview repo:microsoft/vscode-livepreview repo:microsoft/vscode-python repo:microsoft/vscode-jupyter repo:microsoft/vscode-jupyter-internal repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-l10n repo:microsoft/vscode-remote-tunnels\n\n$MILESTONE=milestone:\"June 2023\"\n\n$MINE=assignee:@me"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# Preparation"
+    "value": "# Preparation\n"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Open Pull Requests on the Milestone"
+    "value": "## Open Pull Requests on the Milestone\n"
   },
   {
     "kind": 2,
@@ -27,7 +27,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Open Issues on the Milestone"
+    "value": "## Open Issues on the Milestone\n"
   },
   {
     "kind": 2,
@@ -37,7 +37,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Feature Requests Missing Labels"
+    "value": "## Feature Requests Missing Labels\n"
   },
   {
     "kind": 2,
@@ -47,7 +47,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Test Plan Items"
+    "value": "## Test Plan Items\n"
   },
   {
     "kind": 2,
@@ -57,7 +57,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Verification Needed"
+    "value": "## Verification Needed\n"
   },
   {
     "kind": 2,
@@ -67,12 +67,12 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# Testing"
+    "value": "# Testing\n"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Test Plan Items"
+    "value": "## Test Plan Items\n"
   },
   {
     "kind": 2,
@@ -82,7 +82,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Verification Needed"
+    "value": "## Verification Needed\n"
   },
   {
     "kind": 2,
@@ -92,12 +92,12 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# Fixing"
+    "value": "# Fixing\n"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Open Issues"
+    "value": "## Open Issues\n"
   },
   {
     "kind": 2,
@@ -107,7 +107,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Open Bugs"
+    "value": "## Open Bugs\n"
   },
   {
     "kind": 2,
@@ -117,12 +117,12 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# Verification"
+    "value": "# Verification\n"
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## My Issues (verification-steps-needed)"
+    "value": "## My Issues (verification-steps-needed)\n"
   },
   {
     "kind": 2,
@@ -132,7 +132,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## My Issues (verification-found)"
+    "value": "## My Issues (verification-found)\n"
   },
   {
     "kind": 2,
@@ -142,7 +142,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Issues filed by me"
+    "value": "## Issues filed by me\n"
   },
   {
     "kind": 2,
@@ -152,7 +152,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Issues filed from outside team"
+    "value": "## Issues filed from outside team\n"
   },
   {
     "kind": 2,
@@ -162,7 +162,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "## Issues filed by others"
+    "value": "## Issues filed by others\n"
   },
   {
     "kind": 2,
@@ -172,7 +172,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "# Release Notes"
+    "value": "# Release Notes\n"
   },
   {
     "kind": 2,

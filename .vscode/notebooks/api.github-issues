@@ -2,17 +2,17 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "#### Config"
+    "value": "#### Config\n"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repo=repo:microsoft/vscode\n$milestone=milestone:\"May 2023\""
+    "value": "$repo=repo:microsoft/vscode\n$milestone=milestone:\"June 2023\""
   },
   {
     "kind": 1,
     "language": "markdown",
-    "value": "### Finalization"
+    "value": "### Finalization\n"
   },
   {
     "kind": 2,
@@ -22,7 +22,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "### Proposals"
+    "value": "### Proposals\n"
   },
   {
     "kind": 2,
