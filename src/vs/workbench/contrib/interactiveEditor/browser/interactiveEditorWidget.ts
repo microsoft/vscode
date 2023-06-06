@@ -497,10 +497,8 @@ export class InteractiveEditorWidget {
 	}
 
 	updateInfo(message: string | Array<HTMLSpanElement | string>): void {
-
 		this._elements.infoLabel.classList.toggle('hidden', !message);
 		if (message instanceof Array) {
-			console.log('message : ', message);
 			reset(this._elements.infoLabel, ...message);
 		} else {
 			this._elements.infoLabel.innerText = message;
