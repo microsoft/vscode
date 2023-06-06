@@ -6,6 +6,10 @@
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -58,3 +62,22 @@ export function registerAccessibilityConfiguration() {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(configuration);
 }
+
+
+function registerCommand<T extends Command>(command: T): T {
+	command.register();
+	return command;
+}
+
+export const AccessibilityHelpAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibilityHelp',
+	precondition: EditorContextKeys.focus.negate(),
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.F1,
+		weight: KeybindingWeight.WorkbenchContrib,
+		linux: {
+			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+			secondary: [KeyMod.Alt | KeyCode.F1]
+		}
+	}
+}));

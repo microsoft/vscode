@@ -333,7 +333,8 @@ class ShowAccessibilityHelpAction extends EditorAction {
 				linux: {
 					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
 					secondary: [KeyMod.Alt | KeyCode.F1]
-				}
+				},
+				kbExpr: EditorContextKeys.focus
 			}
 		});
 	}
