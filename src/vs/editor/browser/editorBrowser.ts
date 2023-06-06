@@ -257,7 +257,6 @@ export interface IOverlayWidget {
 export interface IGlyphMarginWidget {
 	/**
 	 * The class name to apply to the glyph widget.
-	 * todo@joyceerhl is this really necessary?
 	 */
 	className: string;
 	/**
