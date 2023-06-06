@@ -117,7 +117,7 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
-	ExperimentalImageSupport = 'terminal.integrated.experimentalImageSupport',
+	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
