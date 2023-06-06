@@ -65,9 +65,16 @@ export namespace ToWebviewMessage {
 		readonly content: string;
 	}
 
+	export interface CopyImageContent extends BaseMessage {
+		readonly type: 'copyImage';
+		readonly source: string;
+		readonly id: string;
+	}
+
 	export type Type =
 		| OnDidChangeTextEditorSelection
 		| UpdateView
 		| UpdateContent
+		| CopyImageContent
 		;
 }

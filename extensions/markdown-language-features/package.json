@@ -122,6 +122,14 @@
     ],
     "commands": [
       {
+        "command": "markdown.copyImage",
+        "title": "Copy",
+        "icon": {
+          "light": "./media/preview-light.svg",
+          "dark": "./media/preview-dark.svg"
+        }
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -182,6 +190,12 @@
       }
     ],
     "menus": {
+      "webview/context": [
+        {
+          "command": "markdown.copyImage",
+          "when": "webviewId == 'markdown.preview' && webviewSection == 'image'"
+        }
+      ],
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",

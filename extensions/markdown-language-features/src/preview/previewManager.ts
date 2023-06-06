@@ -77,7 +77,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	private readonly _dynamicPreviews = this._register(new PreviewStore<DynamicMarkdownPreview>());
 	private readonly _staticPreviews = this._register(new PreviewStore<StaticMarkdownPreview>());
 
-	private _activePreview: IManagedMarkdownPreview | undefined = undefined;
+	public _activePreview: IManagedMarkdownPreview | undefined = undefined;
 
 	public constructor(
 		private readonly _contentProvider: MdDocumentRenderer,
