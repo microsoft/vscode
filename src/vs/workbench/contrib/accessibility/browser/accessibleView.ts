@@ -73,7 +73,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => this._editorContainer,
 			render: (container) => {
-				return this._updateModel(providerId, container);
+				return this._render(providerId, container);
 			},
 			onHide: () => {
 				this._providers.get(providerId)?.onClose();
@@ -90,37 +90,28 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		return provider.provideContent();
 	}
 
-	private _updateModel(providerId: string, container: HTMLElement): IDisposable {
+	private _render(providerId: string, container: HTMLElement): IDisposable {
 		const fragment = this._getContent(providerId);
-		const model = this._editorWidget.getModel();
-		if (model) {
-			model.setValue(fragment);
-			this._editorWidget.focus();
-		} else {
-			this._getTextModel(URI.from({ path: `accessible-view-${providerId}`, scheme: 'accessible-view', fragment })).then((model) => {
-				if (model) {
-					this._setModelAndRender(model, container);
-				}
-			});
-		}
-		return { dispose: () => this._editorWidget.dispose() } as IDisposable;
-	}
-
-	private _setModelAndRender(model: ITextModel, container: HTMLElement): void {
-		this._editorWidget.setModel(model);
-		const domNode = this._editorWidget.getDomNode();
-		if (!domNode) {
-			return;
-		}
-		container.appendChild(domNode);
-		this._editorWidget.layout({ width: 500, height: 300 });
-		this._register(this._editorWidget.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Escape) {
-				this._contextViewService.hideContextView();
+		this._getTextModel(URI.from({ path: `accessible-view-${providerId}`, scheme: 'accessible-view', fragment })).then((model) => {
+			if (!model) {
+				return;
 			}
-		}));
-		this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
-		this._editorWidget.focus();
+			this._editorWidget.setModel(model);
+			const domNode = this._editorWidget.getDomNode();
+			if (!domNode) {
+				return;
+			}
+			container.appendChild(domNode);
+			this._editorWidget.layout({ width: 500, height: 300 });
+			this._register(this._editorWidget.onKeyDown((e) => {
+				if (e.keyCode === KeyCode.Escape) {
+					this._contextViewService.hideContextView();
+				}
+			}));
+			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
+			this._editorWidget.focus();
+		});
+		return { dispose: () => { this._providers.get(providerId)?.onClose(); } } as IDisposable;
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
