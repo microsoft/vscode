@@ -24,6 +24,7 @@ export class TerminalEnvironmentManager {
 	private refresh(): void {
 		const config = workspace.getConfiguration('git', null);
 		this.context.environmentVariableCollection.clear();
+		this.context.environmentVariableCollection.description = 'Enables a git authentication provider';
 
 		if (!config.get<boolean>('enabled', true)) {
 			return;
