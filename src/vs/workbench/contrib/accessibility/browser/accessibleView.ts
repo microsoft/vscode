@@ -21,7 +21,7 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IDisposable } from 'xterm';
 
 interface IAccessibleViewProvider { id: string; provideContent(): string; onClose(): void }
-export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibilityViewService');
+export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
