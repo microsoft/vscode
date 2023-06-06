@@ -11265,6 +11265,12 @@ declare module 'vscode' {
 		persistent: boolean;
 
 		/**
+		 * A description for the environment variable collection, this will be used to describe the
+		 * changes in the UI.
+		 */
+		description: string | MarkdownString | undefined;
+
+		/**
 		 * Replace an environment variable with a value.
 		 *
 		 * Note that an extension can only make a single change to any one variable, so this will
@@ -16362,7 +16368,7 @@ declare module 'vscode' {
 		appendOutput(output: string, location?: Location, test?: TestItem): void;
 
 		/**
-		 * Signals that the end of the test run. Any tests included in the run whose
+		 * Signals the end of the test run. Any tests included in the run whose
 		 * states have not been updated will have their state reset.
 		 */
 		end(): void;

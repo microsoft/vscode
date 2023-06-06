@@ -6,7 +6,7 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInteractiveEditorService, IInteractiveEditorSessionProvider, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER } from './interactiveEditor';
+import { IInteractiveEditorService, IInteractiveEditorSessionProvider, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER } from './inlineChat';
 
 export class InteractiveEditorServiceImpl implements IInteractiveEditorService {
 
@@ -32,6 +32,6 @@ export class InteractiveEditorServiceImpl implements IInteractiveEditorService {
 	}
 
 	getAllProvider() {
-		return [...this._entries];
+		return [...this._entries].reverse();
 	}
 }

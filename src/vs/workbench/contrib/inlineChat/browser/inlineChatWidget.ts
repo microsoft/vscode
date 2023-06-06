@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./interactiveEditor';
+import 'vs/css!./inlineChat';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -40,7 +40,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
+import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -50,7 +50,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { assertType } from 'vs/base/common/types';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IdleValue } from 'vs/base/common/async';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 
 const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
 
@@ -158,6 +160,9 @@ export class InteractiveEditorWidget {
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
 	private readonly _ctxMessageCropState: IContextKey<'cropped' | 'not_cropped' | 'expanded'>;
+	private readonly _ctxInnerCursorFirst: IContextKey<boolean>;
+	private readonly _ctxInnerCursorLast: IContextKey<boolean>;
+	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
 
 	private readonly _progressBar: ProgressBar;
 
@@ -176,9 +181,11 @@ export class InteractiveEditorWidget {
 
 	private _lastDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
+	private _preferredExpansionState: ExpansionState | undefined;
+	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
 
 	constructor(
-		parentEditor: ICodeEditor,
+		private readonly parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -198,7 +205,7 @@ export class InteractiveEditorWidget {
 			])
 		};
 
-		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, parentEditor);
+		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, this.parentEditor);
 		this._updateAriaLabel();
 		this._store.add(this._inputEditor);
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
@@ -219,15 +226,15 @@ export class InteractiveEditorWidget {
 		this._ctxMessageCropState = CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE.bindTo(this._contextKeyService);
 		this._ctxInputEmpty = CTX_INTERACTIVE_EDITOR_EMPTY.bindTo(this._contextKeyService);
 
-		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
-		const ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
-		const ctxInputEditorFocused = CTX_INTERACTIVE_EDITOR_FOCUSED.bindTo(this._contextKeyService);
+		this._ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
+		this._ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
+		this._ctxInputEditorFocused = CTX_INTERACTIVE_EDITOR_FOCUSED.bindTo(this._contextKeyService);
 
 		// (1) inner cursor position (last/first line selected)
 		const updateInnerCursorFirstLast = () => {
 			const { lineNumber } = this._inputEditor.getPosition();
-			ctxInnerCursorFirst.set(lineNumber === 1);
-			ctxInnerCursorLast.set(lineNumber === this._inputModel.getLineCount());
+			this._ctxInnerCursorFirst.set(lineNumber === 1);
+			this._ctxInnerCursorLast.set(lineNumber === this._inputModel.getLineCount());
 		};
 		this._store.add(this._inputEditor.onDidChangeCursorPosition(updateInnerCursorFirstLast));
 		updateInnerCursorFirstLast();
@@ -235,11 +242,17 @@ export class InteractiveEditorWidget {
 		// (2) input editor focused or not
 		const updateFocused = () => {
 			const hasFocus = this._inputEditor.hasWidgetFocus();
-			ctxInputEditorFocused.set(hasFocus);
+			this._ctxInputEditorFocused.set(hasFocus);
 			this._elements.content.classList.toggle('synthetic-focus', hasFocus);
+			this.readPlaceholder();
 		};
 		this._store.add(this._inputEditor.onDidFocusEditorWidget(updateFocused));
 		this._store.add(this._inputEditor.onDidBlurEditorWidget(updateFocused));
+		this._store.add(toDisposable(() => {
+			this._ctxInnerCursorFirst.reset();
+			this._ctxInnerCursorLast.reset();
+			this._ctxInputEditorFocused.reset();
+		}));
 		updateFocused();
 
 		// placeholder
@@ -257,6 +270,7 @@ export class InteractiveEditorWidget {
 			const hasText = this._inputModel.getValueLength() > 0;
 			this._elements.placeholder.classList.toggle('hidden', hasText);
 			this._ctxInputEmpty.set(!hasText);
+			this.readPlaceholder();
 
 			const contentHeight = this._inputEditor.getContentHeight();
 			if (contentHeight !== currentContentHeight && this._lastDim) {
@@ -380,6 +394,12 @@ export class InteractiveEditorWidget {
 				const previewCreateDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())));
 				this._previewCreateEditor.value.layout(previewCreateDim);
 				this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
+
+				const lineHeight = this.parentEditor.getOption(EditorOption.lineHeight);
+				const editorHeight = this.parentEditor.getLayoutInfo().height;
+				const editorHeightInLines = Math.floor(editorHeight / lineHeight);
+				this._elements.root.style.setProperty('--vscode-interactive-editor-cropped', String(Math.floor(editorHeightInLines / 5)));
+				this._elements.root.style.setProperty('--vscode-interactive-editor-expanded', String(Math.floor(editorHeightInLines / 3)));
 			}
 		} finally {
 			this._isLayouting = false;
@@ -421,6 +441,13 @@ export class InteractiveEditorWidget {
 		this._elements.placeholder.innerText = value;
 	}
 
+	readPlaceholder(): void {
+		const hasText = this._inputModel.getValueLength() > 0;
+		if (!hasText) {
+			aria.status(this._elements.placeholder.innerText);
+		}
+	}
+
 	updateToolbar(show: boolean) {
 		this._elements.statusToolbar.classList.toggle('hidden', !show);
 		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
@@ -429,26 +456,58 @@ export class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
+	get expansionState(): ExpansionState {
+		return this._expansionState;
+	}
+
+	set preferredExpansionState(expansionState: ExpansionState | undefined) {
+		this._preferredExpansionState = expansionState;
+	}
+
 	updateMarkdownMessage(message: Node | undefined) {
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
+		let expansionState: ExpansionState;
 		if (!message) {
-			this._ctxMessageCropState.reset();
 			reset(this._elements.message);
+			this._ctxMessageCropState.reset();
+			expansionState = ExpansionState.NOT_CROPPED;
 
 		} else {
-			reset(this._elements.message, message);
-			if (this._elements.message.scrollHeight > this._elements.message.clientHeight) {
-				this._ctxMessageCropState.set('cropped');
+			if (this._preferredExpansionState) {
+				reset(this._elements.message, message);
+				expansionState = this._preferredExpansionState;
+				this._preferredExpansionState = undefined;
 			} else {
-				this._ctxMessageCropState.set('not_cropped');
+				this._updateLineClamp(ExpansionState.CROPPED);
+				reset(this._elements.message, message);
+				expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
 			}
+			this._ctxMessageCropState.set(expansionState);
+			this._updateLineClamp(expansionState);
+		}
+		this._expansionState = expansionState;
+		this._onDidChangeHeight.fire();
+	}
+
+	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
+		this._ctxMessageCropState.set(expansionState);
+		const heightBefore = this._elements.markdownMessage.scrollHeight;
+		this._updateLineClamp(expansionState);
+		const heightAfter = this._elements.markdownMessage.scrollHeight;
+		if (heightBefore === heightAfter) {
+			this._ctxMessageCropState.set(ExpansionState.NOT_CROPPED);
 		}
 		this._onDidChangeHeight.fire();
 	}
 
+	private _updateLineClamp(expansionState: ExpansionState) {
+		this._elements.message.setAttribute('state', expansionState);
+	}
+
 	updateInfo(message: string): void {
 		this._elements.infoLabel.classList.toggle('hidden', !message);
-		this._elements.infoLabel.innerText = message;
+		const renderedMessage = renderLabelWithIcons(message);
+		reset(this._elements.infoLabel, ...renderedMessage);
 		this._onDidChangeHeight.fire();
 	}
 
@@ -474,6 +533,10 @@ export class InteractiveEditorWidget {
 
 	reset() {
 		this._ctxInputEmpty.reset();
+		this._ctxInnerCursorFirst.reset();
+		this._ctxInnerCursorLast.reset();
+		this._ctxInputEditorFocused.reset();
+
 		this.value = '';
 		this.updateMarkdownMessage(undefined);
 
@@ -490,15 +553,9 @@ export class InteractiveEditorWidget {
 		this._inputEditor.focus();
 	}
 
-	updateMarkdownMessageExpansionState(expand: boolean) {
-		this._ctxMessageCropState.set(expand ? 'expanded' : 'cropped');
-		this._elements.message.style.webkitLineClamp = expand ? '10' : '3';
-		this._onDidChangeHeight.fire();
-	}
-
 	// --- preview
 
-	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: LineRangeMapping[]) {
+	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: readonly LineRangeMapping[]) {
 		if (changes.length === 0) {
 			this.hideEditsPreview();
 			return;
@@ -734,10 +791,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super.show(where, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
-	}
-
-	protected override revealRange(_range: Range, _isLastLine: boolean) {
-		// disabled
 	}
 
 	override hide(): void {

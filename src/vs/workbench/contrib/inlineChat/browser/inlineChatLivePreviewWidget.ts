@@ -16,21 +16,21 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INTERACTIVE_EDITOR_ID, interactiveEditorDiffInserted, interactiveEditorDiffRemoved, interactiveEditorRegionHighlight } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { INTERACTIVE_EDITOR_ID, interactiveEditorDiffInserted, interactiveEditorDiffRemoved, interactiveEditorRegionHighlight } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { ILogService } from 'vs/platform/log/common/log';
-import { lineRangeAsRange, invertLineRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
+import { lineRangeAsRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { URI } from 'vs/base/common/uri';
 import { TextEdit } from 'vs/editor/common/languages';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 
 export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
@@ -76,7 +76,8 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 			diffCodeLens: false,
 			stickyScroll: { enabled: false },
 			minimap: { enabled: false },
-			isInEmbeddedEditor: true
+			isInEmbeddedEditor: true,
+			overflowWidgetsDomNode: editor.getOverflowWidgetsDomNode()
 		}, {
 			originalEditor: { contributions: diffContributions },
 			modifiedEditor: { contributions: diffContributions }
@@ -136,7 +137,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
 			const result = this._diffEditor.getDiffComputationResult();
 			const hasFocus = this._diffEditor.hasTextFocus();
-			this._updateFromChanges(this._session.wholeRange, result?.changes2 ?? []);
+			this._updateFromChanges(this._session.wholeRange.value, result?.changes2 ?? []);
 			// TODO@jrieken find a better fix for this. this is the challenge:
 			// the _doShowForChanges method invokes show of the zone widget which removes and adds the
 			// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
@@ -145,11 +146,11 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 				this._diffEditor.focus();
 			}
 		}));
-		this._updateFromChanges(this._session.wholeRange, this._session.lastTextModelChanges);
+		this._updateFromChanges(this._session.wholeRange.value, this._session.lastTextModelChanges);
 		this._isVisible = true;
 	}
 
-	private _updateFromChanges(range: Range, changes: LineRangeMapping[]): void {
+	private _updateFromChanges(range: Range, changes: readonly LineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
 
 		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
@@ -173,7 +174,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 	// --- inline diff
 
-	private _renderChangesWithInlineDiff(changes: LineRangeMapping[]) {
+	private _renderChangesWithInlineDiff(changes: readonly LineRangeMapping[]) {
 		const original = this._session.textModel0;
 
 		const decorations: IModelDeltaDecoration[] = [];
@@ -220,7 +221,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 	// --- full diff
 
-	private _renderChangesWithFullDiff(changes: LineRangeMapping[], range: Range) {
+	private _renderChangesWithFullDiff(changes: readonly LineRangeMapping[], range: Range) {
 
 		const modified = this.editor.getModel()!;
 		const ranges = this._computeHiddenRanges(modified, range, changes);
@@ -249,7 +250,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 		super.hide();
 	}
 
-	private _computeHiddenRanges(model: ITextModel, range: Range, changes: LineRangeMapping[]) {
+	private _computeHiddenRanges(model: ITextModel, range: Range, changes: readonly LineRangeMapping[]) {
 		assertType(changes.length > 0);
 
 		let originalLineRange = changes[0].originalRange;

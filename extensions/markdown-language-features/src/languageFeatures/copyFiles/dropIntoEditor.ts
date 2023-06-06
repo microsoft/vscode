@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { createEditForMediaFiles as createEditForMediaFiles, tryGetUriListSnippet } from './shared';
+import { createEditForMediaFiles as createEditForMediaFiles, mediaMimes, tryGetUriListSnippet } from './shared';
 import { Schemes } from '../../util/schemes';
 
 
@@ -67,7 +67,8 @@ class MarkdownImageDropProvider implements vscode.DocumentDropEditProvider {
 export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentDropEditProvider(selector, new MarkdownImageDropProvider(), {
 		dropMimeTypes: [
-			'text/uri-list'
+			'text/uri-list',
+			...mediaMimes,
 		]
 	});
 }

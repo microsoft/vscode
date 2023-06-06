@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./interactiveEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -21,11 +19,10 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorLivePreviewWidget';
-import { EditResponse, Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
-import { InteractiveEditorWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { getValueFromSnapshot } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
-import { CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
+import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { InteractiveEditorWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
@@ -38,7 +35,7 @@ export abstract class EditModeStrategy {
 
 	abstract cancel(): Promise<void>;
 
-	abstract makeChanges(response: EditResponse, edits: ISingleEditOperation[]): Promise<void>;
+	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
@@ -107,7 +104,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async makeChanges(_response: EditResponse, _edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(_edits: ISingleEditOperation[]): Promise<void> {
 		// nothing to do
 	}
 
@@ -205,7 +202,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _ctxShowingDiff: IContextKey<boolean>;
-	private readonly _diffToggleListener: IDisposable;
 	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
 
@@ -226,15 +222,9 @@ export class LiveStrategy extends EditModeStrategy {
 		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
 		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
-		this._diffToggleListener = ModifierKeyEmitter.getInstance().event(e => {
-			if (e.altKey || e.lastKeyReleased === 'alt') {
-				this.toggleDiff();
-			}
-		});
 	}
 
 	override dispose(): void {
-		this._diffToggleListener.dispose();
 		this._inlineDiffDecorations.clear();
 		this._ctxShowingDiff.reset();
 	}
@@ -274,23 +264,17 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	async cancel() {
-		const { textModelN: modelN, textModel0: model0, lastSnapshot } = this._session;
-		if (modelN.isDisposed() || (model0.isDisposed() && !lastSnapshot)) {
+		const { textModelN: modelN, textModelNAltVersion, textModelNSnapshotAltVersion } = this._session;
+		if (modelN.isDisposed()) {
 			return;
 		}
-
-		const newText = lastSnapshot
-			? getValueFromSnapshot(lastSnapshot)
-			: model0.getValue();
-
-		const edits = await this._editorWorkerService.computeMoreMinimalEdits(modelN.uri, [{ range: modelN.getFullModelRange(), text: newText }]);
-		if (edits) {
-			const operations = edits.map(e => EditOperation.replace(Range.lift(e.range), e.text));
-			modelN.pushEditOperations(null, operations, () => null);
+		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
+		while (targetAltVersion < modelN.getAlternativeVersionId() && modelN.canUndo()) {
+			modelN.undo();
 		}
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
+	override async makeChanges(edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -365,10 +349,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		super.dispose();
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
-		super.makeChanges(_response, edits, true);
-	}
-
 	override async renderChanges(response: EditResponse) {
 
 		this._updateSummaryMessage();
@@ -377,7 +357,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.showCreation(this._session.wholeRange, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.hide();
 		}

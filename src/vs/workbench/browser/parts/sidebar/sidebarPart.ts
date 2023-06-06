@@ -12,7 +12,6 @@ import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/
 import { SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/contextkeys';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -85,7 +84,6 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -98,7 +96,6 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 		super(
 			notificationService,
 			storageService,
-			telemetryService,
 			contextMenuService,
 			layoutService,
 			keybindingService,
@@ -290,7 +287,8 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 					getAnchor: () => anchor,
 					getActions: () => contextMenuActions.slice(),
 					getActionViewItem: action => this.actionViewItemProvider(action),
-					actionRunner: activeViewlet.getActionRunner()
+					actionRunner: activeViewlet.getActionRunner(),
+					skipTelemetry: true
 				});
 			}
 		}

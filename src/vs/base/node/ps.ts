@@ -51,8 +51,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/i;
 			const NODEJS_PROCESS_HINT = /--ms-enable-electron-run-as-node/i;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
-			const WINDOWS_PTY = /\\pipe\\winpty-control/i;
-			const WINDOWS_CONSOLE_HOST = /conhost\.exe/i;
+			const WINPTY = /\\pipe\\winpty-control/i;
+			const CONPTY = /conhost\.exe.+--headless/i;
 			const TYPE = /--type=([a-zA-Z-]+)/;
 
 			// find windows crash reporter
@@ -60,14 +60,14 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				return 'electron-crash-reporter';
 			}
 
-			// find windows pty process
-			if (WINDOWS_PTY.exec(cmd)) {
-				return 'winpty-process';
+			// find winpty process
+			if (WINPTY.exec(cmd)) {
+				return 'winpty-agent';
 			}
 
-			// find windows console host process
-			if (WINDOWS_CONSOLE_HOST.exec(cmd)) {
-				return 'console-window-host (Windows internal process)';
+			// find conpty process
+			if (CONPTY.exec(cmd)) {
+				return 'conpty-agent';
 			}
 
 			// find "--type=xxxx"
