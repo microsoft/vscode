@@ -102,7 +102,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 				return;
 			}
 			container.appendChild(domNode);
-			this._editorWidget.layout({ width: 500, height: 300 });
+			this._layout();
 			this._register(this._editorWidget.onKeyDown((e) => {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
@@ -112,6 +112,27 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			this._editorWidget.focus();
 		});
 		return { dispose: () => { this._providers.get(providerId)?.onClose(); } } as IDisposable;
+	}
+
+	private _layout(): void {
+		const domNode = this._editorWidget.getDomNode();
+		if (!domNode) {
+			return;
+		}
+
+		const windowWidth = window.innerWidth;
+		const windowHeight = window.innerHeight;
+
+		const width = Math.max(5, Math.min(500, windowWidth - 40));
+		const height = Math.max(5, Math.min(300, windowHeight - 40));
+
+		this._editorWidget.layout({ width, height });
+
+		const top = Math.round((windowHeight - height) / 2);
+		domNode.style.top = `${top}px`;
+
+		const left = Math.round((windowWidth - width) / 2);
+		domNode.style.left = `${left}px`;
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
