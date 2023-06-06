@@ -90,6 +90,7 @@ import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement'
 import 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/remote/common/remoteExtensionsScanner';
+import 'vs/workbench/services/terminal/common/embedderTerminalService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
@@ -173,7 +174,7 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
 import 'vs/workbench/contrib/chat/browser/chat.contribution';
-import 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditor.contribution';
+import 'vs/workbench/contrib/inlineChat/browser/inlineChat.contribution';
 
 // Interactive
 import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
@@ -367,5 +368,8 @@ import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairC
 
 // Accessibility
 import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
+
+// Share
+import 'vs/workbench/contrib/share/browser/share.contribution';
 
 //#endregion

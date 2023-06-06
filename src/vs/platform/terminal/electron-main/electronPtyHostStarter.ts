@@ -16,6 +16,7 @@ import { IpcMainEvent } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
+import { deepClone } from 'vs/base/common/objects';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
 
@@ -54,8 +55,8 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		this.utilityProcess.start({
 			type: 'ptyHost',
 			entryPoint: 'vs/platform/terminal/node/ptyHostMain',
-			payload: this._createPtyHostConfiguration(lastPtyId),
-			execArgv
+			execArgv,
+			env: this._createPtyHostConfiguration(lastPtyId)
 		});
 
 		const port = this.utilityProcess.connect();
@@ -78,13 +79,14 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 
 	private _createPtyHostConfiguration(lastPtyId: number) {
 		return {
-			VSCODE_LAST_PTY_ID: lastPtyId,
+			...deepClone(process.env),
+			VSCODE_LAST_PTY_ID: String(lastPtyId),
 			VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
-			VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
-			VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
-			VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
+			VSCODE_RECONNECT_GRACE_TIME: String(this._reconnectConstants.graceTime),
+			VSCODE_RECONNECT_SHORT_GRACE_TIME: String(this._reconnectConstants.shortGraceTime),
+			VSCODE_RECONNECT_SCROLLBACK: String(this._reconnectConstants.scrollback)
 		};
 	}
 

@@ -6,12 +6,10 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtHostContext, ExtHostChatShape, IChatRequestDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatShape, ExtHostContext, IChatRequestDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChatProgress, IChatRequest, IChatResponse, IChat, IChatDynamicRequest, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChat)
@@ -28,8 +26,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatContributionService private readonly chatContribService: IChatContributionService,
-		@IProductService private readonly productService: IProductService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
@@ -40,11 +36,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	}
 
 	async $registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void> {
-		if (this.productService.quality === 'stable') {
-			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);
-			return;
-		}
-
 		const unreg = this._chatService.registerSlashCommandProvider({
 			chatProviderId,
 			provideSlashCommands: async token => {
@@ -63,11 +54,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 	}
 
 	async $registerChatProvider(handle: number, id: string): Promise<void> {
-		if (this.productService.quality === 'stable') {
-			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);
-			return;
-		}
-
 		const registration = this.chatContribService.registeredProviders.find(staticProvider => staticProvider.id === id);
 		if (!registration) {
 			throw new Error(`Provider ${id} must be declared in the package.json.`);
@@ -134,6 +120,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			},
 			provideFollowups: (session, token) => {
 				return this._proxy.$provideFollowups(handle, session.id, token);
+			},
+			removeRequest: (session, requestId) => {
+				return this._proxy.$removeRequest(handle, session.id, requestId);
 			}
 		});
 

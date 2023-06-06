@@ -96,15 +96,24 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	const logNormal = log.bind(null, ts.server.LogLevel.normal);
 	const logVerbose = log.bind(null, ts.server.LogLevel.verbose);
 
+	const noopWatcher: ts.FileWatcher = { close() { } };
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
 			if (looksLikeLibDtsPath(path)) { // We don't support watching lib files on web since they are readonly
-				return { close() { } };
+				return noopWatcher;
 			}
 
 			console.log('watching file:', path);
 
 			logVerbose('fs.watchFile', { path });
+
+			let uri: URI;
+			try {
+				uri = toResource(path);
+			} catch (e) {
+				console.error(e);
+				return noopWatcher;
+			}
 
 			watchFiles.set(path, { path, callback, pollingInterval, options });
 			const watchIds = [++watchId];
@@ -128,16 +137,9 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
 			logVerbose('fs.watchDirectory', { path });
 
-			console.log('watching dir:', path);
-
 			watchDirectories.set(path, { path, callback, recursive, options });
-			const watchIds = [++watchId];
-			const res = toResource(path);
-			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: res, id: watchIds[0] });
-			if (enabledExperimentalTypeAcquisition && looksLikeNodeModules(path)) {
-				watchIds.push(++watchId);
-				fsWatcher.postMessage({ type: 'watchDirectory', uri: mapUri(res, 'vscode-node-modules'), id: watchIds[1] });
-			}
+			watchId++;
+			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: toResource(path), id: watchId });
 			return {
 				close() {
 					logVerbose('fs.watchDirectory.close', { path });

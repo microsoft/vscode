@@ -31,6 +31,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 suite('SuggestController', function () {
 
@@ -73,6 +74,10 @@ suite('SuggestController', function () {
 			}],
 			[ILabelService, new class extends mock<ILabelService>() { }],
 			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+			[IEnvironmentService, new class extends mock<IEnvironmentService>() {
+				override isBuilt: boolean = true;
+				override isExtensionDevelopment: boolean = false;
+			}],
 		);
 
 		model = disposables.add(createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' })));

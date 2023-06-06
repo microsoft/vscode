@@ -21,8 +21,8 @@ export class TestInstantiationService extends InstantiationService {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
-	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false) {
-		super(_serviceCollection, strict);
+	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: TestInstantiationService) {
+		super(_serviceCollection, strict, parent);
 
 		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
 	}
@@ -124,6 +124,10 @@ export class TestInstantiationService extends InstantiationService {
 
 	private isServiceMock(arg1: any): boolean {
 		return typeof arg1 === 'object' && arg1.hasOwnProperty('id');
+	}
+
+	override createChild(services: ServiceCollection): TestInstantiationService {
+		return new TestInstantiationService(services, false, this);
 	}
 }
 

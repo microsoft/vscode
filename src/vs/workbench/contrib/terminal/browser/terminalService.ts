@@ -506,8 +506,7 @@ export class TerminalService implements ITerminalService {
 			return this.createTerminal();
 		}
 		// Active instance, ensure accepts input
-		// Don't use task terminals or other terminals that don't accept input
-		if (!options?.acceptsInput || activeInstance?.shellLaunchConfig.type !== 'Task' && activeInstance.xterm?.isStdinDisabled !== true) {
+		if (!options?.acceptsInput || activeInstance.xterm?.isStdinDisabled !== true) {
 			return activeInstance;
 		}
 		// Active instance doesn't accept input, create and focus
@@ -1015,13 +1014,14 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _addToReconnected(instance: ITerminalInstance): void {
-		if (instance.reconnectionProperties) {
-			const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionProperties.ownerId);
-			if (reconnectedTerminals) {
-				reconnectedTerminals.push(instance);
-			} else {
-				this._reconnectedTerminals.set(instance.reconnectionProperties.ownerId, [instance]);
-			}
+		if (!instance.reconnectionProperties?.ownerId) {
+			return;
+		}
+		const reconnectedTerminals = this._reconnectedTerminals.get(instance.reconnectionProperties.ownerId);
+		if (reconnectedTerminals) {
+			reconnectedTerminals.push(instance);
+		} else {
+			this._reconnectedTerminals.set(instance.reconnectionProperties.ownerId, [instance]);
 		}
 	}
 

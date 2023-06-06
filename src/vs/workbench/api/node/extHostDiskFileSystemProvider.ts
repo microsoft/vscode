@@ -55,11 +55,11 @@ class DiskFileSystemProviderAdapter implements vscode.FileSystemProvider {
 	}
 
 	writeFile(uri: vscode.Uri, content: Uint8Array, options: { readonly create: boolean; readonly overwrite: boolean }): Promise<void> {
-		return this.impl.writeFile(uri, content, { ...options, unlock: false });
+		return this.impl.writeFile(uri, content, { ...options, unlock: false, atomic: false });
 	}
 
 	delete(uri: vscode.Uri, options: { readonly recursive: boolean }): Promise<void> {
-		return this.impl.delete(uri, { ...options, useTrash: false });
+		return this.impl.delete(uri, { ...options, useTrash: false, atomic: false });
 	}
 
 	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { readonly overwrite: boolean }): Promise<void> {

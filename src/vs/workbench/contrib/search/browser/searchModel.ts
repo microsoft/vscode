@@ -26,7 +26,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -736,8 +735,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 		if (this._notebookEditorWidget) {
 			this._notebookUpdateScheduler.cancel();
-			this._findMatchDecorationModel?.dispose();
-			this._findMatchDecorationModel = undefined;
 			this._editorWidgetListener?.dispose();
 		}
 
@@ -793,7 +790,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 				webviewMatches: webviewMatches
 			};
 		});
-		this._findMatchDecorationModel.setAllFindMatchesDecorations(cellFindMatch);
+		try {
+			this._findMatchDecorationModel.setAllFindMatchesDecorations(cellFindMatch);
+		} catch (e) {
+			// no op, might happen due to bugs related to cell output regex search
+		}
 	}
 	async updateMatchesForEditorWidget(): Promise<void> {
 		if (!this._notebookEditorWidget) {
@@ -1276,8 +1277,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@ILogService private readonly _logService: ILogService
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(_resource, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
@@ -1317,27 +1317,13 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		const normalizedResource = this.uriIdentityService.extUri.normalizePath(this.resource);
 		let uri = this.normalizedUriParent(rawFileMatch.resource);
 
-		const debug: string[] = ['[search model building]'];
-
-		if (this._logService.getLevel() === LogLevel.Trace) {
-			debug.push(`Starting with normalized resource ${normalizedResource}`);
-		}
-
 		while (!this.uriEquals(normalizedResource, uri)) {
 			fileMatchParentParts.unshift(uri);
 			const prevUri = uri;
 			uri = this.normalizedUriParent(uri);
-			if (this._logService.getLevel() === LogLevel.Trace) {
-				debug.push(`current uri parent ${uri} comparing with ${prevUri}`);
-			}
 			if (this.uriEquals(prevUri, uri)) {
-				this._logService.trace(debug.join('\n\n'));
-				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of its ${normalizedResource}`);
+				throw Error(`${rawFileMatch.resource} is not correctly configured as a child of ${normalizedResource}`);
 			}
-		}
-
-		if (this._logService.getLevel() === LogLevel.Trace) {
-			this._logService.trace(debug.join('\n\n'));
 		}
 
 		const root = this.closestRoot ?? this;

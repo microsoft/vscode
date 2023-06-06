@@ -68,15 +68,6 @@
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
   "contributes": {
-    "walkthroughs": [
-      {
-        "id": "tempNodejsWelcome",
-        "title": "tempNodejsTitle",
-        "description": "tempNodejsDescription",
-        "steps": [],
-        "when": "false"
-      }
-    ],
     "jsonValidation": [
       {
         "fileMatch": "package.json",
@@ -152,6 +143,12 @@
       "title": "%configuration.typescript%",
       "order": 20,
       "properties": {
+        "typescript.experimental.aiQuickFix": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.experimental.aiQuickFix%",
+          "scope": "resource"
+        },
         "typescript.tsdk": {
           "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
