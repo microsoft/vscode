@@ -6,14 +6,13 @@
 import { localize } from 'vs/nls';
 import { format } from 'vs/base/common/strings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { addStandardDisposableListener } from 'vs/base/browser/dom';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditMode } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat' | 'editor', currentInput?: string): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -59,6 +58,7 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 
 export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor, type: 'chat' | 'editor'): Promise<void> {
 	const widgetService = accessor.get(IChatWidgetService);
+	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const inputEditor: ICodeEditor | undefined = type === 'chat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
 	const editorUri = editor.getModel()?.uri;
 
@@ -74,22 +74,13 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type, type === 'editor' ? cachedInput : undefined);
-	inputEditor.setValue(helpText);
-	inputEditor.updateOptions({ readOnly: true });
-	inputEditor.focus();
-	const disposable = addStandardDisposableListener(domNode, 'keydown', e => {
-		if (!inputEditor) {
-			return;
-		}
-		if (e.keyCode === KeyCode.Escape && inputEditor.getValue() === helpText) {
-			inputEditor.updateOptions({ readOnly: false });
-			inputEditor.setValue(cachedInput);
+	accessibleViewService.registerProvider({
+		id: 'chat', provideContent: () => helpText, onClose: () => {
 			if (cachedPosition) {
 				inputEditor.setPosition(cachedPosition);
+				inputEditor.focus();
 			}
-			inputEditor.focus();
-			disposable.dispose();
-			e.stopPropagation();
 		}
 	});
+	accessibleViewService.show('chat');
 }
