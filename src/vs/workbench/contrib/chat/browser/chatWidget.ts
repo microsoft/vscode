@@ -453,9 +453,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getViewState(): IViewState {
-		if (this.inputEditor.getOption(EditorOption.readOnly)) {
-			return { inputValue: undefined };
-		}
 		this.inputPart.saveState();
 		return { inputValue: this.inputPart.inputEditor.getValue() };
 	}
