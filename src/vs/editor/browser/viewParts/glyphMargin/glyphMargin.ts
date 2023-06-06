@@ -196,7 +196,6 @@ export class GlyphMarginWidgets extends ViewPart {
 		this._glyphMarginDecorationLaneCount = layoutInfo.glyphMarginDecorationLaneCount;
 		this._previousRenderResult = null;
 		this._renderResult = null;
-		this._context.addEventHandler(this);
 	}
 
 	public override dispose(): void {
