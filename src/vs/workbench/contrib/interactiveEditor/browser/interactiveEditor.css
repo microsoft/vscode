@@ -124,6 +124,10 @@
 	padding-left: 2px;
 }
 
+.monaco-editor .interactive-editor .status .label.info > * {
+	padding-right: 5px;
+}
+
 .monaco-editor .interactive-editor .status .label.status {
 	padding-left: 10px;
 	padding-right: 4px;
