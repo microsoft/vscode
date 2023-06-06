@@ -151,7 +151,7 @@ export class MakeRequestAction extends AbstractInteractiveEditorAction {
 	}
 
 	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.accept();
+		ctrl.acceptInput();
 	}
 }
 
@@ -313,7 +313,7 @@ export class DiscardAction extends AbstractInteractiveEditorAction {
 	}
 
 	async runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		await ctrl.cancelSession();
+		ctrl.cancelSession();
 	}
 }
 
@@ -339,7 +339,7 @@ export class DiscardToClipboardAction extends AbstractInteractiveEditorAction {
 
 	override async runInteractiveEditorCommand(accessor: ServicesAccessor, ctrl: InteractiveEditorController): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		const changedText = await ctrl.cancelSession();
+		const changedText = ctrl.cancelSession();
 		if (changedText !== undefined) {
 			clipboardService.writeText(changedText);
 		}
@@ -363,7 +363,7 @@ export class DiscardUndoToNewFileAction extends AbstractInteractiveEditorAction 
 
 	override async runInteractiveEditorCommand(accessor: ServicesAccessor, ctrl: InteractiveEditorController, editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const changedText = await ctrl.cancelSession();
+		const changedText = ctrl.cancelSession();
 		if (changedText !== undefined) {
 			const input: IUntitledTextResourceEditorInput = { forceUntitled: true, resource: undefined, contents: changedText, languageId: editor.getModel()?.getLanguageId() };
 			editorService.openEditor(input, SIDE_GROUP);
@@ -460,7 +460,7 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 	}
 
 	override async runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController): Promise<void> {
-		await ctrl.applyChanges();
+		ctrl.acceptSession();
 	}
 }
 
@@ -486,7 +486,7 @@ export class CancelSessionAction extends AbstractInteractiveEditorAction {
 	}
 
 	async runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		await ctrl.cancelSession();
+		ctrl.cancelSession();
 	}
 }
 
