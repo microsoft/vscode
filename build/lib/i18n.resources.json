@@ -159,7 +159,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/interactiveEditor",
+			"name": "vs/workbench/contrib/inlineChat",
 			"project": "vscode-workbench"
 		},
 		{

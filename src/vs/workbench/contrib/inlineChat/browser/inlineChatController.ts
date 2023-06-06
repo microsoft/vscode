@@ -12,7 +12,6 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'v
 import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
-import 'vs/css!./interactiveEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -29,10 +28,10 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
-import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorStrategies';
-import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
+import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -184,10 +183,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
 				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
-				await this.cancelSession();
+				this.cancelSession();
 			} else {
 				this._log('finishing existing session, using APPLY', this._activeSession.editMode);
-				await this.applyChanges();
+				this.acceptSession();
 			}
 		}
 	}
@@ -425,7 +424,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return State.MAKE_REQUEST;
 	}
 
-	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL> {
+	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
 		assertType(this._activeSession.lastInput);
@@ -490,6 +489,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			return State.CANCEL;
 		} else if (message & Message.PAUSE_SESSION) {
 			return State.PAUSE;
+		} else if (message & Message.ACCEPT_SESSION) {
+			return State.ACCEPT;
 		} else {
 			return State.APPLY_RESPONSE;
 		}
@@ -599,13 +600,34 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	private async [State.ACCEPT]() {
 		assertType(this._activeSession);
+		assertType(this._strategy);
+
+		try {
+			await this._strategy.apply();
+		} catch (err) {
+			this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
+			this._log('FAILED to apply changes');
+			this._log(err);
+		}
+
 		this._interactiveEditorSessionService.releaseSession(this._activeSession);
+
 		this[State.PAUSE]();
 	}
 
 	private async [State.CANCEL]() {
 		assertType(this._activeSession);
+		assertType(this._strategy);
+
 		const mySession = this._activeSession;
+
+		try {
+			await this._strategy.cancel();
+		} catch (err) {
+			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
+			this._log('FAILED to discard changes');
+			this._log(err);
+		}
 
 		this[State.PAUSE]();
 
@@ -620,7 +642,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	// ---- controller API
 
-	accept(): void {
+	acceptInput(): void {
 		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
@@ -688,38 +710,17 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	async applyChanges(): Promise<void> {
-		if (this._strategy) {
-			const strategy = this._strategy;
-			this._strategy = undefined;
-			try {
-				await strategy?.apply();
-			} catch (err) {
-				this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
-				this._log('FAILED to apply changes');
-				this._log(err);
-			}
-			strategy?.dispose();
-			this._messages.fire(Message.ACCEPT_SESSION);
-		}
+	acceptSession(): void {
+		this._messages.fire(Message.ACCEPT_SESSION);
 	}
 
-	async cancelSession() {
+	cancelSession() {
 		if (!this._strategy || !this._activeSession) {
 			return undefined;
 		}
 
 		const changedText = this._activeSession.asChangedText();
-		const strategy = this._strategy;
-		this._strategy = undefined;
-		try {
-			await strategy?.cancel();
-		} catch (err) {
-			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
-			this._log('FAILED to discard changes');
-			this._log(err);
-		}
-		strategy?.dispose();
+
 		this._messages.fire(Message.CANCEL_SESSION);
 		return changedText;
 	}

@@ -339,13 +339,8 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get title(): string {
 		const firstRequestMessage = this._requests[0]?.message;
-		if (typeof firstRequestMessage === 'string') {
-			return firstRequestMessage;
-		} else if (firstRequestMessage) {
-			return firstRequestMessage.message;
-		} else {
-			return '';
-		}
+		const message = typeof firstRequestMessage === 'string' ? firstRequestMessage : firstRequestMessage?.message ?? '';
+		return message.split('\n')[0].substring(0, 50);
 	}
 
 	constructor(
