@@ -18,7 +18,6 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 	const keybindingService = accessor.get(IKeybindingService);
 	const configurationService = accessor.get(IConfigurationService);
 	const content = [];
-	content.push(localize('interactiveSession.helpMenuExit', "Exit this menu and return to the input via the Escape key."));
 	if (type === 'chat') {
 		content.push(localize('chat.overview', 'Chat responses will be announced as they come in. A response will indicate the number of code blocks, if any, and then the rest of the response.'));
 		content.push(localize('chat.requestHistory', 'In the input box, use UpArrow/DownArrow to navigate your request history. Edit input and use enter to run a new request.'));

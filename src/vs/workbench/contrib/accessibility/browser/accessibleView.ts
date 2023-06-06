@@ -92,7 +92,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 
 	private _render(providerId: string, container: HTMLElement): IDisposable {
-		const fragment = this._getContent(providerId);
+		const fragment = localize('introMsg', "Welcome to {0} Accessibility Help. Exit this menu and return to the terminal via the Escape key.\n", providerId) + this._getContent(providerId);
 		this._getTextModel(URI.from({ path: `accessible-view-${providerId}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
 				return;

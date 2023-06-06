@@ -55,8 +55,6 @@ export class AccessibilityHelpWidget {
 
 	private _getContent(): string {
 		const content = [];
-		content.push(localize('introMsg', "Welcome to Terminal Accessibility Help"));
-		content.push(localize('dismiss', "Return to the terminal via Escape"));
 		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.'), localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
 			content.push(localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience"));
