@@ -77,7 +77,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	private readonly _dynamicPreviews = this._register(new PreviewStore<DynamicMarkdownPreview>());
 	private readonly _staticPreviews = this._register(new PreviewStore<StaticMarkdownPreview>());
 
-	public _activePreview: IManagedMarkdownPreview | undefined = undefined;
+	private _activePreview: IManagedMarkdownPreview | undefined = undefined;
 
 	public constructor(
 		private readonly _contentProvider: MdDocumentRenderer,
@@ -149,6 +149,15 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	public get activePreviewResourceColumn() {
 		return this._activePreview?.resourceColumn;
+	}
+
+	public findPreview(resource: vscode.Uri): IManagedMarkdownPreview | undefined {
+		for (const preview of [...this._dynamicPreviews, ...this._staticPreviews]) {
+			if (preview.resource.fsPath === resource.fsPath) {
+				return preview;
+			}
+		}
+		return undefined;
 	}
 
 	public toggleLock() {

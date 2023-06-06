@@ -76,7 +76,7 @@ export class CopyImageCommand implements Command {
 	) { }
 
 	public execute(args: { id: string }) {
-		this._webviewManager._activePreview?.copyImage(args.id);
+		this._webviewManager.activePreview?.copyImage(args.id);
 	}
 }
 
