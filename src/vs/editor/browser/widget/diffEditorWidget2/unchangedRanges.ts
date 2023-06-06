@@ -17,7 +17,7 @@ export class UnchangedRangesFeature extends Disposable {
 	constructor(
 		private readonly _originalEditor: CodeEditorWidget,
 		private readonly _modifiedEditor: CodeEditorWidget,
-		private readonly _diffModel: IObservable<DiffModel | null>,
+		private readonly _diffModel: IObservable<DiffModel | undefined>,
 	) {
 		super();
 

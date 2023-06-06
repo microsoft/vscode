@@ -6,7 +6,7 @@
 import { illegalState } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { IInteractiveEditorSessionService } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { IInteractiveEditorSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 

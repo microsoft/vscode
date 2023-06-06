@@ -11,7 +11,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditMode } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat' | 'editor', currentInput?: string): string {

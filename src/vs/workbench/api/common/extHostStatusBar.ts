@@ -66,9 +66,9 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 			// this can only happen when an item was contributed by an extension
 			const item = staticItems.get(this._entryId);
 			if (item) {
+				alignment = item.alignLeft ? ExtHostStatusBarAlignment.Left : ExtHostStatusBarAlignment.Right;
+				priority = item.priority;
 				this._visible = true;
-				this._alignment = item.alignLeft ? ExtHostStatusBarAlignment.Left : ExtHostStatusBarAlignment.Right;
-				this._priority = item.priority;
 				this.name = item.name;
 				this.text = item.text;
 				this.command = item.command;

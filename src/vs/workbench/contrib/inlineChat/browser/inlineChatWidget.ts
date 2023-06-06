@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./interactiveEditor';
+import 'vs/css!./inlineChat';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, MENU_INTERACTIVE_EDITOR_WIDGET_MARKDOWN_MESSAGE, CTX_INTERACTIVE_EDITOR_MESSAGE_CROP_STATE, IInteractiveEditorSlashCommand, MENU_INTERACTIVE_EDITOR_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -40,7 +40,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/interactiveEditor/browser/utils';
+import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -50,7 +50,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { assertType } from 'vs/base/common/types';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ExpansionState } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
+import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 
@@ -120,9 +120,6 @@ export interface InteractiveEditorWidgetViewState {
 	placeholder: string;
 }
 
-const MESSAGE_CROPPED_NUMBER_LINES = 3;
-const MESSAGE_EXPANDED_NUMBER_LINES = 10;
-
 export class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
@@ -188,7 +185,7 @@ export class InteractiveEditorWidget {
 	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
 
 	constructor(
-		parentEditor: ICodeEditor,
+		private readonly parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -208,7 +205,7 @@ export class InteractiveEditorWidget {
 			])
 		};
 
-		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, parentEditor);
+		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, _inputEditorOptions, codeEditorWidgetOptions, this.parentEditor);
 		this._updateAriaLabel();
 		this._store.add(this._inputEditor);
 		this._store.add(this._inputEditor.onDidChangeModelContent(() => this._onDidChangeInput.fire(this)));
@@ -397,6 +394,12 @@ export class InteractiveEditorWidget {
 				const previewCreateDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())));
 				this._previewCreateEditor.value.layout(previewCreateDim);
 				this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
+
+				const lineHeight = this.parentEditor.getOption(EditorOption.lineHeight);
+				const editorHeight = this.parentEditor.getLayoutInfo().height;
+				const editorHeightInLines = Math.floor(editorHeight / lineHeight);
+				this._elements.root.style.setProperty('--vscode-interactive-editor-cropped', String(Math.floor(editorHeightInLines / 5)));
+				this._elements.root.style.setProperty('--vscode-interactive-editor-expanded', String(Math.floor(editorHeightInLines / 3)));
 			}
 		} finally {
 			this._isLayouting = false;
@@ -475,12 +478,12 @@ export class InteractiveEditorWidget {
 				expansionState = this._preferredExpansionState;
 				this._preferredExpansionState = undefined;
 			} else {
-				this._elements.message.style.webkitLineClamp = MESSAGE_CROPPED_NUMBER_LINES.toString();
+				this._updateLineClamp(ExpansionState.CROPPED);
 				reset(this._elements.message, message);
 				expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
 			}
 			this._ctxMessageCropState.set(expansionState);
-			this.updateLineClamp(expansionState);
+			this._updateLineClamp(expansionState);
 		}
 		this._expansionState = expansionState;
 		this._onDidChangeHeight.fire();
@@ -488,17 +491,23 @@ export class InteractiveEditorWidget {
 
 	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
 		this._ctxMessageCropState.set(expansionState);
-		this.updateLineClamp(expansionState);
+		const heightBefore = this._elements.markdownMessage.scrollHeight;
+		this._updateLineClamp(expansionState);
+		const heightAfter = this._elements.markdownMessage.scrollHeight;
+		if (heightBefore === heightAfter) {
+			this._ctxMessageCropState.set(ExpansionState.NOT_CROPPED);
+		}
 		this._onDidChangeHeight.fire();
 	}
 
-	updateLineClamp(expansionState: ExpansionState) {
-		this._elements.message.style.webkitLineClamp = expansionState === ExpansionState.NOT_CROPPED ? 'none' : (expansionState === ExpansionState.EXPANDED ? MESSAGE_EXPANDED_NUMBER_LINES.toString() : MESSAGE_CROPPED_NUMBER_LINES.toString());
+	private _updateLineClamp(expansionState: ExpansionState) {
+		this._elements.message.setAttribute('state', expansionState);
 	}
 
 	updateInfo(message: string): void {
 		this._elements.infoLabel.classList.toggle('hidden', !message);
-		this._elements.infoLabel.innerText = message;
+		const renderedMessage = renderLabelWithIcons(message);
+		reset(this._elements.infoLabel, ...renderedMessage);
 		this._onDidChangeHeight.fire();
 	}
 
@@ -546,7 +555,7 @@ export class InteractiveEditorWidget {
 
 	// --- preview
 
-	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: LineRangeMapping[]) {
+	showEditsPreview(textModelv0: ITextModel, edits: ISingleEditOperation[], changes: readonly LineRangeMapping[]) {
 		if (changes.length === 0) {
 			this.hideEditsPreview();
 			return;

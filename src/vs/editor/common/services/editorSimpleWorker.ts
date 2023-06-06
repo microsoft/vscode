@@ -15,13 +15,13 @@ import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/ed
 import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
-import { DiffAlgorithmName, IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { DiffComputer, IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { ILinesDiffComputer, ILinesDiffComputerOptions } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
@@ -422,10 +422,8 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
-		return {
-			identical,
-			quitEarly: result.hitTimeout,
-			changes: result.changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [
+		function getLineChanges(changes: readonly LineRangeMapping[]): ILineChange[] {
+			return changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [
 				m.originalRange.startLineNumber,
 				m.originalRange.startColumn,
 				m.originalRange.endLineNumber,
@@ -434,7 +432,20 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				m.modifiedRange.startColumn,
 				m.modifiedRange.endLineNumber,
 				m.modifiedRange.endColumn,
-			])]))
+			])]));
+		}
+
+		return {
+			identical,
+			quitEarly: result.hitTimeout,
+			changes: getLineChanges(result.changes),
+			moves: result.moves.map(m => ([
+				m.lineRangeMapping.originalRange.startLineNumber,
+				m.lineRangeMapping.originalRange.endLineNumberExclusive,
+				m.lineRangeMapping.modifiedRange.startLineNumber,
+				m.lineRangeMapping.modifiedRange.endLineNumberExclusive,
+				getLineChanges(m.changes)
+			])),
 		};
 	}
 

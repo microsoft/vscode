@@ -124,6 +124,12 @@
 	padding-left: 2px;
 }
 
+.monaco-editor .interactive-editor .status .label.info > .codicon {
+	padding: 0 5px;
+	font-size: 12px;
+	line-height: 18px;
+}
+
 .monaco-editor .interactive-editor .status .label.status {
 	padding-left: 10px;
 	padding-right: 4px;
@@ -144,12 +150,20 @@
 
 .monaco-editor .interactive-editor .markdownMessage .message {
 	margin-left: 5px;
-	-webkit-line-clamp: 3;
+	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 	display: -webkit-box;
 	-webkit-user-select: text;
 	user-select: text;
+}
+
+.monaco-editor .interactive-editor .markdownMessage .message[state="cropped"] {
+	-webkit-line-clamp: var(--vscode-interactive-editor-cropped, 3);
+}
+
+.monaco-editor .interactive-editor .markdownMessage .message[state="expanded"] {
+	-webkit-line-clamp: var(--vscode-interactive-editor-expanded, 10);
 }
 
 .monaco-editor .interactive-editor .markdownMessage .messageActions {
