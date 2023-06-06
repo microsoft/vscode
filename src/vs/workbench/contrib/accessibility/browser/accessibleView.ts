@@ -95,13 +95,16 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		return provider;
 	}
 
-	private _getContent(providerId: string): string {
-		return this._getProviderOrThrow(providerId).provideContent();
-	}
-
 	private _render(providerId: string, container: HTMLElement): IDisposable {
+
 		const provider = this._getProviderOrThrow(providerId);
-		const fragment = provider.options?.isHelpMenu ? localize('introMsg', "Welcome to {0} Accessibility Help. Exit this menu and return to the {0} via the Escape key.\n", providerId) : '' + this._getContent(providerId);
+
+		let fragment = '';
+		if (provider.options?.isHelpMenu) {
+			fragment += localize('introMsg', "Welcome to {0} Accessibility Help. Exit this menu and return to the {0} via the Escape key.\n", providerId);
+		}
+		fragment += provider.provideContent();
+
 		this._getTextModel(URI.from({ path: `accessible-view-${providerId}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
 				return;
@@ -119,7 +122,8 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 				}
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
-			this._editorWidget.updateOptions({ ariaLabel: localize('accessible-view-label', "{0} accessibility help", providerId) });
+			const label = provider.options?.isHelpMenu ? 'accessibility help' : 'accessible view';
+			this._editorWidget.updateOptions({ ariaLabel: localize('accessible-view-label', "{0} {1}", providerId, label) });
 			this._editorWidget.focus();
 		});
 		return { dispose: () => { this._providers.get(providerId)?.onClose(); } } as IDisposable;
