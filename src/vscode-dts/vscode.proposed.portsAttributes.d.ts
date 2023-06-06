@@ -47,10 +47,6 @@ declare module 'vscode' {
 		autoForwardAction: PortAutoForwardAction;
 
 		/**
-		 * @deprecated
-		 */
-		constructor(port: number, autoForwardAction: PortAutoForwardAction);
-		/**
 		 * Creates a new PortAttributes object
 		 * @param port the port number
 		 * @param autoForwardAction the action to take when this port is detected
