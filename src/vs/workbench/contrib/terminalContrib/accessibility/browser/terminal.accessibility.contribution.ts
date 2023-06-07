@@ -61,20 +61,17 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 	static ID: 'terminalAccessibilityHelpContribution';
 	constructor() {
 		super();
-
-		if (AccessibilityHelpAction) {
-			this._register(AccessibilityHelpAction.addImplementation(105, 'terminal', async accessor => {
-				const instantiationService = accessor.get(IInstantiationService);
-				const terminalService = accessor.get(ITerminalService);
-				const instance = await terminalService.getActiveOrCreateInstance();
-				await terminalService.revealActiveTerminal();
-				const terminal = instance?.xterm;
-				if (!terminal) {
-					return;
-				}
-				await instantiationService.createInstance(AccessibilityHelpWidget, instance, terminal).show();
-			}, TerminalContextKeys.focus));
-		}
+		this._register(AccessibilityHelpAction.addImplementation(105, 'terminal', async accessor => {
+			const instantiationService = accessor.get(IInstantiationService);
+			const terminalService = accessor.get(ITerminalService);
+			const instance = await terminalService.getActiveOrCreateInstance();
+			await terminalService.revealActiveTerminal();
+			const terminal = instance?.xterm;
+			if (!terminal) {
+				return;
+			}
+			await instantiationService.createInstance(AccessibilityHelpWidget, instance, terminal).show();
+		}, TerminalContextKeys.focus));
 	}
 }
 registerTerminalContribution(TerminalAccessibilityHelpContribution.ID, TerminalAccessibilityHelpContribution);

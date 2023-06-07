@@ -82,7 +82,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 				inputEditor.focus();
 			}
 		},
-		options: { isHelpMenu: true }
+		options: { ariaLabel: localize('chat-help-label', "Chat accessibility help") }
 	});
 	accessibleViewService.show('chat');
 }

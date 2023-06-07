@@ -20,7 +20,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDisposable } from 'xterm';
 
-interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; options?: IAccessibleViewOptions }
+interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; options: IAccessibleViewOptions }
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
 export interface IAccessibleViewService {
@@ -30,13 +30,10 @@ export interface IAccessibleViewService {
 }
 
 export interface IAccessibleViewOptions {
-	isHelpMenu: boolean;
+	ariaLabel: string;
 }
 
-export class AccessibleViewService extends Disposable implements IAccessibleViewService {
-	_serviceBrand: undefined;
-
-	private _providers: Map<string, IAccessibleContentProvider> = new Map();
+class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
 
@@ -70,42 +67,24 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
 	}
 
-	registerProvider(provider: IAccessibleContentProvider): void {
-		this._providers.set(provider.id, provider);
-	}
-
-	show(providerId: string): void {
+	show(provider: IAccessibleContentProvider): void {
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => this._editorContainer,
 			render: (container) => {
-				return this._render(providerId, container);
+				return this._render(provider, container);
 			},
 			onHide: () => {
-				this._providers.get(providerId)?.onClose();
+				provider.onClose();
 			}
 		};
 		this._contextViewService.showContextView(delegate);
 	}
 
-	private _getProviderOrThrow(providerId: string): IAccessibleContentProvider {
-		const provider = this._providers.get(providerId);
-		if (!provider) {
-			throw new Error(`No accessible view provider with id: ${providerId}`);
-		}
-		return provider;
-	}
+	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
 
-	private _render(providerId: string, container: HTMLElement): IDisposable {
+		const fragment = 'Exit this menu via the Escape key.\n' + provider.provideContent();
 
-		const provider = this._getProviderOrThrow(providerId);
-
-		let fragment = '';
-		if (provider.options?.isHelpMenu) {
-			fragment += localize('introMsg', "Welcome to {0} Accessibility Help. Exit this menu and return to the {0} via the Escape key.\n", providerId);
-		}
-		fragment += provider.provideContent();
-
-		this._getTextModel(URI.from({ path: `accessible-view-${providerId}`, scheme: 'accessible-view', fragment })).then((model) => {
+		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
 				return;
 			}
@@ -122,11 +101,10 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 				}
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
-			const label = provider.options?.isHelpMenu ? 'accessibility help' : 'accessible view';
-			this._editorWidget.updateOptions({ ariaLabel: localize('accessible-view-label', "{0} {1}", providerId, label) });
+			this._editorWidget.updateOptions({ ariaLabel: localize('accessible-view-label', "{0}", provider.options.ariaLabel) });
 			this._editorWidget.focus();
 		});
-		return { dispose: () => { this._providers.get(providerId)?.onClose(); } } as IDisposable;
+		return { dispose: () => { provider.onClose(); } } as IDisposable;
 	}
 
 	private _layout(): void {
@@ -156,5 +134,34 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			return existing;
 		}
 		return this._modelService.createModel(resource.fragment, null, resource, false);
+	}
+}
+
+export class AccessibleViewService extends Disposable implements IAccessibleViewService {
+	declare readonly _serviceBrand: undefined;
+
+	private _providers: Map<string, IAccessibleContentProvider> = new Map();
+
+	private _accessibleView: AccessibleView | undefined;
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
+		super();
+	}
+
+	registerProvider(provider: IAccessibleContentProvider): void {
+		this._providers.set(provider.id, provider);
+	}
+
+	show(providerId: string): void {
+		if (!this._accessibleView) {
+			this._accessibleView = this._instantiationService.createInstance(AccessibleView);
+		}
+		const provider = this._providers.get(providerId);
+		if (!provider) {
+			throw new Error(`No accessible view provider with id: ${providerId}`);
+		}
+		this._accessibleView.show(provider);
 	}
 }

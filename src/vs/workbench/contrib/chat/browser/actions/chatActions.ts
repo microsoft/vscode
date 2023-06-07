@@ -102,21 +102,16 @@ export function registerChatActions() {
 		static ID: 'chatAccessibilityHelpContribution';
 		constructor() {
 			super();
-
-			if (AccessibilityHelpAction) {
-				this._register(AccessibilityHelpAction.addImplementation(105, 'chat', async accessor => {
-					const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-					if (!codeEditor) {
-						return;
-					}
-					runAccessibilityHelpAction(accessor, codeEditor, 'chat');
-				}, EditorContextKeys.textInputFocus));
-			}
+			this._register(AccessibilityHelpAction.addImplementation(105, 'chat', async accessor => {
+				const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
+				if (!codeEditor) {
+					return;
+				}
+				runAccessibilityHelpAction(accessor, codeEditor, 'chat');
+			}, EditorContextKeys.textInputFocus));
 		}
 	}
 	registerEditorContribution(ChatAccessibilityHelpContribution.ID, ChatAccessibilityHelpContribution, EditorContributionInstantiation.AfterFirstRender);
-
-
 
 	registerAction2(class FocusChatInputAction extends Action2 {
 		constructor() {
