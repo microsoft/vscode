@@ -166,3 +166,27 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		}
 	}
 });
+
+// TODO: should this be called inline chat or not?
+export const enum InlineChatPosition {
+	BOTTOM = 'bottom',
+	TOP = 'top',
+	MIDDLE = 'middle'
+}
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'editor',
+	properties: {
+		'inlineChat.position': {
+			description: localize('inlineChat.position', "Configure whether the inline chat appears below, above or in the middle of the focused editor region. Can only be used with `interactiveEditor.editMode` set to `live`."),
+			default: InlineChatPosition.BOTTOM,
+			type: 'string',
+			enum: [InlineChatPosition.BOTTOM, InlineChatPosition.TOP, InlineChatPosition.MIDDLE],
+			markdownEnumDescriptions: [
+				localize('inlineChat.position.bottom', "Inline chat appears below the focused editor region."),
+				localize('inlineChat.position.top', "Inline chat appears above the focused editor region."),
+				localize('inlineChat.position.middle', "Inline chat appears in the middle of the focused editor region."),
+			]
+		}
+	}
+});

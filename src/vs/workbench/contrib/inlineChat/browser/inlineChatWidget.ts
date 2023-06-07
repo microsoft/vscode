@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, IInlineChatSlashCommand, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES, EditMode, InlineChatPosition } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getActiveElement, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
@@ -26,7 +26,7 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { DropdownWithDefaultActionViewItem, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
@@ -724,6 +724,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	constructor(
 		editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'interactive-editor-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 + 3 });
@@ -791,8 +792,29 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	override show(where: IPosition): void {
-		super.show(where, this._computeHeightInLines());
+	// TO FINISH WHEN OTHER PR IS IN
+	override show(where: Range): void {
+		const editMode = this.configurationService.getValue<EditMode>('interactiveEditor.editMode');
+		if (editMode === EditMode.Live) {
+			const startPosition = where.getStartPosition();
+			const endPosition = where.getEndPosition();
+			const position = this.configurationService.getValue<InlineChatPosition>('inlineChat.position');
+			let positionOfDisplay: Position | undefined;
+			switch (position) {
+				case (InlineChatPosition.BOTTOM):
+					positionOfDisplay = endPosition;
+					break;
+				case (InlineChatPosition.TOP):
+					positionOfDisplay = new Position(startPosition.lineNumber - 1, startPosition.column);
+					break;
+				case (InlineChatPosition.MIDDLE):
+					positionOfDisplay = new Position(startPosition.lineNumber + Math.floor((endPosition.lineNumber - startPosition.lineNumber) / 2), startPosition.column);
+					break;
+			}
+			super.show(positionOfDisplay, this._computeHeightInLines());
+		} else {
+			super.show(where.getEndPosition(), this._computeHeightInLines());
+		}
 		this.widget.focus();
 		this._ctxVisible.set(true);
 	}
