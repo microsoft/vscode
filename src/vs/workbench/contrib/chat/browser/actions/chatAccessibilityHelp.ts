@@ -73,7 +73,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type, type === 'editor' ? cachedInput : undefined);
-	accessibleViewService.registerProvider({
+	const provider = accessibleViewService.registerProvider({
 		id: 'chat',
 		provideContent: () => helpText,
 		onClose: () => {
@@ -81,6 +81,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 				inputEditor.setPosition(cachedPosition);
 				inputEditor.focus();
 			}
+			provider.dispose();
 		},
 		options: { ariaLabel: localize('chat-help-label', "Chat accessibility help") }
 	});

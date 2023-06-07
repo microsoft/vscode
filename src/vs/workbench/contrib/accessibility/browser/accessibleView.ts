@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -26,7 +26,7 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
 	show(providerId: string): void;
-	registerProvider(provider: IAccessibleContentProvider): void;
+	registerProvider(provider: IAccessibleContentProvider): IDisposable;
 }
 
 export interface IAccessibleViewOptions {
@@ -149,8 +149,11 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		super();
 	}
 
-	registerProvider(provider: IAccessibleContentProvider): void {
+	registerProvider(provider: IAccessibleContentProvider): IDisposable {
 		this._providers.set(provider.id, provider);
+		return toDisposable(() => {
+			this._providers.delete(provider.id);
+		});
 	}
 
 	show(providerId: string): void {
