@@ -26,7 +26,7 @@ import * as languages from 'vs/editor/common/languages';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorSession, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatRequest, IInlineChatResponse, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -1120,12 +1120,12 @@ export interface MainThreadInteractiveEditorShape extends IDisposable {
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
 
-export type IInteractiveEditorResponseDto = Dto<IInteractiveEditorResponse>;
+export type IInteractiveEditorResponseDto = Dto<IInlineChatResponse>;
 
 export interface ExtHostInteractiveEditorShape {
-	$prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInteractiveEditorSession | undefined>;
-	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined>;
-	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InteractiveEditorResponseFeedbackKind): void;
+	$prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined>;
+	$provideResponse(handle: number, session: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined>;
+	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void;
 	$releaseSession(handle: number, sessionId: number): void;
 }
 
