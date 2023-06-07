@@ -20,7 +20,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDisposable } from 'xterm';
 
-interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; options: IAccessibleViewOptions }
+export interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; options: IAccessibleViewOptions }
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
 export interface IAccessibleViewService {

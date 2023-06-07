@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
 import { format } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Terminal } from 'xterm';
@@ -20,24 +21,26 @@ export const enum ClassName {
 	EditorTextArea = 'textarea'
 }
 
-export class AccessibilityHelpWidget {
+export class TerminalAccessibleContentProvider extends Disposable implements IAccessibleContentProvider {
 
 	private readonly _hasShellIntegration: boolean = false;
-	constructor(
 
+	onClose() {
+		this._instance.focus();
+		this.dispose();
+	}
+	options: IAccessibleViewOptions = { ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
+	id: string = 'terminal';
+
+	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,
 		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		this._accessibleViewService.registerProvider({ id: 'terminal', provideContent: () => this._getContent(), onClose: () => _instance.focus(), options: { ariaLabel: localize('terminal-help-label', "terminal accessibility help") } });
+		super();
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
-	}
-
-	show(): void {
-		this._accessibleViewService.show('terminal');
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
@@ -53,7 +56,7 @@ export class AccessibilityHelpWidget {
 		return this._accessibilityService.isScreenReaderOptimized() ? format(msg, kb[1].getAriaLabel()) : format(msg, kb[0].getAriaLabel());
 	}
 
-	private _getContent(): string {
+	provideContent(): string {
 		const content = [];
 		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.'), localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {

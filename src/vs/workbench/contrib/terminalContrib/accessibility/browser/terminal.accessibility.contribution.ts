@@ -13,13 +13,14 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { AccessibilityHelpWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
+import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
 import { Terminal } from 'xterm';
 
@@ -61,16 +62,19 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 	static ID: 'terminalAccessibilityHelpContribution';
 	constructor() {
 		super();
+
 		this._register(AccessibilityHelpAction.addImplementation(105, 'terminal', async accessor => {
 			const instantiationService = accessor.get(IInstantiationService);
 			const terminalService = accessor.get(ITerminalService);
+			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const instance = await terminalService.getActiveOrCreateInstance();
 			await terminalService.revealActiveTerminal();
 			const terminal = instance?.xterm;
 			if (!terminal) {
 				return;
 			}
-			await instantiationService.createInstance(AccessibilityHelpWidget, instance, terminal).show();
+			accessibleViewService.registerProvider(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
+			accessibleViewService.show('terminal');
 		}, TerminalContextKeys.focus));
 	}
 }
