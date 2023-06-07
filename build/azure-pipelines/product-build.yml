@@ -174,13 +174,9 @@ stages:
         - job: CLILinuxX64
           pool: 1es-ubuntu-20.04-x64
           steps:
-            - template: ./cli/cli-compile-cache.yml
-              parameters:
-                HOST_TRIPLE: x86_64-unknown-linux-musl
-                SCCACHE_HASH: 56a61d8452a9274c92b33b3055ba371fa3e8ec9cfcac510581dbe8e27d099ae3
-
             - template: ./linux/cli-build-linux.yml
               parameters:
+                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
 
@@ -221,6 +217,7 @@ stages:
           steps:
             - template: ./darwin/cli-build-darwin.yml
               parameters:
+                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
 
@@ -240,6 +237,7 @@ stages:
           steps:
             - template: ./win32/cli-build-win32.yml
               parameters:
+                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
 
