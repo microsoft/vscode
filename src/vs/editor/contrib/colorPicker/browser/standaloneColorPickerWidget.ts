@@ -85,6 +85,8 @@ const CLOSE_BUTTON_WIDTH = 22;
 export class StandaloneColorPickerWidget extends Disposable implements IContentWidget {
 
 	static readonly ID = 'editor.contrib.standaloneColorPickerWidget';
+	readonly allowEditorOverflow = true;
+
 	private body: HTMLElement = document.createElement('div');
 
 	private readonly _position: Position | undefined = undefined;
@@ -109,7 +111,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		super();
 		this._standaloneColorPickerVisible.set(true);
 		this._standaloneColorPickerParticipant = _instantiationService.createInstance(StandaloneColorPickerParticipant, this._editor);
-		this._position = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
+		this._position = this._editor._getViewModel()?.getPrimaryCursorState().modelState.position;
 		const editorSelection = this._editor.getSelection();
 		const selection = editorSelection ?
 			{

@@ -259,7 +259,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.7.5",
-    "vscode-languageclient": "^8.2.0-next.0",
+    "vscode-languageclient": "^8.2.0-next.1",
     "vscode-uri": "^3.0.7"
   },
   "devDependencies": {

@@ -13,6 +13,8 @@ import { GithubPushErrorHandler } from './pushErrorHandler';
 import { GitBaseExtension } from './typings/git-base';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
 import { GithubBranchProtectionProviderManager } from './branchProtection';
+import { GitHubCanonicalUriProvider } from './canonicalUriProvider';
+import { VscodeDevShareProvider } from './shareProviders';
 
 export function activate(context: ExtensionContext): void {
 	const disposables: Disposable[] = [];
@@ -93,6 +95,8 @@ function initializeGitExtension(context: ExtensionContext, logger: LogOutputChan
 						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState, logger));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
+						disposables.add(new GitHubCanonicalUriProvider(gitAPI));
+						disposables.add(new VscodeDevShareProvider(gitAPI));
 						setGitHubContext(gitAPI, disposables);
 
 						commands.executeCommand('setContext', 'git-base.gitEnabled', true);

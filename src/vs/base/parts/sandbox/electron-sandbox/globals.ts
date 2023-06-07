@@ -8,7 +8,7 @@ import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes
 import { IpcRenderer, ProcessMemoryInfo, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 /**
- * In sandboxed renderers we cannot expose all of the `process` global of node.js
+ * In Electron renderers we cannot expose all of the `process` global of node.js
  */
 export interface ISandboxNodeProcess extends INodeProcess {
 
@@ -28,20 +28,6 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * The type will always be `renderer`.
 	 */
 	readonly type: string;
-
-	/**
-	 * Whether the process is sandboxed or not.
-	 */
-	readonly sandboxed: boolean;
-
-	/**
-	 * The `process.pid` property returns the PID of the process.
-	 *
-	 * @deprecated this property will be removed once sandbox is enabled.
-	 *
-	 * TODO@bpasero remove this property when sandbox is on
-	 */
-	readonly pid: number;
 
 	/**
 	 * A list of versions for the current node.js/electron configuration.

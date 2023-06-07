@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
@@ -21,6 +21,7 @@ import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRe
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -168,7 +169,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		parent: SettingsTreeGroupElement,
 		inspectResult: IInspectResult,
 		isWorkspaceTrusted: boolean,
-		private readonly languageService: ILanguageService
+		private readonly languageService: ILanguageService,
+		private readonly productService: IProductService
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
@@ -194,6 +196,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	private initLabels(): void {
+		if (this.setting.title) {
+			this._displayLabel = this.setting.title;
+			this._displayCategory = '';
+			return;
+		}
 		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id, this.setting.isLanguageTagSetting);
 		this._displayLabel = displayKeyFormat.label;
 		this._displayCategory = displayKeyFormat.category;
@@ -303,7 +310,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.description = this.setting.description.join('\n');
 		}
 
-		if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
+		if (isExtensionToggleSetting(this.setting, this.productService)) {
+			this.valueType = SettingValueType.ExtensionToggle;
+		} else if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = SettingValueType.Enum;
 		} else if (this.setting.type === 'string') {
 			if (this.setting.editPresentation === EditPresentationTypes.Multiline) {
@@ -313,6 +322,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		} else if (isExcludeSetting(this.setting)) {
 			this.valueType = SettingValueType.Exclude;
+		} else if (isIncludeSetting(this.setting)) {
+			this.valueType = SettingValueType.Include;
 		} else if (this.setting.type === 'integer') {
 			this.valueType = SettingValueType.Integer;
 		} else if (this.setting.type === 'number') {
@@ -474,6 +485,7 @@ export class SettingsTreeModel {
 		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
+		@IProductService private readonly _productService: IProductService
 	) {
 	}
 
@@ -581,7 +593,7 @@ export class SettingsTreeModel {
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
 		const target = this.getTargetToInspect(setting.scope);
 		const inspectResult = inspectSetting(setting.key, target, this._viewState.languageFilter, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService, this._productService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
@@ -735,12 +747,23 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 	return trimmed;
 }
 
-export function isExcludeSetting(setting: ISetting): boolean {
+function isExtensionToggleSetting(setting: ISetting, productService: IProductService): boolean {
+	return ENABLE_EXTENSION_TOGGLE_SETTINGS &&
+		!!productService.extensionRecommendations &&
+		!!setting.displayExtensionId;
+}
+
+function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
 		setting.key === 'workbench.localHistory.exclude' ||
 		setting.key === 'explorer.autoRevealExclude' ||
+		setting.key === 'files.readonlyExclude' ||
 		setting.key === 'files.watcherExclude';
+}
+
+function isIncludeSetting(setting: ISetting): boolean {
+	return setting.key === 'files.readonlyInclude';
 }
 
 function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
@@ -819,8 +842,9 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IProductService productService: IProductService
 	) {
-		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService);
+		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService);
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 

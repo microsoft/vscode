@@ -12,10 +12,10 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery } from './api/git';
+import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -401,9 +401,14 @@ export class Git {
 		return new Repository(this, repository, dotGit, logger);
 	}
 
-	async init(repository: string): Promise<void> {
-		await this.exec(repository, ['init']);
-		return;
+	async init(repository: string, options: InitOptions = {}): Promise<void> {
+		const args = ['init'];
+
+		if (options.defaultBranch && options.defaultBranch !== '') {
+			args.push('-b', options.defaultBranch);
+		}
+
+		await this.exec(repository, args);
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
@@ -788,7 +793,7 @@ export class GitStatusParser {
 		// space
 		i++;
 
-		if (entry.x === 'R' || entry.x === 'C') {
+		if (entry.x === 'R' || entry.y === 'R' || entry.x === 'C') {
 			lastIndex = raw.indexOf('\0', i);
 
 			if (lastIndex === -1) {
@@ -1995,7 +2000,7 @@ export class Repository {
 		}
 	}
 
-	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; similarityThreshold?: number; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -2013,6 +2018,11 @@ export class Repository {
 
 		if (opts?.ignoreSubmodules) {
 			args.push('--ignore-submodules');
+		}
+
+		// --find-renames option is only available starting with git 2.18.0
+		if (opts?.similarityThreshold && this._git.compareGitVersionTo('2.18.0') !== -1) {
+			args.push(`--find-renames=${opts.similarityThreshold}%`);
 		}
 
 		const child = this.stream(args, { env });
@@ -2340,6 +2350,13 @@ export class Repository {
 			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)');
 		} else {
 			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref)');
+		}
+
+		// On Windows and macOS ref names are case insensitive so we add --ignore-case
+		// to handle the scenario where the user switched to a branch with incorrect
+		// casing
+		if (isWindows || isMacintosh) {
+			args.push('--ignore-case');
 		}
 
 		if (/^refs\/(head|remotes)\//i.test(name)) {

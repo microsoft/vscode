@@ -10,6 +10,7 @@
 	z-index: 40;
 	display: flex;
 	flex-direction: column;
+	border-radius: 3px;
 }
 
 .monaco-editor .suggest-widget.message {

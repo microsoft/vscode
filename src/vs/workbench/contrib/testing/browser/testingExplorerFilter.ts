@@ -39,7 +39,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	private readonly history: StoredValue<{ values: string[]; lastValue: string } | string[]> = this.instantiationService.createInstance(StoredValue, {
 		key: 'testing.filterHistory2',
 		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.USER
+		target: StorageTarget.MACHINE
 	});
 
 	private readonly filtersAction = new Action('markersFiltersAction', localize('testing.filters.menu', "More Filters..."), 'testing-filter-button ' + ThemeIcon.asClassName(testingFilterIcon));
