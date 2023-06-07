@@ -42,6 +42,8 @@ export abstract class EditModeStrategy {
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
 	abstract toggleDiff(): void;
+
+	abstract hasFocus(): boolean;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -127,6 +129,10 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	toggleDiff(): void {
 		// nothing to do
+	}
+
+	hasFocus(): boolean {
+		return this._widget.hasFocus();
 	}
 }
 
@@ -331,6 +337,10 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 		this._widget.updateStatus(message);
 	}
+
+	hasFocus(): boolean {
+		return this._widget.hasFocus();
+	}
 }
 
 export class LivePreviewStrategy extends LiveStrategy {
@@ -388,6 +398,10 @@ export class LivePreviewStrategy extends LiveStrategy {
 			this._diffZone.hide();
 		}
 		scrollState.restore(this._editor);
+	}
+
+	override hasFocus(): boolean {
+		return super.hasFocus() || this._diffZone.hasFocus() || this._previewZone.hasFocus();
 	}
 }
 
