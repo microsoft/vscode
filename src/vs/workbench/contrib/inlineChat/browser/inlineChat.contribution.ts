@@ -7,7 +7,7 @@ import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { InteractiveEditorController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import * as interactiveEditorActions from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { IInteractiveEditorService, INTERACTIVE_EDITOR_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInteractiveEditorService, INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID, INTERACTIVE_EDITOR_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { InteractiveEditorServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { IInteractiveEditorSessionService, InteractiveEditorSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -20,6 +20,7 @@ registerSingleton(IInteractiveEditorService, InteractiveEditorServiceImpl, Insta
 registerSingleton(IInteractiveEditorSessionService, InteractiveEditorSessionService, InstantiationType.Delayed);
 
 registerEditorContribution(INTERACTIVE_EDITOR_ID, InteractiveEditorController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
+registerEditorContribution(INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID, interactiveEditorActions.InlineAccessibilityHelpContribution, EditorContributionInstantiation.Eventually);
 
 registerAction2(interactiveEditorActions.StartSessionAction);
 registerAction2(interactiveEditorActions.UnstashSessionAction);
@@ -38,7 +39,6 @@ registerAction2(interactiveEditorActions.NextFromHistory);
 registerAction2(interactiveEditorActions.ViewInChatAction);
 registerAction2(interactiveEditorActions.ExpandMessageAction);
 registerAction2(interactiveEditorActions.ContractMessageAction);
-registerAction2(interactiveEditorActions.AccessibilityHelpEditorAction);
 
 registerAction2(interactiveEditorActions.ToggleInlineDiff);
 registerAction2(interactiveEditorActions.FeebackHelpfulCommand);

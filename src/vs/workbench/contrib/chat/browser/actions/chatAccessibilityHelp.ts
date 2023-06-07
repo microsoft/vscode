@@ -13,6 +13,7 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { InteractiveEditorController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat' | 'editor', currentInput?: string): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -74,16 +75,18 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type, type === 'editor' ? cachedInput : undefined);
 	const provider = accessibleViewService.registerProvider({
-		id: 'chat',
+		id: type,
 		provideContent: () => helpText,
 		onClose: () => {
-			if (cachedPosition) {
+			if (type === 'chat' && cachedPosition) {
 				inputEditor.setPosition(cachedPosition);
 				inputEditor.focus();
+			} else if (type === 'editor') {
+				InteractiveEditorController.get(editor)?.focus();
 			}
 			provider.dispose();
 		},
-		options: { ariaLabel: localize('chat-help-label', "Chat accessibility help") }
+		options: { ariaLabel: type === 'chat' ? localize('chat-help-label', "Chat accessibility help") : localize('interactive-editor-label', "Editor chat accessibility help") }
 	});
-	accessibleViewService.show('chat');
+	accessibleViewService.show(type);
 }
