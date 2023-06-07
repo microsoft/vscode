@@ -724,6 +724,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			this._notebookUpdateScheduler.schedule();
 		}) ?? null;
 
+		this._findMatchDecorationModel?.stopWebviewFind();
 		this._findMatchDecorationModel?.dispose();
 		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
 	}
@@ -739,6 +740,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 
 		if (this._findMatchDecorationModel) {
+			this._findMatchDecorationModel?.stopWebviewFind();
 			this._findMatchDecorationModel?.dispose();
 			this._findMatchDecorationModel = undefined;
 		}

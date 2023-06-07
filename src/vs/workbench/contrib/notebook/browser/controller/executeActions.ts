@@ -17,8 +17,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { InteractiveEditorController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -731,4 +731,3 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 		}
 	}
 });
-

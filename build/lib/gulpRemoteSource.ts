@@ -44,11 +44,11 @@ export function remote(urls: string[] | string, options: IOptions): es.ThroughSt
 	}));
 }
 
-async function fetchWithRetry(url: string, options: IOptions, retries = 3, retryDelay = 250): Promise<VinylFile> {
+async function fetchWithRetry(url: string, options: IOptions, retries = 10, retryDelay = 250): Promise<VinylFile> {
 	try {
 		let startTime = 0;
 		if (options.verbose) {
-			log(`Start fetching ${ansiColors.magenta(url)}${retries !== 3 ? `(${3 - retries} retry}` : ''}`);
+			log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? `(${10 - retries} retry}` : ''}`);
 			startTime = new Date().getTime();
 		}
 		const response = await fetch(url, options.fetchOptions);
@@ -69,7 +69,7 @@ async function fetchWithRetry(url: string, options: IOptions, retries = 3, retry
 	} catch (e) {
 		if (retries > 0) {
 			await new Promise(c => setTimeout(c, retryDelay));
-			return fetchWithRetry(url, options, retries - 1, retryDelay * 3);
+			return fetchWithRetry(url, options, retries - 1, retryDelay * 2);
 		}
 		if (options.verbose) {
 			log(`Fetching ${ansiColors.cyan(url)} failed: ${e}`);

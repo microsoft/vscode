@@ -13,7 +13,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditMode } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat' | 'editor', currentInput?: string): string {
 	const keybindingService = accessor.get(IKeybindingService);

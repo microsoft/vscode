@@ -31,7 +31,7 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
+import { InteractiveEditorController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
@@ -49,7 +49,9 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_CELL_LIST_FOCUSED,
 						ContextKeyExpr.not(InputFocusedContextKey),
-						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)),
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+						EditorContextKeys.hoverFocused.toNegated()
+					),
 					primary: KeyCode.Enter,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
