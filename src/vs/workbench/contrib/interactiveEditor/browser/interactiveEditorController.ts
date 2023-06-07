@@ -281,7 +281,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}));
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
-			if (this._ignoreModelContentChanged) {
+			if (this._ignoreModelContentChanged || this._strategy?.hasFocus()) {
 				return;
 			}
 
