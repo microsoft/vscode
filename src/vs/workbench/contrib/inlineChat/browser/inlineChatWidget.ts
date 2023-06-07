@@ -796,7 +796,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		let lineNumberForIndentation = endLineNumber;
 		for (let lineNumber = endLineNumber; lineNumber >= startLineNumber; lineNumber--) {
 			const lineContent = this.editor.getModel()?.getLineContent(lineNumber);
-			if (lineContent !== '') {
+			if (lineContent && lineContent !== '') {
 				lineNumberForIndentation = lineNumber;
 				break;
 			}
