@@ -116,14 +116,13 @@ class AccessibleView extends Disposable {
 		const windowWidth = window.innerWidth;
 		const windowHeight = window.innerHeight;
 
-		const width = Math.max(5, Math.min(500, windowWidth - 40));
-		const height = Math.max(5, Math.min(300, windowHeight - 40));
-
+		const width = windowWidth * .4;
+		let height = windowHeight * .4;
 		this._editorWidget.layout({ width, height });
-
+		height = this._editorWidget.getContentHeight();
+		this._editorWidget.layout({ width, height });
 		const top = Math.round((windowHeight - height) / 2);
 		domNode.style.top = `${top}px`;
-
 		const left = Math.round((windowWidth - width) / 2);
 		domNode.style.left = `${left}px`;
 	}
@@ -156,7 +155,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 
 	show(providerId: string): void {
 		if (!this._accessibleView) {
-			this._accessibleView = this._instantiationService.createInstance(AccessibleView);
+			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
 		const provider = this._providers.get(providerId);
 		if (!provider) {
