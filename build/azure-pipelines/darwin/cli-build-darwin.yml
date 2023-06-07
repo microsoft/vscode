@@ -13,6 +13,11 @@ steps:
     inputs:
       versionSpec: "16.x"
 
+  - template: ../cli/cli-compile-cache.yml
+    parameters:
+      HOST_TRIPLE: x86_64-apple-darwin
+      SCCACHE_HASH: 31e7b81731220f892357c0de88bd85d9059d24a803ca754ec6d043a6d4c54540
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../cli/cli-apply-patches.yml
 

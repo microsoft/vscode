@@ -16,6 +16,11 @@ steps:
     inputs:
       versionSpec: "16.x"
 
+  - template: ../cli/cli-compile-cache.yml
+    parameters:
+      HOST_TRIPLE: x86_64-unknown-linux-musl
+      SCCACHE_HASH: 56a61d8452a9274c92b33b3055ba371fa3e8ec9cfcac510581dbe8e27d099ae3
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../cli/cli-apply-patches.yml
 
