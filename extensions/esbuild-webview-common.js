@@ -12,7 +12,7 @@ const path = require('path');
 const esbuild = require('esbuild');
 
 /**
- * @typedef {Partial<Omit<import('esbuild').BuildOptions, 'entryPoints'>> & {
+ * @typedef {Partial<import('esbuild').BuildOptions> & {
  * 	entryPoints: string[] | Record<string, string> | { in: string, out: string }[];
  * 	outdir: string;
  * }} BuildOptions
@@ -22,27 +22,27 @@ const esbuild = require('esbuild');
  * Build the source code once using esbuild.
  *
  * @param {BuildOptions} options
- * @param {() => unknown} [didBuild]
+ * @param {(outDir: string) => unknown} [didBuild]
  */
 async function build(options, didBuild) {
 	await esbuild.build({
-		...options,
 		bundle: true,
 		minify: true,
 		sourcemap: false,
-		format: 'iife',
+		format: 'esm',
 		platform: 'browser',
 		target: ['es2020'],
+		...options,
 	});
 
-	await didBuild?.();
+	await didBuild?.(options.outdir);
 }
 
 /**
  * Build the source code once using esbuild, logging errors instead of throwing.
  *
  * @param {BuildOptions} options
- * @param {() => unknown} [didBuild]
+ * @param {(outDir: string) => unknown} [didBuild]
  */
 async function tryBuild(options, didBuild) {
 	try {
@@ -60,7 +60,7 @@ async function tryBuild(options, didBuild) {
  * 	additionalOptions?: Partial<import('esbuild').BuildOptions>
  * }} config
  * @param {string[]} args
- * @param {() => unknown} [didBuild]
+ * @param {(outDir: string) => unknown} [didBuild]
  */
 module.exports.run = function (config, args, didBuild) {
 	let outdir = config.outdir;

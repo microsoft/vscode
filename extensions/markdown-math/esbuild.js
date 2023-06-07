@@ -12,7 +12,7 @@ const args = process.argv.slice(2);
 const srcDir = path.join(__dirname, 'notebook');
 const outDir = path.join(__dirname, 'notebook-out');
 
-function postBuild() {
+function postBuild(outDir) {
 	fse.copySync(
 		path.join(__dirname, 'node_modules', 'katex', 'dist', 'katex.min.css'),
 		path.join(outDir, 'katex.min.css'));
