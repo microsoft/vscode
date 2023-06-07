@@ -59,6 +59,7 @@
     "core-ci": "node --max_old_space_size=8095 ./node_modules/gulp/bin/gulp.js core-ci",
     "core-ci-pr": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js core-ci-pr",
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci",
+    "extensions-ci-pr": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js"
   },
   "dependencies": {
