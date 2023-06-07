@@ -5,48 +5,48 @@
 
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { InteractiveEditorController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import * as interactiveEditorActions from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { IInteractiveEditorService, INTERACTIVE_EDITOR_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import * as InlineChatActions from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
+import { IInlineChatService, INLINE_CHAT_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { InteractiveEditorServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
-import { IInteractiveEditorSessionService, InteractiveEditorSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
+import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { InteractiveEditorNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
+import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
 
-registerSingleton(IInteractiveEditorService, InteractiveEditorServiceImpl, InstantiationType.Delayed);
-registerSingleton(IInteractiveEditorSessionService, InteractiveEditorSessionService, InstantiationType.Delayed);
+registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
+registerSingleton(IInlineChatSessionService, InlineChatSessionService, InstantiationType.Delayed);
 
-registerEditorContribution(INTERACTIVE_EDITOR_ID, InteractiveEditorController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
+registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
-registerAction2(interactiveEditorActions.StartSessionAction);
-registerAction2(interactiveEditorActions.UnstashSessionAction);
-registerAction2(interactiveEditorActions.MakeRequestAction);
-registerAction2(interactiveEditorActions.StopRequestAction);
-registerAction2(interactiveEditorActions.DiscardAction);
-registerAction2(interactiveEditorActions.DiscardToClipboardAction);
-registerAction2(interactiveEditorActions.DiscardUndoToNewFileAction);
-registerAction2(interactiveEditorActions.CancelSessionAction);
+registerAction2(InlineChatActions.StartSessionAction);
+registerAction2(InlineChatActions.UnstashSessionAction);
+registerAction2(InlineChatActions.MakeRequestAction);
+registerAction2(InlineChatActions.StopRequestAction);
+registerAction2(InlineChatActions.DiscardAction);
+registerAction2(InlineChatActions.DiscardToClipboardAction);
+registerAction2(InlineChatActions.DiscardUndoToNewFileAction);
+registerAction2(InlineChatActions.CancelSessionAction);
 
-registerAction2(interactiveEditorActions.ArrowOutUpAction);
-registerAction2(interactiveEditorActions.ArrowOutDownAction);
-registerAction2(interactiveEditorActions.FocusInteractiveEditor);
-registerAction2(interactiveEditorActions.PreviousFromHistory);
-registerAction2(interactiveEditorActions.NextFromHistory);
-registerAction2(interactiveEditorActions.ViewInChatAction);
-registerAction2(interactiveEditorActions.ExpandMessageAction);
-registerAction2(interactiveEditorActions.ContractMessageAction);
-registerAction2(interactiveEditorActions.AccessibilityHelpEditorAction);
+registerAction2(InlineChatActions.ArrowOutUpAction);
+registerAction2(InlineChatActions.ArrowOutDownAction);
+registerAction2(InlineChatActions.FocusInlineChat);
+registerAction2(InlineChatActions.PreviousFromHistory);
+registerAction2(InlineChatActions.NextFromHistory);
+registerAction2(InlineChatActions.ViewInChatAction);
+registerAction2(InlineChatActions.ExpandMessageAction);
+registerAction2(InlineChatActions.ContractMessageAction);
+registerAction2(InlineChatActions.AccessibilityHelpEditorAction);
 
-registerAction2(interactiveEditorActions.ToggleInlineDiff);
-registerAction2(interactiveEditorActions.FeebackHelpfulCommand);
-registerAction2(interactiveEditorActions.FeebackUnhelpfulCommand);
-registerAction2(interactiveEditorActions.ApplyPreviewEdits);
+registerAction2(InlineChatActions.ToggleInlineDiff);
+registerAction2(InlineChatActions.FeebackHelpfulCommand);
+registerAction2(InlineChatActions.FeebackUnhelpfulCommand);
+registerAction2(InlineChatActions.ApplyPreviewEdits);
 
-registerAction2(interactiveEditorActions.CopyRecordings);
+registerAction2(InlineChatActions.CopyRecordings);
 
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
-	.registerWorkbenchContribution(InteractiveEditorNotebookContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);

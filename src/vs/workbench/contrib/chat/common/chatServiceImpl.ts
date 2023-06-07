@@ -155,6 +155,7 @@ export class ChatService extends Disposable implements IChatService {
 		this.trace('onWillSaveState', `Persisting ${allSessions.length} sessions`);
 
 		const serialized = JSON.stringify(allSessions);
+		this.trace('onWillSaveState', `Persisting ${serialized.length} chars`);
 		this.storageService.store(serializedChatKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 

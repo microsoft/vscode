@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INTERACTIVE_EDITOR_ID, interactiveEditorDiffInserted, interactiveEditorDiffRemoved, interactiveEditorRegionHighlight } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { INLINE_CHAT_ID, inlineChatDiffInserted, inlineChatDiffRemoved, inlineChatRegionHighlight } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { Position } from 'vs/editor/common/core/position';
@@ -32,7 +32,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 
-export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
+export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 	private static readonly _hideId = 'overlayDiff';
 
@@ -59,7 +59,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 
 		const diffContributions = EditorExtensionsRegistry
 			.getEditorContributions()
-			.filter(c => c.id !== INTERACTIVE_EDITOR_ID);
+			.filter(c => c.id !== INLINE_CHAT_ID);
 
 		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
 			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
@@ -88,12 +88,12 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
 			const overrides: [target: string, source: string][] = [
-				[colorRegistry.editorBackground, interactiveEditorRegionHighlight],
-				[editorColorRegistry.editorGutter, interactiveEditorRegionHighlight],
-				[colorRegistry.diffInsertedLine, interactiveEditorDiffInserted],
-				[colorRegistry.diffInserted, interactiveEditorDiffInserted],
-				[colorRegistry.diffRemovedLine, interactiveEditorDiffRemoved],
-				[colorRegistry.diffRemoved, interactiveEditorDiffRemoved],
+				[colorRegistry.editorBackground, inlineChatRegionHighlight],
+				[editorColorRegistry.editorGutter, inlineChatRegionHighlight],
+				[colorRegistry.diffInsertedLine, inlineChatDiffInserted],
+				[colorRegistry.diffInserted, inlineChatDiffInserted],
+				[colorRegistry.diffRemovedLine, inlineChatDiffRemoved],
+				[colorRegistry.diffRemoved, inlineChatDiffRemoved],
 			];
 
 			for (const [target, source] of overrides) {
@@ -244,9 +244,9 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 	}
 
 	private _cleanupFullDiff() {
-		this.editor.setHiddenAreas([], InteractiveEditorLivePreviewWidget._hideId);
-		this._diffEditor.getOriginalEditor().setHiddenAreas([], InteractiveEditorLivePreviewWidget._hideId);
-		this._diffEditor.getModifiedEditor().setHiddenAreas([], InteractiveEditorLivePreviewWidget._hideId);
+		this.editor.setHiddenAreas([], InlineChatLivePreviewWidget._hideId);
+		this._diffEditor.getOriginalEditor().setHiddenAreas([], InlineChatLivePreviewWidget._hideId);
+		this._diffEditor.getModifiedEditor().setHiddenAreas([], InlineChatLivePreviewWidget._hideId);
 		super.hide();
 	}
 
@@ -292,7 +292,7 @@ export class InteractiveEditorLivePreviewWidget extends ZoneWidget {
 			return;
 		}
 		const ranges = lineRanges.map(lineRangeAsRange);
-		editor.setHiddenAreas(ranges, InteractiveEditorLivePreviewWidget._hideId);
+		editor.setHiddenAreas(ranges, InlineChatLivePreviewWidget._hideId);
 		this._logService.debug(`[IE] diff HIDING ${ranges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 	}
 
@@ -334,7 +334,7 @@ function isInlineDiffFriendly(mapping: LineRangeMapping): boolean {
 }
 
 
-export class InteractiveEditorFileCreatePreviewWidget extends ZoneWidget {
+export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 
 	private readonly _elements = h('div.interactive-editor-newfile-widget@domNode', [
 		h('div.title.show-file-icons@title'),
@@ -368,8 +368,8 @@ export class InteractiveEditorFileCreatePreviewWidget extends ZoneWidget {
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
 			const overrides: [target: string, source: string][] = [
-				[colorRegistry.editorBackground, interactiveEditorRegionHighlight],
-				[editorColorRegistry.editorGutter, interactiveEditorRegionHighlight],
+				[colorRegistry.editorBackground, inlineChatRegionHighlight],
+				[editorColorRegistry.editorGutter, inlineChatRegionHighlight],
 			];
 
 			for (const [target, source] of overrides) {

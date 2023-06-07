@@ -577,7 +577,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	private async _refreshImageAddon(): Promise<void> {
-		if (this._configHelper.config.experimentalImageSupport) {
+		if (this._configHelper.config.enableImages) {
 			if (!this._imageAddon) {
 				const AddonCtor = await this._getImageAddonConstructor();
 				this._imageAddon = new AddonCtor();
