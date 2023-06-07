@@ -306,9 +306,13 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return currentDirectory;
 		},
 		getDirectories(path: string): string[] {
+			logVerbose('fs.getDirectories', { path });
+
 			return getAccessibleFileSystemEntries(path).directories.slice();
 		},
 		readDirectory(path: string, extensions?: readonly string[], excludes?: readonly string[], includes?: readonly string[], depth?: number): string[] {
+			logVerbose('fs.readDirectory', { path });
+
 			return matchFiles(path, extensions, excludes, includes, /*useCaseSensitiveFileNames*/ true, currentDirectory, depth, getAccessibleFileSystemEntries, realpath);
 		},
 		getModifiedTime(path: string): Date | undefined {
