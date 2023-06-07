@@ -11,15 +11,22 @@ const task = require('./lib/task');
 const compilation = require('./lib/compilation');
 const optimize = require('./lib/optimize');
 
-// Full compile, including nls and inline sources in sourcemaps, for build
-const compileBuildTask = task.define('compile-build',
-	task.series(
+function makeCompileBuildTask(disableMangle) {
+	return task.series(
 		util.rimraf('out-build'),
 		util.buildWebNodePaths('out-build'),
 		compilation.compileApiProposalNamesTask,
-		compilation.compileTask('src', 'out-build', true),
+		compilation.compileTask('src', 'out-build', true, { disableMangle }),
 		optimize.optimizeLoaderTask('out-build', 'out-build', true)
-	)
-);
+	);
+}
+
+// Full compile, including nls and inline sources in sourcemaps, mangling, minification, for build
+const compileBuildTask = task.define('compile-build', makeCompileBuildTask(false));
 gulp.task(compileBuildTask);
 exports.compileBuildTask = compileBuildTask;
+
+// Full compile for PR ci, e.g no mangling
+const compileBuildTaskPullRequest = task.define('compile-build-pr', makeCompileBuildTask(true));
+gulp.task(compileBuildTaskPullRequest);
+exports.compileBuildTaskPullRequest = compileBuildTaskPullRequest;
