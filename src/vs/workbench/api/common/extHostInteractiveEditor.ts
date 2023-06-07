@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IInteractiveEditorSession, IInteractiveEditorRequest, InteractiveEditorResponseFeedbackKind, InteractiveEditorResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatSession, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveEditorShape, IInteractiveEditorResponseDto, IMainContext, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -95,7 +95,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		});
 	}
 
-	async $prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInteractiveEditorSession | undefined> {
+	async $prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined> {
 		const entry = this._inputProvider.get(handle);
 		if (!entry) {
 			this._logService.warn('CANNOT prepare session because the PROVIDER IS GONE');
@@ -125,7 +125,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		};
 	}
 
-	async $provideResponse(handle: number, item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined> {
+	async $provideResponse(handle: number, item: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined> {
 		const entry = this._inputProvider.get(handle);
 		if (!entry) {
 			return undefined;
@@ -156,7 +156,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 				return {
 					...stub,
 					id,
-					type: InteractiveEditorResponseType.Message,
+					type: InlineChatResponseType.Message,
 					message: typeConvert.MarkdownString.from(res.contents),
 				};
 			}
@@ -166,7 +166,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 				return {
 					...stub,
 					id,
-					type: InteractiveEditorResponseType.BulkEdit,
+					type: InlineChatResponseType.BulkEdit,
 					edits: typeConvert.WorkspaceEdit.from(edits),
 				};
 
@@ -174,7 +174,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 				return {
 					...stub,
 					id,
-					type: InteractiveEditorResponseType.EditorEdit,
+					type: InlineChatResponseType.EditorEdit,
 					edits: edits.map(typeConvert.TextEdit.from),
 				};
 			}
@@ -183,7 +183,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		return undefined;
 	}
 
-	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InteractiveEditorResponseFeedbackKind): void {
+	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
 		const response = sessionData?.responses[responseId];
@@ -192,13 +192,13 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 			// todo@jrieken move to type converter
 			let apiKind: extHostTypes.InteractiveEditorResponseFeedbackKind;
 			switch (kind) {
-				case InteractiveEditorResponseFeedbackKind.Helpful:
+				case InlineChatResponseFeedbackKind.Helpful:
 					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Helpful;
 					break;
-				case InteractiveEditorResponseFeedbackKind.Unhelpful:
+				case InlineChatResponseFeedbackKind.Unhelpful:
 					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Unhelpful;
 					break;
-				case InteractiveEditorResponseFeedbackKind.Undone:
+				case InlineChatResponseFeedbackKind.Undone:
 					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Undone;
 					break;
 			}

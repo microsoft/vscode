@@ -11,8 +11,8 @@
 	color: inherit;
 	padding: 6px;
 	border-radius: 6px;
-	border: 1px solid var(--vscode-interactiveEditor-border);
-	box-shadow: 0 4px 8px var(--vscode-interactiveEditor-shadow);
+	border: 1px solid var(--vscode-inlineChat-border);
+	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
 }
 
 /* body */
@@ -25,30 +25,30 @@
 	display: flex;
 	box-sizing: border-box;
 	border-radius: 2px;
-	border: 1px solid var(--vscode-interactiveEditorInput-border);
+	border: 1px solid var(--vscode-inlineChatInput-border);
 }
 
 .monaco-editor .interactive-editor .body .content.synthetic-focus {
-	outline: 1px solid var(--vscode-interactiveEditorInput-focusBorder);
+	outline: 1px solid var(--vscode-inlineChatInput-focusBorder);
 }
 
 .monaco-editor .interactive-editor .body .content .input {
 	padding: 2px 2px 2px 4px;
 	border-top-left-radius: 2px;
 	border-bottom-left-radius: 2px;
-	background-color: var(--vscode-interactiveEditorInput-background);
+	background-color: var(--vscode-inlineChatInput-background);
 	cursor: text;
 }
 
 .monaco-editor .interactive-editor .body .content .input .monaco-editor-background {
-	background-color: var(--vscode-interactiveEditorInput-background);
+	background-color: var(--vscode-inlineChatInput-background);
 }
 
 .monaco-editor .interactive-editor .body .content .input .editor-placeholder {
 	position: absolute;
 	z-index: 1;
 	padding: 3px 0 0 0;
-	color: var(--vscode-interactiveEditorInput-placeholderForeground);
+	color: var(--vscode-inlineChatInput-placeholderForeground);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -68,7 +68,7 @@
 	padding-right: 4px;
 	border-top-right-radius: 2px;
 	border-bottom-right-radius: 2px;
-	background: var(--vscode-interactiveEditorInput-background);
+	background: var(--vscode-inlineChatInput-background);
 }
 
 .monaco-editor .interactive-editor .body .toolbar .actions-container {
@@ -215,7 +215,7 @@
 .monaco-editor .interactive-editor .previewDiff {
 	display: inherit;
 	padding: 6px;
-	border: 1px solid var(--vscode-interactiveEditor-border);
+	border: 1px solid var(--vscode-inlineChat-border);
 	border-top: none;
 	border-bottom-left-radius: 2px;
 	border-bottom-right-radius: 2px;
@@ -229,7 +229,7 @@
 .monaco-editor .interactive-editor .previewCreate {
 	display: inherit;
 	padding: 6px;
-	border: 1px solid var(--vscode-interactiveEditor-border);
+	border: 1px solid var(--vscode-inlineChat-border);
 	border-radius: 2px;
 	margin: 0 2px 6px 2px;
 }
@@ -252,7 +252,7 @@
 }
 
 .monaco-editor .interactive-editor-block-selection {
-	background-color: var(--vscode-interactiveEditor-regionHighlight);
+	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
 .monaco-editor .interactive-editor-slash-command {
@@ -271,14 +271,14 @@
 
 .monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor-background,
 .monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
-	background-color: var(--vscode-interactiveEditor-regionHighlight);
+	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
 /* create zone */
 
 .monaco-editor .interactive-editor-newfile-widget {
 	padding: 3px 0 6px 0;
-	background-color: var(--vscode-interactiveEditor-regionHighlight);
+	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
 .monaco-editor .interactive-editor-newfile-widget .title {

@@ -19,10 +19,10 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
+import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
 import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { InteractiveEditorWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { CTX_INLINE_CHAT_SHOWING_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
@@ -51,14 +51,14 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	constructor(
 		private readonly _session: Session,
-		private readonly _widget: InteractiveEditorWidget,
+		private readonly _widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
 
-		this._ctxDocumentChanged = CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED.bindTo(contextKeyService);
+		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 		this._listener = Event.debounce(_session.textModelN.onDidChangeContent.bind(_session.textModelN), () => { }, 350)(_ => {
 			this._ctxDocumentChanged.set(!_session.textModelN.equalsTextBuffer(_session.textModel0.getTextBuffer()));
 		});
@@ -214,7 +214,7 @@ export class LiveStrategy extends EditModeStrategy {
 	constructor(
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
-		protected readonly _widget: InteractiveEditorWidget,
+		protected readonly _widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
@@ -225,7 +225,7 @@ export class LiveStrategy extends EditModeStrategy {
 		this._diffEnabled = _storageService.getBoolean(LiveStrategy._inlineDiffStorageKey, StorageScope.PROFILE, true);
 
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._diffEnabled);
-		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
+		this._ctxShowingDiff = CTX_INLINE_CHAT_SHOWING_DIFF.bindTo(contextKeyService);
 		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
 	}
@@ -332,13 +332,13 @@ export class LiveStrategy extends EditModeStrategy {
 
 export class LivePreviewStrategy extends LiveStrategy {
 
-	private readonly _diffZone: InteractiveEditorLivePreviewWidget;
-	private readonly _previewZone: InteractiveEditorFileCreatePreviewWidget;
+	private readonly _diffZone: InlineChatLivePreviewWidget;
+	private readonly _previewZone: InlineChatFileCreatePreviewWidget;
 
 	constructor(
 		session: Session,
 		editor: ICodeEditor,
-		widget: InteractiveEditorWidget,
+		widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
 		@IBulkEditService bulkEditService: IBulkEditService,
@@ -347,8 +347,8 @@ export class LivePreviewStrategy extends LiveStrategy {
 	) {
 		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, instaService);
 
-		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session);
-		this._previewZone = instaService.createInstance(InteractiveEditorFileCreatePreviewWidget, editor);
+		this._diffZone = instaService.createInstance(InlineChatLivePreviewWidget, editor, session);
+		this._previewZone = instaService.createInstance(InlineChatFileCreatePreviewWidget, editor);
 	}
 
 	override dispose(): void {

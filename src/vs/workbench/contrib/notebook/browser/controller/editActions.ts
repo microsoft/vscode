@@ -31,7 +31,7 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { InteractiveEditorController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
@@ -76,8 +76,8 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 
 		await context.notebookEditor.focusNotebookCell(context.cell, 'editor');
 		const foundEditor: ICodeEditor | undefined = context.cell ? findTargetCellEditor(context, context.cell) : undefined;
-		if (foundEditor && foundEditor.hasTextFocus() && InteractiveEditorController.get(foundEditor)?.getWidgetPosition()?.lineNumber === foundEditor.getPosition()?.lineNumber) {
-			InteractiveEditorController.get(foundEditor)?.focus();
+		if (foundEditor && foundEditor.hasTextFocus() && InlineChatController.get(foundEditor)?.getWidgetPosition()?.lineNumber === foundEditor.getPosition()?.lineNumber) {
+			InlineChatController.get(foundEditor)?.focus();
 		}
 	}
 });
