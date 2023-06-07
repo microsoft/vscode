@@ -101,7 +101,7 @@ class AccessibleView extends Disposable {
 				}
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
-			this._editorWidget.updateOptions({ ariaLabel: localize('accessible-view-label', "{0}", provider.options.ariaLabel) });
+			this._editorWidget.updateOptions({ ariaLabel: provider.options.ariaLabel });
 			this._editorWidget.focus();
 		});
 		return { dispose: () => { provider.onClose(); } } as IDisposable;
