@@ -467,7 +467,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.editor.revealLineInCenterIfOutsideViewport(range.endLineNumber, ScrollType.Smooth);
 	}
 
-	hasFocus(): boolean {
+	override hasFocus(): boolean {
 		return this.diffEditor.hasTextFocus();
 	}
 
