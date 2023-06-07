@@ -98,7 +98,7 @@ export interface IInlineChatService {
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;
 }
 
-export const INLINE_CHAT_ID = 'interactiveEDitor';
+export const INLINE_CHAT_ID = 'interactiveEditor';
 export const INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID = 'interactiveEditorAccessiblityHelp';
 
 export const CTX_INLINE_CHAT_HAS_PROVIDER = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
