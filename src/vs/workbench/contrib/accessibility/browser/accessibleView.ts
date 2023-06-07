@@ -101,6 +101,7 @@ class AccessibleView extends Disposable {
 				}
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
+			this._register(this._editorWidget.onDidContentSizeChange(() => this._layout()));
 			this._editorWidget.updateOptions({ ariaLabel: provider.options.ariaLabel });
 			this._editorWidget.focus();
 		});
@@ -117,9 +118,7 @@ class AccessibleView extends Disposable {
 		const windowHeight = window.innerHeight;
 
 		const width = windowWidth * .4;
-		let height = windowHeight * .4;
-		this._editorWidget.layout({ width, height });
-		height = this._editorWidget.getContentHeight();
+		const height = Math.min(.4 * windowHeight, this._editorWidget.getContentHeight());
 		this._editorWidget.layout({ width, height });
 		const top = Math.round((windowHeight - height) / 2);
 		domNode.style.top = `${top}px`;
