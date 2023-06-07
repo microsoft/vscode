@@ -212,7 +212,7 @@ export class InlineChatWidget {
 		this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InteractiveEditor)) {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
 				this._updateAriaLabel();
 			}
 		}));
@@ -359,7 +359,7 @@ export class InlineChatWidget {
 			return;
 		}
 		let label = defaultAriaLabel;
-		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InteractiveEditor)) {
+		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
 			const kbLabel = this._keybindingService.lookupKeybinding('interactiveEditor.accessibilityHelp')?.getLabel();
 			label = kbLabel ? localize('interactiveEditor.accessibilityHelp', "Interactive Editor Input, Use {0} for Interactive Editor Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Interactive Editor Input, Run the Interactive Editor Accessibility Help command for more information.");
 		}

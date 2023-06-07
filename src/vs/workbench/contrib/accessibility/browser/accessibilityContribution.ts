@@ -15,7 +15,7 @@ export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
 	Chat = 'accessibility.verbosity.chat',
-	InteractiveEditor = 'accessibility.verbosity.interactiveEditor',
+	InlineChat = 'accessibility.verbosity.inlineChat',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook'
 }
@@ -43,8 +43,8 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused'),
 			...baseProperty
 		},
-		[AccessibilityVerbositySettingId.InteractiveEditor]: {
-			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the interactive editor accessibility help menu when the interactive editor input is focused'),
+		[AccessibilityVerbositySettingId.InlineChat]: {
+			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu when the input is focused'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
@@ -62,7 +62,6 @@ export function registerAccessibilityConfiguration() {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(configuration);
 }
-
 
 function registerCommand<T extends Command>(command: T): T {
 	command.register();
