@@ -763,6 +763,10 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	protected override _doLayout(heightInPixel: number): void {
 
 		const info = this.editor.getLayoutInfo();
+		if (this.position) {
+			const lineIndentColumn = this.editor._getViewModel()?.getLineIndentColumn(this.position.lineNumber);
+			console.log('lineIndentColumn', lineIndentColumn);
+		}
 		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
 		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
 
