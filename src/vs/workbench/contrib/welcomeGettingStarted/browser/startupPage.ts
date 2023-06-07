@@ -147,6 +147,9 @@ export class StartupPageContribution implements IWorkbenchContribution {
 					}),
 					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
 				]);
+			} else {
+				// If no readme is found, default to showing the welcome page.
+				await this.openGettingStarted();
 			}
 		}
 	}

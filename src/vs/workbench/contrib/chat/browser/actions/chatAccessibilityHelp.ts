@@ -13,7 +13,7 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { InteractiveEditorController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat' | 'editor', currentInput?: string): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -82,7 +82,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 				inputEditor.setPosition(cachedPosition);
 				inputEditor.focus();
 			} else if (type === 'editor') {
-				InteractiveEditorController.get(editor)?.focus();
+				InlineChatController.get(editor)?.focus();
 			}
 			provider.dispose();
 		},

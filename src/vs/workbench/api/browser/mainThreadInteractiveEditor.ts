@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap } from 'vs/base/common/lifecycle';
-import { IInteractiveEditorBulkEditResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatBulkEditResponse, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { ExtHostContext, ExtHostInteractiveEditorShape, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -18,7 +18,7 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
+		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInteractiveEditor);
@@ -29,9 +29,9 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 	}
 
 	async $registerInteractiveEditorProvider(handle: number, debugName: string, supportsFeedback: boolean): Promise<void> {
-		const unreg = this._interactiveEditorService.addProvider({
+		const unreg = this._inlineChatService.addProvider({
 			debugName,
-			prepareInteractiveEditorSession: async (model, range, token) => {
+			prepareInlineChatSession: async (model, range, token) => {
 				const session = await this._proxy.$prepareInteractiveSession(handle, model.uri, range, token);
 				if (!session) {
 					return undefined;
@@ -46,11 +46,11 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 			provideResponse: async (item, request, token) => {
 				const result = await this._proxy.$provideResponse(handle, item, request, token);
 				if (result?.type === 'bulkEdit') {
-					(<IInteractiveEditorBulkEditResponse>result).edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
+					(<IInlineChatBulkEditResponse>result).edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
 				}
-				return <IInteractiveEditorResponse | undefined>result;
+				return <IInlineChatResponse | undefined>result;
 			},
-			handleInteractiveEditorResponseFeedback: !supportsFeedback ? undefined : async (session, response, kind) => {
+			handleInlineChatResponseFeedback: !supportsFeedback ? undefined : async (session, response, kind) => {
 				this._proxy.$handleFeedback(handle, session.id, response.id, kind);
 			}
 		});

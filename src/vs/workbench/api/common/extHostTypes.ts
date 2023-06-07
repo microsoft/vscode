@@ -3852,14 +3852,8 @@ export class LinkedEditingRanges {
 export class PortAttributes {
 	private _autoForwardAction: PortAutoForwardAction;
 
-	constructor(autoForwardAction: PortAutoForwardAction);
-	constructor(port: number, autoForwardAction: PortAutoForwardAction);
-	constructor(portOrAction: number | PortAutoForwardAction, autoForwardAction?: PortAutoForwardAction) {
-		if (typeof portOrAction === 'number') {
-			this._autoForwardAction = autoForwardAction!;
-		} else {
-			this._autoForwardAction = portOrAction;
-		}
+	constructor(autoForwardAction: PortAutoForwardAction) {
+		this._autoForwardAction = autoForwardAction;
 	}
 
 	get autoForwardAction(): PortAutoForwardAction {

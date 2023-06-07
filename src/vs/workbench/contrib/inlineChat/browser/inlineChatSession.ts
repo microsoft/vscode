@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -28,8 +28,8 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 export type Recording = {
 	when: Date;
-	session: IInteractiveEditorSession;
-	exchanges: { prompt: string; res: IInteractiveEditorResponse }[];
+	session: IInlineChatSession;
+	exchanges: { prompt: string; res: IInlineChatResponse }[];
 };
 
 type TelemetryData = {
@@ -124,8 +124,8 @@ export class Session {
 		readonly editor: ICodeEditor,
 		readonly textModel0: ITextModel,
 		readonly textModelN: ITextModel,
-		readonly provider: IInteractiveEditorSessionProvider,
-		readonly session: IInteractiveEditorSession,
+		readonly provider: IInlineChatSessionProvider,
+		readonly session: IInlineChatSession,
 		readonly wholeRange: SessionWholeRange
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
@@ -264,7 +264,7 @@ export class ErrorResponse {
 export class MarkdownResponse {
 	constructor(
 		readonly localUri: URI,
-		readonly raw: IInteractiveEditorMessageResponse
+		readonly raw: IInlineChatMessageResponse
 	) { }
 }
 
@@ -275,7 +275,7 @@ export class EditResponse {
 	readonly workspaceEdits: ResourceEdit[] | undefined;
 	readonly workspaceEditsIncludeLocalEdits: boolean = false;
 
-	constructor(localUri: URI, readonly raw: IInteractiveEditorBulkEditResponse | IInteractiveEditorEditResponse) {
+	constructor(localUri: URI, readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse) {
 		if (raw.type === 'editorEdit') {
 			//
 			this.localEdits = raw.edits;
@@ -328,9 +328,9 @@ export interface ISessionKeyComputer {
 	getComparisonKey(editor: ICodeEditor, uri: URI): string;
 }
 
-export const IInteractiveEditorSessionService = createDecorator<IInteractiveEditorSessionService>('IInteractiveEditorSessionService');
+export const IInlineChatSessionService = createDecorator<IInlineChatSessionService>('IInlineChatSessionService');
 
-export interface IInteractiveEditorSessionService {
+export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
@@ -351,7 +351,7 @@ type SessionData = {
 	store: IDisposable;
 };
 
-export class InteractiveEditorSessionService implements IInteractiveEditorSessionService {
+export class InlineChatSessionService implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
 
@@ -360,7 +360,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 	private _recordings: Recording[] = [];
 
 	constructor(
-		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
+		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -370,7 +370,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 
-		const provider = Iterable.first(this._interactiveEditorService.getAllProvider());
+		const provider = Iterable.first(this._inlineChatService.getAllProvider());
 		if (!provider) {
 			this._logService.trace('[IE] NO provider found');
 			return undefined;
@@ -378,9 +378,9 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
-		let raw: IInteractiveEditorSession | undefined | null;
+		let raw: IInlineChatSession | undefined | null;
 		try {
-			raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+			raw = await provider.prepareInlineChatSession(textModel, selection, token);
 		} catch (error) {
 			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
 			this._logService.error(error);
