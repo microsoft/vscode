@@ -594,12 +594,12 @@ export class ContractMessageAction extends AbstractInlineChatAction {
 export class InlineAccessibilityHelpContribution extends Disposable {
 	constructor() {
 		super();
-		this._register(AccessibilityHelpAction.addImplementation(106, 'editor', async accessor => {
+		this._register(AccessibilityHelpAction.addImplementation(106, 'inline-chat', async accessor => {
 			const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 			if (!codeEditor) {
 				return;
 			}
-			runAccessibilityHelpAction(accessor, codeEditor, 'editor');
+			runAccessibilityHelpAction(accessor, codeEditor, 'inline');
 		}, CTX_INLINE_CHAT_FOCUSED));
 	}
 }
