@@ -139,10 +139,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		);
 	}
 
-	public get activePreview() {
-		return this._activePreview;
-	}
-
 	public get activePreviewResource() {
 		return this._activePreview?.resource;
 	}

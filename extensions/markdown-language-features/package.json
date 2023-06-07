@@ -123,11 +123,7 @@
     "commands": [
       {
         "command": "_markdown.copyImage",
-        "title": "%markdown.copyImage.title%",
-        "icon": {
-          "light": "./media/preview-light.svg",
-          "dark": "./media/preview-dark.svg"
-        }
+        "title": "%markdown.copyImage.title%"
       },
       {
         "command": "markdown.showPreview",
