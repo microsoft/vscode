@@ -11,13 +11,14 @@ parameters:
 
 steps:
   - ${{ if parameters.VSCODE_CHECK_ONLY }}:
-    - script: cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+    - script: rustup component add clippy && cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
       displayName: Lint ${{ parameters.VSCODE_CLI_TARGET }}
       workingDirectory: $(Build.SourcesDirectory)/cli
       env:
         CARGO_NET_GIT_FETCH_WITH_CLI: true
         ${{ each pair in parameters.VSCODE_CLI_ENV }}:
           ${{ pair.key }}: ${{ pair.value }}
+
   - ${{ else }}:
     - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
       displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
