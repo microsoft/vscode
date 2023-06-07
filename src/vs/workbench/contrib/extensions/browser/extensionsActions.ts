@@ -51,7 +51,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IActionViewItemOptions, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { EXTENSIONS_CONFIG, IExtensionsConfigContent } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -295,7 +295,7 @@ export class ActionWithDropDownAction extends ExtensionAction {
 	}
 }
 
-export abstract class AbstractInstallAction extends ExtensionAction {
+export class InstallAction extends ExtensionAction {
 
 	static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install`;
 
@@ -306,9 +306,10 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 	}
 
 	private readonly updateThrottler = new Throttler();
+	public readonly options: InstallOptions;
 
 	constructor(
-		id: string, readonly options: InstallOptions, cssClass: string,
+		options: InstallOptions,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
@@ -318,7 +319,8 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		super(id, localize('install', "Install"), cssClass, false);
+		super('extensions.install', localize('install', "Install"), InstallAction.Class, false);
+		this.options = { ...options, isMachineScoped: false };
 		this.update();
 		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 	}
@@ -464,11 +466,10 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 	}
 
 	private async install(extension: IExtension): Promise<IExtension | undefined> {
-		const installOptions = this.getInstallOptions();
 		try {
-			return await this.extensionsWorkbenchService.install(extension, installOptions);
+			return await this.extensionsWorkbenchService.install(extension, this.options);
 		} catch (error) {
-			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, installOptions, error).run();
+			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, this.options, error).run();
 			return undefined;
 		}
 	}
@@ -508,49 +509,12 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		return localize('install', "Install");
 	}
 
-	protected getInstallOptions(): InstallOptions {
-		return this.options;
-	}
-}
-
-export class InstallAction extends AbstractInstallAction {
-
-	constructor(
-		options: InstallOptions,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionService runtimeExtensionService: IExtensionService,
-		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
-		@ILabelService labelService: ILabelService,
-		@IDialogService dialogService: IDialogService,
-		@IPreferencesService preferencesService: IPreferencesService,
-		@IProductService productService: IProductService,
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
-		@ITelemetryService telemetryService: ITelemetryService,
-	) {
-		super('extensions.installAndSync', options, AbstractInstallAction.Class,
-			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService, dialogService, preferencesService, telemetryService);
-		this.tooltip = localize({ key: 'install everywhere tooltip', comment: ['Placeholder is the name of the product. Eg: Visual Studio Code or Visual Studio Code - Insiders'] }, "Install this extension in all your synced {0} instances", productService.nameLong);
-		this._register(Event.any(userDataSyncEnablementService.onDidChangeEnablement,
-			Event.filter(userDataSyncEnablementService.onDidChangeResourceEnablement, e => e[0] === SyncResource.Extensions))(() => this.update()));
-	}
-
-	protected override async computeAndUpdateEnablement(): Promise<void> {
-		await super.computeAndUpdateEnablement();
-		if (this.enabled) {
-			this.enabled = this.userDataSyncEnablementService.isEnabled() && this.userDataSyncEnablementService.isResourceEnabled(SyncResource.Extensions);
-		}
-	}
-
-	protected override getInstallOptions(): InstallOptions {
-		return { ...super.getInstallOptions(), isMachineScoped: false };
-	}
 }
 
 export class InstallDropdownAction extends ActionWithDropDownAction {
 
 	set manifest(manifest: IExtensionManifest | null) {
-		this.extensionActions.forEach(a => (<AbstractInstallAction>a).manifest = manifest);
+		this.extensionActions.forEach(a => (<InstallAction>a).manifest = manifest);
 		this.update();
 	}
 
@@ -566,7 +530,7 @@ export class InstallDropdownAction extends ActionWithDropDownAction {
 		]);
 	}
 
-	protected override getLabel(action: AbstractInstallAction): string {
+	protected override getLabel(action: InstallAction): string {
 		return action.getLabel(true);
 	}
 
