@@ -26,7 +26,7 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { DropdownWithDefaultActionViewItem, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
@@ -763,27 +763,11 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	protected override _doLayout(heightInPixel: number): void {
 
 		const info = this.editor.getLayoutInfo();
-		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth + (this._findApproximateIndentationWidth() ?? 0);
-		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
-
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
 		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
-		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
-	}
-
-	private _findApproximateIndentationWidth(): number | undefined {
-		if (!this.position) {
-			return;
-		}
-		const lineIndentColumn = this.editor._getViewModel()?.getLineIndentColumn(this.position.lineNumber);
-		if (!lineIndentColumn) {
-			return;
-		}
-		return (lineIndentColumn - 1) * this.editor.getOption(EditorOption.fontSize);
 	}
 
 	private _computeHeightInLines(): number {
@@ -798,10 +782,30 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	override show(where: IPosition): void {
-		super.show(where, this._computeHeightInLines());
+	override show(selectionRange: Range): void {
+		super.show(selectionRange.getEndPosition(), this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
+		this._setMargins(selectionRange);
+	}
+
+	private _setMargins(selectionRange: Range): void {
+		const info = this.editor.getLayoutInfo();
+		const startLineNumber = selectionRange.getStartPosition().lineNumber;
+		const endLineNumber = selectionRange.getEndPosition().lineNumber;
+		let lineNumberForIndentation = endLineNumber;
+		for (let lineNumber = endLineNumber; lineNumber >= startLineNumber; lineNumber--) {
+			const lineContent = this.editor.getModel()?.getLineContent(lineNumber);
+			if (lineContent !== '') {
+				lineNumberForIndentation = lineNumber;
+				break;
+			}
+		}
+		const indentationLevel = this.editor._getViewModel()?.getLineFirstNonWhitespaceColumn(lineNumberForIndentation);
+		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth + (indentationLevel ? this.editor.getOffsetForColumn(lineNumberForIndentation, indentationLevel) : 0);
+		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
+		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
+		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 	}
 
 	override hide(): void {
