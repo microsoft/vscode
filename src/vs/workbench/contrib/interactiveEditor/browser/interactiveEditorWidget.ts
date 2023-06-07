@@ -763,11 +763,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	protected override _doLayout(heightInPixel: number): void {
 
 		const info = this.editor.getLayoutInfo();
-		if (this.position) {
-			const lineIndentColumn = this.editor._getViewModel()?.getLineIndentColumn(this.position.lineNumber);
-			console.log('lineIndentColumn', lineIndentColumn);
-		}
-		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
+		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth + (this._findApproximateIndentationWidth() ?? 0);
 		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
 
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
@@ -777,6 +773,17 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
+	}
+
+	private _findApproximateIndentationWidth(): number | undefined {
+		if (!this.position) {
+			return;
+		}
+		const lineIndentColumn = this.editor._getViewModel()?.getLineIndentColumn(this.position.lineNumber);
+		if (!lineIndentColumn) {
+			return;
+		}
+		return (lineIndentColumn - 1) * this.editor.getOption(EditorOption.fontSize);
 	}
 
 	private _computeHeightInLines(): number {
