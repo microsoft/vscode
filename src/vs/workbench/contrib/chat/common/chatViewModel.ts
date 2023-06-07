@@ -10,34 +10,43 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveRequestModel, IInteractiveResponseModel, IChatModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRequestModel, IChatResponseModel, IChatModel, IChatWelcomeMessageContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatResponseErrorDetails, IChatReplyFollowup, IChatResponseCommandFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
-export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
+export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
 }
 
-export function isResponseVM(item: unknown): item is IInteractiveResponseViewModel {
-	return !!item && typeof (item as IInteractiveResponseViewModel).onDidChange !== 'undefined';
+export function isResponseVM(item: unknown): item is IChatResponseViewModel {
+	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
 }
 
-export function isWelcomeVM(item: unknown): item is IInteractiveWelcomeMessageViewModel {
+export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel {
 	return !!item && typeof item === 'object' && 'content' in item;
 }
 
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | null;
+
+export interface IChatAddRequestEvent {
+	kind: 'addRequest';
+}
+
 export interface IChatViewModel {
+	readonly isInitialized: boolean;
 	readonly providerId: string;
 	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
-	readonly onDidChange: Event<void>;
+	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
-	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel | IInteractiveWelcomeMessageViewModel)[];
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[];
 }
 
-export interface IInteractiveRequestViewModel {
+export interface IChatRequestViewModel {
 	readonly id: string;
+	readonly providerRequestId: string | undefined;
+	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly username: string;
@@ -47,7 +56,7 @@ export interface IInteractiveRequestViewModel {
 	currentRenderedHeight: number | undefined;
 }
 
-export interface IInteractiveResponseRenderData {
+export interface IChatResponseRenderData {
 	renderedWordCount: number;
 	lastRenderTime: number;
 	isFullyRendered: boolean;
@@ -60,9 +69,9 @@ export interface IChatLiveUpdateData {
 	impliedWordLoadRate: number;
 }
 
-export interface IInteractiveResponseViewModel {
-	readonly onDidChange: Event<void>;
+export interface IChatResponseViewModel {
 	readonly id: string;
+	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly providerId: string;
@@ -78,7 +87,7 @@ export interface IInteractiveResponseViewModel {
 	readonly commandFollowups?: IChatResponseCommandFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
-	renderData?: IInteractiveResponseRenderData;
+	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 }
@@ -87,10 +96,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private readonly _onDidDisposeModel = this._register(new Emitter<void>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
+	private readonly _onDidChange = this._register(new Emitter<IChatViewModelChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private readonly _items: (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[] = [];
+	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
 	get inputPlaceholder(): string | undefined {
 		return this._model.inputPlaceholder;
@@ -108,6 +117,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		return this._model.providerId;
 	}
 
+	get isInitialized() {
+		return this._model.isInitialized;
+	}
+
 	constructor(
 		private readonly _model: IChatModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -115,7 +128,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		super();
 
 		_model.getRequests().forEach((request, i) => {
-			this._items.push(new InteractiveRequestViewModel(request));
+			this._items.push(new ChatRequestViewModel(request));
 			if (request.response) {
 				this.onAddResponse(request.response);
 			}
@@ -124,43 +137,65 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
 		this._register(_model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
-				this._items.push(new InteractiveRequestViewModel(e.request));
+				this._items.push(new ChatRequestViewModel(e.request));
 				if (e.request.response) {
 					this.onAddResponse(e.request.response);
 				}
 			} else if (e.kind === 'addResponse') {
 				this.onAddResponse(e.response);
+			} else if (e.kind === 'removeRequest') {
+				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.providerRequestId === e.requestId);
+				if (requestIdx >= 0) {
+					this._items.splice(requestIdx, 1);
+				}
+
+				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.providerResponseId === e.responseId);
+				if (typeof responseIdx === 'number' && responseIdx >= 0) {
+					const items = this._items.splice(responseIdx, 1);
+					const item = items[0];
+					if (isResponseVM(item)) {
+						item.dispose();
+					}
+				}
 			}
 
-			this._onDidChange.fire();
+			this._onDidChange.fire(e.kind === 'addRequest' ? { kind: 'addRequest' } : null);
 		}));
 	}
 
-	private onAddResponse(responseModel: IInteractiveResponseModel) {
-		const response = this.instantiationService.createInstance(InteractiveResponseViewModel, responseModel);
-		this._register(response.onDidChange(() => this._onDidChange.fire()));
+	private onAddResponse(responseModel: IChatResponseModel) {
+		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel);
+		this._register(response.onDidChange(() => this._onDidChange.fire(null)));
 		this._items.push(response);
 	}
 
-	getItems() {
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[] {
 		return [...(this._model.welcomeMessage ? [this._model.welcomeMessage] : []), ...this._items];
 	}
 
 	override dispose() {
 		super.dispose();
 		this._items
-			.filter((item): item is InteractiveResponseViewModel => item instanceof InteractiveResponseViewModel)
-			.forEach((item: InteractiveResponseViewModel) => item.dispose());
+			.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel)
+			.forEach((item: ChatResponseViewModel) => item.dispose());
 	}
 }
 
-export class InteractiveRequestViewModel implements IInteractiveRequestViewModel {
+export class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;
 	}
 
+	get providerRequestId() {
+		return this._model.providerRequestId;
+	}
+
 	get dataId() {
 		return this.id + (this._model.session.isInitialized ? '' : '_initializing');
+	}
+
+	get sessionId() {
+		return this._model.session.sessionId;
 	}
 
 	get username() {
@@ -181,10 +216,10 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 
 	currentRenderedHeight: number | undefined;
 
-	constructor(readonly _model: IInteractiveRequestModel) { }
+	constructor(readonly _model: IChatRequestModel) { }
 }
 
-export class InteractiveResponseViewModel extends Disposable implements IInteractiveResponseViewModel {
+export class ChatResponseViewModel extends Disposable implements IChatResponseViewModel {
 	private _modelChangeCount = 0;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -204,6 +239,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get providerResponseId() {
 		return this._model.providerResponseId;
+	}
+
+	get sessionId() {
+		return this._model.session.sessionId;
 	}
 
 	get username() {
@@ -251,7 +290,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 		return this._model.vote;
 	}
 
-	renderData: IInteractiveResponseRenderData | undefined = undefined;
+	renderData: IChatResponseRenderData | undefined = undefined;
 
 	currentRenderedHeight: number | undefined;
 
@@ -261,7 +300,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	constructor(
-		private readonly _model: IInteractiveResponseModel,
+		private readonly _model: IChatResponseModel,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -300,7 +339,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 					this.trace(`onDidChange`, `Done- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${this.renderData?.renderedWordCount} words are rendered.`);
 				}
 			} else {
-				this.logService.warn('InteractiveResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
+				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
 			}
 
 			// new data -> new id, new content to render
@@ -315,7 +354,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	private trace(tag: string, message: string) {
-		this.logService.trace(`InteractiveResponseViewModel#${tag}: ${message}`);
+		this.logService.trace(`ChatResponseViewModel#${tag}: ${message}`);
 	}
 
 	setVote(vote: InteractiveSessionVoteDirection): void {
@@ -324,9 +363,9 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 }
 
-export interface IInteractiveWelcomeMessageViewModel {
+export interface IChatWelcomeMessageViewModel {
 	readonly id: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly content: IInteractiveWelcomeMessageContent[];
+	readonly content: IChatWelcomeMessageContent[];
 }

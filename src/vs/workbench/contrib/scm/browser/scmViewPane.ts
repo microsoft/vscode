@@ -224,6 +224,7 @@ class SCMTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 
 interface InputTemplate {
 	readonly inputWidget: SCMInputWidget;
+	inputWidgetHeight: number;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
@@ -258,7 +259,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
 		templateDisposable.add(inputWidget);
 
-		return { inputWidget, elementDisposables: new DisposableStore(), templateDisposable };
+		return { inputWidget, inputWidgetHeight: InputRenderer.DEFAULT_HEIGHT, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
@@ -268,10 +269,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
 		templateData.elementDisposables.add({
-			dispose: () => {
-				this.inputWidgets.delete(input);
-				this.contentHeights.delete(input);
-			}
+			dispose: () => this.inputWidgets.delete(input)
 		});
 
 		// Widget cursor selections
@@ -292,11 +290,11 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		// Rerender the element whenever the editor content height changes
 		const onDidChangeContentHeight = () => {
 			const contentHeight = templateData.inputWidget.getContentHeight();
-			const lastContentHeight = this.contentHeights.get(input)!;
 			this.contentHeights.set(input, contentHeight);
 
-			if (lastContentHeight !== contentHeight) {
+			if (templateData.inputWidgetHeight !== contentHeight) {
 				this.updateHeight(input, contentHeight + 10);
+				templateData.inputWidgetHeight = contentHeight;
 				templateData.inputWidget.layout();
 			}
 		};
@@ -1148,7 +1146,7 @@ class ViewModel {
 		this._onDidChangeMode.fire(mode);
 		this.modeContextKey.set(mode);
 
-		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
@@ -1164,7 +1162,7 @@ class ViewModel {
 		this.sortKeyContextKey.set(sortKey);
 
 		if (this._mode === ViewModelMode.List) {
-			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 	}
 
@@ -1242,6 +1240,20 @@ class ViewModel {
 		this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				this.storageService.store(`scm.viewState`, JSON.stringify(this.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			}
+
+			this.mode = this.getViewModelMode();
+			this.sortKey = this.getViewModelSortKey();
+		});
+
+		this.storageService.onDidChangeValue(e => {
+			switch (e.key) {
+				case 'scm.viewMode':
+					this.mode = this.getViewModelMode();
+					break;
+				case 'scm.viewSortKey':
+					this.sortKey = this.getViewModelSortKey();
+					break;
 			}
 		});
 	}

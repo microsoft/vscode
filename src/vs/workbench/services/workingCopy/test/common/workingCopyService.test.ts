@@ -48,6 +48,7 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(onDidRegister.length, 1);
 		assert.strictEqual(onDidRegister[0], copy1);
 		assert.strictEqual(service.dirtyCount, 0);
+		assert.strictEqual(service.modifiedCount, 0);
 		assert.strictEqual(service.isDirty(resource1), false);
 		assert.strictEqual(service.has(resource1), true);
 		assert.strictEqual(service.has(copy1), true);
@@ -65,6 +66,9 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(service.dirtyCount, 1);
 		assert.strictEqual(service.dirtyWorkingCopies.length, 1);
 		assert.strictEqual(service.dirtyWorkingCopies[0], copy1);
+		assert.strictEqual(service.modifiedCount, 1);
+		assert.strictEqual(service.modifiedWorkingCopies.length, 1);
+		assert.strictEqual(service.modifiedWorkingCopies[0], copy1);
 		assert.strictEqual(service.workingCopies.length, 1);
 		assert.strictEqual(service.workingCopies[0], copy1);
 		assert.strictEqual(service.isDirty(resource1), true);

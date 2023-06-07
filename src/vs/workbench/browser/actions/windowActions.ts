@@ -22,7 +22,7 @@ import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from '
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
-import { splitName } from 'vs/base/common/labels';
+import { splitRecentLabel } from 'vs/base/common/labels';
 import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
@@ -214,7 +214,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			fullLabel = recent.label || labelService.getUriLabel(resource);
 		}
 
-		const { name, parentPath } = splitName(fullLabel);
+		const { name, parentPath } = splitRecentLabel(fullLabel);
 
 		return {
 			iconClasses,

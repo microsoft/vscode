@@ -1364,6 +1364,7 @@ export class QuickInputController extends Disposable {
 		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const widget = dom.append(container, $('.quick-input-html-widget'));
+		widget.tabIndex = -1;
 
 		const listId = this.idPrefix + 'list';
 		const list = this._register(new QuickInputList(container, listId, this.options));

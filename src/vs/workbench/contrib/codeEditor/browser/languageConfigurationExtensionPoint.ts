@@ -539,7 +539,7 @@ const schema: IJSONSchema = {
 		},
 		brackets: {
 			default: [['(', ')'], ['[', ']'], ['{', '}']],
-			description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
+			markdownDescription: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation. When bracket pair colorization is enabled and {0} is not defined, this also defines the bracket pairs that are colorized by their nesting level.', '\`colorizedBracketPairs\`'),
 			type: 'array',
 			items: {
 				$ref: '#/definitions/bracketPair'
@@ -547,7 +547,7 @@ const schema: IJSONSchema = {
 		},
 		colorizedBracketPairs: {
 			default: [['(', ')'], ['[', ']'], ['{', '}']],
-			description: nls.localize('schema.colorizedBracketPairs', 'Defines the bracket pairs that are colorized by their nesting level if bracket pair colorization is enabled.'),
+			markdownDescription: nls.localize('schema.colorizedBracketPairs', 'Defines the bracket pairs that are colorized by their nesting level if bracket pair colorization is enabled. Any brackets included here that are not included in {0} will be automatically included in {0}.', '\`brackets\`'),
 			type: 'array',
 			items: {
 				$ref: '#/definitions/bracketPair'

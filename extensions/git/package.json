@@ -13,7 +13,7 @@
     "diffCommand",
     "contribEditorContentMenu",
     "contribEditSessions",
-    "canonicalUriIdentityProvider",
+    "canonicalUriProvider",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
     "quickDiffProvider",

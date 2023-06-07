@@ -29,6 +29,10 @@
 	z-index: 600 !important;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .overlayWidgets {
+	z-index: 638 !important;
+}
+
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div.parameter-hints-widget {
 	z-index: 639 !important;
 }
@@ -39,6 +43,10 @@
 
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div .suggest-details-container {
 	z-index: 641 !important;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .zone-widget.interactive-editor-widget .interactive-editor .markdownMessage {
+	white-space: normal;
 }
 
 .monaco-workbench .notebookOverlay .cell-list-container {

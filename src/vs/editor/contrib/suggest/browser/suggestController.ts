@@ -7,7 +7,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IdleValue } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeyCodeChord } from 'vs/base/common/keybindings';
@@ -246,9 +246,8 @@ export class SuggestController implements IEditorContribution {
 
 			let noFocus = false;
 			if (e.triggerOptions.auto) {
-				// don't "focus" item when configured to do so or when in snippet mode (and configured to do so)
+				// don't "focus" item when configured to do
 				const options = this.editor.getOption(EditorOption.suggest);
-
 				if (options.selectionMode === 'never' || options.selectionMode === 'always') {
 					// simple: always or never
 					noFocus = options.selectionMode === 'never';
@@ -432,7 +431,13 @@ export class SuggestController implements IEditorContribution {
 				this.model.trigger({ auto: true, retrigger: true });
 			} else {
 				// exec command, done
-				tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(onUnexpectedError));
+				tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(e => {
+					if (item.completion.extensionId) {
+						onUnexpectedExternalError(e);
+					} else {
+						onUnexpectedError(e);
+					}
+				}));
 			}
 		}
 
@@ -771,7 +776,7 @@ registerEditorCommand(new SuggestCommand({
 	kbOpts: [{
 		// normal tab
 		primary: KeyCode.Tab,
-		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SnippetController2.InSnippetMode.toNegated()),
+		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
 		weight,
 	}, {
 		// accept on enter has special rules
@@ -805,7 +810,7 @@ registerEditorCommand(new SuggestCommand({
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.HasFocusedSuggestion),
 	kbOpts: {
 		weight: weight,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SnippetController2.InSnippetMode.toNegated()),
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.Shift | KeyCode.Enter,
 		secondary: [KeyMod.Shift | KeyCode.Tab],
 	},

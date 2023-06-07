@@ -219,7 +219,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 					version: '3',
 					names: [],
 					mappings: '',
-					sources: [f.relative],
+					sources: [f.relative.replace(/\\/g, '/')],
 					sourcesContent: [contents]
 				};
 
@@ -394,6 +394,13 @@ export function acquireWebNodePaths() {
 	const root = path.join(__dirname, '..', '..');
 	const webPackageJSON = path.join(root, '/remote/web', 'package.json');
 	const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
+
+	const distroWebPackageJson = path.join(root, '.build/distro/npm/remote/web/package.json');
+	if (fs.existsSync(distroWebPackageJson)) {
+		const distroWebPackages = JSON.parse(fs.readFileSync(distroWebPackageJson, 'utf8')).dependencies;
+		Object.assign(webPackages, distroWebPackages);
+	}
+
 	const nodePaths: { [key: string]: string } = {};
 	for (const key of Object.keys(webPackages)) {
 		const packageJSON = path.join(root, 'node_modules', key, 'package.json');

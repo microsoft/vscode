@@ -14,7 +14,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { DiffAlgorithmName, IDiffComputationResult, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { DiffAlgorithmName, IDiffComputationResult, IEditorWorkerService, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { regExpFlags } from 'vs/base/common/strings';
@@ -27,7 +27,7 @@ import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { ILinesDiffComputerOptions, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputerOptions, LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 
 /**
@@ -106,22 +106,28 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		const diff: IDocumentDiff = {
 			identical: result.identical,
 			quitEarly: result.quitEarly,
-			changes: result.changes.map(
-				(c) =>
-					new LineRangeMapping(
-						new LineRange(c[0], c[1]),
-						new LineRange(c[2], c[3]),
-						c[4]?.map(
-							(c) =>
-								new RangeMapping(
-									new Range(c[0], c[1], c[2], c[3]),
-									new Range(c[4], c[5], c[6], c[7])
-								)
-						)
-					)
-			),
+			changes: toLineRangeMappings(result.changes),
+			moves: result.moves.map(m => new MovedText(
+				new SimpleLineRangeMapping(new LineRange(m[0], m[1]), new LineRange(m[2], m[3])),
+				toLineRangeMappings(m[4])
+			))
 		};
 		return diff;
+
+		function toLineRangeMappings(changes: readonly ILineChange[]): readonly LineRangeMapping[] {
+			return changes.map(
+				(c) => new LineRangeMapping(
+					new LineRange(c[0], c[1]),
+					new LineRange(c[2], c[3]),
+					c[4]?.map(
+						(c) => new RangeMapping(
+							new Range(c[0], c[1], c[2], c[3]),
+							new Range(c[4], c[5], c[6], c[7])
+						)
+					)
+				)
+			);
+		}
 	}
 
 	public canComputeDirtyDiff(original: URI, modified: URI): boolean {
@@ -153,11 +159,12 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 				return Promise.resolve(edits); // File too large
 			}
 			const sw = StopWatch.create(true);
-			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits, { ignoreTrimWhitespace: false, maxComputationTimeMs: 1000 })).catch((err) => {
-				onUnexpectedError(err);
-				// In case of an exception, fall back to computeMoreMinimalEdits
-				return this.computeMoreMinimalEdits(resource, edits, true);
-			});
+			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits,
+				{ ignoreTrimWhitespace: false, maxComputationTimeMs: 1000, computeMoves: false, })).catch((err) => {
+					onUnexpectedError(err);
+					// In case of an exception, fall back to computeMoreMinimalEdits
+					return this.computeMoreMinimalEdits(resource, edits, true);
+				});
 			result.finally(() => this._logService.trace('FORMAT#computeHumanReadableDiff', resource.toString(true), sw.elapsed()));
 			return result;
 

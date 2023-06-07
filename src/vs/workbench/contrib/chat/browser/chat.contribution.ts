@@ -35,6 +35,8 @@ import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbenc
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/chatColors';
+import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
+import { registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -45,28 +47,28 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'chat.editor.fontSize': {
 			type: 'number',
-			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in Interactive Sessions."),
+			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in chat codeblocks."),
 			default: isMacintosh ? 12 : 14,
 		},
 		'chat.editor.fontFamily': {
 			type: 'string',
-			description: nls.localize('interactiveSession.editor.fontFamily', "Controls the font family in Interactive Sessions."),
+			description: nls.localize('interactiveSession.editor.fontFamily', "Controls the font family in chat codeblocks."),
 			default: 'default'
 		},
 		'chat.editor.fontWeight': {
 			type: 'string',
-			description: nls.localize('interactiveSession.editor.fontWeight', "Controls the font weight in Interactive Sessions."),
+			description: nls.localize('interactiveSession.editor.fontWeight', "Controls the font weight in chat codeblocks."),
 			default: 'default'
 		},
 		'chat.editor.wordWrap': {
 			type: 'string',
-			description: nls.localize('interactiveSession.editor.wordWrap', "Controls whether lines should wrap in Interactive Sessions."),
+			description: nls.localize('interactiveSession.editor.wordWrap', "Controls whether lines should wrap in chat codeblocks."),
 			default: 'off',
 			enum: ['on', 'off']
 		},
 		'chat.editor.lineHeight': {
 			type: 'number',
-			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in Interactive Sessions. Use 0 to compute the line height from the font size."),
+			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
 		},
 		'chat.experimental.quickQuestion.enable': {
@@ -98,7 +100,7 @@ class ChatResolverContribution extends Disposable {
 		super();
 
 		this._register(editorResolverService.registerEditor(
-			`${Schemas.vscodeInteractiveSesssion}:**/**`,
+			`${Schemas.vscodeChatSesssion}:**/**`,
 			{
 				id: ChatEditorInput.EditorID,
 				label: nls.localize('chat', "Chat"),
@@ -106,7 +108,7 @@ class ChatResolverContribution extends Disposable {
 			},
 			{
 				singlePerResource: true,
-				canSupportResource: resource => resource.scheme === Schemas.vscodeInteractiveSesssion
+				canSupportResource: resource => resource.scheme === Schemas.vscodeChatSesssion
 			},
 			{
 				createEditorInput: ({ resource, options }) => {
@@ -128,6 +130,8 @@ registerChatTitleActions();
 registerChatExecuteActions();
 registerChatQuickQuestionActions();
 registerChatExportActions();
+registerMoveActions();
+registerClearActions();
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatContributionService, ChatContributionService, InstantiationType.Delayed);

@@ -42,6 +42,7 @@ export interface IDiffComputationResult {
 	quitEarly: boolean;
 	changes: ILineChange[];
 	identical: boolean;
+	moves: ITextMove[];
 }
 
 export type ILineChange = [
@@ -62,6 +63,14 @@ export type ICharChange = [
 	modifiedStartColumn: number,
 	modifiedEndLine: number,
 	modifiedEndColumn: number,
+];
+
+export type ITextMove = [
+	originalStartLine: number,
+	originalEndLine: number,
+	modifiedStartLine: number,
+	modifiedEndLine: number,
+	changes: ILineChange[],
 ];
 
 export interface IUnicodeHighlightsResult {

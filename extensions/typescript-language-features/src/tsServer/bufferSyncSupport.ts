@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { vscodeNotebookCell } from '../configuration/fileSchemes';
+import { officeScript, vscodeNotebookCell } from '../configuration/fileSchemes';
 import * as languageModeIds from '../configuration/languageIds';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { inMemoryResourcePrefix } from '../typescriptServiceClient';
 import { coalesce } from '../utils/arrays';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
@@ -15,17 +16,6 @@ import { Disposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
 import { API } from './api';
 import type * as Proto from './protocol/protocol';
-
-const enum BufferLanguage {
-	TypeScript = 1,
-	JavaScript = 2,
-}
-
-const enum BufferState {
-	Initial = 1,
-	Open = 2,
-	Closed = 2,
-}
 
 type ScriptKind = 'TS' | 'TSX' | 'JS' | 'JSX';
 
@@ -38,6 +28,8 @@ function mode2ScriptKind(mode: string): ScriptKind | undefined {
 	}
 	return undefined;
 }
+
+const enum BufferState { Initial, Open, Closed }
 
 const enum BufferOperationType { Close, Open, Change }
 
@@ -209,7 +201,7 @@ class SyncedBuffer {
 		const args: Proto.OpenRequestArgs = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
-			projectRootPath: this.client.getWorkspaceRootForResource(this.document.uri),
+			projectRootPath: this.getProjectRootPath(this.document.uri),
 		};
 
 		const scriptKind = mode2ScriptKind(this.document.languageId);
@@ -228,6 +220,16 @@ class SyncedBuffer {
 		this.state = BufferState.Open;
 	}
 
+	private getProjectRootPath(resource: vscode.Uri): string | undefined {
+		const workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+		if (workspaceRoot) {
+			const tsRoot = this.client.toTsFilePath(workspaceRoot);
+			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;
+		}
+
+		return resource.scheme === officeScript ? '/' : undefined;
+	}
+
 	public get resource(): vscode.Uri {
 		return this.document.uri;
 	}
@@ -236,17 +238,8 @@ class SyncedBuffer {
 		return this.document.lineCount;
 	}
 
-	public get language(): BufferLanguage {
-		switch (this.document.languageId) {
-			case languageModeIds.javascript:
-			case languageModeIds.javascriptreact:
-				return BufferLanguage.JavaScript;
-
-			case languageModeIds.typescript:
-			case languageModeIds.typescriptreact:
-			default:
-				return BufferLanguage.TypeScript;
-		}
+	public get languageId(): string {
+		return this.document.languageId;
 	}
 
 	/**
@@ -462,8 +455,9 @@ export default class BufferSyncSupport extends Disposable {
 
 	private readonly client: ITypeScriptServiceClient;
 
-	private _validateJavaScript: boolean = true;
-	private _validateTypeScript: boolean = true;
+	private _validateJavaScript = true;
+	private _validateTypeScript = true;
+
 	private readonly modeIds: Set<string>;
 	private readonly syncedBuffers: SyncedBufferMap;
 	private readonly pendingDiagnostics: PendingDiagnostics;
@@ -755,11 +749,13 @@ export default class BufferSyncSupport extends Disposable {
 			return false;
 		}
 
-		switch (buffer.language) {
-			case BufferLanguage.JavaScript:
+		switch (buffer.languageId) {
+			case languageModeIds.javascript:
+			case languageModeIds.javascriptreact:
 				return this._validateJavaScript;
 
-			case BufferLanguage.TypeScript:
+			case languageModeIds.typescript:
+			case languageModeIds.typescriptreact:
 			default:
 				return this._validateTypeScript;
 		}

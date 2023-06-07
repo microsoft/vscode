@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -22,16 +24,16 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { clearChatSession } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { IChatRendererDelegate, InteractiveListItemRenderer, ChatAccessibilityProvider, ChatListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
-import { IInteractiveResponseViewModel, ChatViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 const $ = dom.$;
 
@@ -60,8 +62,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidChangeViewModel = this._register(new Emitter<void>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
 
-	private tree!: WorkbenchObjectTree<InteractiveTreeItem>;
-	private renderer!: InteractiveListItemRenderer;
+	private tree!: WorkbenchObjectTree<ChatTreeItem>;
+	private renderer!: ChatListItemRenderer;
 
 	private inputPart!: ChatInputPart;
 	private editorOptions!: ChatEditorOptions;
@@ -116,8 +118,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
-		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
-		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
+		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
+		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((chatWidgetService as ChatWidgetService).register(this));
 	}
@@ -163,7 +165,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.tree && this.visible) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
 				.map(item => {
-					return <ITreeElement<InteractiveTreeItem>>{
+					return <ITreeElement<ChatTreeItem>>{
 						element: item,
 						collapsed: false,
 						collapsible: false
@@ -174,6 +176,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				diffIdentityProvider: {
 					getId: (element) => {
 						return ((isResponseVM(element) || isRequestVM(element)) ? element.dataId : element.id) +
+							// TODO? We can give the welcome message a proper VM or get rid of the rest of the VMs
+							((isWelcomeVM(element) && !this.viewModel?.isInitialized) ? '_initializing' : '') +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
 							`${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}` +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
@@ -247,24 +251,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
 			getSlashCommands: () => this.lastSlashCommands ?? [],
 		};
-		this.renderer = this._register(scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.editorOptions, rendererDelegate));
+		this.renderer = this._register(scopedInstantiationService.createInstance(ChatListItemRenderer, this.editorOptions, rendererDelegate));
 		this._register(this.renderer.onDidClickFollowup(item => {
 			this.acceptInput(item);
 		}));
 
-		this.tree = <WorkbenchObjectTree<InteractiveTreeItem>>scopedInstantiationService.createInstance(
+		this.tree = <WorkbenchObjectTree<ChatTreeItem>>scopedInstantiationService.createInstance(
 			WorkbenchObjectTree,
 			'Chat',
 			listContainer,
 			delegate,
 			[this.renderer],
 			{
-				identityProvider: { getId: (e: InteractiveTreeItem) => e.id },
+				identityProvider: { getId: (e: ChatTreeItem) => e.id },
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: new ChatAccessibilityProvider(),
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: ChatTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
 				overrideStyles: {
 					listFocusBackground: this.styles.listBackground,
@@ -295,7 +299,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<InteractiveTreeItem | null>): void {
+	private onContextMenu(e: ITreeContextMenuEvent<ChatTreeItem | null>): void {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
@@ -345,10 +349,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model);
-		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+		this.viewModelDisposables.add(this.viewModel.onDidChange(e => {
 			this.slashCommandsPromise = undefined;
 			this.requestInProgress.set(this.viewModel!.requestInProgress);
 			this.onDidChangeItems();
+			if (e?.kind === 'addRequest') {
+				revealLastElement(this.tree);
+				this.focusInput();
+			}
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Disposes the viewmodel and listeners
@@ -361,6 +369,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 			revealLastElement(this.tree);
 		}
+	}
+
+	getFocus(): ChatTreeItem | undefined {
+		return withNullAsUndefined(this.tree.getFocus()[0]);
+	}
+
+	reveal(item: ChatTreeItem): void {
+		this.tree.reveal(item);
 	}
 
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
@@ -377,13 +393,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const input = query ?? editorValue;
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
 			if (result) {
-				revealLastElement(this.tree);
 				this.inputPart.acceptInput(query);
+				result.responseCompletePromise.then(() => {
+					const responses = this.viewModel?.getItems().filter(isResponseVM);
+					const lastResponse = responses?.[responses.length - 1];
+					if (lastResponse) {
+						const errorDetails = lastResponse.errorDetails ? ` ${lastResponse.errorDetails.message}` : '';
+						alert(lastResponse.response.value + errorDetails);
+					}
+				});
 			}
 		}
 	}
 
-	getCodeBlockInfosForResponse(response: IInteractiveResponseViewModel): IChatCodeBlockInfo[] {
+	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
 		return this.renderer.getCodeBlockInfosForResponse(response);
 	}
 
@@ -407,6 +430,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	layout(height: number, width: number): void {
+		width = Math.min(width, 600);
 		this.bodyDimension = new dom.Dimension(width, height);
 
 		const inputPartHeight = this.inputPart.layout(height, width);
@@ -450,7 +474,7 @@ export class ChatWidgetService implements IChatWidgetService {
 
 	constructor(
 		@IViewsService private readonly viewsService: IViewsService,
-		@IChatContributionService private readonly interactiveSessionContributionService: IChatContributionService,
+		@IChatContributionService private readonly chatContributionService: IChatContributionService,
 	) { }
 
 	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
@@ -458,7 +482,7 @@ export class ChatWidgetService implements IChatWidgetService {
 	}
 
 	async revealViewForProvider(providerId: string): Promise<ChatWidget | undefined> {
-		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
+		const viewId = this.chatContributionService.getViewIdForProvider(providerId);
 		const view = await this.viewsService.openView<ChatViewPane>(viewId);
 
 		return view?.widget;

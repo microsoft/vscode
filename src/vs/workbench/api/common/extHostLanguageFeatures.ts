@@ -1033,7 +1033,19 @@ class CompletionsAdapter {
 			return undefined;
 		}
 
-		return this._convertCompletionItem(resolvedItem, id);
+		const enforcedResolvedItem = {
+			...item,
+			documentation: resolvedItem.documentation,
+			detail: resolvedItem.detail,
+			additionalTextEdits: resolvedItem.additionalTextEdits
+		};
+
+		if (item.insertText !== resolvedItem.insertText) {
+			this._apiDeprecation.report('CompletionItem.insertText', this._extension, 'extension MAY NOT change \'insertText\' of a CompletionItem during resolve');
+			enforcedResolvedItem.insertText = resolvedItem.insertText;
+		}
+
+		return this._convertCompletionItem(enforcedResolvedItem, id);
 	}
 
 	releaseCompletionItems(id: number): any {
