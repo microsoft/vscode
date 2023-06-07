@@ -82,7 +82,7 @@ class AccessibleView extends Disposable {
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
 
-		const fragment = 'Exit this menu via the Escape key.\n' + provider.provideContent();
+		const fragment = localize('exit-tip', 'Exit this menu via the Escape key.\n') + provider.provideContent();
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
@@ -104,7 +104,7 @@ class AccessibleView extends Disposable {
 			this._editorWidget.updateOptions({ ariaLabel: provider.options.ariaLabel });
 			this._editorWidget.focus();
 		});
-		return { dispose: () => { provider.onClose(); } } as IDisposable;
+		return toDisposable(() => provider.onClose());
 	}
 
 	private _layout(): void {
