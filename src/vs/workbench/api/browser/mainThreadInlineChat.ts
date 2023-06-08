@@ -7,21 +7,21 @@ import { DisposableMap } from 'vs/base/common/lifecycle';
 import { IInlineChatBulkEditResponse, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
-import { ExtHostContext, ExtHostInteractiveEditorShape, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostInlineChatShape, MainContext, MainThreadInlineChatShape as MainThreadInlineChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
-@extHostNamedCustomer(MainContext.MainThreadInteractiveEditor)
-export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorShape {
+@extHostNamedCustomer(MainContext.MainThreadInlineChat)
+export class MainThreadInlineChat implements MainThreadInlineChatShape {
 
 	private readonly _registrations = new DisposableMap<number>();
-	private readonly _proxy: ExtHostInteractiveEditorShape;
+	private readonly _proxy: ExtHostInlineChatShape;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInteractiveEditor);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInlineChat);
 	}
 
 	dispose(): void {
@@ -32,7 +32,7 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 		const unreg = this._inlineChatService.addProvider({
 			debugName,
 			prepareInlineChatSession: async (model, range, token) => {
-				const session = await this._proxy.$prepareInteractiveSession(handle, model.uri, range, token);
+				const session = await this._proxy.$prepareSession(handle, model.uri, range, token);
 				if (!session) {
 					return undefined;
 				}

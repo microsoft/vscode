@@ -1117,16 +1117,16 @@ export interface MainThreadNotebookRenderersShape extends IDisposable {
 export interface MainThreadInteractiveShape extends IDisposable {
 }
 
-export interface MainThreadInteractiveEditorShape extends IDisposable {
+export interface MainThreadInlineChatShape extends IDisposable {
 	$registerInteractiveEditorProvider(handle: number, debugName: string, supportsFeedback: boolean): Promise<void>;
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
 
-export type IInteractiveEditorResponseDto = Dto<IInlineChatResponse>;
+export type IInlineChatResponseDto = Dto<IInlineChatResponse>;
 
-export interface ExtHostInteractiveEditorShape {
-	$prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined>;
-	$provideResponse(handle: number, session: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined>;
+export interface ExtHostInlineChatShape {
+	$prepareSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined>;
+	$provideResponse(handle: number, session: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInlineChatResponseDto | undefined>;
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void;
 	$releaseSession(handle: number, sessionId: number): void;
 }
@@ -2566,7 +2566,7 @@ export const MainContext = {
 	MainThreadNotebookRenderers: createProxyIdentifier<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
 	MainThreadInteractive: createProxyIdentifier<MainThreadInteractiveShape>('MainThreadInteractive'),
 	MainThreadChat: createProxyIdentifier<MainThreadChatShape>('MainThreadChat'),
-	MainThreadInteractiveEditor: createProxyIdentifier<MainThreadInteractiveEditorShape>('MainThreadInteractiveEditor'),
+	MainThreadInlineChat: createProxyIdentifier<MainThreadInlineChatShape>('MainThreadInlineChatShape'),
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadManagedSockets: createProxyIdentifier<MainThreadManagedSocketsShape>('MainThreadManagedSockets'),
@@ -2628,7 +2628,7 @@ export const ExtHostContext = {
 	ExtHostNotebookRenderers: createProxyIdentifier<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
 	ExtHostNotebookDocumentSaveParticipant: createProxyIdentifier<ExtHostNotebookDocumentSaveParticipantShape>('ExtHostNotebookDocumentSaveParticipant'),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
-	ExtHostInteractiveEditor: createProxyIdentifier<ExtHostInteractiveEditorShape>('ExtHostInteractiveEditor'),
+	ExtHostInlineChat: createProxyIdentifier<ExtHostInlineChatShape>('ExtHostInlineChatShape'),
 	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
 	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
