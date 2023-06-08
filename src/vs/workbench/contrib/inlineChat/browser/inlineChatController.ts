@@ -202,9 +202,6 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async [State.CREATE_SESSION](options: InlineChatRunOptions | undefined): Promise<State.CANCEL | State.INIT_UI> {
-		console.log('CREATE_SESSION');
-		console.log('options', options);
-		console.log('this._activeSession', this._activeSession);
 		assertType(this._activeSession === undefined);
 		assertType(this._editor.hasModel());
 

@@ -787,11 +787,35 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	override show(where: IPosition): void {
-		super.show(where, this._computeHeightInLines());
+	override show(selectionRange: Range): void {
+		this._setPosition(selectionRange);
+		this._setMargins(selectionRange);
 		this.widget.focus();
 		this._ctxVisible.set(true);
-		this._setMargins(selectionRange);
+	}
+
+	private _setPosition(selectionRange: Range): void {
+		const editMode = this.configurationService.getValue<EditMode>('interactiveEditor.editMode');
+		if (editMode === EditMode.Live) {
+			const startPosition = selectionRange.getStartPosition();
+			const endPosition = selectionRange.getEndPosition();
+			let displayPosition: Position | undefined;
+			const position = this.configurationService.getValue<InlineChatPosition>('inlineChat.position');
+			switch (position) {
+				case (InlineChatPosition.BOTTOM):
+					displayPosition = endPosition;
+					break;
+				case (InlineChatPosition.TOP):
+					displayPosition = new Position(startPosition.lineNumber - 1, startPosition.column);
+					break;
+				case (InlineChatPosition.MIDDLE):
+					displayPosition = new Position(startPosition.lineNumber + Math.floor((endPosition.lineNumber - startPosition.lineNumber) / 2), startPosition.column);
+					break;
+			}
+			super.show(displayPosition, this._computeHeightInLines());
+		} else {
+			super.show(selectionRange.getEndPosition(), this._computeHeightInLines());
+		}
 	}
 
 	private _setMargins(selectionRange: Range): void {
