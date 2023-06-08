@@ -880,7 +880,14 @@ export class CommandCenter {
 			path = result[0].fsPath;
 		}
 
-		await this.model.openRepository(path);
+		await this.model.openRepository(path, true);
+	}
+
+	@command('git.openClosedRepositories', { repository: false })
+	async openClosedRepositories(): Promise<void> {
+		for (const repositoryRoot of this.model.closedRepositories) {
+			await this.model.openRepository(repositoryRoot, true);
+		}
 	}
 
 	@command('git.close', { repository: true })

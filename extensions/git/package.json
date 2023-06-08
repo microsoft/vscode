@@ -85,6 +85,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.openClosedRepositories",
+        "title": "%command.openClosedRepositories%",
+        "category": "Git",
+        "enablement": "!operationInProgress && gitCloseRepositoryCount != 0"
+      },
+      {
         "command": "git.close",
         "title": "%command.close%",
         "category": "Git",
