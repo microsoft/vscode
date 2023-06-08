@@ -791,8 +791,11 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	override show(selectionRange: Range): void {
-		super.show(selectionRange.getEndPosition(), this._computeHeightInLines());
+	showWidget(selectionRange: Range, position: Position | undefined): void {
+		console.log('selectionRange : ', selectionRange);
+		console.log('position : ', position);
+
+		super.show(position ?? selectionRange.getEndPosition(), this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
 		this._setMargins(selectionRange);
