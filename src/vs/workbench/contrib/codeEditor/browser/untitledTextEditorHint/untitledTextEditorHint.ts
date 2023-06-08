@@ -90,8 +90,41 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 	}
 
 	private onDidChangeModelContent(): void {
+
 		if (this.editor.getValue() === '') {
 			this.editor.addContentWidget(this);
+		} else if (this.editor.getValue() === '    ') {
+			this.editor.onKeyDown((event) => {
+				if (event['code'] === 'Enter') {
+					event.stopPropagation();
+					this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
+				}
+			});
+
+		} else if (this.editor.getValue() === '        ') {
+			this.editor.onKeyDown((event) => {
+				if (event['code'] === 'Enter') {
+					event.stopPropagation();
+					this.commandService.executeCommand(ApplyFileSnippetAction.Id);
+				}
+			});
+
+		} else if (this.editor.getValue() === '            ') {
+			this.editor.onKeyDown((event) => {
+				if (event['code'] === 'Enter') {
+					event.stopPropagation();
+
+					const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
+					this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
+
+					// Close the active editor as long as it is untitled (swap the editors out)
+					if (activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
+						this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
+					}
+				}
+			});
+
+
 		} else {
 			this.editor.removeContentWidget(this);
 		}
