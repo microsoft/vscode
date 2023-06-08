@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals } from './util';
-import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
+import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, l10n, Progress, Uri, window, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
@@ -1588,10 +1588,31 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async deletePrunedBranches(force?: boolean): Promise<void> {
-		force ?
-			await cp.exec('git branch -D `git branch -vv | grep ": gone]" | awk "{print $1}"`') :
-			await cp.exec('git branch -d `git branch -vv | grep ": gone]" | awk "{print $1}"`');
+	async fetchAndPruneDelete(): Promise<void> {
+		try {
+			const fetchPrune = await this.exec(['fetch', '--prune']);
+			const result = Object.values(fetchPrune).toString().split('\n');
+			result.shift();
+			result.pop();
+			result?.forEach(async (element) => {
+				const branch = element.split('origin/')[1];
+				try {
+					await this.exec(['branch', '-d', branch]);
+				} catch (error) {
+					if (error.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
+						throw error;
+					}
+					const message = l10n.t(`The branch "${branch}" is not fully merged. Delete anyway?`);
+					const yes = l10n.t('Delete Branch');
+					const pick = await window.showWarningMessage(message, { modal: true }, yes);
+					if (pick === yes) {
+						await this.exec(['branch', '-D', branch]);
+					}
+				}
+			});
+		} catch (error) {
+			throw error;
+		}
 	}
 
 	async renameBranch(name: string): Promise<void> {

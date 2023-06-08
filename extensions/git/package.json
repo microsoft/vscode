@@ -394,8 +394,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.deletePrunedBranches",
-        "title": "%command.deletePrunedBranches%",
+        "command": "git.fetchAndPruneDelete",
+        "title": "%command.fetchAndPruneDelete%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },

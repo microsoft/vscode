@@ -2362,23 +2362,9 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.deletePrunedBranches', { repository: true })
-	async deletePrunedBranches(repository: Repository, force?: boolean): Promise<void> {
-		try {
-			await repository.deletePrunedBranches(force);
-		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
-				throw err;
-			}
-
-			const message = l10n.t('The branch is not fully merged. Delete anyway?');
-			const yes = l10n.t('Delete Branch');
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick === yes) {
-				await repository.deletePrunedBranches(true);
-			}
-		}
+	@command('git.fetchAndPruneDelete', { repository: true })
+	async fetchAndPruneDelete(repository: Repository): Promise<void> {
+		repository.fetchAndPruneDelete();
 	}
 
 	@command('git.renameBranch', { repository: true })
