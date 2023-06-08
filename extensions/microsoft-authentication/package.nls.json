@@ -3,5 +3,27 @@
 	"description": "Microsoft authentication provider",
 	"signIn": "Sign In",
 	"signOut": "Sign Out",
-	"microsoft-sovereign-cloud.endpoint.description": "Login endpoint for Azure authentication. Select a national cloud or enter the login URL for a custom Azure cloud."
+	"microsoft-sovereign-cloud.environment.description": {
+		"message": "The Sovereign Cloud to use for authentication. If you select `custom`, you must also set the `#microsoft-sovereign-cloud.customEnvironment#` setting.",
+		"comment": [
+			"{Locked='`#microsoft-sovereign-cloud.customEnvironment#`'}",
+			"The `#microsoft-sovereign-cloud.customEnvironment#` syntax will turn into a link. Do not translate it."
+		]
+	},
+	"microsoft-sovereign-cloud.environment.enumDescriptions.AzureChinaCloud": "Azure China",
+	"microsoft-sovereign-cloud.environment.enumDescriptions.AzureUSGovernment": "Azure US Government",
+	"microsoft-sovereign-cloud.environment.enumDescriptions.custom": "A custom Microsoft Sovereign Cloud",
+	"microsoft-sovereign-cloud.customEnvironment.description": {
+		"message": "The custom configuration for the Sovereign Cloud to use with the Microsoft Sovereign Cloud authentication provider. This along with setting `#microsoft-sovereign-cloud.environment#` to `custom` is required to use this feature.",
+		"comment": [
+			"{Locked='`#microsoft-sovereign-cloud.environment#`'}",
+			"The `#microsoft-sovereign-cloud.environment#` syntax will turn into a link. Do not translate it."
+		]
+	},
+	"microsoft-sovereign-cloud.customEnvironment.name.description": "The name of the custom Sovereign Cloud.",
+	"microsoft-sovereign-cloud.customEnvironment.portalUrl.description": "The portal URL for the custom Sovereign Cloud.",
+	"microsoft-sovereign-cloud.customEnvironment.managementEndpointUrl.description": "The management endpoint for the custom Sovereign Cloud.",
+	"microsoft-sovereign-cloud.customEnvironment.resourceManagerEndpointUrl.description": "The resource manager endpoint for the custom Sovereign Cloud.",
+	"microsoft-sovereign-cloud.customEnvironment.activeDirectoryEndpointUrl.description": "The Active Directory endpoint for the custom Sovereign Cloud.",
+	"microsoft-sovereign-cloud.customEnvironment.activeDirectoryResourceId.description": "The Active Directory resource ID for the custom Sovereign Cloud."
 }
