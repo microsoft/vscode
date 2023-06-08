@@ -768,14 +768,9 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	protected override _doLayout(heightInPixel: number): void {
 
 		const info = this.editor.getLayoutInfo();
-		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
-		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
-
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
 		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
-		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
 	}
@@ -792,31 +787,30 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	// TO FINISH WHEN OTHER PR IS IN
-	override show(where: Range): void {
-		const editMode = this.configurationService.getValue<EditMode>('interactiveEditor.editMode');
-		if (editMode === EditMode.Live) {
-			const startPosition = where.getStartPosition();
-			const endPosition = where.getEndPosition();
-			const position = this.configurationService.getValue<InlineChatPosition>('inlineChat.position');
-			let positionOfDisplay: Position | undefined;
-			switch (position) {
-				case (InlineChatPosition.BOTTOM):
-					positionOfDisplay = endPosition;
-					break;
-				case (InlineChatPosition.TOP):
-					positionOfDisplay = new Position(startPosition.lineNumber - 1, startPosition.column);
-					break;
-				case (InlineChatPosition.MIDDLE):
-					positionOfDisplay = new Position(startPosition.lineNumber + Math.floor((endPosition.lineNumber - startPosition.lineNumber) / 2), startPosition.column);
-					break;
-			}
-			super.show(positionOfDisplay, this._computeHeightInLines());
-		} else {
-			super.show(where.getEndPosition(), this._computeHeightInLines());
-		}
+	override show(where: IPosition): void {
+		super.show(where, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
+		this._setMargins(selectionRange);
+	}
+
+	private _setMargins(selectionRange: Range): void {
+		const info = this.editor.getLayoutInfo();
+		const startLineNumber = selectionRange.getStartPosition().lineNumber;
+		const endLineNumber = selectionRange.getEndPosition().lineNumber;
+		let lineNumberForIndentation = endLineNumber;
+		for (let lineNumber = endLineNumber; lineNumber >= startLineNumber; lineNumber--) {
+			const lineContent = this.editor.getModel()?.getLineContent(lineNumber);
+			if (lineContent && lineContent !== '') {
+				lineNumberForIndentation = lineNumber;
+				break;
+			}
+		}
+		const indentationLevel = this.editor._getViewModel()?.getLineFirstNonWhitespaceColumn(lineNumberForIndentation);
+		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth + (indentationLevel ? this.editor.getOffsetForColumn(lineNumberForIndentation, indentationLevel) : 0);
+		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
+		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
+		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 	}
 
 	override hide(): void {
