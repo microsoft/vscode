@@ -12,7 +12,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ThemeColor } from 'vs/base/common/themables';
 import { Command } from 'vs/editor/common/languages';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityInformation, isAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
 import { hash } from 'vs/base/common/hash';
@@ -157,15 +157,21 @@ interface IUserFriendlyStatusItemEntry {
 	alignment: 'left' | 'right';
 	command?: string;
 	priority?: number;
+	tooltip?: string;
+	accessibilityInformation?: IAccessibilityInformation;
 }
 
-function isUserFriendlyStatusItemEntry(obj: any): obj is IUserFriendlyStatusItemEntry {
+function isUserFriendlyStatusItemEntry(candidate: any): candidate is IUserFriendlyStatusItemEntry {
+	const obj = candidate as IUserFriendlyStatusItemEntry;
 	return (typeof obj.id === 'string' && obj.id.length > 0)
 		&& typeof obj.name === 'string'
 		&& typeof obj.text === 'string'
 		&& (obj.alignment === 'left' || obj.alignment === 'right')
 		&& (obj.command === undefined || typeof obj.command === 'string')
-		&& (obj.priority === undefined || typeof obj.priority === 'number');
+		&& (obj.tooltip === undefined || typeof obj.tooltip === 'string')
+		&& (obj.priority === undefined || typeof obj.priority === 'number')
+		&& (obj.accessibilityInformation === undefined || isAccessibilityInformation(obj.accessibilityInformation))
+		;
 }
 
 const statusBarItemSchema: IJSONSchema = {
@@ -184,6 +190,10 @@ const statusBarItemSchema: IJSONSchema = {
 			type: 'string',
 			description: localize('text', 'The text to show for the entry. You can embed icons in the text by leveraging the `$(<name>)`-syntax, like \'Hello $(globe)!\'')
 		},
+		tooltip: {
+			type: 'string',
+			description: localize('tooltip', 'The tooltip text for the entry.')
+		},
 		command: {
 			type: 'string',
 			description: localize('command', 'The command to execute when the status bar entry is clicked.')
@@ -196,6 +206,20 @@ const statusBarItemSchema: IJSONSchema = {
 		priority: {
 			type: 'number',
 			description: localize('priority', 'The priority of the status bar entry. Higher value means the item should be shown more to the left.')
+		},
+		accessibilityInformation: {
+			type: 'object',
+			description: localize('accessibilityInformation', 'Defines the role and aria label to be used when the status bar entry is focused.'),
+			properties: {
+				role: {
+					type: 'string',
+					description: localize('accessibilityInformation.role', 'The role of the status bar entry which defines how a screen reader interacts with it. More about aria roles can be found here https://w3c.github.io/aria/#widget_roles')
+				},
+				label: {
+					type: 'string',
+					description: localize('accessibilityInformation.label', 'The aria label of the status bar entry. Defaults to the entry\'s text.')
+				}
+			}
 		}
 	}
 };
@@ -249,12 +273,12 @@ export class StatusBarItemsExtensionPoint {
 						ExtensionIdentifier.toKey(entry.description.identifier),
 						candidate.name ?? entry.description.displayName ?? entry.description.name,
 						candidate.text,
-						undefined,
+						candidate.tooltip,
 						candidate.command ? { id: candidate.command, title: candidate.name } : undefined,
 						undefined, undefined,
 						candidate.alignment === 'left',
 						candidate.priority,
-						undefined
+						candidate.accessibilityInformation
 					);
 
 					contributions.add(toDisposable(() => statusBarItemsService.unsetEntry(fullItemId)));

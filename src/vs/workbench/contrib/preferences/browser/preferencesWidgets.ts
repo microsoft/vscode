@@ -149,7 +149,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
-			this.anchorElement.title = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, this._folder.uri))?.fsPath || '';
+			this.anchorElement.title = this._folder.name;
 			const detailsText = this.labelWithCount(this._action.label, total);
 			this.detailsElement.textContent = detailsText;
 			this.dropDownElement.classList.toggle('hide', workspace.folders.length === 1 || !this._action.checked);
@@ -267,12 +267,12 @@ export class SettingsTargetsWidget extends Widget {
 		this.userLocalSettings = new Action('userSettings', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
 		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_LOCAL).then(uri => {
 			// Don't wait to create UI on resolving remote
-			this.userLocalSettings.tooltip = uri?.fsPath ?? '';
+			this.userLocalSettings.tooltip = localize('userSettings', "User");
 		});
 
 		this.userRemoteSettings = new Action('userSettingsRemote', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
 		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_REMOTE).then(uri => {
-			this.userRemoteSettings.tooltip = uri?.fsPath ?? '';
+			this.userRemoteSettings.tooltip = localize('userSettings', "User");
 		});
 
 		this.workspaceSettings = new Action('workspaceSettings', '', '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
@@ -368,7 +368,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		this.folderSettings.action.enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
 
-		this.workspaceSettings.tooltip = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE))?.fsPath || '';
+		this.workspaceSettings.tooltip = localize('workspaceSettings', "Workspace");
 	}
 }
 

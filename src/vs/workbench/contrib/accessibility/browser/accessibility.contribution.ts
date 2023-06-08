@@ -12,7 +12,7 @@ import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/b
 import { localize } from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityHelpAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import * as strings from 'vs/base/common/strings';
@@ -23,10 +23,12 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { URI } from 'vs/base/common/uri';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
-
 
 class AccessibilityHelpProvider extends Disposable implements IAccessibleContentProvider {
 	onClose() {
@@ -35,10 +37,21 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 	}
 	options: IAccessibleViewOptions = { ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
 	id: string = 'editor';
+	onKeyDown(e: IKeyboardEvent): void {
+		if (e.keyCode === KeyCode.KeyH) {
+			alert(AccessibilityHelpNLS.openingDocs);
 
+			let url = (this._editor.getRawOptions() as any).accessibilityHelpUrl;
+			if (typeof url === 'undefined') {
+				url = 'https://go.microsoft.com/fwlink/?linkid=852450';
+			}
+			this._openerService.open(URI.parse(url));
+		}
+	}
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 	}
@@ -92,14 +105,7 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 		} else {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb));
 		}
-
-		const openDocMessage = (
-			platform.isMacintosh
-				? AccessibilityHelpNLS.openDocMac
-				: AccessibilityHelpNLS.openDocWinLinux
-		);
-
-		content.push(openDocMessage);
+		content.push(AccessibilityHelpNLS.openDoc);
 		return content.join('\n');
 	}
 }
@@ -123,5 +129,6 @@ class EditorAccessibilityHelpContribution extends Disposable {
 		}));
 	}
 }
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);
