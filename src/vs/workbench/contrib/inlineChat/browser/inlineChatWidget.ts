@@ -183,6 +183,7 @@ export class InteractiveEditorWidget {
 	private _isLayouting: boolean = false;
 	private _preferredExpansionState: ExpansionState | undefined;
 	private _expansionState: ExpansionState = ExpansionState.NOT_CROPPED;
+	private _indentationWidth: number = 0;
 
 	constructor(
 		private readonly parentEditor: ICodeEditor,
@@ -462,6 +463,14 @@ export class InteractiveEditorWidget {
 
 	set preferredExpansionState(expansionState: ExpansionState | undefined) {
 		this._preferredExpansionState = expansionState;
+	}
+
+	set indentationWidth(indentationWidth: number) {
+		this._indentationWidth = indentationWidth;
+	}
+
+	get indentationWidth(): number {
+		return this._indentationWidth;
 	}
 
 	updateMarkdownMessage(message: Node | undefined) {
@@ -764,7 +773,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 		const info = this.editor.getLayoutInfo();
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
-		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
+		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + this.widget.indentationWidth));
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
@@ -793,16 +802,19 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		const info = this.editor.getLayoutInfo();
 		const startLineNumber = selectionRange.getStartPosition().lineNumber;
 		const endLineNumber = selectionRange.getEndPosition().lineNumber;
-		let lineNumberForIndentation = endLineNumber;
+		const viewModel = this.editor._getViewModel();
+		let indentationLineNumber = endLineNumber;
+		let indentationLevel = viewModel?.getLineFirstNonWhitespaceColumn(endLineNumber);
 		for (let lineNumber = endLineNumber; lineNumber >= startLineNumber; lineNumber--) {
-			const lineContent = this.editor.getModel()?.getLineContent(lineNumber);
-			if (lineContent && lineContent !== '') {
-				lineNumberForIndentation = lineNumber;
+			const currentIndentationLevel = viewModel?.getLineFirstNonWhitespaceColumn(lineNumber);
+			if (currentIndentationLevel && currentIndentationLevel !== 0) {
+				indentationLineNumber = lineNumber;
+				indentationLevel = currentIndentationLevel;
 				break;
 			}
 		}
-		const indentationLevel = this.editor._getViewModel()?.getLineFirstNonWhitespaceColumn(lineNumberForIndentation);
-		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth + (indentationLevel ? this.editor.getOffsetForColumn(lineNumberForIndentation, indentationLevel) : 0);
+		this.widget.indentationWidth = (indentationLevel ? this.editor.getOffsetForColumn(indentationLineNumber, indentationLevel) : 0);
+		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth + this.widget.indentationWidth;
 		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
 		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
 		this.widget.domNode.style.marginRight = `${spaceRight}px`;
