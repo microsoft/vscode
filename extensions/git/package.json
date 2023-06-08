@@ -88,7 +88,7 @@
         "command": "git.close",
         "title": "%command.close%",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && gitOpenRepositoryCount > 1"
       },
       {
         "command": "git.refresh",
@@ -773,7 +773,7 @@
         },
         {
           "command": "git.close",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
           "command": "git.refresh",
