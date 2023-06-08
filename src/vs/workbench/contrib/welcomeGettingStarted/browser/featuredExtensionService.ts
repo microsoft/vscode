@@ -14,6 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { localize } from 'vs/nls';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { raceTimeout } from 'vs/base/common/async';
 
 type FeaturedExtensionTreatment = { extensions: string[]; showAsList?: string };
 type FeaturedExtensionStorageData = { title: string; description: string; imagePath: string; date: number };
@@ -84,15 +85,8 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 			return;
 		}
 
-		const extensions = await Promise.race([
-			this.tasExperimentService?.getTreatment<string>('welcome.featured.item'),
-			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 100))
-		]);
-
-		const extensionListTitle = await Promise.race([
-			this.tasExperimentService?.getTreatment<string>('welcome.featured.title'),
-			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 100))
-		]);
+		const [extensions, extensionListTitle] = await Promise.all([raceTimeout(this.tasExperimentService?.getTreatment<string>('welcome.featured.item'), 2000),
+		raceTimeout(this.tasExperimentService?.getTreatment<string>('welcome.featured.title'), 2000)]);
 
 		try {
 			this.treatment = extensions ? JSON.parse(extensions) : { extensions: [] };
@@ -108,16 +102,13 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 					this.ignoredExtensions.add(extension);
 				}
 				else {
-					let galleryExtension: IGalleryExtension[] | undefined;
+					let galleryExtension: IGalleryExtension | undefined;
 					try {
-						galleryExtension = await Promise.race([
-							this.galleryService.getExtensions([{ id: extension }], CancellationToken.None),
-							new Promise<IGalleryExtension[] | undefined>(resolve => setTimeout(() => resolve(undefined), 100))
-						]);
+						galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
 					} catch (err) {
 						continue;
 					}
-					if (galleryExtension?.length && !await this.extensionManagementService.canInstall(galleryExtension[0])) {
+					if (!await this.extensionManagementService.canInstall(galleryExtension)) {
 						this.ignoredExtensions.add(extension);
 					}
 				}
@@ -186,20 +177,16 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 		this.storageService.remove(storageKey, StorageScope.APPLICATION);
 		let metadata: string | undefined;
 
-		let galleryExtensions: IGalleryExtension[] | undefined;
+		let galleryExtension: IGalleryExtension | undefined;
 		try {
-			galleryExtensions = await Promise.race([
-				this.galleryService.getExtensions([{ id: extensionId }], CancellationToken.None),
-				new Promise<IGalleryExtension[] | undefined>(resolve => setTimeout(() => resolve(undefined), 100))
-			]);
+			galleryExtension = (await this.galleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 		} catch (err) {
 		}
 
-		if (!galleryExtensions?.length) {
+		if (!galleryExtension) {
 			return metadata;
 		}
 
-		const galleryExtension = galleryExtensions[0];
 		switch (key) {
 			case FeaturedExtensionMetadataType.Title: {
 				metadata = galleryExtension.displayName;
