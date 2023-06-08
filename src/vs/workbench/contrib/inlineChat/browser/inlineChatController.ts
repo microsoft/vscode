@@ -76,10 +76,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private static _decoBlock = ModelDecorationOptions.register({
-		description: 'interactive-editor',
+		description: 'inline-chat',
 		showIfCollapsed: false,
 		isWholeLine: true,
-		className: 'interactive-editor-block-selection',
+		className: 'inline-chat-block-selection',
 	});
 
 	private static _promptHistory: string[] = [];
