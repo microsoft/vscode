@@ -26,7 +26,7 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { DropdownWithDefaultActionViewItem, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
@@ -716,6 +716,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
 	private _dimension?: Dimension;
+	private _indentationWidth: number = 0;
 
 	constructor(
 		editor: ICodeEditor,
@@ -762,17 +763,16 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 	protected override _doLayout(heightInPixel: number): void {
 
-		const info = this.editor.getLayoutInfo();
-		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
-		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
-
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
-		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
+		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation());
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
-		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
+	}
+
+	private _availableSpaceGivenIndentation(): number {
+		const info = this.editor.getLayoutInfo();
+		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + this._indentationWidth);
 	}
 
 	private _computeHeightInLines(): number {
@@ -787,10 +787,40 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	override show(where: IPosition): void {
-		super.show(where, this._computeHeightInLines());
+	override show(selectionRange: Range): void {
+		super.show(selectionRange.getEndPosition(), this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
+		this._setMargins(selectionRange);
+	}
+
+	private _setMargins(selectionRange: Range): void {
+		const info = this.editor.getLayoutInfo();
+		const startLineNumber = selectionRange.getStartPosition().lineNumber;
+		const endLineNumber = selectionRange.getEndPosition().lineNumber;
+		const viewModel = this.editor._getViewModel();
+		if (!viewModel) {
+			return;
+		}
+		let indentationLineNumber;
+		let indentationLevel;
+		for (let lineNumber = endLineNumber; lineNumber >= startLineNumber; lineNumber--) {
+			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
+			if (currentIndentationLevel !== 0) {
+				indentationLineNumber = lineNumber;
+				indentationLevel = currentIndentationLevel;
+				break;
+			}
+		}
+		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? endLineNumber, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(endLineNumber));
+		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
+		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;
+		const isEnoughAvailableSpaceWithIndentation = this._availableSpaceGivenIndentation() > 400;
+		this._indentationWidth = isEnoughAvailableSpaceWithIndentation ? this._indentationWidth : 0;
+		const spaceLeft = isEnoughAvailableSpaceWithIndentation ? marginWithIndentation : marginWithoutIndentation;
+		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
+		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
+		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 	}
 
 	override hide(): void {

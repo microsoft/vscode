@@ -269,7 +269,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
-		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
+		this._zone.value.show(this._activeSession.wholeRange.value);
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
@@ -359,7 +359,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		assertType(this._activeSession);
 
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
-		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
+		this._zone.value.show(this._activeSession.wholeRange.value);
 
 		if (options?.message) {
 			this._zone.value.widget.value = options?.message;
