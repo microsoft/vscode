@@ -40,6 +40,8 @@ export abstract class EditModeStrategy {
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
 	abstract toggleDiff(): void;
+
+	abstract getWidgetPosition(range: Range): Position;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -125,6 +127,10 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	toggleDiff(): void {
 		// nothing to do
+	}
+
+	getWidgetPosition(range: Range): Position {
+		throw new Error('not supported');
 	}
 }
 
@@ -318,6 +324,10 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 		this._widget.updateStatus(message);
 	}
+
+	getWidgetPosition(range: Range): Position {
+		throw new Error('not supported');
+	}
 }
 
 export class LivePreviewStrategy extends LiveStrategy {
@@ -371,6 +381,10 @@ export class LivePreviewStrategy extends LiveStrategy {
 			this._diffZone.hide();
 		}
 		scrollState.restore(this._editor);
+	}
+
+	override getWidgetPosition(range: Range): Position {
+		throw new Error('not supported');
 	}
 }
 
