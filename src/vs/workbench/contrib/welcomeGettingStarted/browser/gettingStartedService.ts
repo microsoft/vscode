@@ -184,7 +184,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		const treatmentString = await Promise.race([
 			this.tasExperimentService?.getTreatment<string>('welcome.walkthrough.content'),
-			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
+			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 50))
 		]);
 
 		const treatment: WalkthroughTreatment = treatmentString ? JSON.parse(treatmentString) : { walkthroughId: '' };

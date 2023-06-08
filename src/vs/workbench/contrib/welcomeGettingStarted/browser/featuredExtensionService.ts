@@ -86,12 +86,12 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 
 		const extensions = await Promise.race([
 			this.tasExperimentService?.getTreatment<string>('welcome.featured.item'),
-			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
+			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 100))
 		]);
 
 		const extensionListTitle = await Promise.race([
 			this.tasExperimentService?.getTreatment<string>('welcome.featured.title'),
-			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
+			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 100))
 		]);
 
 		try {
@@ -108,13 +108,16 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 					this.ignoredExtensions.add(extension);
 				}
 				else {
-					let galleryExtension: IGalleryExtension | undefined;
+					let galleryExtension: IGalleryExtension[] | undefined;
 					try {
-						galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
+						galleryExtension = await Promise.race([
+							this.galleryService.getExtensions([{ id: extension }], CancellationToken.None),
+							new Promise<IGalleryExtension[] | undefined>(resolve => setTimeout(() => resolve(undefined), 100))
+						]);
 					} catch (err) {
 						continue;
 					}
-					if (!await this.extensionManagementService.canInstall(galleryExtension)) {
+					if (galleryExtension?.length && !await this.extensionManagementService.canInstall(galleryExtension[0])) {
 						this.ignoredExtensions.add(extension);
 					}
 				}
@@ -183,16 +186,20 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 		this.storageService.remove(storageKey, StorageScope.APPLICATION);
 		let metadata: string | undefined;
 
-		let galleryExtension: IGalleryExtension | undefined;
+		let galleryExtensions: IGalleryExtension[] | undefined;
 		try {
-			galleryExtension = (await this.galleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
+			galleryExtensions = await Promise.race([
+				this.galleryService.getExtensions([{ id: extensionId }], CancellationToken.None),
+				new Promise<IGalleryExtension[] | undefined>(resolve => setTimeout(() => resolve(undefined), 100))
+			]);
 		} catch (err) {
 		}
 
-		if (!galleryExtension) {
+		if (!galleryExtensions?.length) {
 			return metadata;
 		}
 
+		const galleryExtension = galleryExtensions[0];
 		switch (key) {
 			case FeaturedExtensionMetadataType.Title: {
 				metadata = galleryExtension.displayName;
