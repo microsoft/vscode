@@ -788,19 +788,21 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override show(selectionRange: Range): void {
-		this._setPosition(selectionRange);
-		this._setMargins(selectionRange);
+		const position = this._findAndSetPosition(selectionRange);
+		this._setMargins(selectionRange, position);
 		this.widget.focus();
 		this._ctxVisible.set(true);
 	}
 
-	private _setPosition(selectionRange: Range): void {
+	private _findAndSetPosition(selectionRange: Range): InlineChatPosition {
+		let position: InlineChatPosition;
 		const editMode = this.configurationService.getValue<EditMode>('interactiveEditor.editMode');
 		if (editMode === EditMode.Live) {
 			const startPosition = selectionRange.getStartPosition();
 			const endPosition = selectionRange.getEndPosition();
 			let displayPosition: Position | undefined;
-			const position = this.configurationService.getValue<InlineChatPosition>('inlineChat.position');
+			position = this.configurationService.getValue<InlineChatPosition>('inlineChat.position');
+			this.widget.domNode.setAttribute('position', position);
 			switch (position) {
 				case (InlineChatPosition.BOTTOM):
 					displayPosition = endPosition;
@@ -814,11 +816,13 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			}
 			super.show(displayPosition, this._computeHeightInLines());
 		} else {
+			position = InlineChatPosition.BOTTOM;
 			super.show(selectionRange.getEndPosition(), this._computeHeightInLines());
 		}
+		return position;
 	}
 
-	private _setMargins(selectionRange: Range): void {
+	private _setMargins(selectionRange: Range, position: InlineChatPosition): void {
 		const info = this.editor.getLayoutInfo();
 		const startLineNumber = selectionRange.getStartPosition().lineNumber;
 		const endLineNumber = selectionRange.getEndPosition().lineNumber;

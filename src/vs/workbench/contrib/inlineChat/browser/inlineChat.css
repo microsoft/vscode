@@ -13,6 +13,17 @@
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
+	position:absolute;
+	top: 0px;
+}
+
+.monaco-editor .interactive-editor[position="top"] {
+	bottom: 0px;
+}
+
+.monaco-editor .interactive-editor[position="middle"] {
+	margin-top: auto;
+	margin-bottom: auto;
 }
 
 /* body */
