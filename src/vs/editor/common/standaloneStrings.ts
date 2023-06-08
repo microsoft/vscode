@@ -6,17 +6,12 @@
 import * as nls from 'vs/nls';
 
 export namespace AccessibilityHelpNLS {
-	export const noSelection = nls.localize("noSelection", "No selection");
-	export const singleSelectionRange = nls.localize("singleSelectionRange", "Line {0}, Column {1} ({2} selected)");
-	export const singleSelection = nls.localize("singleSelection", "Line {0}, Column {1}");
-	export const multiSelectionRange = nls.localize("multiSelectionRange", "{0} selections ({1} characters selected)");
-	export const multiSelection = nls.localize("multiSelection", "{0} selections");
-	export const emergencyConfOn = nls.localize("emergencyConfOn", "Now changing the setting `accessibilitySupport` to 'on'.");
+	export const accessibilityHelpTitle = nls.localize('accessibilityHelpTitle', "Accessibility Help");
 	export const openingDocs = nls.localize("openingDocs", "Now opening the Editor Accessibility documentation page.");
-	export const readonlyDiffEditor = nls.localize("readonlyDiffEditor", " in a read-only pane of a diff editor.");
-	export const editableDiffEditor = nls.localize("editableDiffEditor", " in a pane of a diff editor.");
-	export const readonlyEditor = nls.localize("readonlyEditor", " in a read-only code editor");
-	export const editableEditor = nls.localize("editableEditor", " in a code editor");
+	export const readonlyDiffEditor = nls.localize("readonlyDiffEditor", "You are in a read-only pane of a diff editor.");
+	export const editableDiffEditor = nls.localize("editableDiffEditor", "You are in a pane of a diff editor.");
+	export const readonlyEditor = nls.localize("readonlyEditor", "You are in a read-only code editor");
+	export const editableEditor = nls.localize("editableEditor", "You are in a code editor");
 	export const changeConfigToOnMac = nls.localize("changeConfigToOnMac", "To configure the editor to be optimized for usage with a Screen Reader press Command+E now.");
 	export const changeConfigToOnWinLinux = nls.localize("changeConfigToOnWinLinux", "To configure the editor to be optimized for usage with a Screen Reader press Control+E now.");
 	export const auto_on = nls.localize("auto_on", "The editor is configured to be optimized for usage with a Screen Reader.");
@@ -28,7 +23,6 @@ export namespace AccessibilityHelpNLS {
 	export const openDocMac = nls.localize("openDocMac", "Press Command+H now to open a browser window with more information related to editor accessibility.");
 	export const openDocWinLinux = nls.localize("openDocWinLinux", "Press Control+H now to open a browser window with more information related to editor accessibility.");
 	export const showAccessibilityHelpAction = nls.localize("showAccessibilityHelpAction", "Show Accessibility Help");
-	export const accessibilityHelpTitle = nls.localize('accessibilityHelpTitle', "Accessibility Help");
 }
 
 export namespace InspectTokensNLS {

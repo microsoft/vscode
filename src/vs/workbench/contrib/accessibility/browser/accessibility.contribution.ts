@@ -27,7 +27,6 @@ import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
 
-
 class AccessibilityHelpProvider extends Disposable implements IAccessibleContentProvider {
 	onClose() {
 		this._editor.focus();
@@ -123,5 +122,6 @@ class EditorAccessibilityHelpContribution extends Disposable {
 		}));
 	}
 }
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);

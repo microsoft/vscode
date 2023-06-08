@@ -25,7 +25,7 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
-	show(providerId: string): void;
+	show(providerId: string): AccessibleView;
 	registerProvider(provider: IAccessibleContentProvider): IDisposable;
 }
 
@@ -35,6 +35,7 @@ export interface IAccessibleViewOptions {
 
 class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
+	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
 
 	constructor(
@@ -155,7 +156,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		});
 	}
 
-	show(providerId: string): void {
+	show(providerId: string): AccessibleView {
 		if (!this._accessibleView) {
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
@@ -164,5 +165,6 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			throw new Error(`No accessible view provider with id: ${providerId}`);
 		}
 		this._accessibleView.show(provider);
+		return this._accessibleView;
 	}
 }
