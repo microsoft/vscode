@@ -167,7 +167,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	}
 });
 
-// TODO: should this be called inline chat or not?
 export const enum InlineChatPosition {
 	BOTTOM = 'bottom',
 	TOP = 'top',
