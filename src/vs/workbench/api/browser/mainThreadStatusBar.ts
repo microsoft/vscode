@@ -46,7 +46,8 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 				tooltip: item.entry.tooltip as string | undefined,
 				command: typeof item.entry.command === 'string' ? item.entry.command : typeof item.entry.command === 'object' ? item.entry.command.id : undefined,
 				priority: item.priority,
-				alignLeft: item.alignment === StatusbarAlignment.LEFT
+				alignLeft: item.alignment === StatusbarAlignment.LEFT,
+				accessibilityInformation: item.entry.ariaLabel ? { label: item.entry.ariaLabel, role: item.entry.role } : undefined
 			};
 		}
 	}

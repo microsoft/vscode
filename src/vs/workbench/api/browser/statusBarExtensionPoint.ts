@@ -12,7 +12,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ThemeColor } from 'vs/base/common/themables';
 import { Command } from 'vs/editor/common/languages';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityInformation, isAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
 import { hash } from 'vs/base/common/hash';
@@ -158,6 +158,7 @@ interface IUserFriendlyStatusItemEntry {
 	command?: string;
 	priority?: number;
 	tooltip?: string;
+	accessibilityInformation?: IAccessibilityInformation;
 }
 
 function isUserFriendlyStatusItemEntry(candidate: any): candidate is IUserFriendlyStatusItemEntry {
@@ -168,7 +169,9 @@ function isUserFriendlyStatusItemEntry(candidate: any): candidate is IUserFriend
 		&& (obj.alignment === 'left' || obj.alignment === 'right')
 		&& (obj.command === undefined || typeof obj.command === 'string')
 		&& (obj.tooltip === undefined || typeof obj.tooltip === 'string')
-		&& (obj.priority === undefined || typeof obj.priority === 'number');
+		&& (obj.priority === undefined || typeof obj.priority === 'number')
+		&& (obj.accessibilityInformation === undefined || isAccessibilityInformation(obj.accessibilityInformation))
+		;
 }
 
 const statusBarItemSchema: IJSONSchema = {
@@ -203,6 +206,20 @@ const statusBarItemSchema: IJSONSchema = {
 		priority: {
 			type: 'number',
 			description: localize('priority', 'The priority of the status bar entry. Higher value means the item should be shown more to the left.')
+		},
+		accessibilityInformation: {
+			type: 'object',
+			description: localize('accessibilityInformation', 'Defines the role and aria label to be used when the status bar entry is focused.'),
+			properties: {
+				role: {
+					type: 'string',
+					description: localize('accessibilityInformation.role', 'The role of the status bar entry which defines how a screen reader interacts with it. More about aria roles can be found here https://w3c.github.io/aria/#widget_roles')
+				},
+				label: {
+					type: 'string',
+					description: localize('accessibilityInformation.label', 'The aria label of the status bar entry. Defaults to the entry\'s text.')
+				}
+			}
 		}
 	}
 };
@@ -261,7 +278,7 @@ export class StatusBarItemsExtensionPoint {
 						undefined, undefined,
 						candidate.alignment === 'left',
 						candidate.priority,
-						undefined
+						candidate.accessibilityInformation
 					);
 
 					contributions.add(toDisposable(() => statusBarItemsService.unsetEntry(fullItemId)));

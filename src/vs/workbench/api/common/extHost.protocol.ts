@@ -626,6 +626,7 @@ export type StatusBarItemDto = {
 	text: string;
 	tooltip?: string;
 	command?: string;
+	accessibilityInformation?: IAccessibilityInformation;
 };
 
 export interface ExtHostStatusBarShape {

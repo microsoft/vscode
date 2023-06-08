@@ -200,7 +200,11 @@
       "priority": 17,
       "name": "My Static Item",
       "text": "Hello $(globe)",
-      "tooltip": "Hover World"
+      "tooltip": "Hover World",
+      "accessibilityInformation": {
+        "label": "Hello World",
+        "role": "button"
+      }
     }
   },
   "scripts": {
