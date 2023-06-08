@@ -249,13 +249,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		return State.INIT_UI;
 	}
 
-	private _showWidget(): void {
-		assertType(this._activeSession);
-		const selectionRange = this._activeSession.wholeRange.value;
-		const position = this._strategy?.getWidgetPosition(selectionRange);
-		this._zone.value.showWidget(selectionRange, position);
-	}
-
 	private async [State.INIT_UI](options: InteractiveEditorRunOptions | undefined): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
 		assertType(this._activeSession);
 
@@ -276,9 +269,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
+		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
-		console.log('before show of the init ui');
-		this._showWidget();
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -367,9 +359,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		assertType(this._activeSession);
 
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
-
-		console.log('before show of wait_for_input');
-		this._showWidget();
+		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 
 		if (options?.message) {
 			this._zone.value.widget.value = options?.message;
