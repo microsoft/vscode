@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, workspace } from 'vscode';
+import { ExtensionContext, l10n, workspace } from 'vscode';
 import { filterEvent, IDisposable } from './util';
 
 export interface ITerminalEnvironmentProvider {
@@ -42,7 +42,7 @@ export class TerminalEnvironmentManager {
 			}
 		}
 		if (features.length) {
-			this.context.environmentVariableCollection.description = `Enables the following features: ${features.join(', ')}`;
+			this.context.environmentVariableCollection.description = l10n.t('Enables the following features: {0}', features.join(', '));
 		}
 	}
 
