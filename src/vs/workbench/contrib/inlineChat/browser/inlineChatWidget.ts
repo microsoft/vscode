@@ -763,12 +763,16 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 	protected override _doLayout(heightInPixel: number): void {
 
-		const info = this.editor.getLayoutInfo();
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
-		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + this._indentationWidth));
+		const width = Math.min(maxWidth, this._availableSpaceWithIndentation());
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
+	}
+
+	private _availableSpaceWithIndentation(): number {
+		const info = this.editor.getLayoutInfo();
+		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + this._indentationWidth);
 	}
 
 	private _computeHeightInLines(): number {
@@ -809,7 +813,11 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 			}
 		}
 		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? endLineNumber, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(endLineNumber));
-		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth + this._indentationWidth;
+		const marginWithoutIndentation = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
+		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;
+		const isEnoughAvailableSpaceWithIndentation = this._availableSpaceWithIndentation() > 400;
+		this._indentationWidth = isEnoughAvailableSpaceWithIndentation ? this._indentationWidth : 0;
+		const spaceLeft = isEnoughAvailableSpaceWithIndentation ? marginWithIndentation : marginWithoutIndentation;
 		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
 		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
 		this.widget.domNode.style.marginRight = `${spaceRight}px`;
