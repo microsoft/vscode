@@ -1588,7 +1588,7 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async fetchAndPruneDelete(): Promise<void> {
+	async fetchPruneAndDelete(): Promise<void> {
 		try {
 			const fetchPrune = await this.exec(['fetch', '--prune']);
 			const result = Object.values(fetchPrune).toString().split('\n');

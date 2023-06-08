@@ -1363,9 +1363,9 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
 	}
 
-	async fetchAndPruneDelete(): Promise<void> {
-		// await this.run(Operation.fetchAndPruneDelete, () => this.repository.fetchAndPruneDelete(force));
-		await this.run(Operation.fetchAndPruneDelete, () => this.repository.fetchAndPruneDelete());
+	async fetchPruneAndDelete(): Promise<void> {
+		// await this.run(Operation.fetchPruneAndDelete, () => this.repository.fetchPruneAndDelete(force));
+		await this.run(Operation.fetchPruneAndDelete, () => this.repository.fetchPruneAndDelete());
 	}
 
 	async renameBranch(name: string): Promise<void> {

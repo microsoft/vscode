@@ -2362,9 +2362,9 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.fetchAndPruneDelete', { repository: true })
-	async fetchAndPruneDelete(repository: Repository): Promise<void> {
-		repository.fetchAndPruneDelete();
+	@command('git.fetchPruneAndDelete', { repository: true })
+	async fetchPruneAndDelete(repository: Repository): Promise<void> {
+		repository.fetchPruneAndDelete();
 	}
 
 	@command('git.renameBranch', { repository: true })

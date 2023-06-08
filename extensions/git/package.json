@@ -394,8 +394,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.fetchAndPruneDelete",
-        "title": "%command.fetchAndPruneDelete%",
+        "command": "git.fetchPruneAndDelete",
+        "title": "%command.fetchPruneAndDelete%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
