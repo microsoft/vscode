@@ -144,6 +144,10 @@ export class FindMatchDecorationModel extends Disposable {
 		}));
 	}
 
+	stopWebviewFind() {
+		this._notebookEditor.findStop();
+	}
+
 	override dispose() {
 		this.clearDecorations();
 		super.dispose();

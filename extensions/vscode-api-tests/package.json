@@ -199,7 +199,12 @@
       "alignment": "right",
       "priority": 17,
       "name": "My Static Item",
-      "text": "Hello $(globe)"
+      "text": "Hello $(globe)",
+      "tooltip": "Hover World",
+      "accessibilityInformation": {
+        "label": "Hello World",
+        "role": "button"
+      }
     }
   },
   "scripts": {

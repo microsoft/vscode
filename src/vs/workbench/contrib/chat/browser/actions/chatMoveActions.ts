@@ -17,6 +17,7 @@ import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInp
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -68,6 +69,11 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 		const viewId = chatContribService.getViewIdForProvider(chatEditorInput.providerId);
 		const view = await viewsService.openView(viewId) as ChatViewPane;
 		view.loadSession(chatEditorInput.sessionId);
+	} else {
+		const chatService = accessor.get(IChatService);
+		const providerId = chatService.getProviderInfos()[0].id;
+		const viewId = chatContribService.getViewIdForProvider(providerId);
+		await viewsService.openView(viewId);
 	}
 }
 
@@ -90,9 +96,12 @@ export function registerMoveActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const viewService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
+			const chatService = accessor.get(IChatService);
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget || !('viewId' in widget.viewContext)) {
+				const providerId = chatService.getProviderInfos()[0].id;
+				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId }, pinned: true } });
 				return;
 			}
 
