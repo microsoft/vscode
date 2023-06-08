@@ -17,6 +17,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -149,6 +150,14 @@ export const enum EditMode {
 	LivePreview = 'livePreview',
 	Preview = 'preview'
 }
+
+Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
+	[{
+		key: 'interactiveEditor.editMode', migrateFn: (value: any) => {
+			return [['inlineChat.mode', { value: value }]];
+		}
+	}]
+);
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'editor',
