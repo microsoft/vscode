@@ -86,6 +86,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private virtualWorkspaceLocation: { scheme: string; authority: string } | undefined = undefined;
 
 	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
+	private connectionToken: string | undefined = undefined;
 	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
 
 	private networkState: 'online' | 'offline' | 'high-latency' | undefined = undefined;
@@ -267,7 +268,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			// Try to resolve the authority to figure out connection state
 			(async () => {
 				try {
-					await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+					this.connectionToken = authority.connectionToken;
 
 					this.setConnectionState('connected');
 				} catch (error) {
@@ -302,8 +304,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private scheduleMeasureNetworkConnectionLatency(): void {
 		if (
-			!this.remoteAuthority ||								// only when having a remote connection
-			this.measureNetworkConnectionLatencyScheduler			// already scheduled
+			!this.remoteAuthority ||						// only when having a remote connection
+			this.measureNetworkConnectionLatencyScheduler	// already scheduled
 		) {
 			return;
 		}
@@ -334,11 +336,44 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private setNetworkState(newState: 'online' | 'offline' | 'high-latency'): void {
 		if (this.networkState !== newState) {
+			const oldState = this.networkState;
 			this.networkState = newState;
+
+			if (newState === 'high-latency') {
+				this.logService.warn(`Remote network connection appears to have high latency (${remoteConnectionLatencyMeasurer.latency?.current?.toFixed(2)}ms last, ${remoteConnectionLatencyMeasurer.latency?.average?.toFixed(2)}ms average)`);
+			}
+
+			if (this.connectionToken) {
+				if (newState === 'online' && oldState === 'high-latency') {
+					this.logNetworkConnectionHealthTelemetry(this.connectionToken, 'good');
+				} else if (newState === 'high-latency' && oldState === 'online') {
+					this.logNetworkConnectionHealthTelemetry(this.connectionToken, 'poor');
+				}
+			}
 
 			// update status
 			this.updateRemoteStatusIndicator();
 		}
+	}
+
+	private logNetworkConnectionHealthTelemetry(connectionToken: string, connectionHealth: 'good' | 'poor'): void {
+		type RemoteConnectionHealthClassification = {
+			owner: 'alexdima';
+			comment: 'The remote connection health has changed (round trip time)';
+			remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+			reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+			connectionHealth: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The health of the connection: good or poor.' };
+		};
+		type RemoteConnectionHealthEvent = {
+			remoteName: string | undefined;
+			reconnectionToken: string;
+			connectionHealth: 'good' | 'poor';
+		};
+		this.telemetryService.publicLog2<RemoteConnectionHealthEvent, RemoteConnectionHealthClassification>('remoteConnectionHealth', {
+			remoteName: getRemoteName(this.remoteAuthority),
+			reconnectionToken: connectionToken,
+			connectionHealth
+		});
 	}
 
 	private validatedGroup(group: string) {

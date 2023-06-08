@@ -76,10 +76,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private static _decoBlock = ModelDecorationOptions.register({
-		description: 'interactive-editor',
+		description: 'inline-chat',
 		showIfCollapsed: false,
 		isWholeLine: true,
-		className: 'interactive-editor-block-selection',
+		className: 'inline-chat-block-selection',
 	});
 
 	private static _promptHistory: string[] = [];
@@ -157,7 +157,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _getMode(): EditMode {
-		const editMode = this._configurationService.inspect<EditMode>('interactiveEditor.editMode');
+		const editMode = this._configurationService.inspect<EditMode>('inlineChat.mode');
 		let editModeValue = editMode.value;
 		if (this._accessibilityService.isScreenReaderOptimized() && editModeValue === editMode.defaultValue) {
 			// By default, use preview mode for screen reader users
@@ -315,8 +315,8 @@ export class InlineChatController implements IEditorContribution {
 		}
 		let result = this._activeSession.session.placeholder ?? localize('default.placeholder', "Ask a question");
 		if (InlineChatController._promptHistory.length > 0) {
-			const kb1 = this._keybindingService.lookupKeybinding('interactiveEditor.previousFromHistory')?.getLabel();
-			const kb2 = this._keybindingService.lookupKeybinding('interactiveEditor.nextFromHistory')?.getLabel();
+			const kb1 = this._keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getLabel();
+			const kb2 = this._keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getLabel();
 
 			if (kb1 && kb2) {
 				result = localize('default.placeholder.history', "{0} ({1}, {2} for history)", result, kb1, kb2);
