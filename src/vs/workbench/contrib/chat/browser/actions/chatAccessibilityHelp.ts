@@ -33,7 +33,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 		const match = currentInput?.match(regex);
 		const command = match && match.length ? match[0].substring(1) : undefined;
 		if (command === 'fix') {
-			const editMode = configurationService.getValue('interactiveEditor.editMode');
+			const editMode = configurationService.getValue('inlineChat.mode');
 			if (editMode === EditMode.Preview) {
 				const keybinding = keybindingService.lookupKeybinding('editor.action.diffReview.next')?.getAriaLabel();
 				content.push(keybinding ? localize('interactiveSession.diff', "Tab again to enter the Diff editor with the changes and enter review mode with ({0}). Use Up/DownArrow to navigate lines with the proposed changes.", keybinding) : localize('interactiveSession.diffNoKb', "Tab again to enter the Diff editor with the changes and enter review mode with the Go to Next Difference Command. Use Up/DownArrow to navigate lines with the proposed changes."));

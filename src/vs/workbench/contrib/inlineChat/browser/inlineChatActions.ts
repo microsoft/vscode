@@ -26,13 +26,15 @@ import { fromNow } from 'vs/base/common/date';
 import { IInlineChatSessionService, Recording } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
+CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 
 export class StartSessionAction extends EditorAction2 {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.start',
+			id: 'inlineChat.start',
 			title: { value: localize('run', 'Start Code Chat'), original: 'Start Code Chat' },
 			category: AbstractInlineChatAction.category,
 			f1: true,
@@ -69,7 +71,7 @@ export class StartSessionAction extends EditorAction2 {
 export class UnstashSessionAction extends EditorAction2 {
 	constructor() {
 		super({
-			id: 'interactiveEditor.unstash',
+			id: 'inlineChat.unstash',
 			title: { value: localize('unstash', 'Resume Last Dismissed Code Chat'), original: 'Resume Last Dismissed Code Chat' },
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_STASHED_SESSION, EditorContextKeys.writable),
@@ -132,7 +134,7 @@ export class MakeRequestAction extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.accept',
+			id: 'inlineChat.accept',
 			title: localize('accept', 'Make Request'),
 			icon: Codicon.send,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EMPTY.negate()),
@@ -159,7 +161,7 @@ export class StopRequestAction extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.stop',
+			id: 'inlineChat.stop',
 			title: localize('stop', 'Stop Request'),
 			icon: Codicon.debugStop,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EMPTY.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST),
@@ -184,7 +186,7 @@ export class StopRequestAction extends AbstractInlineChatAction {
 export class ArrowOutUpAction extends AbstractInlineChatAction {
 	constructor() {
 		super({
-			id: 'interactiveEditor.arrowOutUp',
+			id: 'inlineChat.arrowOutUp',
 			title: localize('arrowUp', 'Cursor Up'),
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
@@ -202,7 +204,7 @@ export class ArrowOutUpAction extends AbstractInlineChatAction {
 export class ArrowOutDownAction extends AbstractInlineChatAction {
 	constructor() {
 		super({
-			id: 'interactiveEditor.arrowOutDown',
+			id: 'inlineChat.arrowOutDown',
 			title: localize('arrowDown', 'Cursor Down'),
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_LAST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
@@ -221,7 +223,7 @@ export class FocusInlineChat extends EditorAction2 {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.focus',
+			id: 'inlineChat.focus',
 			title: { value: localize('focus', 'Focus Input'), original: 'Focus Input' },
 			f1: true,
 			category: AbstractInlineChatAction.category,
@@ -247,7 +249,7 @@ export class PreviousFromHistory extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.previousFromHistory',
+			id: 'inlineCat.previousFromHistory',
 			title: localize('previousFromHistory', 'Previous From History'),
 			precondition: CTX_INLINE_CHAT_FOCUSED,
 			keybinding: {
@@ -266,7 +268,7 @@ export class NextFromHistory extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.nextFromHistory',
+			id: 'inlineChat.nextFromHistory',
 			title: localize('nextFromHistory', 'Next From History'),
 			precondition: CTX_INLINE_CHAT_FOCUSED,
 			keybinding: {
@@ -296,7 +298,7 @@ export class DiscardAction extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.discard',
+			id: 'inlineChat.discard',
 			title: localize('discard', 'Discard'),
 			icon: Codicon.discard,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
@@ -321,7 +323,7 @@ export class DiscardToClipboardAction extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.discardToClipboard',
+			id: 'inlineChat.discardToClipboard',
 			title: localize('undo.clipboard', 'Discard to Clipboard'),
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_DID_EDIT),
 			// keybinding: {
@@ -350,7 +352,7 @@ export class DiscardUndoToNewFileAction extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.discardToFile',
+			id: 'inlineChat.discardToFile',
 			title: localize('undo.newfile', 'Discard to New File'),
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_DID_EDIT),
 			menu: {
@@ -374,7 +376,7 @@ export class DiscardUndoToNewFileAction extends AbstractInlineChatAction {
 export class FeebackHelpfulCommand extends AbstractInlineChatAction {
 	constructor() {
 		super({
-			id: 'interactiveEditor.feedbackHelpful',
+			id: 'inlineChat.feedbackHelpful',
 			title: localize('feedback.helpful', 'Helpful'),
 			icon: Codicon.thumbsup,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
@@ -396,7 +398,7 @@ export class FeebackHelpfulCommand extends AbstractInlineChatAction {
 export class FeebackUnhelpfulCommand extends AbstractInlineChatAction {
 	constructor() {
 		super({
-			id: 'interactiveEditor.feedbackunhelpful',
+			id: 'inlineChat.feedbackunhelpful',
 			title: localize('feedback.unhelpful', 'Unhelpful'),
 			icon: Codicon.thumbsdown,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
@@ -419,7 +421,7 @@ export class ToggleInlineDiff extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.toggleDiff',
+			id: 'inlineChat.toggleDiff',
 			title: localize('toggleDiff', 'Toggle Diff'),
 			icon: Codicon.diff,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_DID_EDIT),
@@ -468,7 +470,7 @@ export class CancelSessionAction extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.cancel',
+			id: 'inlineChat.cancel',
 			title: localize('cancel', 'Cancel'),
 			icon: Codicon.clearAll,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Preview)),
@@ -494,7 +496,7 @@ export class CopyRecordings extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'interactiveEditor.copyRecordings',
+			id: 'inlineChat.copyRecordings',
 			f1: true,
 			title: {
 				value: localize('copyRecordings', '(Developer) Write Exchange to Clipboard'),
@@ -532,7 +534,7 @@ export class CopyRecordings extends AbstractInlineChatAction {
 export class ViewInChatAction extends AbstractInlineChatAction {
 	constructor() {
 		super({
-			id: 'interactiveEditor.viewInChat',
+			id: 'inlineChat.viewInChat',
 			title: localize('viewInChat', 'View in Chat'),
 			icon: Codicon.commentDiscussion,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
@@ -552,7 +554,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 export class ExpandMessageAction extends AbstractInlineChatAction {
 	constructor() {
 		super({
-			id: 'interactiveEditor.expandMessageAction',
+			id: 'inlineChat.expandMessageAction',
 			title: localize('expandMessage', 'Expand Message'),
 			icon: Codicon.chevronDown,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
@@ -572,7 +574,7 @@ export class ExpandMessageAction extends AbstractInlineChatAction {
 export class ContractMessageAction extends AbstractInlineChatAction {
 	constructor() {
 		super({
-			id: 'interactiveEditor.contractMessageAction',
+			id: 'inlineChat.contractMessageAction',
 			title: localize('contractMessage', 'Contract Message'),
 			icon: Codicon.chevronUp,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
@@ -592,7 +594,7 @@ export class ContractMessageAction extends AbstractInlineChatAction {
 export class AccessibilityHelpEditorAction extends EditorAction2 {
 	constructor() {
 		super({
-			id: 'interactiveEditor.accessibilityHelp',
+			id: 'inlineChat.accessibilityHelp',
 			title: localize('actions.interactiveSession.accessibiltyHelpEditor', "Interactive Session Editor Accessibility Help"),
 			category: AbstractInlineChatAction.category,
 			keybinding: {
