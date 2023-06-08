@@ -14,7 +14,6 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -453,9 +452,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getViewState(): IViewState {
-		if (this.inputEditor.getOption(EditorOption.readOnly)) {
-			return { inputValue: undefined };
-		}
 		this.inputPart.saveState();
 		return { inputValue: this.inputPart.inputEditor.getValue() };
 	}
