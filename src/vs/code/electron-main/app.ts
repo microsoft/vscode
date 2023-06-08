@@ -1218,8 +1218,9 @@ export class CodeApplication extends Disposable {
 		this.updateCrashReporterEnablement();
 
 		if (app.runningUnderARM64Translation) {
-			this.windowsMainService?.sendToFocused('vscode:showInfoMessage', localize("runningTranslated", "You are running a translated build for your machine!"));
+			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
+		this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 
 	}
 

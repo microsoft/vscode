@@ -228,6 +228,23 @@ export class NativeWindow extends Disposable {
 			);
 		});
 
+		ipcRenderer.on('vscode:showTranslatedBuildWarning', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize("runningTranslated", "You are running a translated build. For better performance download a native build for your machine!"),
+				[{
+					label: localize('downloadArmBuild', "Download the ARM build"),
+					run: () => {
+						if (isMacintosh) {
+							this.openerService.open('https://code.visualstudio.com/docs/?dv=osx');
+						} else {
+							this.openerService.open('https://code.visualstudio.com/download');
+						}
+					}
+				}]
+			);
+		});
+
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true); });
 		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false); });
