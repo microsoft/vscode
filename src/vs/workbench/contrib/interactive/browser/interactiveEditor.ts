@@ -387,6 +387,18 @@ export class InteractiveEditor extends EditorPane {
 		});
 
 		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, this.#editorOptions, {
+			...getSimpleEditorOptions(this.configurationService),
+			...{
+				glyphMargin: true,
+				padding: {
+					top: INPUT_EDITOR_PADDING,
+					bottom: INPUT_EDITOR_PADDING
+				},
+				hover: {
+					enabled: true
+				}
+			}
+		}, {
 			...{
 				isSimpleWidget: false,
 				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
