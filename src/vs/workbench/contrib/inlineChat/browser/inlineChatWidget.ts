@@ -813,7 +813,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 			}
 		}
 		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? endLineNumber, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(endLineNumber));
-		const marginWithoutIndentation = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
+		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;
 		const isEnoughAvailableSpaceWithIndentation = this._availableSpaceWithIndentation() > 400;
 		this._indentationWidth = isEnoughAvailableSpaceWithIndentation ? this._indentationWidth : 0;
