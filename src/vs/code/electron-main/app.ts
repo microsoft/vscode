@@ -1220,7 +1220,6 @@ export class CodeApplication extends Disposable {
 		if (app.runningUnderARM64Translation) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
-		this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 
 	}
 
