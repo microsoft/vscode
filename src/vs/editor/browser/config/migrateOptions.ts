@@ -192,3 +192,14 @@ registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value,
 		}
 	}
 });
+
+// Inline Chat
+
+registerEditorSettingMigration('interactiveEditor.editMode', (value, read, write) => {
+	if (typeof value === 'string' && (value === 'live' || value === 'preview' || value === 'livePreview')) {
+		write('interactiveEditor.editMode', undefined);
+		if (typeof read('inlineChat.mode') === 'undefined') {
+			write('inlineChat.mode', value);
+		}
+	}
+});
