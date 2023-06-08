@@ -182,17 +182,17 @@ class InlineDiffDecorations {
 		const tracking: IModelDeltaDecoration = {
 			range: edit.range,
 			options: {
-				description: 'interactive-editor-inline-diff',
+				description: 'inline-chat-inline-diff',
 			}
 		};
 
 		const decorating: IModelDecorationOptions = {
-			description: 'interactive-editor-inline-diff',
-			className: !edit.range.isEmpty() ? 'interactive-editor-lines-inserted-range' : undefined,
+			description: 'inline-chat-inline-diff',
+			className: !edit.range.isEmpty() ? 'inline-chat-lines-inserted-range' : undefined,
 			showIfCollapsed: true,
 			before: {
 				content,
-				inlineClassName: 'interactive-editor-lines-deleted-range-inline',
+				inlineClassName: 'inline-chat-lines-deleted-range-inline',
 				attachedData: edit,
 			}
 		};
@@ -294,7 +294,7 @@ export class LiveStrategy extends EditModeStrategy {
 		if (++this._editCount === 1) {
 			this._editor.pushUndoStop();
 		}
-		this._editor.executeEdits('interactive-editor-live', edits, ignoreInlineDiff ? undefined : cursorStateComputerAndInlineDiffCollection);
+		this._editor.executeEdits('inline-chat-live', edits, ignoreInlineDiff ? undefined : cursorStateComputerAndInlineDiffCollection);
 	}
 
 	override async renderChanges(response: EditResponse) {
