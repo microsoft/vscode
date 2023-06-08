@@ -33,7 +33,7 @@ export class DiffModel extends Disposable {
 	public readonly syncedMovedTexts = observableValue<MovedText | undefined>('syncedMovedText', undefined);
 
 	constructor(
-		model: IDiffEditorModel,
+		public readonly model: IDiffEditorModel,
 		ignoreTrimWhitespace: IObservable<boolean>,
 		maxComputationTimeMs: IObservable<number>,
 		private readonly _hideUnchangedRegions: IObservable<boolean>,
@@ -177,13 +177,17 @@ export class DiffState {
 	public static fromDiffResult(result: IDocumentDiff): DiffState {
 		return new DiffState(
 			result.changes.map(c => new DiffMapping(c)),
-			result.moves || []
+			result.moves || [],
+			result.identical,
+			result.quitEarly,
 		);
 	}
 
 	constructor(
 		public readonly mappings: readonly DiffMapping[],
 		public readonly movedTexts: readonly MovedText[],
+		public readonly identical: boolean,
+		public readonly quitEarly: boolean,
 	) { }
 }
 

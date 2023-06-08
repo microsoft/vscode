@@ -31,12 +31,13 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 	private static readonly _hideId = 'overlayDiff';
 
-	private readonly _elements = h('div.interactive-editor-diff-widget@domNode');
+	private readonly _elements = h('div.inline-chat-diff-widget@domNode');
 
 	private readonly _sessionStore = this._disposables.add(new DisposableStore());
 	private readonly _diffEditor: IDiffEditor;
@@ -191,7 +192,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 				};
 
 				if (!modifiedRange.isEmpty()) {
-					options.className = 'interactive-editor-lines-inserted-range';
+					options.className = 'inline-chat-lines-inserted-range';
 				}
 
 				if (!originalRange.isEmpty()) {
@@ -201,7 +202,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 					}
 					options.before = {
 						content,
-						inlineClassName: 'interactive-editor-lines-deleted-range-inline'
+						inlineClassName: 'inline-chat-lines-deleted-range-inline'
 					};
 				}
 
@@ -336,7 +337,7 @@ function isInlineDiffFriendly(mapping: LineRangeMapping): boolean {
 
 export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 
-	private readonly _elements = h('div.interactive-editor-newfile-widget@domNode', [
+	private readonly _elements = h('div.inline-chat-newfile-widget@domNode', [
 		h('div.title.show-file-icons@title'),
 		h('div.editor@editor'),
 	]);
@@ -349,6 +350,7 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 	constructor(
 		parentEditor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@IThemeService themeService: IThemeService,
 
@@ -401,8 +403,8 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 	showCreation(where: Range, uri: URI, edits: TextEdit[]): void {
 
 		this._title.element.setFile(uri, { fileKind: FileKind.FILE });
-
-		const model = this._modelService.createModel('', null, undefined, true);
+		const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
+		const model = this._modelService.createModel('', langSelection, undefined, true);
 		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		this._previewModel.value = model;
 		this._previewEditor.setModel(model);

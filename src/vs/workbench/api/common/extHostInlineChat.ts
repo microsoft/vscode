@@ -10,7 +10,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import { IInlineChatSession, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostInteractiveEditorShape, IInteractiveEditorResponseDto, IMainContext, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostInlineChatShape, IInlineChatResponseDto, IMainContext, MainContext, MainThreadInlineChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
@@ -39,13 +39,13 @@ class SessionWrapper {
 	) { }
 }
 
-export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
+export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 	private static _nextId = 0;
 
 	private readonly _inputProvider = new Map<number, ProviderWrapper>();
 	private readonly _inputSessions = new Map<number, SessionWrapper>();
-	private readonly _proxy: MainThreadInteractiveEditorShape;
+	private readonly _proxy: MainThreadInlineChatShape;
 
 	constructor(
 		mainContext: IMainContext,
@@ -53,7 +53,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _logService: ILogService,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadInteractiveEditor);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadInlineChat);
 
 		type EditorChatApiArg = {
 			initialRange?: vscode.Range;
@@ -68,7 +68,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		};
 
 		extHostCommands.registerApiCommand(new ApiCommand(
-			'vscode.editorChat.start', 'interactiveEditor.start', 'Invoke a new editor chat session',
+			'vscode.editorChat.start', 'inlineChat.start', 'Invoke a new editor chat session',
 			[new ApiCommandArgument<EditorChatApiArg | undefined, InteractiveEditorRunOptions | undefined>('Run arguments', '', _v => true, v => {
 
 				if (!v) {
@@ -95,7 +95,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		});
 	}
 
-	async $prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined> {
+	async $prepareSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined> {
 		const entry = this._inputProvider.get(handle);
 		if (!entry) {
 			this._logService.warn('CANNOT prepare session because the PROVIDER IS GONE');
@@ -125,7 +125,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		};
 	}
 
-	async $provideResponse(handle: number, item: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined> {
+	async $provideResponse(handle: number, item: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInlineChatResponseDto | undefined> {
 		const entry = this._inputProvider.get(handle);
 		if (!entry) {
 			return undefined;
@@ -147,7 +147,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 
 			const id = sessionData.responses.push(res) - 1;
 
-			const stub: Partial<IInteractiveEditorResponseDto> = {
+			const stub: Partial<IInlineChatResponseDto> = {
 				wholeRange: typeConvert.Range.from(res.wholeRange),
 				placeholder: res.placeholder,
 			};
