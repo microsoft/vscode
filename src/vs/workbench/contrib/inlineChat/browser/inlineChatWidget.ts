@@ -54,7 +54,7 @@ import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineCh
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 
-const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
+const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },

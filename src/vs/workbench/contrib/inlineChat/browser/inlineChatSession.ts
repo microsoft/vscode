@@ -64,7 +64,7 @@ export enum ExpansionState {
 
 class SessionWholeRange {
 
-	private static readonly _options = { description: 'interactiveEditor/session/wholeRange' };
+	private static readonly _options = { description: 'inlineChat/session/wholeRange' };
 
 	private readonly _store = new DisposableStore();
 	private readonly _decorationIds: string[] = [];

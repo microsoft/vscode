@@ -98,7 +98,7 @@ export class UnstashSessionAction extends EditorAction2 {
 
 abstract class AbstractInlineChatAction extends EditorAction2 {
 
-	static readonly category = { value: localize('cat', 'Interactive Editor'), original: 'Interactive Editor' };
+	static readonly category = { value: localize('cat', 'Inline Chat'), original: 'Inline Chat' };
 
 	constructor(desc: IAction2Options) {
 		super({
