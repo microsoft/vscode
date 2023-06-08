@@ -43,6 +43,7 @@
     "timeline",
     "tokenInformation",
     "treeItemCheckbox",
+	"treeViewActiveItem",
     "treeViewReveal",
     "testInvalidateResults",
     "workspaceTrust",
