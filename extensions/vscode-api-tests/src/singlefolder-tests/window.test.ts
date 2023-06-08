@@ -1045,6 +1045,7 @@ suite('vscode API - window', () => {
 		assert.strictEqual(item.priority, 17);
 		assert.strictEqual(item.name, 'My Static Item');
 		assert.strictEqual(item.text, 'Hello $(globe)');
+		assert.strictEqual(item.tooltip, 'Hover World');
 
 		item.dispose();
 	});

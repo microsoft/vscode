@@ -71,6 +71,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				this._visible = true;
 				this.name = item.name;
 				this.text = item.text;
+				this.tooltip = item.tooltip;
 				this.command = item.command;
 			}
 		} else {

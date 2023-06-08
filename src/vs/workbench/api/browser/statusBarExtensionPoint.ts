@@ -157,14 +157,17 @@ interface IUserFriendlyStatusItemEntry {
 	alignment: 'left' | 'right';
 	command?: string;
 	priority?: number;
+	tooltip?: string;
 }
 
-function isUserFriendlyStatusItemEntry(obj: any): obj is IUserFriendlyStatusItemEntry {
+function isUserFriendlyStatusItemEntry(candidate: any): candidate is IUserFriendlyStatusItemEntry {
+	const obj = candidate as IUserFriendlyStatusItemEntry;
 	return (typeof obj.id === 'string' && obj.id.length > 0)
 		&& typeof obj.name === 'string'
 		&& typeof obj.text === 'string'
 		&& (obj.alignment === 'left' || obj.alignment === 'right')
 		&& (obj.command === undefined || typeof obj.command === 'string')
+		&& (obj.tooltip === undefined || typeof obj.tooltip === 'string')
 		&& (obj.priority === undefined || typeof obj.priority === 'number');
 }
 
@@ -183,6 +186,10 @@ const statusBarItemSchema: IJSONSchema = {
 		text: {
 			type: 'string',
 			description: localize('text', 'The text to show for the entry. You can embed icons in the text by leveraging the `$(<name>)`-syntax, like \'Hello $(globe)!\'')
+		},
+		tooltip: {
+			type: 'string',
+			description: localize('tooltip', 'The tooltip text for the entry.')
 		},
 		command: {
 			type: 'string',
@@ -249,7 +256,7 @@ export class StatusBarItemsExtensionPoint {
 						ExtensionIdentifier.toKey(entry.description.identifier),
 						candidate.name ?? entry.description.displayName ?? entry.description.name,
 						candidate.text,
-						undefined,
+						candidate.tooltip,
 						candidate.command ? { id: candidate.command, title: candidate.name } : undefined,
 						undefined, undefined,
 						candidate.alignment === 'left',
