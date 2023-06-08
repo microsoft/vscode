@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -20,7 +21,8 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDisposable } from 'xterm';
 
-export interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; options: IAccessibleViewOptions }
+
+export interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; onKeyDown?(e: IKeyboardEvent): void; options: IAccessibleViewOptions }
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
 export interface IAccessibleViewService {
@@ -100,6 +102,7 @@ class AccessibleView extends Disposable {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
 				}
+				provider.onKeyDown?.(e);
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
 			this._register(this._editorWidget.onDidContentSizeChange(() => this._layout()));
