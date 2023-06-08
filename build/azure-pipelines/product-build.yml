@@ -20,6 +20,9 @@ parameters:
       - exploration
       - insider
       - stable
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
   - name: NPM_REGISTRY
     displayName: "Custom NPM Registry"
     type: string
