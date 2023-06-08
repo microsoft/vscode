@@ -150,6 +150,16 @@ const core = task.define('core-ci', task.series(
 ));
 gulp.task(core);
 
+const corePr = task.define('core-ci-pr', task.series(
+	gulp.task('compile-build-pr'),
+	task.parallel(
+		gulp.task('minify-vscode'),
+		gulp.task('minify-vscode-reh'),
+		gulp.task('minify-vscode-reh-web'),
+	)
+));
+gulp.task(corePr);
+
 /**
  * Compute checksums for some files.
  *

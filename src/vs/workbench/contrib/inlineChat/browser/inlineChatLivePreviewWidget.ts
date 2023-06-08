@@ -36,7 +36,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 	private static readonly _hideId = 'overlayDiff';
 
-	private readonly _elements = h('div.interactive-editor-diff-widget@domNode');
+	private readonly _elements = h('div.inline-chat-diff-widget@domNode');
 
 	private readonly _sessionStore = this._disposables.add(new DisposableStore());
 	private readonly _diffEditor: IDiffEditor;
@@ -191,7 +191,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 				};
 
 				if (!modifiedRange.isEmpty()) {
-					options.className = 'interactive-editor-lines-inserted-range';
+					options.className = 'inline-chat-lines-inserted-range';
 				}
 
 				if (!originalRange.isEmpty()) {
@@ -201,7 +201,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 					}
 					options.before = {
 						content,
-						inlineClassName: 'interactive-editor-lines-deleted-range-inline'
+						inlineClassName: 'inline-chat-lines-deleted-range-inline'
 					};
 				}
 
@@ -336,7 +336,7 @@ function isInlineDiffFriendly(mapping: LineRangeMapping): boolean {
 
 export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 
-	private readonly _elements = h('div.interactive-editor-newfile-widget@domNode', [
+	private readonly _elements = h('div.inline-chat-newfile-widget@domNode', [
 		h('div.title.show-file-icons@title'),
 		h('div.editor@editor'),
 	]);

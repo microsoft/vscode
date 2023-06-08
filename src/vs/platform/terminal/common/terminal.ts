@@ -641,7 +641,18 @@ export interface ITerminalLaunchError {
 export interface IProcessReadyEvent {
 	pid: number;
 	cwd: string;
-	requiresWindowsMode?: boolean;
+	windowsPty: IProcessReadyWindowsPty | undefined;
+}
+
+export interface IProcessReadyWindowsPty {
+	/**
+	 * What pty emulation backend is being used.
+	 */
+	backend: 'conpty' | 'winpty';
+	/**
+	 * The Windows build version (eg. 19045)
+	 */
+	buildNumber: number;
 }
 
 /**

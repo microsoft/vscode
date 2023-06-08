@@ -334,7 +334,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 			this._pty.setDimensions?.(initialDimensions);
 		}
 
-		this._onProcessReady.fire({ pid: -1, cwd: '' });
+		this._onProcessReady.fire({ pid: -1, cwd: '', windowsPty: undefined });
 	}
 }
 
@@ -583,7 +583,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): IDisposable {
 		const disposables = new DisposableStore();
-		disposables.add(p.onProcessReady(e => this._proxy.$sendProcessReady(id, e.pid, e.cwd)));
+		disposables.add(p.onProcessReady(e => this._proxy.$sendProcessReady(id, e.pid, e.cwd, e.windowsPty)));
 		disposables.add(p.onDidChangeProperty(property => this._proxy.$sendProcessProperty(id, property)));
 
 		// Buffer data events to reduce the amount of messages going to the renderer

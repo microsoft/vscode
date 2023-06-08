@@ -68,7 +68,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		};
 
 		extHostCommands.registerApiCommand(new ApiCommand(
-			'vscode.editorChat.start', 'interactiveEditor.start', 'Invoke a new editor chat session',
+			'vscode.editorChat.start', 'inlineChat.start', 'Invoke a new editor chat session',
 			[new ApiCommandArgument<EditorChatApiArg | undefined, InteractiveEditorRunOptions | undefined>('Run arguments', '', _v => true, v => {
 
 				if (!v) {

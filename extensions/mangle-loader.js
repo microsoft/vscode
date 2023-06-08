@@ -41,6 +41,11 @@ module.exports = async function (source, sourceMap, meta) {
 		// Only enable mangling in production builds
 		return source;
 	}
+	const options = this.getOptions();
+	if (options.disabled) {
+		// Dynamically disabled
+		return source;
+	}
 
 	if (source !== fs.readFileSync(this.resourcePath).toString()) {
 		// File content has changed by previous webpack steps.
@@ -48,7 +53,6 @@ module.exports = async function (source, sourceMap, meta) {
 		return source;
 	}
 
-	const options = this.getOptions();
 	const callback = this.async();
 
 	const fileContentsMap = getMangledFileContents(options.configFile);

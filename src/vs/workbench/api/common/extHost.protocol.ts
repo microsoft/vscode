@@ -42,7 +42,7 @@ import { IRemoteConnectionData, TunnelDescription } from 'vs/platform/remote/com
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
@@ -506,7 +506,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 
 	// Process
 	$sendProcessData(terminalId: number, data: string): void;
-	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
+	$sendProcessReady(terminalId: number, pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void;
 	$sendProcessProperty(terminalId: number, property: IProcessProperty<any>): void;
 	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
 }
@@ -624,7 +624,9 @@ export type StatusBarItemDto = {
 	priority?: number;
 	name: string;
 	text: string;
+	tooltip?: string;
 	command?: string;
+	accessibilityInformation?: IAccessibilityInformation;
 };
 
 export interface ExtHostStatusBarShape {
