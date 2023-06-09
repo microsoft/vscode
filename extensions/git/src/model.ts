@@ -19,7 +19,6 @@ import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IBranchProtectionProviderRegistry } from './branchProtection';
-import { ObservableSet } from './observable';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -91,6 +90,42 @@ export interface OriginalResourceChangeEvent {
 
 interface OpenRepository extends Disposable {
 	repository: Repository;
+}
+
+class ClosedRepositoriesManager {
+
+	private _repositories: Set<string>;
+	get repositories(): string[] {
+		return [...this._repositories.values()];
+	}
+
+	constructor(private readonly workspaceState: Memento) {
+		this._repositories = new Set<string>(workspaceState.get<string[]>('closedRepositories', []));
+		this.onDidChangeRepositories();
+	}
+
+	addRepository(repository: string): void {
+		this._repositories.add(repository);
+		this.onDidChangeRepositories();
+	}
+
+	deleteRepository(repository: string): boolean {
+		const result = this._repositories.delete(repository);
+		if (result) {
+			this.onDidChangeRepositories();
+		}
+
+		return result;
+	}
+
+	isRepositoryClosed(repository: string): boolean {
+		return this._repositories.has(repository);
+	}
+
+	private onDidChangeRepositories(): void {
+		this.workspaceState.update('closedRepositories', [...this._repositories.values()]);
+		commands.executeCommand('setContext', 'git.closedRepositoryCount', this._repositories.size);
+	}
 }
 
 export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
@@ -170,9 +205,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return this._parentRepositories;
 	}
 
-	private _closedRepositories: ObservableSet<string>;
+	private _closedRepositoriesManager: ClosedRepositoriesManager;
 	get closedRepositories(): string[] {
-		return [...this._closedRepositories.values()];
+		return [...this._closedRepositoriesManager.repositories];
 	}
 
 	/**
@@ -187,10 +222,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
-		this._closedRepositories = new ObservableSet<string>(workspaceState.get<string[]>('closedRepositories', []));
-		this._closedRepositories.onDidChange(this.onDidChangeClosedRepositories, this, this.disposables);
-		this.onDidChangeClosedRepositories();
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, readonly workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
+		// Repositories managers
+		this._closedRepositoriesManager = new ClosedRepositoriesManager(workspaceState);
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
@@ -379,11 +413,6 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
-	private onDidChangeClosedRepositories(): void {
-		this.workspaceState.update('closedRepositories', [...this._closedRepositories.values()]);
-		commands.executeCommand('setContext', 'git.closedRepositoryCount', this._closedRepositories.size);
-	}
-
 	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
 		if (!workspace.isTrusted) {
 			this.logger.trace('[svte] Workspace is not trusted.');
@@ -496,7 +525,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			}
 
 			// Handle repositories that were closed by the user
-			if (!openIfClosed && this._closedRepositories.has(repositoryRoot)) {
+			if (!openIfClosed && this._closedRepositoriesManager.isRepositoryClosed(repositoryRoot)) {
 				this.logger.trace(`Repository for path ${repositoryRoot} is closed`);
 				return;
 			}
@@ -506,7 +535,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
-			this._closedRepositories.delete(repository.root);
+			this._closedRepositoriesManager.deleteRepository(repository.root);
 
 			// Do not await this, we want SCM
 			// to know about the repo asap
@@ -658,7 +687,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		}
 
 		this.logger.info(`Close repository: ${repository.root}`);
-		this._closedRepositories.add(openRepository.repository.root.toString());
+		this._closedRepositoriesManager.addRepository(openRepository.repository.root);
 
 		openRepository.dispose();
 	}
