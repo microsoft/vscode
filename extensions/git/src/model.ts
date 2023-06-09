@@ -190,6 +190,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
 		this._closedRepositories = new ObservableSet<string>(workspaceState.get<string[]>('closedRepositories', []));
 		this._closedRepositories.onDidChange(this.onDidChangeClosedRepositories, this, this.disposables);
+		this.onDidChangeClosedRepositories();
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);

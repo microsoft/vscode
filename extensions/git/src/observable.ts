@@ -15,7 +15,6 @@ export class ObservableSet<T> implements Set<T> {
 
 	constructor(values?: readonly T[] | null) {
 		this._set = new Set(values);
-		this._onDidChange.fire();
 	}
 
 	get size(): number {
