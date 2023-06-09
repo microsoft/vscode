@@ -380,7 +380,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 
 	private onDidChangeClosedRepositories(): void {
 		this.workspaceState.update('closedRepositories', [...this._closedRepositories.values()]);
-		commands.executeCommand('setContext', 'gitCloseRepositoryCount', this._closedRepositories.size);
+		commands.executeCommand('setContext', 'gitClosedRepositoryCount', this._closedRepositories.size);
 	}
 
 	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
