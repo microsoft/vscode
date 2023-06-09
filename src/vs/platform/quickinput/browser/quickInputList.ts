@@ -62,7 +62,7 @@ interface IListElement extends IListElementLazyParts {
 	separator?: IQuickPickSeparator;
 }
 
-class ListElement implements IListElement, IDisposable {
+class ListElement implements IListElement {
 	private readonly _init: Lazy<IListElementLazyParts>;
 
 	readonly hasCheckbox: boolean;
@@ -74,6 +74,7 @@ class ListElement implements IListElement, IDisposable {
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 	readonly fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void;
 
+	// state will get updated later
 	private _checked: boolean = false;
 	private _hidden: boolean = false;
 	private _element?: HTMLElement;
@@ -82,8 +83,8 @@ class ListElement implements IListElement, IDisposable {
 	private _detailHighlights?: IMatch[];
 	private _separator?: IQuickPickSeparator;
 
-	private readonly _onChecked = new Emitter<boolean>();
-	onChecked = this._onChecked.event;
+	private readonly _onChecked: Emitter<{ listElement: IListElement; checked: boolean }>;
+	onChecked: Event<boolean>;
 
 	constructor(
 		mainItem: QuickPickItem,
@@ -91,12 +92,15 @@ class ListElement implements IListElement, IDisposable {
 		index: number,
 		hasCheckbox: boolean,
 		fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void,
-		fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void
+		fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void,
+		onCheckedEmitter: Emitter<{ listElement: IListElement; checked: boolean }>
 	) {
 		this.hasCheckbox = hasCheckbox;
 		this.index = index;
 		this.fireButtonTriggered = fireButtonTriggered;
 		this.fireSeparatorButtonTriggered = fireSeparatorButtonTriggered;
+		this._onChecked = onCheckedEmitter;
+		this.onChecked = Event.map(Event.filter<{ listElement: IListElement; checked: boolean }>(this._onChecked.event, e => e.listElement === this), e => e.checked);
 
 		if (mainItem.type === 'separator') {
 			this._separator = mainItem;
@@ -170,7 +174,7 @@ class ListElement implements IListElement, IDisposable {
 	set checked(value: boolean) {
 		if (value !== this._checked) {
 			this._checked = value;
-			this._onChecked.fire(value);
+			this._onChecked.fire({ listElement: this, checked: value });
 		}
 	}
 
@@ -207,10 +211,6 @@ class ListElement implements IListElement, IDisposable {
 	}
 
 	// #endregion
-
-	dispose() {
-		this._onChecked.dispose();
-	}
 }
 
 interface IListElementTemplateData {
@@ -431,6 +431,7 @@ export class QuickInputList {
 	onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 	private readonly _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
+	private readonly _listElementChecked = new Emitter<{ listElement: IListElement; checked: boolean }>();
 	private _fireCheckedEvents = true;
 	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
@@ -551,6 +552,7 @@ export class QuickInputList {
 			}
 			delayer.cancel();
 		}));
+		this.disposables.push(this._listElementChecked.event(_ => this.fireCheckedEvents()));
 		this.disposables.push(
 			this._onChangedAllVisibleChecked,
 			this._onChangedCheckedCount,
@@ -666,11 +668,9 @@ export class QuickInputList {
 				index,
 				hasCheckbox,
 				fireButtonTriggered,
-				fireSeparatorButtonTriggered
+				fireSeparatorButtonTriggered,
+				this._listElementChecked
 			);
-
-			this.elementDisposables.push(element);
-			this.elementDisposables.push(element.onChecked(() => this.fireCheckedEvents()));
 
 			result.push(element);
 			elementsToIndexes.set(element.item ?? element.separator!, index);
