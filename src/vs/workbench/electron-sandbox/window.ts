@@ -233,7 +233,7 @@ export class NativeWindow extends Disposable {
 				Severity.Warning,
 				localize("runningTranslated", "You are running a translated build. For better performance download a native build for your machine!"),
 				[{
-					label: localize('downloadArmBuild', "Download the ARM build"),
+					label: localize('downloadArmBuild', "Download"),
 					run: () => {
 						if (isMacintosh) {
 							this.openerService.open('https://code.visualstudio.com/docs/?dv=osx');
