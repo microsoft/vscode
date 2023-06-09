@@ -226,12 +226,15 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 
 	splice(start: number, deleteCount: number, elements: T[]): void {
 		if (!this.identityProvider) {
-			return this.trait.splice(start, deleteCount, elements.map(() => false));
+			return this.trait.splice(start, deleteCount, new Array(elements.length).fill(false));
 		}
 
-		const pastElementsWithTrait = this.trait.get().map(i => this.identityProvider!.getId(this.view.element(i)).toString());
-		const elementsWithTrait = elements.map(e => pastElementsWithTrait.indexOf(this.identityProvider!.getId(e).toString()) > -1);
+		const pastElementsWithTrait = new Set<string>(this.trait.get().map(i => this.identityProvider!.getId(this.view.element(i)).toString()));
+		if (pastElementsWithTrait.size === 0) {
+			return this.trait.splice(start, deleteCount, new Array(elements.length).fill(false));
+		}
 
+		const elementsWithTrait: boolean[] = elements.map(e => pastElementsWithTrait.has(this.identityProvider!.getId(e).toString()));
 		this.trait.splice(start, deleteCount, elementsWithTrait);
 	}
 }
