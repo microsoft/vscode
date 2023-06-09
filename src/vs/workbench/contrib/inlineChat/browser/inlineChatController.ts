@@ -67,6 +67,7 @@ export interface InteractiveEditorRunOptions {
 	autoSend?: boolean;
 	existingSession?: Session;
 	isUnstashed?: boolean;
+	initialRender?: boolean;
 }
 
 export class InteractiveEditorController implements IEditorContribution {
@@ -99,6 +100,8 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _activeSession?: Session;
 	private _strategy?: EditModeStrategy;
 	private _ignoreModelContentChanged = false;
+	private _initialRender?: boolean = true;
+	private _updateEditMode?: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -232,25 +235,54 @@ export class InteractiveEditorController implements IEditorContribution {
 			return State.CANCEL;
 		}
 
+		this._initializeStratetgy(session);
+		this._activeSession = session;
+		this._store.add(this._configurationService.onDidChangeConfiguration((e) => {
+			console.log('e : ', e);
+			console.log('e.affectsConfiguration(interactiveEditor.editModes) : ', e.affectsConfiguration('interactiveEditor.editMode'));
+			console.log('this._activeSession : ', this._activeSession);
+			if (e.affectsConfiguration('interactiveEditor.editMode')) {
+				console.log('entered into inner if loop of onDidChangeConfiguration');
+				console.log('this._getMode() : ', this._getMode());
+				this._updateEditMode = true;
+			}
+		}));
+
+		return State.INIT_UI;
+	}
+
+	private _initializeStratetgy(session: Session): void {
+		console.log('inside of initial strategy');
 		switch (session.editMode) {
 			case EditMode.Live:
 				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value.widget);
 				break;
 			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value.widget);
+				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._editor, this._zone.value.widget);
 				break;
 			case EditMode.LivePreview:
 			default:
 				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value.widget);
 				break;
 		}
+	}
 
-		this._activeSession = session;
-		return State.INIT_UI;
+	private _showWidget(initialRender: boolean = false) {
+		console.log('inside of _showWidget');
+		console.log('initialRender : ', initialRender);
+		assertType(this._activeSession);
+		const selectionRange = this._activeSession.wholeRange.value;
+		this._zone.value.showWidget(selectionRange, this._strategy?.getWidgetPosition(initialRender, selectionRange));
 	}
 
 	private async [State.INIT_UI](options: InteractiveEditorRunOptions | undefined): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
 		assertType(this._activeSession);
+
+		if (this._updateEditMode) {
+			this._activeSession.editMode = this._getMode();
+			this._initializeStratetgy(this._activeSession);
+			this._updateEditMode = false;
+		}
 
 		// hide/cancel inline completions when invoking IE
 		InlineCompletionsController.get(this._editor)?.hide();
@@ -269,8 +301,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
-		this._zone.value.show(this._activeSession.wholeRange.value);
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
+		console.log('inside of init ui before show widget');
+		this._initialRender = true;
+		this._showWidget(this._initialRender);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -358,8 +392,10 @@ export class InteractiveEditorController implements IEditorContribution {
 	private async [State.WAIT_FOR_INPUT](options: InteractiveEditorRunOptions | undefined): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
 		assertType(this._activeSession);
 
+		console.log('inside of wait for input');
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
-		this._zone.value.show(this._activeSession.wholeRange.value);
+		this._showWidget(this._initialRender);
+		this._initialRender = false;
 
 		if (options?.message) {
 			this._zone.value.widget.value = options?.message;
@@ -398,6 +434,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 
 		if (!this._zone.value.widget.value) {
+			console.log('before the case when we call WAIT_FOR_INPUT');
 			return State.WAIT_FOR_INPUT;
 		}
 
@@ -427,6 +464,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
+		console.log('this._activeSession.lastInput : ', this._activeSession.lastInput);
 		assertType(this._activeSession.lastInput);
 
 		const requestCts = new CancellationTokenSource();

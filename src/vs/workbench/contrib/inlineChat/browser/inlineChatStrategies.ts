@@ -41,7 +41,28 @@ export abstract class EditModeStrategy {
 
 	abstract toggleDiff(): void;
 
-	abstract getWidgetPosition(range: Range): Position;
+	abstract getWidgetPosition(initialRender: boolean, range: Range): Position | undefined;
+}
+
+function positionCalculation(editor: ICodeEditor, initialRender: boolean, range: Range): Position | undefined {
+	const viewModel = editor._getViewModel();
+	if (!viewModel) {
+		return;
+	}
+	const primaryCursorPosition = viewModel.getPrimaryCursorState().viewState.position;
+	if (initialRender) {
+		return primaryCursorPosition;
+	} else {
+		const visibleRange = viewModel.getCompletelyVisibleViewRange();
+		const endPosition = range.getEndPosition();
+		const endLine = endPosition.lineNumber;
+
+		if (endLine >= visibleRange.startLineNumber && endLine <= visibleRange.endLineNumber) {
+			return endPosition;
+		} else {
+			return primaryCursorPosition;
+		}
+	}
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -51,6 +72,7 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	constructor(
 		private readonly _session: Session,
+		private readonly _editor: ICodeEditor,
 		private readonly _widget: InteractiveEditorWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -129,8 +151,9 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	getWidgetPosition(range: Range): Position {
-		throw new Error('not supported');
+	getWidgetPosition(initialRender: boolean, range: Range): Position | undefined {
+		console.log('inside of preview strategy, getWidgetPosition');
+		return positionCalculation(this._editor, initialRender, range);
 	}
 }
 
@@ -325,8 +348,9 @@ export class LiveStrategy extends EditModeStrategy {
 		this._widget.updateStatus(message);
 	}
 
-	getWidgetPosition(range: Range): Position {
-		throw new Error('not supported');
+	getWidgetPosition(initialRender: boolean, range: Range): Position | undefined {
+		console.log('inside of live strategy, getWidgetPosition');
+		return positionCalculation(this._editor, initialRender, range);
 	}
 }
 
@@ -383,8 +407,13 @@ export class LivePreviewStrategy extends LiveStrategy {
 		scrollState.restore(this._editor);
 	}
 
-	override getWidgetPosition(range: Range): Position {
-		throw new Error('not supported');
+	override getWidgetPosition(initialRender: boolean, range: Range): Position | undefined {
+		console.log('inside of live preview strategy, getWidgetPosition');
+		if (initialRender) {
+			return this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
+		} else {
+			return range.getEndPosition();
+		}
 	}
 }
 

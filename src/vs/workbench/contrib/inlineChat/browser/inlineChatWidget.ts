@@ -787,24 +787,25 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	override show(selectionRange: Range): void {
-		super.show(selectionRange.getEndPosition(), this._computeHeightInLines());
+	showWidget(selectionRange: Range, position: Position | undefined): void {
+		const widgetPosition = position ?? selectionRange.getEndPosition();
+		super.show(widgetPosition, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
-		this._setMargins(selectionRange);
+		this._setMargins(selectionRange, widgetPosition);
 	}
 
-	private _setMargins(selectionRange: Range): void {
+	private _setMargins(selectionRange: Range, position: Position): void {
+		const positionLineNumber = position.lineNumber;
 		const info = this.editor.getLayoutInfo();
 		const startLineNumber = selectionRange.getStartPosition().lineNumber;
-		const endLineNumber = selectionRange.getEndPosition().lineNumber;
 		const viewModel = this.editor._getViewModel();
 		if (!viewModel) {
 			return;
 		}
 		let indentationLineNumber;
 		let indentationLevel;
-		for (let lineNumber = endLineNumber; lineNumber >= startLineNumber; lineNumber--) {
+		for (let lineNumber = positionLineNumber; lineNumber >= startLineNumber; lineNumber--) {
 			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
 			if (currentIndentationLevel !== 0) {
 				indentationLineNumber = lineNumber;
@@ -812,7 +813,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 				break;
 			}
 		}
-		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? endLineNumber, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(endLineNumber));
+		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? positionLineNumber, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLineNumber));
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;
 		const isEnoughAvailableSpaceWithIndentation = this._availableSpaceGivenIndentation() > 400;
