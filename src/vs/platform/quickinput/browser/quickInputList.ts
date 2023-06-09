@@ -466,7 +466,17 @@ export class QuickInputList {
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(this.options.styles.colorScheme)], {
-			identityProvider: { getId: element => element.saneLabel },
+			identityProvider: {
+				getId: element => {
+					// always prefer item over separator because if item is defined, it must be the main item type
+					// always prefer a defined id if one was specified and use label as a fallback
+					return element.item?.id
+						?? element.item?.label
+						?? element.separator?.id
+						?? element.separator?.label
+						?? '';
+				}
+			},
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
