@@ -7,7 +7,7 @@ import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitte
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise, ObservableSet } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -19,6 +19,7 @@ import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IBranchProtectionProviderRegistry } from './branchProtection';
+import { ObservableSet } from './observable';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -459,11 +460,6 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 				return;
 			}
 
-			if (!openIfClosed && this._closedRepositories.has(repositoryRoot)) {
-				this.logger.trace(`Repository for path ${repositoryRoot} is closed`);
-				return;
-			}
-
 			// Handle git repositories that are in parent folders
 			const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 			if (parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
@@ -495,6 +491,12 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 
 				this._unsafeRepositories.set(repositoryRoot, unsafeRepositoryMatch[2]);
 
+				return;
+			}
+
+			// Handle repositories that were closed by the user
+			if (!openIfClosed && this._closedRepositories.has(repositoryRoot)) {
+				this.logger.trace(`Repository for path ${repositoryRoot} is closed`);
 				return;
 			}
 
