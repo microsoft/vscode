@@ -84,7 +84,7 @@ function getDesiredNewFilePath(config: CopyFileConfiguration, document: vscode.T
 	const docUri = getParentDocumentUri(document);
 	for (const [rawGlob, rawDest] of Object.entries(config.destination)) {
 		for (const glob of parseGlob(rawGlob)) {
-			if (picomatch.isMatch(docUri.path, glob)) {
+			if (picomatch.isMatch(docUri.path, glob, { dot: true })) {
 				return resolveCopyDestination(docUri, file.name, rawDest, uri => vscode.workspace.getWorkspaceFolder(uri)?.uri);
 			}
 		}

@@ -109,7 +109,7 @@ class SelectRefactorCommand implements Command {
 		await tsAction.resolve(nulToken);
 
 		if (tsAction.edit) {
-			if (!(await vscode.workspace.applyEdit(tsAction.edit))) {
+			if (!(await vscode.workspace.applyEdit(tsAction.edit, { isRefactoring: true }))) {
 				vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 				return;
 			}
@@ -161,7 +161,7 @@ class MoveToFileRefactorCommand implements Command {
 			return;
 		}
 		const edit = toWorkspaceEdit(this.client, response.body.edits);
-		if (!(await vscode.workspace.applyEdit(edit))) {
+		if (!(await vscode.workspace.applyEdit(edit, { isRefactoring: true }))) {
 			vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 			return;
 		}
@@ -480,7 +480,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
 				triggerReason: this.toTsTriggerReason(context),
 				kind: context.only?.value,
-				includeInteractiveActions: true,
+				includeInteractiveActions: this.client.apiVersion.gte(API.v520),
 			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});

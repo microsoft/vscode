@@ -285,7 +285,7 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 	const buttons = await getRemoteRefItemButtons(repository);
 	let fallbackRemoteButtons: RemoteSourceActionButton[] | undefined = [];
 	const remote = repository.remotes.find(r => r.pushUrl === repository.HEAD?.remote || r.fetchUrl === repository.HEAD?.remote) ?? repository.remotes[0];
-	const remoteUrl = remote.pushUrl ?? remote.fetchUrl;
+	const remoteUrl = remote?.pushUrl ?? remote?.fetchUrl;
 	if (remoteUrl) {
 		fallbackRemoteButtons = buttons.get(remoteUrl);
 	}

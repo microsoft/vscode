@@ -10,15 +10,15 @@
 .diff-hidden-lines.showTop .top {
 	height: 7px;
 	background-color: var(--vscode-diffEditor-unchangedRegionBackground);
-	mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='7' viewBox='0 0 10 10' preserveAspectRatio='none'>       <polygon points='0,10 5,0 10,10' style='fill:white' />      </svg>") repeat 0px 0px;
-	-webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='7' viewBox='0 0 10 10' preserveAspectRatio='none'>       <polygon points='0,10 5,0 10,10' style='fill:white' />      </svg>") repeat 0px 0px;
+	mask: url("./patternTop.svg") repeat 0px 0px;
+	-webkit-mask: url("./patternTop.svg") repeat 0px 0px;
 }
 
 .diff-hidden-lines.showBottom .bottom {
 	height: 7px;
 	background-color: var(--vscode-diffEditor-unchangedRegionBackground);
-	mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='7' viewBox='0 0 10 10' preserveAspectRatio='none'>       <polygon points='0,0 5,10 10,0' style='fill:white' />      </svg>") repeat 10px 0px;
-	-webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='7' viewBox='0 0 10 10' preserveAspectRatio='none'>       <polygon points='0,0 5,10 10,0' style='fill:white' />      </svg>") repeat 10px 0px;
+	mask: url("./patternBottom.svg") repeat 10px 0px;
+	-webkit-mask: url("./patternBottom.svg") repeat 10px 0px;
 }
 
 .diff-hidden-lines .center {
@@ -58,4 +58,23 @@
 
 .merge-editor-conflict-actions > a:hover .codicon::before {
 	cursor: pointer;
+}
+
+.movedOriginal {
+	border: 2px solid var(--vscode-diffEditor-move-border);
+}
+
+.movedModified {
+	border: 2px solid var(--vscode-diffEditor-move-border);
+}
+
+.moved-blocks-lines {
+	position: absolute;
+	pointer-events: none;
+}
+
+.moved-blocks-lines path {
+	fill: none;
+	stroke: var(--vscode-diffEditor-move-border);
+	stroke-width: 2;
 }

@@ -12,7 +12,6 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'v
 import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
-import 'vs/css!./interactiveEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -29,15 +28,16 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EditResponse, EmptyResponse, ErrorResponse, IInteractiveEditorSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
-import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorStrategies';
-import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, IInteractiveEditorRequest, IInteractiveEditorResponse, INTERACTIVE_EDITOR_ID, EditMode, InteractiveEditorResponseFeedbackKind, CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE, InteractiveEditorResponseType, CTX_INTERACTIVE_EDITOR_DID_EDIT, CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
+import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Lazy } from 'vs/base/common/lazy';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -61,7 +61,7 @@ const enum Message {
 	ACCEPT_INPUT = 1 << 5
 }
 
-export interface InteractiveEditorRunOptions {
+export interface InlineChatRunOptions {
 	initialRange?: IRange;
 	message?: string;
 	autoSend?: boolean;
@@ -69,26 +69,26 @@ export interface InteractiveEditorRunOptions {
 	isUnstashed?: boolean;
 }
 
-export class InteractiveEditorController implements IEditorContribution {
+export class InlineChatController implements IEditorContribution {
 
 	static get(editor: ICodeEditor) {
-		return editor.getContribution<InteractiveEditorController>(INTERACTIVE_EDITOR_ID);
+		return editor.getContribution<InlineChatController>(INLINE_CHAT_ID);
 	}
 
 	private static _decoBlock = ModelDecorationOptions.register({
-		description: 'interactive-editor',
+		description: 'inline-chat',
 		showIfCollapsed: false,
 		isWholeLine: true,
-		className: 'interactive-editor-block-selection',
+		className: 'inline-chat-block-selection',
 	});
 
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
 
 	private readonly _store = new DisposableStore();
-	private readonly _zone: InteractiveEditorZoneWidget;
+	private readonly _zone: Lazy<InlineChatZoneWidget>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
-	private readonly _ctxLastResponseType: IContextKey<undefined | InteractiveEditorResponseType>;
+	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
 	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
 
@@ -103,7 +103,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IInteractiveEditorSessionService private readonly _interactiveEditorSessionService: IInteractiveEditorSessionService,
+		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -114,18 +114,18 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
-		this._ctxDidEdit = CTX_INTERACTIVE_EDITOR_DID_EDIT.bindTo(contextKeyService);
-		this._ctxLastResponseType = CTX_INTERACTIVE_EDITOR_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
-		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK.bindTo(contextKeyService);
-		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
+		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
+		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
+		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
+		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
+		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
 			if (this._activeSession || !e.newModelUrl) {
 				return;
 			}
 
-			const existingSession = this._interactiveEditorSessionService.getSession(this._editor, e.newModelUrl);
+			const existingSession = this._inlineChatSessionService.getSession(this._editor, e.newModelUrl);
 			if (!existingSession) {
 				return;
 			}
@@ -153,11 +153,11 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	getId(): string {
-		return INTERACTIVE_EDITOR_ID;
+		return INLINE_CHAT_ID;
 	}
 
 	private _getMode(): EditMode {
-		const editMode = this._configurationService.inspect<EditMode>('interactiveEditor.editMode');
+		const editMode = this._configurationService.inspect<EditMode>('inlineChat.mode');
 		let editModeValue = editMode.value;
 		if (this._accessibilityService.isScreenReaderOptimized() && editModeValue === editMode.defaultValue) {
 			// By default, use preview mode for screen reader users
@@ -167,10 +167,10 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	getWidgetPosition(): Position | undefined {
-		return this._zone.position;
+		return this._zone.value.position;
 	}
 
-	async run(options: InteractiveEditorRunOptions | undefined): Promise<void> {
+	async run(options: InlineChatRunOptions | undefined): Promise<void> {
 		this._log('session starting');
 		await this._finishExistingSession();
 		this._stashedSession.clear();
@@ -183,17 +183,17 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (this._activeSession) {
 			if (this._activeSession.editMode === EditMode.Preview) {
 				this._log('finishing existing session, using CANCEL', this._activeSession.editMode);
-				await this.cancelSession();
+				this.cancelSession();
 			} else {
 				this._log('finishing existing session, using APPLY', this._activeSession.editMode);
-				await this.applyChanges();
+				this.acceptSession();
 			}
 		}
 	}
 
 	// ---- state machine
 
-	protected async _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {
+	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
 		this._log('setState to ', state);
 		const nextState = await this[state](options);
 		if (nextState) {
@@ -201,7 +201,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	private async [State.CREATE_SESSION](options: InteractiveEditorRunOptions | undefined): Promise<State.CANCEL | State.INIT_UI> {
+	private async [State.CREATE_SESSION](options: InlineChatRunOptions | undefined): Promise<State.CANCEL | State.INIT_UI> {
 		assertType(this._activeSession === undefined);
 		assertType(this._editor.hasModel());
 
@@ -214,7 +214,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				createSessionCts.cancel();
 			});
 
-			session = await this._interactiveEditorSessionService.createSession(
+			session = await this._inlineChatSessionService.createSession(
 				this._editor,
 				{ editMode: this._getMode(), wholeRange: options?.initialRange },
 				createSessionCts.token
@@ -234,14 +234,14 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		switch (session.editMode) {
 			case EditMode.Live:
-				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.widget);
+				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value.widget);
 				break;
 			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.widget);
+				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value.widget);
 				break;
 			case EditMode.LivePreview:
 			default:
-				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.widget);
+				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value.widget);
 				break;
 		}
 
@@ -249,7 +249,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return State.INIT_UI;
 	}
 
-	private async [State.INIT_UI](options: InteractiveEditorRunOptions | undefined): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
+	private async [State.INIT_UI](options: InlineChatRunOptions | undefined): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
 		assertType(this._activeSession);
 
 		// hide/cancel inline completions when invoking IE
@@ -260,16 +260,17 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._sessionStore.clear();
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection([{
-			range: this._activeSession.wholeRange,
-			options: InteractiveEditorController._decoBlock
+			range: this._activeSession.wholeRange.value,
+			options: InlineChatController._decoBlock
 		}]);
 		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
 
-		this._zone.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
-		this._zone.widget.placeholder = this._getPlaceholderText();
-		this._zone.widget.value = this._activeSession.lastInput ?? '';
-		this._zone.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
-		this._zone.show(this._activeSession.wholeRange.getEndPosition());
+		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
+		this._zone.value.widget.placeholder = this._getPlaceholderText();
+		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
+		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
+		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
+		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -280,14 +281,14 @@ export class InteractiveEditorController implements IEditorContribution {
 		}));
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
-			if (this._ignoreModelContentChanged) {
+			if (this._ignoreModelContentChanged || this._strategy?.hasFocus()) {
 				return;
 			}
 
 			const wholeRange = this._activeSession!.wholeRange;
 			let editIsOutsideOfWholeRange = false;
 			for (const { range } of e.changes) {
-				editIsOutsideOfWholeRange = !Range.areIntersectingOrTouching(range, wholeRange);
+				editIsOutsideOfWholeRange = !Range.areIntersectingOrTouching(range, wholeRange.value);
 			}
 
 			this._activeSession!.recordExternalEditOccurred(editIsOutsideOfWholeRange);
@@ -313,9 +314,9 @@ export class InteractiveEditorController implements IEditorContribution {
 			return '';
 		}
 		let result = this._activeSession.session.placeholder ?? localize('default.placeholder', "Ask a question");
-		if (InteractiveEditorController._promptHistory.length > 0) {
-			const kb1 = this._keybindingService.lookupKeybinding('interactiveEditor.previousFromHistory')?.getLabel();
-			const kb2 = this._keybindingService.lookupKeybinding('interactiveEditor.nextFromHistory')?.getLabel();
+		if (InlineChatController._promptHistory.length > 0) {
+			const kb1 = this._keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getLabel();
+			const kb2 = this._keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getLabel();
 
 			if (kb1 && kb2) {
 				result = localize('default.placeholder.history', "{0} ({1}, {2} for history)", result, kb1, kb2);
@@ -345,7 +346,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					// cancel all sibling sessions
 					for (const editor of editors) {
 						if (editor !== this._editor) {
-							InteractiveEditorController.get(editor)?._finishExistingSession();
+							InlineChatController.get(editor)?._finishExistingSession();
 						}
 					}
 					break;
@@ -354,15 +355,15 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	private async [State.WAIT_FOR_INPUT](options: InteractiveEditorRunOptions | undefined): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
+	private async [State.WAIT_FOR_INPUT](options: InlineChatRunOptions | undefined): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
 		assertType(this._activeSession);
 
-		this._zone.widget.placeholder = this._getPlaceholderText();
-		this._zone.show(this._activeSession.wholeRange.getEndPosition());
+		this._zone.value.widget.placeholder = this._getPlaceholderText();
+		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 
 		if (options?.message) {
-			this._zone.widget.value = options?.message;
-			this._zone.widget.selectAll();
+			this._zone.value.widget.value = options?.message;
+			this._zone.value.widget.selectAll();
 			delete options?.message;
 		}
 
@@ -382,7 +383,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			msgListener.dispose();
 		}
 
-		this._zone.widget.selectAll();
+		this._zone.value.widget.selectAll();
 
 		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {
 			return State.CANCEL;
@@ -396,20 +397,20 @@ export class InteractiveEditorController implements IEditorContribution {
 			return State.PAUSE;
 		}
 
-		if (!this._zone.widget.value) {
+		if (!this._zone.value.widget.value) {
 			return State.WAIT_FOR_INPUT;
 		}
 
-		const input = this._zone.widget.value;
+		const input = this._zone.value.widget.value;
 
-		if (!InteractiveEditorController._promptHistory.includes(input)) {
-			InteractiveEditorController._promptHistory.unshift(input);
+		if (!InlineChatController._promptHistory.includes(input)) {
+			InlineChatController._promptHistory.unshift(input);
 		}
 
 		const refer = this._activeSession.session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
 		if (refer) {
 			this._log('[IE] seeing refer command, continuing outside editor', this._activeSession.provider.debugName);
-			this._editor.setSelection(this._activeSession.wholeRange);
+			this._editor.setSelection(this._activeSession.wholeRange.value);
 			this._instaService.invokeFunction(sendRequest, input);
 
 			if (!this._activeSession.lastExchange) {
@@ -423,7 +424,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return State.MAKE_REQUEST;
 	}
 
-	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL> {
+	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
 		assertType(this._activeSession.lastInput);
@@ -437,25 +438,25 @@ export class InteractiveEditorController implements IEditorContribution {
 			requestCts.cancel();
 		});
 
-		const typeListener = this._zone.widget.onDidChangeInput(() => {
+		const typeListener = this._zone.value.widget.onDidChangeInput(() => {
 			requestCts.cancel();
 		});
 
 		const sw = StopWatch.create();
-		const request: IInteractiveEditorRequest = {
+		const request: IInlineChatRequest = {
 			prompt: this._activeSession.lastInput,
 			selection: this._editor.getSelection(),
-			wholeRange: this._activeSession.wholeRange,
+			wholeRange: this._activeSession.wholeRange.value,
 			attempt: 0,
 		};
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, requestCts.token);
 		this._log('request started', this._activeSession.provider.debugName, this._activeSession.session, request);
 
 		let response: EditResponse | MarkdownResponse | ErrorResponse | EmptyResponse;
-		let reply: IInteractiveEditorResponse | null | undefined;
+		let reply: IInlineChatResponse | null | undefined;
 		try {
-			this._zone.widget.updateProgress(true);
-			this._zone.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
+			this._zone.value.widget.updateProgress(true);
+			this._zone.value.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
@@ -472,8 +473,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		} finally {
 			this._ctxHasActiveRequest.set(false);
-			this._zone.widget.updateProgress(false);
-			this._zone.widget.updateInfo('');
+			this._zone.value.widget.updateProgress(false);
+			this._zone.value.widget.updateInfo('');
 			this._log('request took', sw.elapsed(), this._activeSession.provider.debugName);
 
 		}
@@ -488,6 +489,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			return State.CANCEL;
 		} else if (message & Message.PAUSE_SESSION) {
 			return State.PAUSE;
+		} else if (message & Message.ACCEPT_SESSION) {
+			return State.ACCEPT;
 		} else {
 			return State.APPLY_RESPONSE;
 		}
@@ -500,7 +503,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		const { response } = this._activeSession.lastExchange!;
 		if (response instanceof EditResponse) {
 			// edit response -> complex...
-			this._zone.widget.updateMarkdownMessage(undefined);
+			this._zone.value.widget.updateMarkdownMessage(undefined);
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
@@ -512,13 +515,14 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(this._activeSession.textModelN.createSnapshot()), null, undefined, true);
 			textModelNplus1.applyEdits(editOperations);
-			const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000 }, 'advanced');
+			const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 			this._activeSession.lastTextModelChanges = diff?.changes ?? [];
 			textModelNplus1.dispose();
 
 			try {
 				this._ignoreModelContentChanged = true;
-				await this._strategy.makeChanges(response, editOperations);
+				this._activeSession.wholeRange.trackEdits(editOperations);
+				await this._strategy.makeChanges(editOperations);
 				this._ctxDidEdit.set(this._activeSession.hasChangedText);
 			} finally {
 				this._ignoreModelContentChanged = false;
@@ -540,40 +544,34 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		if (response instanceof EmptyResponse) {
 			// show status message
-			this._zone.widget.updateStatus(localize('empty', "No results, please refine your input and try again"), { classes: ['warn'] });
+			this._zone.value.widget.updateStatus(localize('empty', "No results, please refine your input and try again"), { classes: ['warn'] });
 			return State.WAIT_FOR_INPUT;
 
 		} else if (response instanceof ErrorResponse) {
 			// show error
 			if (!response.isCancellation) {
-				this._zone.widget.updateStatus(response.message, { classes: ['error'] });
+				this._zone.value.widget.updateStatus(response.message, { classes: ['error'] });
 			}
 
 		} else if (response instanceof MarkdownResponse) {
 			// clear status, show MD message
 			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
-			this._zone.widget.updateStatus('');
-			this._zone.widget.updateMarkdownMessage(renderedMarkdown.element);
-			this._zone.widget.updateToolbar(true);
-			this._zone.widget.updateMarkdownMessageExpansionState(this._activeSession.lastExpansionState);
+			this._zone.value.widget.updateStatus('');
+			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
+			this._zone.value.widget.updateToolbar(true);
+			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;
 
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
-			this._zone.widget.updateMarkdownMessage(undefined);
-			this._zone.widget.updateToolbar(true);
+			this._zone.value.widget.updateMarkdownMessage(undefined);
+			this._zone.value.widget.updateToolbar(true);
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
 				return State.ACCEPT;
 			}
 
-			try {
-				this._ignoreModelContentChanged = true;
-				await this._strategy.renderChanges(response);
-				this._ctxDidEdit.set(this._activeSession.hasChangedText);
-			} finally {
-				this._ignoreModelContentChanged = false;
-			}
+			await this._strategy.renderChanges(response);
 		}
 
 		return State.WAIT_FOR_INPUT;
@@ -586,7 +584,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxLastResponseType.reset();
 		this._ctxLastFeedbackKind.reset();
 
-		this._zone.hide();
+		this._zone.value.hide();
 
 		// Return focus to the editor only if the current focus is within the editor widget
 		if (this._editor.hasWidgetFocus()) {
@@ -602,23 +600,49 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	private async [State.ACCEPT]() {
 		assertType(this._activeSession);
-		this._interactiveEditorSessionService.releaseSession(this._activeSession);
+		assertType(this._strategy);
+
+		try {
+			await this._strategy.apply();
+		} catch (err) {
+			this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
+			this._log('FAILED to apply changes');
+			this._log(err);
+		}
+
+		this._inlineChatSessionService.releaseSession(this._activeSession);
+
 		this[State.PAUSE]();
 	}
 
 	private async [State.CANCEL]() {
 		assertType(this._activeSession);
+		assertType(this._strategy);
+
 		const mySession = this._activeSession;
+
+		try {
+			await this._strategy.cancel();
+		} catch (err) {
+			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
+			this._log('FAILED to discard changes');
+			this._log(err);
+		}
 
 		this[State.PAUSE]();
 
-		this._stashedSession.clear(); // !important that this isn't done with `value = ...`
-		this._stashedSession.value = this._instaService.createInstance(StashedSession, this._editor, mySession);
+		this._stashedSession.clear();
+		if (!mySession.isUnstashed && mySession.lastExchange) {
+			// only stash sessions that had edits
+			this._stashedSession.value = this._instaService.createInstance(StashedSession, this._editor, mySession);
+		} else {
+			this._inlineChatSessionService.releaseSession(mySession);
+		}
 	}
 
 	// ---- controller API
 
-	accept(): void {
+	acceptInput(): void {
 		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
@@ -627,9 +651,9 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	arrowOut(up: boolean): void {
-		if (this._zone.position && this._editor.hasModel()) {
+		if (this._zone.value.position && this._editor.hasModel()) {
 			const { column } = this._editor.getPosition();
-			const { lineNumber } = this._zone.position;
+			const { lineNumber } = this._zone.value.position;
 			const newLine = up ? lineNumber : lineNumber + 1;
 			this._editor.setPosition({ lineNumber: newLine, column });
 			this._editor.focus();
@@ -641,19 +665,19 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	focus(): void {
-		this._zone.widget.focus();
+		this._zone.value.widget.focus();
 	}
 
 	populateHistory(up: boolean) {
-		const len = InteractiveEditorController._promptHistory.length;
+		const len = InlineChatController._promptHistory.length;
 		if (len === 0) {
 			return;
 		}
 		const pos = (len + this._historyOffset + (up ? 1 : -1)) % len;
-		const entry = InteractiveEditorController._promptHistory[pos];
+		const entry = InlineChatController._promptHistory[pos];
 
-		this._zone.widget.value = entry;
-		this._zone.widget.selectAll();
+		this._zone.value.widget.value = entry;
+		this._zone.value.widget.selectAll();
 		this._historyOffset = pos;
 	}
 
@@ -665,17 +689,18 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	updateExpansionState(expand: boolean) {
 		if (this._activeSession) {
-			this._zone.widget.updateMarkdownMessageExpansionState(expand);
-			this._activeSession.lastExpansionState = expand;
+			const expansionState = expand ? ExpansionState.EXPANDED : ExpansionState.CROPPED;
+			this._zone.value.widget.updateMarkdownMessageExpansionState(expansionState);
+			this._activeSession.lastExpansionState = expansionState;
 		}
 	}
 
 	feedbackLast(helpful: boolean) {
 		if (this._activeSession?.lastExchange?.response instanceof EditResponse || this._activeSession?.lastExchange?.response instanceof MarkdownResponse) {
-			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
-			this._activeSession.provider.handleInteractiveEditorResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
+			const kind = helpful ? InlineChatResponseFeedbackKind.Helpful : InlineChatResponseFeedbackKind.Unhelpful;
+			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
-			this._zone.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
+			this._zone.value.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
 
@@ -685,38 +710,17 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	async applyChanges(): Promise<void> {
-		if (this._strategy) {
-			const strategy = this._strategy;
-			this._strategy = undefined;
-			try {
-				await strategy?.apply();
-			} catch (err) {
-				this._dialogService.error(localize('err.apply', "Failed to apply changes.", toErrorMessage(err)));
-				this._log('FAILED to apply changes');
-				this._log(err);
-			}
-			strategy?.dispose();
-			this._messages.fire(Message.ACCEPT_SESSION);
-		}
+	acceptSession(): void {
+		this._messages.fire(Message.ACCEPT_SESSION);
 	}
 
-	async cancelSession() {
+	cancelSession() {
 		if (!this._strategy || !this._activeSession) {
 			return undefined;
 		}
 
 		const changedText = this._activeSession.asChangedText();
-		const strategy = this._strategy;
-		this._strategy = undefined;
-		try {
-			await strategy?.cancel();
-		} catch (err) {
-			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
-			this._log('FAILED to discard changes');
-			this._log(err);
-		}
-		strategy?.dispose();
+
 		this._messages.fire(Message.CANCEL_SESSION);
 		return changedText;
 	}
@@ -737,10 +741,10 @@ class StashedSession {
 		editor: ICodeEditor,
 		session: Session,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInteractiveEditorSessionService private readonly _sessionService: IInteractiveEditorSessionService,
+		@IInlineChatSessionService private readonly _sessionService: IInlineChatSessionService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		this._ctxHasStashedSession = CTX_INTERACTIVE_EDITOR_HAS_STASHED_SESSION.bindTo(contextKeyService);
+		this._ctxHasStashedSession = CTX_INLINE_CHAT_HAS_STASHED_SESSION.bindTo(contextKeyService);
 
 		// keep session for a little bit, only release when user continues to work (type, move cursor, etc.)
 		this._session = session;
@@ -766,6 +770,7 @@ class StashedSession {
 		}
 		this._listener.dispose();
 		const result = this._session;
+		result.markUnstashed();
 		this._session = undefined;
 		this._logService.debug('[IE] Unstashed session');
 		return result;

@@ -29,6 +29,7 @@ const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
+const log = require('fancy-log');
 
 const REPO_ROOT = path.dirname(__dirname);
 const commit = getVersion(REPO_ROOT);
@@ -163,16 +164,18 @@ function nodejs(platform, arch) {
 
 	if (platform === 'win32') {
 		if (product.nodejsRepository) {
+			log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
 			return assetFromGithub(product.nodejsRepository, nodeVersion, name => name === `win-${arch}-node.exe`)
 				.pipe(rename('node.exe'));
 		}
-
-		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' })
+		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
+		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', verbose: true })
 			.pipe(rename('node.exe'));
 	}
 
 	if (arch === 'alpine' || platform === 'alpine') {
 		const imageName = arch === 'arm64' ? 'arm64v8/node' : 'node';
+		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from docker image ${imageName}`);
 		const contents = cp.execSync(`docker run --rm ${imageName}:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
 		return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
 	}
@@ -180,8 +183,8 @@ function nodejs(platform, arch) {
 	if (arch === 'armhf') {
 		arch = 'armv7l';
 	}
-
-	return remote(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org' })
+	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
+	return remote(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', verbose: true })
 		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 		.pipe(filter('**/node'))
 		.pipe(util.setExecutableBit('**'))

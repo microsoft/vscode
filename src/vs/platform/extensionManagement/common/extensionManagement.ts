@@ -341,6 +341,11 @@ export interface IExtensionQueryOptions {
 }
 
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
+
+/**
+ * Service to interact with the Visual Studio Code Marketplace to get extensions.
+ * @throws Error if the Marketplace is not enabled or not reachable.
+ */
 export interface IExtensionGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;

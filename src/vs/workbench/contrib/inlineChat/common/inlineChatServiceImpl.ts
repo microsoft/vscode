@@ -6,21 +6,21 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInteractiveEditorService, IInteractiveEditorSessionProvider, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER } from './interactiveEditor';
+import { IInlineChatService, IInlineChatSessionProvider, CTX_INLINE_CHAT_HAS_PROVIDER } from './inlineChat';
 
-export class InteractiveEditorServiceImpl implements IInteractiveEditorService {
+export class InlineChatServiceImpl implements IInlineChatService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _entries = new LinkedList<IInteractiveEditorSessionProvider>();
+	private readonly _entries = new LinkedList<IInlineChatSessionProvider>();
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 
 	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
-		this._ctxHasProvider = CTX_INTERACTIVE_EDITOR_HAS_PROVIDER.bindTo(contextKeyService);
+		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_PROVIDER.bindTo(contextKeyService);
 	}
 
-	addProvider(provider: IInteractiveEditorSessionProvider): IDisposable {
+	addProvider(provider: IInlineChatSessionProvider): IDisposable {
 
 		const rm = this._entries.push(provider);
 		this._ctxHasProvider.set(true);
@@ -32,6 +32,6 @@ export class InteractiveEditorServiceImpl implements IInteractiveEditorService {
 	}
 
 	getAllProvider() {
-		return [...this._entries];
+		return [...this._entries].reverse();
 	}
 }
