@@ -1424,7 +1424,7 @@ export enum CandidatePortSource {
 }
 
 export interface PortAttributesSelector {
-	portRange?: [number, number];
+	portRange?: [number, number] | number;
 	commandPattern?: RegExp;
 }
 
