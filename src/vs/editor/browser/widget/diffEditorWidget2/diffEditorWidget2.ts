@@ -7,13 +7,13 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { findLast } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IObservable, ISettableObservable, derived, keepAlive, observableValue, waitForState } from 'vs/base/common/observable';
-import { disposableObservableValue } from 'vs/base/common/observableImpl/base';
+import { IObservable, ISettableObservable, autorun, derived, keepAlive, observableValue, waitForState } from 'vs/base/common/observable';
+import { disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
 import { isDefined } from 'vs/base/common/types';
 import { Constants } from 'vs/base/common/uint';
 import 'vs/css!./style';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IDiffLineInformation } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -79,7 +79,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	);
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 	private readonly _options: ISettableObservable<ValidDiffEditorBaseOptions>;
-	private readonly _sash: DiffEditorSash;
+	private readonly _sash: IObservable<DiffEditorSash | undefined>;
 	private readonly _renderOverviewRuler: IObservable<boolean>;
 
 	constructor(
@@ -114,18 +114,33 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._register(applyObservableDecorations(this._modifiedEditor, this._decorations.map(d => d?.modifiedDecorations || [])));
 
 		this._renderOverviewRuler = this._options.map(o => o.renderOverviewRuler);
-		this._sash = this._register(new DiffEditorSash(
-			this._options.map(o => o.enableSplitViewResizing),
-			this._options.map(o => o.splitViewDefaultRatio),
-			this.elements.root,
-			{
-				height: this._rootSizeObserver.height,
-				width: this._rootSizeObserver.width.map((w, reader) => w - (this._renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)),
-			}
-		));
+		const sash = this._register(disposableObservableValue<DiffEditorSash | undefined>('sash', undefined));
+		this._sash = sash;
+
+		this._register(autorun('update sash', reader => {
+			const showSash = this._options.read(reader).renderSideBySide;
+
+			this.elements.root.classList.toggle('side-by-side', showSash);
+
+			transaction(tx => {
+				sash.set(undefined, tx);
+				if (showSash) {
+					sash.set(new DiffEditorSash(
+						this._options.map(o => o.enableSplitViewResizing),
+						this._options.map(o => o.splitViewDefaultRatio),
+						this.elements.root,
+						{
+							height: this._rootSizeObserver.height,
+							width: this._rootSizeObserver.width.map((w, reader) => w - (this._renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)),
+						}
+					), tx);
+				}
+			});
+		}));
+
 
 		this._register(new UnchangedRangesFeature(this._originalEditor, this._modifiedEditor, this._diffModel));
-		this._register(new ViewZoneAlignment(this._originalEditor, this._modifiedEditor, this._diffModel));
+		this._register(this._instantiationService.createInstance(ViewZoneAlignment, this._originalEditor, this._modifiedEditor, this._diffModel, this._options.map(o => o.renderSideBySide)));
 
 		this._register(this._instantiationService.createInstance(OverviewRulerPart,
 			this._originalEditor,
@@ -157,17 +172,19 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _layoutInfo = derived('modifiedEditorLayoutInfo', (reader) => {
 		const width = this._rootSizeObserver.width.read(reader);
 		const height = this._rootSizeObserver.height.read(reader);
-		const sashLeft = this._sash.sashLeft.read(reader);
+		const sashLeft = this._sash.read(reader)?.sashLeft.read(reader);
 
-		this.elements.original.style.width = sashLeft + 'px';
+		const originalWidth = sashLeft ?? Math.max(5, this._originalEditor.getLayoutInfo().decorationsLeft);
+
+		this.elements.original.style.width = originalWidth + 'px';
 		this.elements.original.style.left = '0px';
 
-		this.elements.modified.style.width = (width - sashLeft) + 'px';
-		this.elements.modified.style.left = sashLeft + 'px';
+		this.elements.modified.style.width = (width - originalWidth) + 'px';
+		this.elements.modified.style.left = originalWidth + 'px';
 
-		this._originalEditor.layout({ width: sashLeft, height: height });
+		this._originalEditor.layout({ width: originalWidth, height: height });
 		this._modifiedEditor.layout({
-			width: width - sashLeft -
+			width: width - originalWidth -
 				(this._renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0),
 			height
 		});
@@ -447,7 +464,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._options.map(o => o.ignoreTrimWhitespace),
 			this._options.map(o => o.maxComputationTime),
 			this._options.map(o => o.experimental.collapseUnchangedRegions!),
-			this._options.map(o => o.experimental.showMoves!),
+			this._options.map(o => o.experimental.showMoves! && o.renderSideBySide),
 			this._instantiationService.createInstance(WorkerBasedDocumentDiffProvider, this._options.get())
 		) : undefined, undefined);
 	}
@@ -465,7 +482,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	getModifiedEditor(): ICodeEditor { return this._modifiedEditor; }
 
 	setBoundarySashes(sashes: IBoundarySashes): void {
-		this._sash.setBoundarySashes(sashes);
+		// TODO
+		this._sash.get()?.setBoundarySashes(sashes);
 	}
 
 	readonly onDidUpdateDiff: Event<void> = e => {
@@ -489,14 +507,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		//throw new Error('Method not implemented.');
 	}
 	getDiffComputationResult(): IDiffComputationResult | null {
-		return null;
-		//throw new Error('Method not implemented.');
-	}
-	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null {
-		return null;
-		//throw new Error('Method not implemented.');
-	}
-	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null {
 		return null;
 		//throw new Error('Method not implemented.');
 	}

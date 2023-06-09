@@ -1096,13 +1096,6 @@ export interface IActiveCodeEditor extends ICodeEditor {
 }
 
 /**
- * Information about a line in the diff editor
- */
-export interface IDiffLineInformation {
-	readonly equivalentLineNumber: number;
-}
-
-/**
  * @internal
  */
 export const enum DiffEditorState {
@@ -1194,18 +1187,6 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	getDiffComputationResult(): IDiffComputationResult | null;
-
-	/**
-	 * Get information based on computed diff about a line number from the original model.
-	 * If the diff computation is not finished or the model is missing, will return null.
-	 */
-	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null;
-
-	/**
-	 * Get information based on computed diff about a line number from the modified model.
-	 * If the diff computation is not finished or the model is missing, will return null.
-	 */
-	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
 
 	/**
 	 * Update the editor's options after the editor has been created.
