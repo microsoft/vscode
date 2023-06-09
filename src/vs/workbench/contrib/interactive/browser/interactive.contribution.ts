@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -29,7 +28,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -56,9 +54,9 @@ import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { CellEditType, CellKind, CellUri, ICellOutput, INTERACTIVE_WINDOW_EDITOR_ID, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookSerializer, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -87,78 +85,6 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		@ILogService logService: ILogService
 	) {
 		super();
-
-		const contentOptions = {
-			transientOutputs: true,
-			transientCellMetadata: {},
-			transientDocumentMetadata: {},
-			cellContentMetadata: {}
-		};
-
-		const serializer: INotebookSerializer = {
-			options: contentOptions,
-			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
-				if (data.byteLength > 0) {
-					try {
-						const document = JSON.parse(data.toString()) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
-						return {
-							cells: document.cells.map(cell => ({
-								source: cell.content,
-								language: cell.language,
-								cellKind: cell.kind,
-								mime: cell.mime,
-								outputs: cell.outputs
-									? cell.outputs.map(output => ({
-										outputId: output.outputId,
-										outputs: output.outputs.map(ot => ({
-											mime: ot.mime,
-											data: ot.data
-										}))
-									}))
-									: [],
-								metadata: cell.metadata
-							})),
-							metadata: {}
-						};
-					} catch (e) {
-						logService.error(`error when converting data to notebook data object: ${e}`);
-					}
-				}
-
-				return {
-					metadata: {},
-					cells: []
-				};
-
-			},
-			notebookToData: async (data: NotebookData): Promise<VSBuffer> => {
-				const cells = data.cells.map(cell => ({
-					kind: cell.cellKind,
-					language: cell.language,
-					metadata: cell.metadata,
-					mine: cell.mime,
-					outputs: cell.outputs.map(output => {
-						return {
-							outputId: output.outputId,
-							outputs: output.outputs.map(ot => ({
-								mime: ot.mime,
-								data: ot.data
-							}))
-						};
-					}),
-					content: cell.source
-				}));
-
-				return VSBuffer.fromString(JSON.stringify({
-					cells: cells
-				}));
-			}
-		};
-
-		this._register(notebookService.registerNotebookSerializer('interactive', {
-			id: new ExtensionIdentifier('interactive.builtin'),
-			location: undefined
-		}, serializer));
 
 		const info = notebookService.getContributedNotebookType('interactive');
 

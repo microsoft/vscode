@@ -7,11 +7,12 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { IReference } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
@@ -19,6 +20,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, ICellDto2, IOutputDto, IResolvedNotebookEditorModel, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class InteractiveEditorInput extends EditorInput implements ICompositeNotebookEditorInput {
 	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string) {
@@ -76,9 +78,10 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		title: string | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService textModelService: ITextModelService,
-
 		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService,
-		@IInteractiveHistoryService historyService: IInteractiveHistoryService
+		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 	) {
 		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
 		super();
@@ -160,6 +163,42 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		}
 
 		return this._inputModelRef.object.textEditorModel;
+	}
+
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
+		if (this._editorModelReference) {
+
+			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
+				return this.saveAs(group, options);
+			} else {
+				await this._editorModelReference.save(options);
+			}
+
+			return this;
+		}
+
+		return undefined;
+	}
+
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IUntypedEditorInput | undefined> {
+		if (!this._editorModelReference) {
+			return undefined;
+		}
+
+		const provider = this._notebookService.getContributedNotebookType('interactive');
+
+		if (!provider) {
+			return undefined;
+		}
+
+		const pathCandidate = joinPath(await this._fileDialogService.defaultFilePath(), 'scratch.ipynb');
+
+		const target = await this._fileDialogService.pickFileToSave(pathCandidate, options?.availableFileSystems);
+		if (!target) {
+			return undefined; // save cancelled
+		}
+
+		return await this._editorModelReference.saveAs(target);
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
