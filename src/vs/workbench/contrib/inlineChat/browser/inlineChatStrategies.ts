@@ -41,34 +41,14 @@ export abstract class EditModeStrategy {
 
 	abstract toggleDiff(): void;
 
-	abstract getWidgetPosition(initialRender: boolean, range: Range): Position | undefined;
-}
-
-function positionCalculation(editor: ICodeEditor, initialRender: boolean, range: Range): Position | undefined {
-	const viewModel = editor._getViewModel();
-	if (!viewModel) {
-		return;
-	}
-	const primaryCursorPosition = viewModel.getPrimaryCursorState().viewState.position;
-	if (initialRender) {
-		return primaryCursorPosition;
-	} else {
-		const visibleRange = viewModel.getCompletelyVisibleViewRange();
-		const endPosition = range.getEndPosition();
-		const endLine = endPosition.lineNumber;
-
-		if (endLine >= visibleRange.startLineNumber && endLine <= visibleRange.endLineNumber) {
-			return endPosition;
-		} else {
-			return primaryCursorPosition;
-		}
-	}
+	abstract getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
 
 	private readonly _ctxDocumentChanged: IContextKey<boolean>;
 	private readonly _listener: IDisposable;
+	private _initialPosition: Position | undefined;
 
 	constructor(
 		private readonly _session: Session,
@@ -151,9 +131,30 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	getWidgetPosition(initialRender: boolean, range: Range): Position | undefined {
-		console.log('inside of preview strategy, getWidgetPosition');
-		return positionCalculation(this._editor, initialRender, range);
+	getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
+		console.log('inside of preview strategy');
+		const viewModel = this._editor._getViewModel();
+		if (!viewModel) {
+			return;
+		}
+		const primaryCursorPosition = viewModel.getPrimaryCursorState().viewState.position;
+		if (initialRender) {
+			this._initialPosition = primaryCursorPosition;
+			return this._initialPosition;
+		} else {
+			if (hasEditResponse) {
+				const visibleRange = viewModel.getCompletelyVisibleViewRange();
+				const endPosition = range.getEndPosition();
+				const endLine = endPosition.lineNumber;
+				if (endLine >= visibleRange.startLineNumber && endLine <= visibleRange.endLineNumber) {
+					return endPosition;
+				} else {
+					return this._initialPosition;
+				}
+			} else {
+				return this._initialPosition;
+			}
+		}
 	}
 }
 
@@ -233,6 +234,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _ctxShowingDiff: IContextKey<boolean>;
 	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
+	protected _initialPosition: Position | undefined;
 
 	constructor(
 		protected readonly _session: Session,
@@ -348,9 +350,28 @@ export class LiveStrategy extends EditModeStrategy {
 		this._widget.updateStatus(message);
 	}
 
-	getWidgetPosition(initialRender: boolean, range: Range): Position | undefined {
-		console.log('inside of live strategy, getWidgetPosition');
-		return positionCalculation(this._editor, initialRender, range);
+	getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
+		const viewModel = this._editor._getViewModel();
+		if (!viewModel) {
+			return;
+		}
+		if (initialRender) {
+			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
+			return this._initialPosition;
+		} else {
+			if (hasEditResponse) {
+				const visibleRange = viewModel.getCompletelyVisibleViewRange();
+				const endPosition = range.getEndPosition();
+				const endLine = endPosition.lineNumber;
+				if (endLine >= visibleRange.startLineNumber && endLine <= visibleRange.endLineNumber) {
+					return endPosition;
+				} else {
+					return this._initialPosition;
+				}
+			} else {
+				return this._initialPosition;
+			}
+		}
 	}
 }
 
@@ -407,12 +428,18 @@ export class LivePreviewStrategy extends LiveStrategy {
 		scrollState.restore(this._editor);
 	}
 
-	override getWidgetPosition(initialRender: boolean, range: Range): Position | undefined {
-		console.log('inside of live preview strategy, getWidgetPosition');
+	override getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
+		console.log('inside of live preview strategy');
+		const primaryCursorPosition = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 		if (initialRender) {
-			return this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
+			this._initialPosition = primaryCursorPosition;
+			return this._initialPosition;
 		} else {
-			return range.getEndPosition();
+			if (hasEditResponse) {
+				return range.getEndPosition();
+			} else {
+				return this._initialPosition;
+			}
 		}
 	}
 }
