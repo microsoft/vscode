@@ -885,6 +885,10 @@ export class CommandCenter {
 
 	@command('git.reopenClosedRepositories', { repository: false })
 	async reopenClosedRepositories(): Promise<void> {
+		if (this.model.closedRepositories.length === 0) {
+			return;
+		}
+
 		const closedRepositories: string[] = [];
 
 		const title = l10n.t('Reopen Closed Repositories');

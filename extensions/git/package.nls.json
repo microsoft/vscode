@@ -379,6 +379,22 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
+	"view.workbench.scm.closedRepository": {
+		"message": "A git repository was found that was previously closed.\n[Reopen Closed Repository](command:git.reopenClosedRepositories)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:git.reopenClosedRepositories'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.closedRepositories": {
+		"message": "Git repositories were found that were previously closed.\n[Reopen Closed Repositories](command:git.reopenClosedRepositories)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:git.reopenClosedRepositories'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
 	"view.workbench.cloneRepository": {
 		"message": "You can clone a repository locally.\n[Clone Repository](command:git.clone 'Clone a repository once the git extension has activated')",
 		"comment": [
