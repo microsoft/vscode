@@ -235,11 +235,17 @@ export class NativeWindow extends Disposable {
 				[{
 					label: localize('downloadArmBuild', "Download"),
 					run: () => {
+                                               const quality = this.productService.quality;
+                                               let stableURL = '';
+                                               let insidersURL = '';
 						if (isMacintosh) {
-							this.openerService.open('https://code.visualstudio.com/docs/?dv=osx');
-						} else {
-							this.openerService.open('https://code.visualstudio.com/download');
+						       stableURL = 'https://code.visualstudio.com/docs/?dv=osx';
+						       insidersURL = 'https://code.visualstudio.com/docs/?dv=osx&build=insiders';
+						} else if (isWindows) {
+						      stableURL = 'https://code.visualstudio.com/docs/?dv=win32arm64user';
+						      insidersURL = 'https://code.visualstudio.com/docs/?dv=win32arm64user&build=insiders';
 						}
+						this.openerService.open(quality === 'stable' ? stableURL : insidersURL);
 					}
 				}]
 			);
