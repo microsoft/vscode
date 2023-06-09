@@ -552,6 +552,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
+	clearBuffer(): void {
+		this._ptyProcess?.clear();
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		// Prevent lower than 0 to heal from errors
 		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);

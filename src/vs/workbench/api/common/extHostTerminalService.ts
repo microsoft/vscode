@@ -288,6 +288,10 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
+	clearBuffer(): void | Promise<void> {
+		// no-op
+	}
+
 	async processBinary(data: string): Promise<void> {
 		// No-op, processBinary is not supported in extension owned terminals.
 	}
