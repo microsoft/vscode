@@ -33,64 +33,180 @@ import { localize } from 'vs/nls';
 import { IQuickInputOptions } from 'vs/platform/quickinput/browser/quickInput';
 import { getIconClass } from 'vs/platform/quickinput/browser/quickInputUtils';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Lazy } from 'vs/base/common/lazy';
 
 const $ = dom.$;
 
-interface IListElement {
+interface IListElementLazyParts {
+	readonly saneLabel: string;
+	readonly saneSortLabel: string;
+	readonly saneAriaLabel: string;
+}
+
+interface IListElement extends IListElementLazyParts {
 	readonly hasCheckbox: boolean;
 	readonly index: number;
 	readonly item?: IQuickPickItem;
-	readonly saneLabel: string;
-	readonly saneSortLabel: string;
-	readonly saneMeta?: string;
-	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
 	readonly saneTooltip?: string | IMarkdownString | HTMLElement;
-	readonly labelHighlights?: IMatch[];
-	readonly descriptionHighlights?: IMatch[];
-	readonly detailHighlights?: IMatch[];
-	readonly checked: boolean;
-	readonly separator?: IQuickPickSeparator;
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 	readonly fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void;
+	readonly onChecked: Event<boolean>;
+	checked: boolean;
+	hidden: boolean;
+	element?: HTMLElement;
+	labelHighlights?: IMatch[];
+	descriptionHighlights?: IMatch[];
+	detailHighlights?: IMatch[];
+	separator?: IQuickPickSeparator;
 }
 
 class ListElement implements IListElement, IDisposable {
-	hasCheckbox!: boolean;
-	index!: number;
-	item?: IQuickPickItem;
-	saneLabel!: string;
-	saneSortLabel!: string;
-	saneMeta!: string;
-	saneAriaLabel!: string;
-	saneDescription?: string;
-	saneDetail?: string;
-	saneTooltip?: string | IMarkdownString | HTMLElement;
-	element?: HTMLElement;
-	hidden = false;
+	private readonly _init: Lazy<IListElementLazyParts>;
+
+	readonly hasCheckbox: boolean;
+	readonly index: number;
+	readonly item?: IQuickPickItem;
+	readonly saneDescription?: string;
+	readonly saneDetail?: string;
+	readonly saneTooltip?: string | IMarkdownString | HTMLElement;
+	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
+	readonly fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void;
+
+	private _checked: boolean = false;
+	private _hidden: boolean = false;
+	private _element?: HTMLElement;
+	private _labelHighlights?: IMatch[];
+	private _descriptionHighlights?: IMatch[];
+	private _detailHighlights?: IMatch[];
+	private _separator?: IQuickPickSeparator;
+
 	private readonly _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
-	_checked?: boolean;
-	get checked() {
-		return !!this._checked;
+
+	constructor(
+		mainItem: QuickPickItem,
+		previous: QuickPickItem | undefined,
+		index: number,
+		hasCheckbox: boolean,
+		fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void,
+		fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void
+	) {
+		this.hasCheckbox = hasCheckbox;
+		this.index = index;
+		this.fireButtonTriggered = fireButtonTriggered;
+		this.fireSeparatorButtonTriggered = fireSeparatorButtonTriggered;
+
+		if (mainItem.type === 'separator') {
+			this._separator = mainItem;
+		} else {
+			this.item = mainItem;
+			if (previous && previous.type === 'separator' && !previous.buttons) {
+				this._separator = previous;
+			}
+			this.saneDescription = this.item.description;
+			this.saneDetail = this.item.detail;
+			this._labelHighlights = this.item.highlights?.label;
+			this._descriptionHighlights = this.item.highlights?.description;
+			this._detailHighlights = this.item.highlights?.detail;
+			this.saneTooltip = this.item.tooltip;
+		}
+		this._init = new Lazy(() => {
+			const saneLabel = mainItem.label ?? '';
+			const saneSortLabel = parseLabelWithIcons(saneLabel).text.trim();
+
+			const saneAriaLabel = mainItem.ariaLabel || [saneLabel, this.saneDescription, this.saneDetail]
+				.map(s => getCodiconAriaLabel(s))
+				.filter(s => !!s)
+				.join(', ');
+
+			return {
+				saneLabel,
+				saneSortLabel,
+				saneAriaLabel
+			};
+		});
 	}
+
+	// #region Lazy Getters
+
+	get saneLabel() {
+		return this._init.value.saneLabel;
+	}
+
+	get saneSortLabel() {
+		return this._init.value.saneSortLabel;
+	}
+
+	get saneAriaLabel() {
+		return this._init.value.saneAriaLabel;
+	}
+
+	// #endregion
+
+	// #region Getters and Setters
+
+	get element() {
+		return this._element;
+	}
+
+	set element(value: HTMLElement | undefined) {
+		this._element = value;
+	}
+
+	get hidden() {
+		return this._hidden;
+	}
+
+	set hidden(value: boolean) {
+		this._hidden = value;
+	}
+
+	get checked() {
+		return this._checked;
+	}
+
 	set checked(value: boolean) {
 		if (value !== this._checked) {
 			this._checked = value;
 			this._onChecked.fire(value);
 		}
 	}
-	separator?: IQuickPickSeparator;
-	labelHighlights?: IMatch[];
-	descriptionHighlights?: IMatch[];
-	detailHighlights?: IMatch[];
-	fireButtonTriggered!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
-	fireSeparatorButtonTriggered!: (event: IQuickPickSeparatorButtonEvent) => void;
 
-	constructor(init: IListElement) {
-		Object.assign(this, init);
+	get separator() {
+		return this._separator;
 	}
+
+	set separator(value: IQuickPickSeparator | undefined) {
+		this._separator = value;
+	}
+
+	get labelHighlights() {
+		return this._labelHighlights;
+	}
+
+	set labelHighlights(value: IMatch[] | undefined) {
+		this._labelHighlights = value;
+	}
+
+	get descriptionHighlights() {
+		return this._descriptionHighlights;
+	}
+
+	set descriptionHighlights(value: IMatch[] | undefined) {
+		this._descriptionHighlights = value;
+	}
+
+	get detailHighlights() {
+		return this._detailHighlights;
+	}
+
+	set detailHighlights(value: IMatch[] | undefined) {
+		this._detailHighlights = value;
+	}
+
+	// #endregion
 
 	dispose() {
 		this._onChecked.dispose();
@@ -105,12 +221,12 @@ interface IListElementTemplateData {
 	detail: IconLabel;
 	separator: HTMLDivElement;
 	actionBar: ActionBar;
-	element: ListElement;
+	element: IListElement;
 	toDisposeElement: IDisposable[];
 	toDisposeTemplate: IDisposable[];
 }
 
-class ListElementRenderer implements IListRenderer<ListElement, IListElementTemplateData> {
+class ListElementRenderer implements IListRenderer<IListElement, IListElementTemplateData> {
 
 	static readonly ID = 'listelement';
 
@@ -165,7 +281,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		return data;
 	}
 
-	renderElement(element: ListElement, index: number, data: IListElementTemplateData): void {
+	renderElement(element: IListElement, index: number, data: IListElementTemplateData): void {
 		data.element = element;
 		element.element = withNullAsUndefined(data.entry);
 		const mainItem: QuickPickItem = element.item ? element.item : element.separator!;
@@ -176,10 +292,12 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
 		// Label
-		const options: IIconLabelValueOptions = Object.create(null);
-		options.matches = labelHighlights || [];
-		options.descriptionTitle = element.saneDescription;
-		options.descriptionMatches = descriptionHighlights || [];
+		const options: IIconLabelValueOptions = {
+			matches: labelHighlights || [],
+			descriptionTitle: element.saneDescription,
+			descriptionMatches: descriptionHighlights || [],
+			labelEscapeNewLines: true
+		};
 		if (mainItem.type !== 'separator') {
 			options.extraClasses = mainItem.iconClasses;
 			options.italic = mainItem.italic;
@@ -193,12 +311,13 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		// Keybinding
 		data.keybinding.set(mainItem.type === 'separator' ? undefined : mainItem.keybinding);
 
-		// Meta
+		// Detail
 		if (element.saneDetail) {
 			data.detail.element.style.display = '';
 			data.detail.setLabel(element.saneDetail, undefined, {
 				matches: detailHighlights,
-				title: element.saneDetail
+				title: element.saneDetail,
+				labelEscapeNewLines: true
 			});
 		} else {
 			data.detail.element.style.display = 'none';
@@ -246,7 +365,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		}
 	}
 
-	disposeElement(element: ListElement, index: number, data: IListElementTemplateData): void {
+	disposeElement(element: IListElement, index: number, data: IListElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.actionBar.clear();
 	}
@@ -257,9 +376,9 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 	}
 }
 
-class ListElementDelegate implements IListVirtualDelegate<ListElement> {
+class ListElementDelegate implements IListVirtualDelegate<IListElement> {
 
-	getHeight(element: ListElement): number {
+	getHeight(element: IListElement): number {
 		if (!element.item) {
 			// must be a separator
 			return 24;
@@ -267,7 +386,7 @@ class ListElementDelegate implements IListVirtualDelegate<ListElement> {
 		return element.saneDetail ? 44 : 22;
 	}
 
-	getTemplateId(element: ListElement): string {
+	getTemplateId(element: IListElement): string {
 		return ListElementRenderer.ID;
 	}
 }
@@ -286,9 +405,9 @@ export class QuickInputList {
 
 	readonly id: string;
 	private container: HTMLElement;
-	private list: List<ListElement>;
+	private list: List<IListElement>;
 	private inputElements: Array<QuickPickItem> = [];
-	private elements: ListElement[] = [];
+	private elements: IListElement[] = [];
 	private elementsToIndexes = new Map<QuickPickItem, number>();
 	matchOnDescription = false;
 	matchOnDetail = false;
@@ -333,7 +452,7 @@ export class QuickInputList {
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
 			accessibilityProvider
-		} as IListOptions<ListElement>);
+		} as IListOptions<IListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
@@ -475,7 +594,7 @@ export class QuickInputList {
 		return this.allVisibleChecked(this.elements, false);
 	}
 
-	private allVisibleChecked(elements: ListElement[], whenNoneVisible = true) {
+	private allVisibleChecked(elements: IListElement[], whenNoneVisible = true) {
 		for (let i = 0, n = elements.length; i < n; i++) {
 			const element = elements[i];
 			if (!element.hidden) {
@@ -530,70 +649,34 @@ export class QuickInputList {
 		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
 		const fireSeparatorButtonTriggered = (event: IQuickPickSeparatorButtonEvent) => this.fireSeparatorButtonTriggered(event);
 		this.inputElements = inputElements;
+		const elementsToIndexes = new Map<QuickPickItem, number>();
+		const hasCheckbox = this.parent.classList.contains('show-checkboxes');
 		this.elements = inputElements.reduce((result, item, index) => {
-			const previous = index && inputElements[index - 1];
-			const saneLabel = item.label ? item.label.replace(/\r?\n/g, ' ') : '';
-			const saneSortLabel = parseLabelWithIcons(saneLabel).text.trim();
-
-			let saneMeta, saneDescription, saneDetail, labelHighlights, descriptionHighlights, detailHighlights, saneTooltip;
-			if (item.type !== 'separator') {
-				saneMeta = item.meta && item.meta.replace(/\r?\n/g, ' ');
-				saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
-				saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
-				labelHighlights = item.highlights?.label;
-				descriptionHighlights = item.highlights?.description;
-				detailHighlights = item.highlights?.detail;
-				saneTooltip = item.tooltip;
-			}
-			const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
-				.map(s => getCodiconAriaLabel(s))
-				.filter(s => !!s)
-				.join(', ');
-
-			const hasCheckbox = this.parent.classList.contains('show-checkboxes');
-
-			let separator: IQuickPickSeparator | undefined;
+			const previous = index > 0 ? inputElements[index - 1] : undefined;
 			if (item.type === 'separator') {
 				if (!item.buttons) {
 					// This separator will be rendered as a part of the list item
 					return result;
 				}
-				separator = item;
-			} else if (previous && previous.type === 'separator' && !previous.buttons) {
-				separator = previous;
 			}
 
-			const element = new ListElement({
-				hasCheckbox,
+			const element = new ListElement(
+				item,
+				previous,
 				index,
-				item: item.type !== 'separator' ? item : undefined,
-				saneLabel,
-				saneSortLabel,
-				saneMeta,
-				saneAriaLabel,
-				saneDescription,
-				saneDetail,
-				saneTooltip,
-				labelHighlights,
-				descriptionHighlights,
-				detailHighlights,
-				checked: false,
-				separator,
+				hasCheckbox,
 				fireButtonTriggered,
 				fireSeparatorButtonTriggered
-			});
+			);
 
 			this.elementDisposables.push(element);
 			this.elementDisposables.push(element.onChecked(() => this.fireCheckedEvents()));
 
 			result.push(element);
+			elementsToIndexes.set(element.item ?? element.separator!, index);
 			return result;
-		}, [] as ListElement[]);
-
-		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
-			map.set(element.item ?? element.separator!, index);
-			return map;
-		}, new Map<QuickPickItem, number>());
+		}, [] as IListElement[]);
+		this.elementsToIndexes = elementsToIndexes;
 		this.list.splice(0, this.list.length); // Clear focus and selection first, sending the events when the list is empty.
 		this.list.splice(0, this.list.length, this.elements);
 		this._onChangedVisibleCount.fire(this.elements.length);
@@ -725,7 +808,7 @@ export class QuickInputList {
 	 * Disposes of the hover and shows a new one for the given index if it has a tooltip.
 	 * @param element The element to show the hover for
 	 */
-	private showHover(element: ListElement): void {
+	private showHover(element: IListElement): void {
 		if (this._lastHover && !this._lastHover.isDisposed) {
 			this.options.hoverDelegate.onDidHideHover?.();
 			this._lastHover?.dispose();
@@ -790,9 +873,8 @@ export class QuickInputList {
 				}
 				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
 				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDetail || ''))) : undefined;
-				const metaHighlights = this.matchOnMeta ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneMeta || ''))) : undefined;
 
-				if (labelHighlights || descriptionHighlights || detailHighlights || metaHighlights) {
+				if (labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;
 					element.descriptionHighlights = descriptionHighlights;
 					element.detailHighlights = detailHighlights;
@@ -963,7 +1045,7 @@ function matchesContiguous(word: string, wordToMatchAgainst: string): IMatch[] |
 	return null;
 }
 
-function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: string): number {
+function compareEntries(elementA: IListElement, elementB: IListElement, lookFor: string): number {
 
 	const labelHighlightsA = elementA.labelHighlights || [];
 	const labelHighlightsB = elementB.labelHighlights || [];
@@ -982,13 +1064,13 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 	return compareAnything(elementA.saneSortLabel, elementB.saneSortLabel, lookFor);
 }
 
-class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
+class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IListElement> {
 
 	getWidgetAriaLabel(): string {
 		return localize('quickInput', "Quick Input");
 	}
 
-	getAriaLabel(element: ListElement): string | null {
+	getAriaLabel(element: IListElement): string | null {
 		return element.separator?.label
 			? `${element.saneAriaLabel}, ${element.separator.label}`
 			: element.saneAriaLabel;
@@ -998,11 +1080,11 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<List
 		return 'listbox';
 	}
 
-	getRole(element: ListElement) {
+	getRole(element: IListElement) {
 		return element.hasCheckbox ? 'checkbox' : 'option';
 	}
 
-	isChecked(element: ListElement) {
+	isChecked(element: IListElement) {
 		if (!element.hasCheckbox) {
 			return undefined;
 		}
