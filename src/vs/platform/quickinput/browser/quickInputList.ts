@@ -34,6 +34,8 @@ import { IQuickInputOptions } from 'vs/platform/quickinput/browser/quickInput';
 import { getIconClass } from 'vs/platform/quickinput/browser/quickInputUtils';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Lazy } from 'vs/base/common/lazy';
+import { URI } from 'vs/base/common/uri';
+import { ColorScheme, isDark } from 'vs/platform/theme/common/theme';
 
 const $ = dom.$;
 
@@ -218,6 +220,7 @@ class ListElement implements IListElement {
 interface IListElementTemplateData {
 	entry: HTMLDivElement;
 	checkbox: HTMLInputElement;
+	icon: HTMLDivElement;
 	label: IconLabel;
 	keybinding: KeybindingLabel;
 	detail: IconLabel;
@@ -231,6 +234,8 @@ interface IListElementTemplateData {
 class ListElementRenderer implements IListRenderer<IListElement, IListElementTemplateData> {
 
 	static readonly ID = 'listelement';
+
+	constructor(private readonly colorScheme: ColorScheme) { }
 
 	get templateId() {
 		return ListElementRenderer.ID;
@@ -263,6 +268,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 		// Label
 		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
+		data.icon = <HTMLInputElement>dom.prepend(data.label.element, $('.quick-input-list-icon'));
 
 		// Keybinding
 		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
@@ -292,6 +298,16 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
+
+		if (element.item?.iconPath) {
+			const icon = isDark(this.colorScheme) ? element.item.iconPath.dark : (element.item.iconPath.light ?? element.item.iconPath.dark);
+			const iconUrl = URI.revive(icon);
+			data.icon.className = 'quick-input-list-icon';
+			data.icon.style.backgroundImage = dom.asCSSUrl(iconUrl);
+		} else {
+			data.icon.style.backgroundImage = '';
+			data.icon.className = element.item?.iconClass ? `quick-input-list-icon ${element.item.iconClass}` : '';
+		}
 
 		// Label
 		const options: IIconLabelValueOptions = {
@@ -449,7 +465,7 @@ export class QuickInputList {
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
+		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(this.options.styles.colorScheme)], {
 			identityProvider: { getId: element => element.saneLabel },
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
