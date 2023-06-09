@@ -33,6 +33,16 @@ import { ResolutionResult, ResultKind } from 'vs/platform/keybinding/common/keyb
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
+import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
+import { IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { INotificationService, IPromptChoice, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -391,11 +401,149 @@ class LogWorkingCopiesAction extends Action2 {
 	}
 }
 
+type TroubleShootResult = 'good' | 'bad' | 'stop';
+
+export class TroubleshootIssue extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.troubleshootIssue',
+			title: { value: localize('troubleshootIssue', "Troubleshoot Issue..."), original: 'Troubleshoot Issue...' },
+			category: Categories.Help,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
+		const userDataProfileService = accessor.get(IUserDataProfileService);
+		const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const notificationService = accessor.get(INotificationService);
+		const extensionBisectService = accessor.get(IExtensionBisectService);
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
+		const issueService = accessor.get(IWorkbenchIssueService);
+		const hostService = accessor.get(IHostService);
+		const productService = accessor.get(IProductService);
+
+		const res = await dialogService.confirm({
+			message: localize('troubleshoot issue', "Troubleshoot Issue"),
+			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify if the issue is with {0} or caused by an extension.", productService.nameShort),
+			primaryButton: localize({ key: 'msg', comment: ['&& denotes a mnemonic'] }, "&&Troubleshoot Issue")
+		});
+
+		if (!res.confirmed) {
+			return;
+		}
+
+		const profile = userDataProfileService.currentProfile;
+
+		try {
+			const result = await this.reproduceIssueWithExtensionsDisabled(profile, userDataProfileImportExportService, notificationService);
+			if (result === 'good') {
+				return await this.reproduceIssueWithExtensionsBisect(profile, dialogService, userDataProfileManagementService, extensionManagementService, extensionEnablementService, extensionBisectService, hostService);
+			}
+			if (result === 'bad') {
+				const result = await this.reproduceIssueWithEmptyProfile(userDataProfileManagementService, notificationService, dialogService, productService);
+				if (result === 'good') {
+					return await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting is done and has identified that the issue is caused by your settings. Please report the issue by sharing your settings."), dialogService, issueService);
+				}
+				if (result === 'bad') {
+					return await this.askToReportIssue(localize('issue is in core', "Issue troubleshooting is done and has identified that the issue is with {0}.", productService.nameShort), dialogService, issueService);
+				}
+			}
+		} finally {
+			if (!extensionBisectService.isActive) {
+				userDataProfileManagementService.switchProfile(profile);
+			}
+		}
+	}
+
+	private async reproduceIssueWithExtensionsDisabled(profile: IUserDataProfile, userDataProfileImportExportService: IUserDataProfileImportExportService, notificationService: INotificationService): Promise<TroubleShootResult> {
+		await userDataProfileImportExportService.createTemporaryProfile(profile, true, localize('troubleshoot issue', "Troubleshoot Issue"));
+		return this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has disabled all extensions. Check if you can still reproduce the problem and proceed by selecting from these options."), notificationService);
+	}
+
+	private async reproduceIssueWithEmptyProfile(userDataProfileManagementService: IUserDataProfileManagementService, notificationService: INotificationService, dialogService: IDialogService, productService: IProductService): Promise<TroubleShootResult> {
+		const res = await dialogService.confirm({
+			message: localize('troubleshoot issue', "Troubleshoot Issue"),
+			detail: localize('detected issue in VS Code', "Issue troubleshooting has detected that the issue is with {0}. Would you like to check if it is caused by your settings?", productService.nameShort),
+			primaryButton: localize({ key: 'trouble shoot', comment: ['&& denotes a mnemonic'] }, "&&Continue")
+		});
+		if (!res.confirmed) {
+			return 'stop';
+		}
+		await userDataProfileManagementService.createAndEnterTransientProfile();
+		return this.askToReproduceIssue(localize('empty.profile', "Issue troubleshooting is active and has reset your settings to defaults. Check if you can still reproduce the problem and proceed by selecting from these options."), notificationService);
+	}
+
+	private askToReproduceIssue(message: string, notificationService: INotificationService): Promise<TroubleShootResult> {
+		return new Promise((c, e) => {
+			const goodPrompt: IPromptChoice = {
+				label: localize('Good Now', "Good Now"),
+				run: () => c('good')
+			};
+			const badPrompt: IPromptChoice = {
+				label: localize('This is Bad', "This is Bad"),
+				run: () => c('bad')
+			};
+			const stop: IPromptChoice = {
+				label: localize('Stop', "Stop"),
+				run: () => c('stop')
+			};
+			notificationService.prompt(
+				Severity.Info,
+				message,
+				[goodPrompt, badPrompt, stop],
+				{ sticky: true, priority: NotificationPriority.URGENT }
+			);
+		});
+	}
+
+	private async askToReportIssue(detail: string, dialogService: IDialogService, issueService: IWorkbenchIssueService): Promise<void> {
+		const res = await dialogService.confirm({
+			type: Severity.Info,
+			message: localize('troubleshoot issue', "Troubleshoot Issue"),
+			primaryButton: localize({ key: 'report', comment: ['&& denotes a mnemonic'] }, "&&Report Issue & Continue"),
+			cancelButton: localize('continue', "Continue"),
+			detail,
+		});
+		if (res.confirmed) {
+			return await issueService.openReporter({});
+		}
+	}
+
+	private async reproduceIssueWithExtensionsBisect(profile: IUserDataProfile,
+		dialogService: IDialogService,
+		userDataProfileManagementService: IUserDataProfileManagementService,
+		extensionManagementService: IExtensionManagementService,
+		extensionEnablementService: IWorkbenchExtensionEnablementService,
+		extensionBisectService: IExtensionBisectService,
+		hostService: IHostService
+	): Promise<void> {
+		const res = await dialogService.confirm({
+			message: localize('troubleshoot issue', "Troubleshoot Issue"),
+			detail: localize('detected issue in extensions', "Issue troubleshooting has detected that the issue is caused by an extension. Would you like to start Extension Bisect to find the problematic extension?\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing problems."),
+			primaryButton: localize({ key: 'msg2', comment: ['&& denotes a mnemonic'] }, "&&Start Extension Bisect")
+		});
+		if (!res.confirmed) {
+			return;
+		}
+		await userDataProfileManagementService.switchProfile(profile);
+		const extensions = (await extensionManagementService.getInstalled(ExtensionType.User)).filter(ext => extensionEnablementService.isEnabled(ext));
+		await extensionBisectService.start(extensions);
+		await hostService.reload();
+	}
+
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
+registerAction2(TroubleshootIssue);
 
 // --- Configuration
 
