@@ -19,6 +19,7 @@ import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IBranchProtectionProviderRegistry } from './branchProtection';
+import { ObservableSet } from './observable';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -169,6 +170,11 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return this._parentRepositories;
 	}
 
+	private _closedRepositories: ObservableSet<string>;
+	get closedRepositories(): string[] {
+		return [...this._closedRepositories.values()];
+	}
+
 	/**
 	 * We maintain a map containing both the path and the canonical path of the
 	 * workspace folders. We are doing this as `git.exe` expands the symbolic links
@@ -181,7 +187,11 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
+		this._closedRepositories = new ObservableSet<string>(workspaceState.get<string[]>('closedRepositories', []));
+		this._closedRepositories.onDidChange(this.onDidChangeClosedRepositories, this, this.disposables);
+		this.onDidChangeClosedRepositories();
+
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -369,6 +379,11 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
+	private onDidChangeClosedRepositories(): void {
+		this.workspaceState.update('closedRepositories', [...this._closedRepositories.values()]);
+		commands.executeCommand('setContext', 'git.closedRepositoryCount', this._closedRepositories.size);
+	}
+
 	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
 		if (!workspace.isTrusted) {
 			this.logger.trace('[svte] Workspace is not trusted.');
@@ -403,7 +418,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`Opening repository: ${repoPath}`);
 		if (this.getRepositoryExact(repoPath)) {
 			this.logger.trace(`Repository for path ${repoPath} already exists`);
@@ -480,12 +495,22 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 				return;
 			}
 
+			// Handle repositories that were closed by the user
+			if (!openIfClosed && this._closedRepositories.has(repositoryRoot)) {
+				this.logger.trace(`Repository for path ${repositoryRoot} is closed`);
+				return;
+			}
+
 			// Open repository
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
 			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
-			repository.status(); // do not await this, we want SCM to know about the repo asap
+			this._closedRepositories.delete(repository.root);
+
+			// Do not await this, we want SCM
+			// to know about the repo asap
+			repository.status();
 		} catch (err) {
 			// noop
 			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${err}`);
@@ -633,6 +658,8 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		}
 
 		this.logger.info(`Close repository: ${repository.root}`);
+		this._closedRepositories.add(openRepository.repository.root.toString());
+
 		openRepository.dispose();
 	}
 
