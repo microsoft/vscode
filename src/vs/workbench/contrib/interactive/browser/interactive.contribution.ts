@@ -51,7 +51,6 @@ import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/work
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { InteractiveWindowFileSystem } from 'vs/workbench/contrib/interactive/browser/interactiveWindowFileSystem';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -95,9 +94,6 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			transientDocumentMetadata: {},
 			cellContentMetadata: {}
 		};
-
-		const interactiveWindowFS = new InteractiveWindowFileSystem();
-		this._register(fileService.registerProvider(Schemas.vscodeInteractive, interactiveWindowFS));
 
 		const serializer: INotebookSerializer = {
 			options: contentOptions,
@@ -205,7 +201,9 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				priority: RegisteredEditorPriority.exclusive
 			},
 			{
-				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractive || (uri.scheme === Schemas.vscodeNotebookCell && extname(uri) === '.interactive'),
+				canSupportResource: uri =>
+					(uri.scheme === Schemas.untitled && extname(uri) === '.interactive') ||
+					(uri.scheme === Schemas.vscodeNotebookCell && extname(uri) === '.interactive'),
 				singlePerResource: true
 			},
 			{
@@ -371,7 +369,7 @@ registerAction2(class extends Action2 {
 			preserveFocus: typeof showOptions !== 'number' ? (showOptions?.preserveFocus ?? false) : false
 		};
 
-		if (resource && resource.scheme === Schemas.vscodeInteractive) {
+		if (resource && extname(resource) === '.interactive') {
 			logService.debug('Open interactive window from resource:', resource.toString());
 			const resourceUri = URI.revive(resource);
 			const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
@@ -401,7 +399,7 @@ registerAction2(class extends Action2 {
 		let inputUri: URI | undefined = undefined;
 		let counter = 1;
 		do {
-			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `/Interactive-${counter}.interactive` });
+			notebookUri = URI.from({ scheme: Schemas.untitled, path: `/Interactive-${counter}.interactive` });
 			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `/InteractiveInput-${counter}` });
 
 			counter++;
@@ -435,7 +433,7 @@ registerAction2(class extends Action2 {
 			category: interactiveWindowCategory,
 			keybinding: {
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
-				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 				primary: KeyMod.WinCtrl | KeyCode.Enter,
 				win: {
 					primary: KeyMod.CtrlCmd | KeyCode.Enter
@@ -469,15 +467,14 @@ registerAction2(class extends Action2 {
 		const notebookEditorService = accessor.get(INotebookEditorService);
 		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 		if (context) {
-			if (context.scheme === Schemas.vscodeInteractive) {
-				const resourceUri = URI.revive(context);
-				const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
-				if (editors.length) {
-					const editorInput = editors[0].editor as InteractiveEditorInput;
-					const currentGroup = editors[0].groupId;
-					const editor = await editorService.openEditor(editorInput, currentGroup);
-					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-				}
+			const resourceUri = URI.revive(context);
+			const editors = editorService.findEditors(resourceUri)
+				.filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
+			if (editors.length) {
+				const editorInput = editors[0].editor as InteractiveEditorInput;
+				const currentGroup = editors[0].groupId;
+				const editor = await editorService.openEditor(editorInput, currentGroup);
+				editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 			}
 		}
 		else {
@@ -578,7 +575,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
 					SuggestContext.Visible.toNegated()
@@ -617,7 +614,7 @@ registerAction2(class extends Action2 {
 			f1: false,
 			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
 					SuggestContext.Visible.toNegated()
@@ -654,7 +651,7 @@ registerAction2(class extends Action2 {
 			id: 'interactive.scrollToTop',
 			title: localize('interactiveScrollToTop', 'Scroll to Top'),
 			keybinding: {
-				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 				primary: KeyMod.CtrlCmd | KeyCode.Home,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
 				weight: KeybindingWeight.WorkbenchContrib
@@ -683,7 +680,7 @@ registerAction2(class extends Action2 {
 			id: 'interactive.scrollToBottom',
 			title: localize('interactiveScrollToBottom', 'Scroll to Bottom'),
 			keybinding: {
-				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 				primary: KeyMod.CtrlCmd | KeyCode.End,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
 				weight: KeybindingWeight.WorkbenchContrib
@@ -750,9 +747,9 @@ registerAction2(class extends Action2 {
 			category: interactiveWindowCategory,
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 			},
-			precondition: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+			precondition: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 		});
 	}
 
