@@ -1,0 +1,4 @@
+@vscode/windows-mutex/index.js
+@vscode/windows-mutex/**/*.node
+@vscode/windows-mutex/*.md
+@vscode/windows-mutex/package.json

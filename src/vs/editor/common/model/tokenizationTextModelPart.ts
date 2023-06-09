@@ -544,7 +544,7 @@ class GrammarTokens extends Disposable {
 			return;
 		}
 
-		startLineNumber = Math.max(1, startLineNumber);
+		startLineNumber = Math.max(1, Math.min(this._textModel.getLineCount(), startLineNumber));
 		endLineNumber = Math.min(this._textModel.getLineCount(), endLineNumber);
 
 		const builder = new ContiguousMultilineTokensBuilder();

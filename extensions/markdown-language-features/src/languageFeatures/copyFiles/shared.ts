@@ -118,12 +118,12 @@ export function createUriListSnippet(
 
 		if (insertAsVideo) {
 			insertedAudioVideoCount++;
-			snippet.appendText(`<video src="${mdPath}" controls title="`);
+			snippet.appendText(`<video src="${escapeHtmlAttribute(mdPath)}" controls title="`);
 			snippet.appendPlaceholder('Title');
 			snippet.appendText('"></video>');
 		} else if (insertAsAudio) {
 			insertedAudioVideoCount++;
-			snippet.appendText(`<audio src="${mdPath}" controls title="`);
+			snippet.appendText(`<audio src="${escapeHtmlAttribute(mdPath)}" controls title="`);
 			snippet.appendPlaceholder('Title');
 			snippet.appendText('"></audio>');
 		} else {
@@ -139,7 +139,7 @@ export function createUriListSnippet(
 			const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
 			snippet.appendPlaceholder(placeholderText, placeholderIndex);
 
-			snippet.appendText(`](${mdPath})`);
+			snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
@@ -246,11 +246,53 @@ function getMdPath(dir: vscode.Uri | undefined, file: vscode.Uri) {
 			// so that drive-letters are resolved cast insensitively. However we then want to
 			// convert back to a posix path to insert in to the document.
 			const relativePath = path.relative(dir.fsPath, file.fsPath);
-			return encodeURI(path.posix.normalize(relativePath.split(path.sep).join(path.posix.sep)));
+			return path.posix.normalize(relativePath.split(path.sep).join(path.posix.sep));
 		}
 
-		return encodeURI(path.posix.relative(dir.path, file.path));
+		return path.posix.relative(dir.path, file.path);
 	}
 
 	return file.toString(false);
 }
+
+function escapeHtmlAttribute(attr: string): string {
+	return encodeURI(attr).replaceAll('"', '&quot;');
+}
+
+function escapeMarkdownLinkPath(mdPath: string): string {
+	if (needsBracketLink(mdPath)) {
+		return '<' + mdPath.replace('<', '\\<').replace('>', '\\>') + '>';
+	}
+
+	return encodeURI(mdPath);
+}
+
+function needsBracketLink(mdPath: string) {
+	// Links with whitespace or control characters must be enclosed in brackets
+	if (mdPath.startsWith('<') || /\s|[\u007F\u0000-\u001f]/.test(mdPath)) {
+		return true;
+	}
+
+	// Check if the link has mis-matched parens
+	if (!/[\(\)]/.test(mdPath)) {
+		return false;
+	}
+
+	let previousChar = '';
+	let nestingCount = 0;
+	for (const char of mdPath) {
+		if (char === '(' && previousChar !== '\\') {
+			nestingCount++;
+		} else if (char === ')' && previousChar !== '\\') {
+			nestingCount--;
+		}
+
+		if (nestingCount < 0) {
+			return true;
+		}
+		previousChar = char;
+	}
+
+	return nestingCount > 0;
+}
+

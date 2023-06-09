@@ -14,10 +14,45 @@ declare namespace monaco {
 	export type Thenable<T> = PromiseLike<T>;
 
 	export interface Environment {
+		/**
+		 * Define a global `monaco` symbol.
+		 * This is true by default in AMD and false by default in ESM.
+		 */
 		globalAPI?: boolean;
+		/**
+		 * The base url where the editor sources are found (which contains the vs folder)
+		 */
 		baseUrl?: string;
+		/**
+		 * A web worker factory.
+		 * NOTE: If `getWorker` is defined, `getWorkerUrl` is not invoked.
+		 */
 		getWorker?(workerId: string, label: string): Promise<Worker> | Worker;
+		/**
+		 * Return the location for web worker scripts.
+		 * NOTE: If `getWorker` is defined, `getWorkerUrl` is not invoked.
+		 */
 		getWorkerUrl?(workerId: string, label: string): string;
+		/**
+		 * Create a trusted types policy (same API as window.trustedTypes.createPolicy)
+		 */
+		createTrustedTypesPolicy(
+			policyName: string,
+			policyOptions?: ITrustedTypePolicyOptions,
+		): undefined | ITrustedTypePolicy;
+	}
+
+	export interface ITrustedTypePolicyOptions {
+		createHTML?: (input: string, ...arguments: any[]) => string;
+		createScript?: (input: string, ...arguments: any[]) => string;
+		createScriptURL?: (input: string, ...arguments: any[]) => string;
+	}
+
+	export interface ITrustedTypePolicy {
+		readonly name: string;
+		createHTML?(input: string): any;
+		createScript?(input: string): any;
+		createScriptURL?(input: string): any;
 	}
 
 	export interface IDisposable {
@@ -2348,13 +2383,17 @@ declare namespace monaco.editor {
 	 */
 	export interface IDocumentDiffProviderOptions {
 		/**
-		 * When set to true, the diff should ignore whitespace changes.i
+		 * When set to true, the diff should ignore whitespace changes.
 		 */
 		ignoreTrimWhitespace: boolean;
 		/**
 		 * A diff computation should throw if it takes longer than this value.
 		 */
 		maxComputationTimeMs: number;
+		/**
+		 * If set, the diff computation should compute moves in addition to insertions and deletions.
+		 */
+		computeMoves: boolean;
 	}
 
 	/**
@@ -2372,12 +2411,20 @@ declare namespace monaco.editor {
 		/**
 		 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
 		 */
-		readonly changes: LineRangeMapping[];
+		readonly changes: readonly LineRangeMapping[];
+		/**
+		 * Sorted by original line ranges.
+		 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
+		 */
+		readonly moves: readonly MovedText[];
 	}
+
 	/**
 	 * A range of lines (1-based).
 	 */
 	export class LineRange {
+		static fromRange(range: Range): LineRange;
+		static subtract(a: LineRange, b: LineRange | undefined): LineRange[];
 		/**
 		 * @param lineRanges An array of sorted line ranges.
 		 */
@@ -2387,6 +2434,7 @@ declare namespace monaco.editor {
 		 * @param lineRanges2 Must be sorted.
 		 */
 		static join(lineRanges1: readonly LineRange[], lineRanges2: readonly LineRange[]): readonly LineRange[];
+		static ofLength(startLineNumber: number, length: number): LineRange;
 		/**
 		 * The start line number.
 		 */
@@ -2422,14 +2470,18 @@ declare namespace monaco.editor {
 		 * If the ranges don't even touch, the result is undefined.
 		 */
 		intersect(other: LineRange): LineRange | undefined;
+		intersectsStrict(other: LineRange): boolean;
 		overlapOrTouch(other: LineRange): boolean;
 		equals(b: LineRange): boolean;
+		toInclusiveRange(): Range | null;
+		toExclusiveRange(): Range;
 	}
 
 	/**
 	 * Maps a line range in the original text model to a line range in the modified text model.
 	 */
 	export class LineRangeMapping {
+		static inverse(mapping: readonly LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[];
 		/**
 		 * The line range in the original text model.
 		 */
@@ -2463,6 +2515,24 @@ declare namespace monaco.editor {
 		 */
 		readonly modifiedRange: Range;
 		constructor(originalRange: Range, modifiedRange: Range);
+		toString(): string;
+	}
+
+	export class MovedText {
+		readonly lineRangeMapping: SimpleLineRangeMapping;
+		/**
+		 * The diff from the original text to the moved text.
+		 * Must be contained in the original/modified line range.
+		 * Can be empty if the text didn't change (only moved).
+		 */
+		readonly changes: readonly LineRangeMapping[];
+		constructor(lineRangeMapping: SimpleLineRangeMapping, changes: readonly LineRangeMapping[]);
+	}
+
+	export class SimpleLineRangeMapping {
+		readonly originalRange: LineRange;
+		readonly modifiedRange: LineRange;
+		constructor(originalRange: LineRange, modifiedRange: LineRange);
 		toString(): string;
 	}
 	export interface IDimension {
@@ -3428,6 +3498,10 @@ declare namespace monaco.editor {
 		 */
 		colorDecorators?: boolean;
 		/**
+		 * Controls what is the condition to spawn a color picker from a color dectorator
+		 */
+		colorDecoratorsActivatedOn?: 'clickAndHover' | 'click' | 'hover';
+		/**
 		 * Controls the max number of color decorators that can be rendered in an editor at once.
 		 */
 		colorDecoratorsLimit?: number;
@@ -3860,6 +3934,16 @@ declare namespace monaco.editor {
 		 * Whether the diff editor aria label should be verbose.
 		 */
 		accessibilityVerbose?: boolean;
+		experimental?: {
+			/**
+			 * Defaults to false.
+			 */
+			collapseUnchangedRegions?: boolean;
+			/**
+			 * Defaults to false.
+			 */
+			showMoves?: boolean;
+		};
 	}
 
 	/**
@@ -4531,6 +4615,10 @@ declare namespace monaco.editor {
 		 */
 		filterGraceful?: boolean;
 		/**
+		 * Prevent quick suggestions when a snippet is active. Defaults to true.
+		 */
+		snippetsPreventQuickSuggestions?: boolean;
+		/**
 		 * Favors words that appear close to the cursor.
 		 */
 		localityBonus?: boolean;
@@ -4888,7 +4976,8 @@ declare namespace monaco.editor {
 		tabFocusMode = 139,
 		layoutInfo = 140,
 		wrappingInfo = 141,
-		defaultColorDecorators = 142
+		defaultColorDecorators = 142,
+		colorDecoratorsActivatedOn = 143
 	}
 
 	export const EditorOptions: {
@@ -4912,6 +5001,7 @@ declare namespace monaco.editor {
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
+		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'clickAndHover' | 'click' | 'hover'>;
 		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;

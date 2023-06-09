@@ -370,7 +370,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 
 // exported for testing
 export function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[] {
-	const args = ['--hidden'];
+	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	const { doubleStarIncludes, otherIncludes } = groupBy(

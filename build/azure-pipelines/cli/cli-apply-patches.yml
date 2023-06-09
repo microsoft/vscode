@@ -1,0 +1,17 @@
+steps:
+  - template: ../distro/download-distro.yml
+
+  - task: Cache@2
+    inputs:
+      key: '"build_node_modules" | build/yarn.lock'
+      path: build/node_modules
+      cacheHitVar: BUILD_NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - script: yarn --frozen-lockfile --ignore-optional --check-files
+    workingDirectory: build
+    condition: and(succeeded(), ne(variables.BUILD_NODE_MODULES_RESTORED, 'true'))
+    displayName: Install pipeline build
+
+  - script: node build/azure-pipelines/distro/apply-cli-patches
+    displayName: Apply distro patches

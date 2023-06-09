@@ -12,6 +12,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
+import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { OS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./inlineCompletionsHintsWidget';
@@ -35,14 +36,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export class InlineCompletionsHintsWidget extends Disposable {
-	private readonly showToolbar = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar);
+	private readonly alwaysShowToolbar = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
 
 	private sessionPosition: Position | undefined = undefined;
 
 	private readonly position = derived('position', reader => {
-		const ghostText = this.model.ghostText.read(reader);
+		const ghostText = this.model.read(reader)?.ghostText.read(reader);
 
-		if (this.showToolbar.read(reader) !== 'always' || !ghostText) {
+		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
 			this.sessionPosition = undefined;
 			return null;
 		}
@@ -53,37 +54,44 @@ export class InlineCompletionsHintsWidget extends Disposable {
 		}
 
 		const position = new Position(ghostText.lineNumber, Math.min(firstColumn, this.sessionPosition?.column ?? Number.MAX_SAFE_INTEGER));
+		this.sessionPosition = position;
 		return position;
 	});
 
-	private readonly contentWidget = this._register(this.instantiationService.createInstance(
-		InlineSuggestionHintsContentWidget,
-		this.editor,
-		true,
-		this.position,
-		this.model.selectedInlineCompletionIndex,
-		this.model.inlineCompletionsCount,
-		this.model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),
-	));
-
 	constructor(
 		private readonly editor: ICodeEditor,
-		private readonly model: InlineCompletionsModel,
+		private readonly model: IObservable<InlineCompletionsModel | undefined>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
-		editor.addContentWidget(this.contentWidget);
-		this._register(toDisposable(() => editor.removeContentWidget(this.contentWidget)));
-
-		this._register(autorun('request explicit', reader => {
-			const position = this.position.read(reader);
-			if (!position) {
+		this._register(autorunWithStore2('setup content widget', (reader, store) => {
+			const model = this.model.read(reader);
+			if (!model || !this.alwaysShowToolbar.read(reader)) {
 				return;
 			}
-			if (this.model.lastTriggerKind.read(reader) !== InlineCompletionTriggerKind.Explicit) {
-				this.model.triggerExplicitly();
-			}
+
+			const contentWidget = store.add(this.instantiationService.createInstance(
+				InlineSuggestionHintsContentWidget,
+				this.editor,
+				true,
+				this.position,
+				model.selectedInlineCompletionIndex,
+				model.inlineCompletionsCount,
+				model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+			));
+			editor.addContentWidget(contentWidget);
+			store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
+
+			store.add(autorun('request explicit', reader => {
+				const position = this.position.read(reader);
+				if (!position) {
+					return;
+				}
+				if (model.lastTriggerKind.read(reader) !== InlineCompletionTriggerKind.Explicit) {
+					model.triggerExplicitly();
+				}
+			}));
 		}));
 	}
 }

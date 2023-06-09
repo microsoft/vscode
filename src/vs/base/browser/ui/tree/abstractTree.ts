@@ -1706,8 +1706,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.contentHeight;
 	}
 
+	get contentWidth(): number {
+		return this.view.contentWidth;
+	}
+
 	get onDidChangeContentHeight(): Event<number> {
 		return this.view.onDidChangeContentHeight;
+	}
+
+	get onDidChangeContentWidth(): Event<number> {
+		return this.view.onDidChangeContentWidth;
 	}
 
 	get scrollTop(): number {
