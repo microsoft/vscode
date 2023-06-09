@@ -25,6 +25,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
 
 export type Recording = {
 	when: Date;
@@ -112,6 +113,7 @@ export class Session {
 	private _lastExpansionState: ExpansionState | undefined;
 	private _lastTextModelChanges: readonly LineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
+	private _lastPosition: Position | undefined;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
 	private readonly _teldata: Partial<TelemetryData>;
@@ -153,6 +155,14 @@ export class Session {
 
 	get lastInput() {
 		return this._lastInput;
+	}
+
+	get lastPosition() {
+		return this._lastPosition;
+	}
+
+	set lastPosition(position: Position | undefined) {
+		this._lastPosition = position;
 	}
 
 	get lastExpansionState(): ExpansionState | undefined {

@@ -272,7 +272,22 @@ export class InteractiveEditorController implements IEditorContribution {
 		console.log('initialRender : ', initialRender);
 		assertType(this._activeSession);
 		const selectionRange = this._activeSession.wholeRange.value;
-		this._zone.value.showWidget(selectionRange, this._strategy?.getWidgetPosition(initialRender, selectionRange));
+
+		if (!initialRender) {
+			if (this._activeSession.lastPosition) {
+				this._zone.value.showWidget(selectionRange, this._activeSession.lastPosition);
+			} else {
+				const widgetPosition = this._strategy?.getWidgetPosition(initialRender, selectionRange);
+				this._activeSession.lastPosition = widgetPosition;
+				this._zone.value.showWidget(selectionRange, widgetPosition);
+			}
+		} else {
+			if (this._activeSession.lastPosition) {
+				this._zone.value.showWidget(selectionRange, this._activeSession.lastPosition);
+			} else {
+				this._zone.value.showWidget(selectionRange, this._strategy?.getWidgetPosition(initialRender, selectionRange));
+			}
+		}
 	}
 
 	private async [State.INIT_UI](options: InteractiveEditorRunOptions | undefined): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
