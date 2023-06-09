@@ -41,7 +41,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ParameterHintsContributionID } from 'vs/editor/contrib/parameterHints/browser/parameterHints';
+import { ParameterHintsController } from 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
@@ -370,10 +370,10 @@ export class InteractiveEditor extends EditorPane {
 					SelectionClipboardContributionID,
 					ContextMenuController.ID,
 					SuggestController.ID,
+					ParameterHintsController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
 					ModesHoverController.ID,
-					ParameterHintsContributionID,
 					MarkerController.ID
 				])
 			}

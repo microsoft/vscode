@@ -20,12 +20,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 
-export const ParameterHintsContributionID = 'editor.controller.parameterHints';
+export class ParameterHintsController extends Disposable implements IEditorContribution {
 
-class ParameterHintsController extends Disposable implements IEditorContribution {
+	public static readonly ID = 'editor.controller.parameterHints';
 
 	public static get(editor: ICodeEditor): ParameterHintsController | null {
-		return editor.getContribution<ParameterHintsController>(ParameterHintsContributionID);
+		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
 	}
 
 	private readonly editor: ICodeEditor;
@@ -96,7 +96,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ParameterHintsContributionID, ParameterHintsController, EditorContributionInstantiation.BeforeFirstInteraction);
+registerEditorContribution(ParameterHintsController.ID, ParameterHintsController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(TriggerParameterHintsAction);
 
 const weight = KeybindingWeight.EditorContrib + 75;
