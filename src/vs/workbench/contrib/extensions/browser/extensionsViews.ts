@@ -85,7 +85,7 @@ export interface ExtensionsListViewOptions {
 }
 
 interface IQueryResult {
-	readonly model: IPagedModel<IExtension>;
+	model: IPagedModel<IExtension>;
 	readonly onDidChangeModel?: Event<IPagedModel<IExtension>>;
 	readonly disposables: DisposableStore;
 }
@@ -264,7 +264,12 @@ export class ExtensionsListView extends ViewPane {
 				const model = this.queryResult.model;
 				this.setModel(model);
 				if (this.queryResult.onDidChangeModel) {
-					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => this.updateModel(model)));
+					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => {
+						if (this.queryResult) {
+							this.queryResult.model = model;
+							this.updateModel(model);
+						}
+					}));
 				}
 				return model;
 			} catch (e) {
