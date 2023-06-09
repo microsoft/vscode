@@ -700,8 +700,9 @@ export class QuickInputList {
 				this._listElementChecked
 			);
 
+			const resultIndex = result.length;
 			result.push(element);
-			elementsToIndexes.set(element.item ?? element.separator!, index);
+			elementsToIndexes.set(element.item ?? element.separator!, resultIndex);
 			return result;
 		}, [] as IListElement[]);
 		this.elementsToIndexes = elementsToIndexes;
