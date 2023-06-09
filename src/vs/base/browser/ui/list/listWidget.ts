@@ -129,11 +129,16 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
-		const sortedIndexes = [
-			...this.sortedIndexes.filter(i => i < start),
-			...elements.map((hasTrait, i) => hasTrait ? i + start : -1).filter(i => i !== -1),
-			...this.sortedIndexes.filter(i => i >= end).map(i => i + diff)
-		];
+		const newSortedStart = this.sortedIndexes.filter(i => i < start);
+		const newSortedMiddle: number[] = [];
+		const newSortedEnd = this.sortedIndexes.filter(i => i >= end).map(i => i + diff);
+		for (let i = 0; i < elements.length; i++) {
+			const hasTrait = elements[i];
+			if (hasTrait) {
+				newSortedMiddle.push(i + start);
+			}
+		}
+		const sortedIndexes = newSortedStart.concat(newSortedMiddle, newSortedEnd);
 
 		const length = this.length + diff;
 
