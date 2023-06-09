@@ -100,7 +100,9 @@ class ListElement implements IListElement {
 		this.fireButtonTriggered = fireButtonTriggered;
 		this.fireSeparatorButtonTriggered = fireSeparatorButtonTriggered;
 		this._onChecked = onCheckedEmitter;
-		this.onChecked = Event.map(Event.filter<{ listElement: IListElement; checked: boolean }>(this._onChecked.event, e => e.listElement === this), e => e.checked);
+		this.onChecked = hasCheckbox
+			? Event.map(Event.filter<{ listElement: IListElement; checked: boolean }>(this._onChecked.event, e => e.listElement === this), e => e.checked)
+			: Event.None;
 
 		if (mainItem.type === 'separator') {
 			this._separator = mainItem;
