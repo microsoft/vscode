@@ -14,6 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { localize } from 'vs/nls';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { raceTimeout } from 'vs/base/common/async';
 
 type FeaturedExtensionTreatment = { extensions: string[]; showAsList?: string };
 type FeaturedExtensionStorageData = { title: string; description: string; imagePath: string; date: number };
@@ -84,15 +85,8 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 			return;
 		}
 
-		const extensions = await Promise.race([
-			this.tasExperimentService?.getTreatment<string>('welcome.featured.item'),
-			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
-		]);
-
-		const extensionListTitle = await Promise.race([
-			this.tasExperimentService?.getTreatment<string>('welcome.featured.title'),
-			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
-		]);
+		const [extensions, extensionListTitle] = await Promise.all([raceTimeout(this.tasExperimentService?.getTreatment<string>('welcome.featured.item'), 2000),
+		raceTimeout(this.tasExperimentService?.getTreatment<string>('welcome.featured.title'), 2000)]);
 
 		try {
 			this.treatment = extensions ? JSON.parse(extensions) : { extensions: [] };
