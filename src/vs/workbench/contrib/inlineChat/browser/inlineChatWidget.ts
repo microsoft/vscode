@@ -789,7 +789,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 	showWidget(position: Position): void {
 		const widgetPosition = position;
-		console.log('widgetPosition : ', widgetPosition);
 		super.show(widgetPosition, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
