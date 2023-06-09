@@ -288,6 +288,10 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
+	clearBuffer(): void | Promise<void> {
+		// no-op
+	}
+
 	async processBinary(data: string): Promise<void> {
 		// No-op, processBinary is not supported in extension owned terminals.
 	}
@@ -334,7 +338,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 			this._pty.setDimensions?.(initialDimensions);
 		}
 
-		this._onProcessReady.fire({ pid: -1, cwd: '' });
+		this._onProcessReady.fire({ pid: -1, cwd: '', windowsPty: undefined });
 	}
 }
 
@@ -583,7 +587,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): IDisposable {
 		const disposables = new DisposableStore();
-		disposables.add(p.onProcessReady(e => this._proxy.$sendProcessReady(id, e.pid, e.cwd)));
+		disposables.add(p.onProcessReady(e => this._proxy.$sendProcessReady(id, e.pid, e.cwd, e.windowsPty)));
 		disposables.add(p.onDidChangeProperty(property => this._proxy.$sendProcessProperty(id, property)));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
@@ -939,9 +943,23 @@ class UnifiedEnvironmentVariableCollection {
 		}
 		const key = this.getKey(variable, mutator.scope);
 		const current = this.map.get(key);
-		if (!current || current.value !== mutator.value || current.type !== mutator.type || current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index) {
+		if (
+			!current ||
+			current.value !== mutator.value ||
+			current.type !== mutator.type ||
+			current.options?.applyAtProcessCreation !== (mutator.options.applyAtProcessCreation ?? true) ||
+			current.options?.applyAtShellIntegration !== (mutator.options.applyAtShellIntegration ?? false) ||
+			current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index
+		) {
 			const key = this.getKey(variable, mutator.scope);
-			const value: IEnvironmentVariableMutator = { variable, ...mutator };
+			const value: IEnvironmentVariableMutator = {
+				variable,
+				...mutator,
+				options: {
+					applyAtProcessCreation: mutator.options.applyAtProcessCreation ?? true,
+					applyAtShellIntegration: mutator.options.applyAtShellIntegration ?? false,
+				}
+			};
 			this.map.set(key, value);
 			this._onDidChangeCollection.fire();
 		}

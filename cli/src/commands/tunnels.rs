@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 use async_trait::async_trait;
+use base64::{Engine as _, engine::general_purpose as b64};
 use sha2::{Digest, Sha256};
 use std::{str::FromStr, time::Duration};
 use sysinfo::Pid;
@@ -35,7 +36,7 @@ use crate::{
 	},
 	util::{
 		app_lock::AppMutex,
-		errors::{wrap, AnyError},
+		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
 };
@@ -247,17 +248,25 @@ pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 }
 
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
-	let status: protocol::singleton::Status = do_single_rpc_call(
+	let status = do_single_rpc_call::<_, protocol::singleton::Status>(
 		&ctx.paths.tunnel_lockfile(),
 		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
 		protocol::EmptyObject {},
 	)
-	.await?;
+	.await;
 
-	ctx.log.result(serde_json::to_string(&status).unwrap());
-
-	Ok(0)
+	match status {
+		Err(CodeError::NoRunningTunnel) => {
+			ctx.log.result(CodeError::NoRunningTunnel.to_string());
+			Ok(1)
+		}
+		Err(e) => Err(e.into()),
+		Ok(s) => {
+			ctx.log.result(serde_json::to_string(&s).unwrap());
+			Ok(0)
+		}
+	}
 }
 
 /// Removes unused servers.
@@ -308,7 +317,7 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
 	let result = hash.finalize();
-	base64::encode_config(result, base64::URL_SAFE_NO_PAD)
+	b64::URL_SAFE_NO_PAD.encode(result)
 }
 
 async fn serve_with_csa(

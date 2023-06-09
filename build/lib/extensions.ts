@@ -61,12 +61,12 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 		.pipe(packageJsonFilter.restore);
 }
 
-function fromLocal(extensionPath: string, forWeb: boolean): Stream {
+function fromLocal(extensionPath: string, forWeb: boolean, disableMangle: boolean): Stream {
 	const webpackConfigFileName = forWeb ? 'extension-browser.webpack.config.js' : 'extension.webpack.config.js';
 
 	const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFileName));
 	let input = isWebPacked
-		? fromLocalWebpack(extensionPath, webpackConfigFileName)
+		? fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle)
 		: fromLocalNormal(extensionPath);
 
 	if (isWebPacked) {
@@ -85,7 +85,7 @@ function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 }
 
 
-function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string): Stream {
+function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, disableMangle: boolean): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const webpack = require('webpack');
 	const webpackGulp = require('webpack-stream');
@@ -141,6 +141,19 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 					...config,
 					...{ mode: 'production' }
 				};
+				if (disableMangle) {
+					if (Array.isArray(config.module.rules)) {
+						for (const rule of config.module.rules) {
+							if (Array.isArray(rule.use)) {
+								for (const use of rule.use) {
+									if (String(use.loader).endsWith('mangle-loader.js')) {
+										use.options.disabled = true;
+									}
+								}
+							}
+						}
+					}
+				}
 				const relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
 
 				return webpackGulp(webpackConfig, webpack, webpackDone)
@@ -318,7 +331,7 @@ function isWebExtension(manifest: IExtensionManifest): boolean {
 	return true;
 }
 
-export function packageLocalExtensionsStream(forWeb: boolean): Stream {
+export function packageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
 	const localExtensionsDescriptions = (
 		(<string[]>glob.sync('extensions/*/package.json'))
 			.map(manifestPath => {
@@ -334,7 +347,7 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 	const localExtensionsStream = minifyExtensionResources(
 		es.merge(
 			...localExtensionsDescriptions.map(extension => {
-				return fromLocal(extension.path, forWeb)
+				return fromLocal(extension.path, forWeb, disableMangle)
 					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 			})
 		)
@@ -351,7 +364,8 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 		result = es.merge(
 			localExtensionsStream,
 			gulp.src(dependenciesSrc, { base: '.' })
-				.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore'))));
+				.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
+				.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`))));
 	}
 
 	return (

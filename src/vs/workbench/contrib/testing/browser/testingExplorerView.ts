@@ -546,6 +546,7 @@ class TestingExplorerViewModel extends Disposable {
 		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 
@@ -617,6 +618,12 @@ class TestingExplorerViewModel extends Disposable {
 			filterState.fuzzy.onDidChange,
 			testService.excluded.onTestExclusionsChanged,
 		)(this.tree.refilter, this.tree));
+
+		this._register(this.tree.onMouseDblClick(e => {
+			if (e.element instanceof TestItemTreeElement && !e.element.children.size && e.element.test.item.uri) {
+				commandService.executeCommand('vscode.revealTest', e.element.test.item.extId);
+			}
+		}));
 
 		this._register(this.tree);
 
@@ -1394,12 +1401,6 @@ const getActionableElementActions = (
 		], [
 			TestingContextKeys.supportsContinuousRun.key,
 			supportsCr,
-		], [
-			TestingContextKeys.controllerId.key,
-			test.controllerId,
-		], [
-			TestingContextKeys.testItemExtId.key,
-			test.item.extId,
 		]);
 	}
 

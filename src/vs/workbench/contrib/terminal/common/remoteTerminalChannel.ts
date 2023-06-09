@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -80,8 +80,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	get onProcessExit(): Event<{ id: number; event: number | undefined }> {
 		return this._channel.listen<{ id: number; event: number | undefined }>('$onProcessExitEvent');
 	}
-	get onProcessReady(): Event<{ id: number; event: { pid: number; cwd: string; requireWindowsMode?: boolean } }> {
-		return this._channel.listen<{ id: number; event: { pid: number; cwd: string; requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
+	get onProcessReady(): Event<{ id: number; event: IProcessReadyEvent }> {
+		return this._channel.listen<{ id: number; event: IProcessReadyEvent }>('$onProcessReadyEvent');
 	}
 	get onProcessReplay(): Event<{ id: number; event: IPtyHostProcessReplayEvent }> {
 		return this._channel.listen<{ id: number; event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
@@ -225,6 +225,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	}
 	resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._channel.call('$resize', [id, cols, rows]);
+	}
+	clearBuffer(id: number): Promise<void> {
+		return this._channel.call('$clearBuffer', [id]);
 	}
 	getInitialCwd(id: number): Promise<string> {
 		return this._channel.call('$getInitialCwd', [id]);

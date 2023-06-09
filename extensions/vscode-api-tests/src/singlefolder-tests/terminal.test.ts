@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
-import { ConfigurationTarget, Disposable, env, EnvironmentVariableCollection, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EnvironmentVariableScope, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
+import { ConfigurationTarget, Disposable, env, EnvironmentVariableCollection, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EnvironmentVariableScope, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, poll } from '../utils';
 
 // Disable terminal tests:
@@ -849,16 +849,20 @@ import { assertNoRpc, poll } from '../utils';
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
 				// Verify get
-				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: {} });
-				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: {} });
-				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: {} });
+				const defaultOptions: Required<EnvironmentVariableMutatorOptions> = {
+					applyAtProcessCreation: true,
+					applyAtShellIntegration: false
+				};
+				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions });
+				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions });
+				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions });
 				// Verify forEach
 				const entries: [string, EnvironmentVariableMutator][] = [];
 				collection.forEach((v, m) => entries.push([v, m]));
 				deepStrictEqual(entries, [
-					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: {} }],
-					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: {} }],
-					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: {} }]
+					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions }],
+					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions }],
+					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions }]
 				]);
 			});
 
@@ -875,18 +879,22 @@ import { assertNoRpc, poll } from '../utils';
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
 				// Verify get for scope
+				const defaultOptions: Required<EnvironmentVariableMutatorOptions> = {
+					applyAtProcessCreation: true,
+					applyAtShellIntegration: false
+				};
 				const expectedScopedCollection = collection.getScopedEnvironmentVariableCollection(scope);
-				deepStrictEqual(expectedScopedCollection.get('A'), { value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: {} });
-				deepStrictEqual(expectedScopedCollection.get('B'), { value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: {} });
-				deepStrictEqual(expectedScopedCollection.get('C'), { value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: {} });
+				deepStrictEqual(expectedScopedCollection.get('A'), { value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions });
+				deepStrictEqual(expectedScopedCollection.get('B'), { value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions });
+				deepStrictEqual(expectedScopedCollection.get('C'), { value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions });
 
 				// Verify forEach
 				const entries: [string, EnvironmentVariableMutator][] = [];
 				expectedScopedCollection.forEach((v, m) => entries.push([v, m]));
 				deepStrictEqual(entries.map(v => v[1]), [
-					{ value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: {} },
-					{ value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: {} },
-					{ value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: {} }
+					{ value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions },
+					{ value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions },
+					{ value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions }
 				]);
 			});
 		});

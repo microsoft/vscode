@@ -1,0 +1,11 @@
+@vscode/windows-mutex/index.js
+@vscode/windows-mutex/**/*.node
+@vscode/windows-mutex/*.md
+@vscode/windows-mutex/package.json
+
+@vscode/windows-registry/dist/**
+@vscode/windows-registry/**/*.node
+@vscode/windows-registry/*.md
+@vscode/windows-registry/*.txt
+@vscode/windows-registry/package.json
+!@vscode/windows-registry/dist/index.d.ts
