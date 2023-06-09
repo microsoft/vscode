@@ -197,7 +197,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		assertType(this._activeSession);
 		const selectionRange = this._activeSession.wholeRange.value;
 		const widgetPosition = this._strategy?.getWidgetPosition(initialRender, selectionRange, hasEditResponse);
-		this._zone.value.showWidget(selectionRange, widgetPosition);
+		this._zone.value.showWidget(widgetPosition ?? selectionRange.getStartPosition());
 	}
 
 	protected async _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {

@@ -787,22 +787,22 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	showWidget(selectionRange: Range, position: Position | undefined): void {
-		const widgetPosition = position ?? selectionRange.getEndPosition();
+	showWidget(position: Position): void {
+		const widgetPosition = position;
+		console.log('widgetPosition : ', widgetPosition);
 		super.show(widgetPosition, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
-		this._setMargins(selectionRange, widgetPosition);
+		this._setMargins(widgetPosition);
 	}
 
-	private _setMargins(selectionRange: Range, position: Position): void {
-		const positionLineNumber = position.lineNumber;
-		const info = this.editor.getLayoutInfo();
-		const startLineNumber = selectionRange.getStartPosition().lineNumber;
+	private _setMargins(position: Position): void {
 		const viewModel = this.editor._getViewModel();
 		if (!viewModel) {
 			return;
 		}
+		const positionLineNumber = position.lineNumber;
+		const startLineNumber = viewModel.getCompletelyVisibleViewRange().startLineNumber;
 		let indentationLineNumber;
 		let indentationLevel;
 		for (let lineNumber = positionLineNumber; lineNumber >= startLineNumber; lineNumber--) {
@@ -814,6 +814,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 			}
 		}
 		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? positionLineNumber, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLineNumber));
+		const info = this.editor.getLayoutInfo();
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;
 		const isEnoughAvailableSpaceWithIndentation = this._availableSpaceGivenIndentation() > 400;
