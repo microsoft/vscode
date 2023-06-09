@@ -90,6 +90,8 @@ export class MdDocumentRenderer {
 			return { html: '', containingImages: new Set() };
 		}
 
+
+		const isWeb = (typeof navigator === 'object' && navigator.userAgent);
 		const html = `<!DOCTYPE html>
 			<html style="${escapeAttribute(this._getSettingsOverrideStyles(config))}">
 			<head>
@@ -103,7 +105,7 @@ export class MdDocumentRenderer {
 				${this._getStyles(resourceProvider, sourceUri, config, imageInfo)}
 				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
 			</head>
-			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
+			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''} ${isWeb ? 'style="overscroll-behavior-x: none;"' : ''}">
 				${body.html}
 				${this._getScripts(resourceProvider, nonce)}
 			</body>
