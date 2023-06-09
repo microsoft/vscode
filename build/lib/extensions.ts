@@ -364,7 +364,8 @@ export function packageLocalExtensionsStream(forWeb: boolean, disableMangle: boo
 		result = es.merge(
 			localExtensionsStream,
 			gulp.src(dependenciesSrc, { base: '.' })
-				.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore'))));
+				.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
+				.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`))));
 	}
 
 	return (
