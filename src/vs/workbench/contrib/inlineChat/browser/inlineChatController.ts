@@ -67,7 +67,6 @@ export interface InteractiveEditorRunOptions {
 	autoSend?: boolean;
 	existingSession?: Session;
 	isUnstashed?: boolean;
-	initialRender?: boolean;
 }
 
 export class InteractiveEditorController implements IEditorContribution {
@@ -238,12 +237,16 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._initializeStratetgy(session);
 		this._activeSession = session;
 		this._store.add(this._configurationService.onDidChangeConfiguration((e) => {
+
 			console.log('e : ', e);
 			console.log('e.affectsConfiguration(interactiveEditor.editModes) : ', e.affectsConfiguration('interactiveEditor.editMode'));
 			console.log('this._activeSession : ', this._activeSession);
+
 			if (e.affectsConfiguration('interactiveEditor.editMode')) {
+
 				console.log('entered into inner if loop of onDidChangeConfiguration');
 				console.log('this._getMode() : ', this._getMode());
+
 				this._updateEditMode = true;
 			}
 		}));
@@ -252,7 +255,9 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	private _initializeStratetgy(session: Session): void {
+
 		console.log('inside of initial strategy');
+
 		switch (session.editMode) {
 			case EditMode.Live:
 				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value.widget);
@@ -267,24 +272,49 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	private _showWidget(initialRender: boolean = false) {
+	private _showWidget(initialRender: boolean = false, updateEditMode: boolean = false) {
+
 		console.log('inside of _showWidget');
 		console.log('initialRender : ', initialRender);
+		console.log('updateEditMode : ', updateEditMode);
+
 		assertType(this._activeSession);
 		const selectionRange = this._activeSession.wholeRange.value;
 
 		if (!initialRender) {
+			console.log('initial render is false');
+			console.log('this._activeSession.lastPosition : ', this._activeSession.lastPosition);
 			if (this._activeSession.lastPosition) {
-				this._zone.value.showWidget(selectionRange, this._activeSession.lastPosition);
+				console.log('inside if');
+				if (updateEditMode) {
+					console.log('inside if');
+					this._zone.value.showWidget(selectionRange, this._strategy?.getWidgetPosition(initialRender, selectionRange));
+				} else {
+					console.log('inside else');
+					this._zone.value.showWidget(selectionRange, this._activeSession.lastPosition);
+				}
 			} else {
+				console.log('inside else');
 				const widgetPosition = this._strategy?.getWidgetPosition(initialRender, selectionRange);
 				this._activeSession.lastPosition = widgetPosition;
 				this._zone.value.showWidget(selectionRange, widgetPosition);
 			}
 		} else {
+			console.log('initial render is true');
+			console.log('this._activeSession.lastPosition : ', this._activeSession.lastPosition);
+
 			if (this._activeSession.lastPosition) {
-				this._zone.value.showWidget(selectionRange, this._activeSession.lastPosition);
+				console.log('inside if');
+				if (updateEditMode) {
+					console.log('inside if');
+					this._zone.value.showWidget(selectionRange, this._strategy?.getWidgetPosition(initialRender, selectionRange));
+					this._activeSession.lastPosition = undefined;
+				} else {
+					console.log('inside else');
+					this._zone.value.showWidget(selectionRange, this._activeSession.lastPosition);
+				}
 			} else {
+				console.log('inside else');
 				this._zone.value.showWidget(selectionRange, this._strategy?.getWidgetPosition(initialRender, selectionRange));
 			}
 		}
@@ -296,7 +326,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (this._updateEditMode) {
 			this._activeSession.editMode = this._getMode();
 			this._initializeStratetgy(this._activeSession);
-			this._updateEditMode = false;
 		}
 
 		// hide/cancel inline completions when invoking IE
@@ -317,9 +346,11 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
+
 		console.log('inside of init ui before show widget');
+
 		this._initialRender = true;
-		this._showWidget(this._initialRender);
+		this._showWidget(this._initialRender, this._updateEditMode);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -407,10 +438,13 @@ export class InteractiveEditorController implements IEditorContribution {
 	private async [State.WAIT_FOR_INPUT](options: InteractiveEditorRunOptions | undefined): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
 		assertType(this._activeSession);
 
+
 		console.log('inside of wait for input');
+
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
-		this._showWidget(this._initialRender);
+		this._showWidget(this._initialRender, this._updateEditMode);
 		this._initialRender = false;
+		this._updateEditMode = false;
 
 		if (options?.message) {
 			this._zone.value.widget.value = options?.message;
@@ -449,7 +483,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 
 		if (!this._zone.value.widget.value) {
+
 			console.log('before the case when we call WAIT_FOR_INPUT');
+
 			return State.WAIT_FOR_INPUT;
 		}
 
@@ -479,7 +515,9 @@ export class InteractiveEditorController implements IEditorContribution {
 	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
+
 		console.log('this._activeSession.lastInput : ', this._activeSession.lastInput);
+
 		assertType(this._activeSession.lastInput);
 
 		const requestCts = new CancellationTokenSource();
