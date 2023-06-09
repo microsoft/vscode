@@ -98,6 +98,10 @@ suite('Notebook builtin output renderer', () => {
 			this.firstOutput = outputElement;
 		}
 
+		public get cellElement() {
+			return this.cell;
+		}
+
 		public getFirstOuputElement() {
 			return this.firstOutput;
 		}
@@ -239,6 +243,50 @@ suite('Notebook builtin output renderer', () => {
 		assert.ok(inserted.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>second stream content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>third stream content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
+	});
+
+	test(`Consolidated streaming outputs should replace matching outputs correctly`, async () => {
+		const context = createContext({ outputScrolling: false });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputHtml = new OutputHtml();
+		const outputElement = outputHtml.getFirstOuputElement();
+		const outputItem1 = createOutputItem('first stream content', stdoutMimeType, '1');
+		const outputItem2 = createOutputItem('second stream content', stdoutMimeType, '2');
+		await renderer!.renderOutputItem(outputItem1, outputElement);
+		const secondOutput = outputHtml.appendOutputElement();
+		await renderer!.renderOutputItem(outputItem2, secondOutput);
+		const newOutputItem1 = createOutputItem('replaced content', stdoutMimeType, '2');
+		await renderer!.renderOutputItem(newOutputItem1, secondOutput);
+
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>replaced content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>second stream content</') === -1, `Content was not replaced in output element: ${outputHtml.cellElement.innerHTML}`);
+	});
+
+	test(`Streaming outputs interleaved with other mime types will produce separate outputs`, async () => {
+		const context = createContext({ outputScrolling: false });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputHtml = new OutputHtml();
+		const firstOutputElement = outputHtml.getFirstOuputElement();
+		const outputItem1 = createOutputItem('first stream content', stdoutMimeType, '1');
+		const outputItem2 = createOutputItem(JSON.stringify(error), errorMimeType, '2');
+		const outputItem3 = createOutputItem('second stream content', stdoutMimeType, '3');
+		await renderer!.renderOutputItem(outputItem1, firstOutputElement);
+		const secondOutputElement = outputHtml.appendOutputElement();
+		await renderer!.renderOutputItem(outputItem2, secondOutputElement);
+		const thirdOutputElement = outputHtml.appendOutputElement();
+		await renderer!.renderOutputItem(outputItem3, thirdOutputElement);
+
+		assert.ok(firstOutputElement.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(secondOutputElement.innerHTML.indexOf('>NameError</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(thirdOutputElement.innerHTML.indexOf('>second stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
 	});
 
 	test(`Multiple adjacent streaming outputs, rerendering the first should erase the rest`, async () => {
