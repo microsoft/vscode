@@ -17,26 +17,15 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
-	Shell = 'terminal.integrated.shell.',
-	ShellArgs = 'terminal.integrated.shellArgs.',
 	DefaultProfile = 'terminal.integrated.defaultProfile.',
 	Profiles = 'terminal.integrated.profiles.'
 }
 
 export const enum TerminalSettingId {
-	ShellLinux = 'terminal.integrated.shell.linux',
-	ShellMacOs = 'terminal.integrated.shell.osx',
-	ShellWindows = 'terminal.integrated.shell.windows',
 	SendKeybindingsToShell = 'terminal.integrated.sendKeybindingsToShell',
-	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
-	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
-	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
 	AutomationProfileLinux = 'terminal.integrated.automationProfile.linux',
 	AutomationProfileMacOs = 'terminal.integrated.automationProfile.osx',
 	AutomationProfileWindows = 'terminal.integrated.automationProfile.windows',
-	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
-	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
-	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
 	ProfilesWindows = 'terminal.integrated.profiles.windows',
 	ProfilesMacOs = 'terminal.integrated.profiles.osx',
 	ProfilesLinux = 'terminal.integrated.profiles.linux',
