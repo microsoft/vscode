@@ -33,6 +33,7 @@ async function build() {
 		outdir: outDir,
 		platform: 'browser',
 		target: ['es2020'],
+		external: ['vscode']
 	});
 
 	fse.copySync(

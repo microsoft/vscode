@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import type * as markdownIt from 'markdown-it';
 import type { RendererContext } from 'vscode-notebook-renderer';
+import * as vscode from 'vscode';
+
+console.log(vscode);
 
 const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
 
