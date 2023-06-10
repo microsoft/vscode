@@ -90,7 +90,10 @@ export class CompletionItem {
 		this.labelLow = this.textLabel.toLowerCase();
 
 		// validate label
-		this.isInvalid = !this.textLabel;
+		this.isInvalid = !this.textLabel && this.textLabel !== '';
+		if (this.textLabel.trim() === '') {
+			this.textLabel = `"${this.textLabel}"`;
+		}
 
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
