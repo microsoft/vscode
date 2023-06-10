@@ -151,4 +151,34 @@ suite('Suggest', function () {
 		assert.strictEqual(b.completion.label, 'two');
 		assert.strictEqual(b.isInvalid, true);
 	});
+
+	test('Completion for empty string property value', async function () {
+		const foo = new class implements CompletionItemProvider {
+
+			triggerCharacters = [];
+
+			provideCompletionItems() {
+				return {
+					suggestions: [
+						{
+							label: '',
+							kind: CompletionItemKind.Property,
+							insertText: '""',
+							range: {
+								insert: new Range(0, 0, 0, 0),
+								replace: new Range(0, 0, 0, 0)
+							}
+						}
+					]
+				};
+			}
+
+
+		};
+		const registration = registry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
+		const { items } = await provideSuggestionItems(registry, model, new Position(0, 0), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo)));
+		registration.dispose();
+		assert.strictEqual(items.length, 1);
+		assert.strictEqual(items[0].isInvalid, false);
+	});
 });
