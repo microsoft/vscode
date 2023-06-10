@@ -33,7 +33,7 @@ export class DiffModel extends Disposable {
 	public readonly syncedMovedTexts = observableValue<MovedText | undefined>('syncedMovedText', undefined);
 
 	constructor(
-		model: IDiffEditorModel,
+		public readonly model: IDiffEditorModel,
 		ignoreTrimWhitespace: IObservable<boolean>,
 		maxComputationTimeMs: IObservable<number>,
 		private readonly _hideUnchangedRegions: IObservable<boolean>,

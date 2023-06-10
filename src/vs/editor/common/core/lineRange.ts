@@ -203,4 +203,12 @@ export class LineRange {
 	public toExclusiveRange(): Range {
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive, 1);
 	}
+
+	public mapToLineArray<T>(f: (lineNumber: number) => T): T[] {
+		const result: T[] = [];
+		for (let lineNumber = this.startLineNumber; lineNumber < this.endLineNumberExclusive; lineNumber++) {
+			result.push(f(lineNumber));
+		}
+		return result;
+	}
 }
