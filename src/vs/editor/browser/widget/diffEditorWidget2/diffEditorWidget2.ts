@@ -20,7 +20,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget';
 import { diffAddDecoration, diffDeleteDecoration, diffFullLineAddDecoration, diffFullLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
 import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorSash';
-import { ViewZoneAlignment } from 'vs/editor/browser/widget/diffEditorWidget2/lineAlignment';
+import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/lineAlignment';
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
 import { UnchangedRangesFeature } from 'vs/editor/browser/widget/diffEditorWidget2/unchangedRanges';
@@ -140,7 +140,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 
 		this._register(new UnchangedRangesFeature(this._originalEditor, this._modifiedEditor, this._diffModel));
-		this._register(this._instantiationService.createInstance(ViewZoneAlignment, this._originalEditor, this._modifiedEditor, this._diffModel, this._options.map(o => o.renderSideBySide)));
+		this._register(this._instantiationService.createInstance(ViewZoneManager, this._originalEditor, this._modifiedEditor, this._diffModel, this._options.map(o => o.renderSideBySide)));
 
 		this._register(this._instantiationService.createInstance(OverviewRulerPart,
 			this._originalEditor,
@@ -442,13 +442,21 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		return this._originalEditor.hasTextFocus() || this._modifiedEditor.hasTextFocus();
 	}
 
-	override saveViewState(): IDiffEditorViewState | null {
-		return null;
-		//throw new Error('Method not implemented.');
+	public override saveViewState(): IDiffEditorViewState {
+		const originalViewState = this._originalEditor.saveViewState();
+		const modifiedViewState = this._modifiedEditor.saveViewState();
+		return {
+			original: originalViewState,
+			modified: modifiedViewState
+		};
 	}
 
-	override restoreViewState(state: IDiffEditorViewState | null): void {
-		//throw new Error('Method not implemented.');
+	public override restoreViewState(s: IDiffEditorViewState): void {
+		if (s && s.original && s.modified) {
+			const diffEditorState = s as IDiffEditorViewState;
+			this._originalEditor.restoreViewState(diffEditorState.original);
+			this._modifiedEditor.restoreViewState(diffEditorState.modified);
+		}
 	}
 
 	override getModel(): IDiffEditorModel | null { return this._model.get(); }
