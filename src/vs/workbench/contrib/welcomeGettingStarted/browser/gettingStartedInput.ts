@@ -9,8 +9,13 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
+
+export interface GettingStartedEditorOptions extends IEditorOptions {
+	selectedCategory?: string; selectedStep?: string; showTelemetryNotice?: boolean;
+}
 
 export class GettingStartedInput extends EditorInput {
 
@@ -19,6 +24,16 @@ export class GettingStartedInput extends EditorInput {
 
 	override get typeId(): string {
 		return GettingStartedInput.ID;
+	}
+
+	override toUntyped(): IUntypedEditorInput {
+		return {
+			resource: GettingStartedInput.RESOURCE,
+			options: {
+				override: GettingStartedInput.ID,
+				pinned: false
+			}
+		};
 	}
 
 	get resource(): URI | undefined {
@@ -37,7 +52,7 @@ export class GettingStartedInput extends EditorInput {
 	}
 
 	constructor(
-		options: { selectedCategory?: string; selectedStep?: string; showTelemetryNotice?: boolean }
+		options: GettingStartedEditorOptions
 	) {
 		super();
 		this.selectedCategory = options.selectedCategory;
