@@ -256,11 +256,11 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	async createTemporaryProfile(profile: IUserDataProfile, extensionsDisabled: boolean, progressTitle: string): Promise<void> {
+	async createTemporaryProfile(profile: IUserDataProfile, name: string, extensionsDisabled: boolean): Promise<void> {
 		const userDataProfilesExportState = this.instantiationService.createInstance(UserDataProfileExportState, profile, extensionsDisabled);
 		try {
-			const profileTemplate = await userDataProfilesExportState.getProfileTemplate('Temp', undefined);
-			await this.importAndSwitch(profileTemplate, true, true, extensionsDisabled, progressTitle);
+			const profileTemplate = await userDataProfilesExportState.getProfileTemplate(name, undefined);
+			await this.importAndSwitch(profileTemplate, true, true, extensionsDisabled, localize('import', "Create Profile"));
 		} finally {
 			userDataProfilesExportState.dispose();
 		}
@@ -555,8 +555,8 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		return result?.id;
 	}
 
-	private async getProfileToImport(profileTemplate: IUserDataProfileTemplate, temp?: boolean): Promise<IUserDataProfile | undefined> {
-		const profileName = temp ? `${profileTemplate.name} (${localize('preview', "Preview")})` : profileTemplate.name;
+	private async getProfileToImport(profileTemplate: IUserDataProfileTemplate, temp: boolean): Promise<IUserDataProfile | undefined> {
+		const profileName = profileTemplate.name;
 		const profile = this.userDataProfilesService.profiles.find(p => p.name === profileName);
 		if (profile) {
 			if (temp) {
