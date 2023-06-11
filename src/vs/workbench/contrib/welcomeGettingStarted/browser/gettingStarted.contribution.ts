@@ -100,13 +100,12 @@ registerAction2(class extends Action2 {
 				return;
 			}
 
-			const gettingStartedInput = instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep });
 			// If it's the extension install page then lets replace it with the getting started page
 			if (activeEditor instanceof ExtensionsInput) {
 				const activeGroup = editorGroupsService.activeGroup;
 				activeGroup.replaceEditors([{
 					editor: activeEditor,
-					replacement: gettingStartedInput
+					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep })
 				}]);
 			} else if (!openedWalkthroughExists) {
 				// else open respecting toSide
