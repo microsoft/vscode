@@ -8,7 +8,8 @@ import { findLast } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IObservable, ISettableObservable, autorun, derived, keepAlive, observableValue, waitForState } from 'vs/base/common/observable';
-import { disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
+import { disposableObservableValue } from 'vs/base/common/observableImpl/base';
+import { derivedWithStore } from 'vs/base/common/observableImpl/derived';
 import { isDefined } from 'vs/base/common/types';
 import { Constants } from 'vs/base/common/uint';
 import 'vs/css!./style';
@@ -80,6 +81,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 	private readonly _options: ISettableObservable<ValidDiffEditorBaseOptions>;
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
+	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>('boundarySashes', undefined);
 	private readonly _renderOverviewRuler: IObservable<boolean>;
 
 	constructor(
@@ -114,30 +116,30 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._register(applyObservableDecorations(this._modifiedEditor, this._decorations.map(d => d?.modifiedDecorations || [])));
 
 		this._renderOverviewRuler = this._options.map(o => o.renderOverviewRuler);
-		const sash = this._register(disposableObservableValue<DiffEditorSash | undefined>('sash', undefined));
-		this._sash = sash;
-
-		this._register(autorun('update sash', reader => {
+		this._sash = derivedWithStore('sash', (reader, store) => {
 			const showSash = this._options.read(reader).renderSideBySide;
-
 			this.elements.root.classList.toggle('side-by-side', showSash);
-
-			transaction(tx => {
-				sash.set(undefined, tx);
-				if (showSash) {
-					sash.set(new DiffEditorSash(
-						this._options.map(o => o.enableSplitViewResizing),
-						this._options.map(o => o.splitViewDefaultRatio),
-						this.elements.root,
-						{
-							height: this._rootSizeObserver.height,
-							width: this._rootSizeObserver.width.map((w, reader) => w - (this._renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)),
-						}
-					), tx);
+			if (!showSash) {
+				return undefined;
+			}
+			const result = store.add(new DiffEditorSash(
+				this._options.map(o => o.enableSplitViewResizing),
+				this._options.map(o => o.splitViewDefaultRatio),
+				this.elements.root,
+				{
+					height: this._rootSizeObserver.height,
+					width: this._rootSizeObserver.width.map((w, reader) => w - (this._renderOverviewRuler.read(reader) ? OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)),
 				}
-			});
-		}));
-
+			));
+			store.add(autorun('setBoundarySashes', reader => {
+				const boundarySashes = this._boundarySashes.read(reader);
+				if (boundarySashes) {
+					result.setBoundarySashes(boundarySashes);
+				}
+			}));
+			return result;
+		});
+		this._register(keepAlive(this._sash, true));
 
 		this._register(new UnchangedRangesFeature(this._originalEditor, this._modifiedEditor, this._diffModel));
 		this._register(this._instantiationService.createInstance(ViewZoneManager, this._originalEditor, this._modifiedEditor, this._diffModel, this._options.map(o => o.renderSideBySide)));
@@ -490,13 +492,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	getModifiedEditor(): ICodeEditor { return this._modifiedEditor; }
 
 	setBoundarySashes(sashes: IBoundarySashes): void {
-		// TODO
-		this._sash.get()?.setBoundarySashes(sashes);
+		this._boundarySashes.set(sashes, undefined);
 	}
 
-	readonly onDidUpdateDiff: Event<void> = e => {
-		return { dispose: () => { } };
-	};
+	private readonly _diffValue = this._diffModel.map((m, r) => m?.diff.read(r));
+	readonly onDidUpdateDiff: Event<void> = Event.fromObservableLight(this._diffValue);
 
 	get ignoreTrimWhitespace(): boolean {
 		return this._options.get().ignoreTrimWhitespace;
@@ -510,13 +510,73 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		return this._options.get().renderSideBySide;
 	}
 
+	/**
+	 * @deprecated Use `this.getDiffComputationResult().changes2` instead.
+	 */
 	getLineChanges(): ILineChange[] | null {
-		return null;
-		//throw new Error('Method not implemented.');
+		const diffState = this._diffModel.get()?.diff.get();
+		if (!diffState) {
+			return null;
+		}
+		return diffState.mappings.map(x => {
+			const m = x.lineRangeMapping;
+			let originalStartLineNumber: number;
+			let originalEndLineNumber: number;
+			let modifiedStartLineNumber: number;
+			let modifiedEndLineNumber: number;
+			let innerChanges = m.innerChanges;
+
+			if (m.originalRange.isEmpty) {
+				// Insertion
+				originalStartLineNumber = m.originalRange.startLineNumber - 1;
+				originalEndLineNumber = 0;
+				innerChanges = undefined;
+			} else {
+				originalStartLineNumber = m.originalRange.startLineNumber;
+				originalEndLineNumber = m.originalRange.endLineNumberExclusive - 1;
+			}
+
+			if (m.modifiedRange.isEmpty) {
+				// Deletion
+				modifiedStartLineNumber = m.modifiedRange.startLineNumber - 1;
+				modifiedEndLineNumber = 0;
+				innerChanges = undefined;
+			} else {
+				modifiedStartLineNumber = m.modifiedRange.startLineNumber;
+				modifiedEndLineNumber = m.modifiedRange.endLineNumberExclusive - 1;
+			}
+
+			return {
+				originalStartLineNumber,
+				originalEndLineNumber,
+				modifiedStartLineNumber,
+				modifiedEndLineNumber,
+				charChanges: innerChanges?.map(m => ({
+					originalStartLineNumber: m.originalRange.startLineNumber,
+					originalStartColumn: m.originalRange.startColumn,
+					originalEndLineNumber: m.originalRange.endLineNumber,
+					originalEndColumn: m.originalRange.endColumn,
+					modifiedStartLineNumber: m.modifiedRange.startLineNumber,
+					modifiedStartColumn: m.modifiedRange.startColumn,
+					modifiedEndLineNumber: m.modifiedRange.endLineNumber,
+					modifiedEndColumn: m.modifiedRange.endColumn,
+				}))
+			};
+		});
 	}
+
 	getDiffComputationResult(): IDiffComputationResult | null {
-		return null;
-		//throw new Error('Method not implemented.');
+		const diffState = this._diffModel.get()?.diff.get();
+		if (!diffState) {
+			return null;
+		}
+
+		return {
+			changes: this.getLineChanges()!,
+			changes2: diffState.mappings.map(m => m.lineRangeMapping),
+			identical: diffState.identical,
+			quitEarly: diffState.quitEarly,
+		};
 	}
 
 	private _goTo(diff: DiffMapping): void {
