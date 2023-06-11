@@ -13,8 +13,6 @@ import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { splitLines } from 'vs/base/common/strings';
-
 export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
 
 	private static _handlePool = 0;
@@ -61,13 +59,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 							return;
 						}
 
-						// create lines and compare
-						const lines = splitLines(value);
-
-						// broadcast event when content changed
-						if (!document.equalLines(lines)) {
-							return this._proxy.$onVirtualDocumentChange(uri, value);
-						}
+						return this._proxy.$onVirtualDocumentChange(uri, value);
 
 					}, onUnexpectedError);
 				}
