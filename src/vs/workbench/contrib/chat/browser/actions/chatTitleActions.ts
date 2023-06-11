@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { marked } from 'vs/base/common/marked/marked';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -188,6 +191,15 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
+				keybinding: {
+					primary: KeyCode.Delete,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+					},
+					// when: ContextKeyExpr.or(CONTEXT_REQUEST, CONTEXT_RESPONSE),
+					when: CONTEXT_IN_CHAT_SESSION,
+					weight: KeybindingWeight.WorkbenchContrib,
+				},
 				menu: {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
@@ -198,14 +210,19 @@ export function registerChatTitleActions() {
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			const item = args[0];
+			let item = args[0];
 			if (!isRequestVM(item)) {
-				return;
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const widget = chatWidgetService.lastFocusedWidget;
+				item = widget?.getFocus();
 			}
 
-			const chatService = accessor.get(IChatService);
-			if (item.providerRequestId) {
-				chatService.removeRequest(item.sessionId, item.providerRequestId);
+			const providerRequestId = isRequestVM(item) ? item.providerRequestId :
+				isResponseVM(item) ? item.providerResponseId : undefined;
+
+			if (providerRequestId) {
+				const chatService = accessor.get(IChatService);
+				chatService.removeRequest(item.sessionId, providerRequestId);
 			}
 		}
 	});

@@ -25,6 +25,9 @@ import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { localize } from 'vs/nls';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -57,7 +60,9 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IExtensionService extensionService: IExtensionService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(resource, undefined, labelService, fileService, filesConfigurationService);
 		this._defaultDirtyState = !!options.startDirty;
@@ -70,6 +75,23 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 				this.resolve().catch(onUnexpectedError);
 			}
 		});
+
+		this._register(extensionService.onWillStop(e => {
+			if (!this.isDirty()) {
+				return;
+			}
+
+			e.veto((async () => {
+				const editors = editorService.findEditors(this);
+				if (editors.length > 0) {
+					const result = await editorService.save(editors[0]);
+					if (result.success) {
+						return false; // Don't Veto
+					}
+				}
+				return true; // Veto
+			})(), localize('vetoExtHostRestart', "Notebook '{0}' could not be saved.", this.resource.path));
+		}));
 	}
 
 	override dispose() {

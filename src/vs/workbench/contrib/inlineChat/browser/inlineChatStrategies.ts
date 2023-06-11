@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./interactiveEditor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -21,10 +19,10 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { InteractiveEditorFileCreatePreviewWidget, InteractiveEditorLivePreviewWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorLivePreviewWidget';
-import { EditResponse, Session } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorSession';
-import { InteractiveEditorWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_SHOWING_DIFF, CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
+import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { CTX_INLINE_CHAT_SHOWING_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
@@ -37,11 +35,13 @@ export abstract class EditModeStrategy {
 
 	abstract cancel(): Promise<void>;
 
-	abstract makeChanges(response: EditResponse, edits: ISingleEditOperation[]): Promise<void>;
+	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
 	abstract toggleDiff(): void;
+
+	abstract hasFocus(): boolean;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -51,14 +51,14 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	constructor(
 		private readonly _session: Session,
-		private readonly _widget: InteractiveEditorWidget,
+		private readonly _widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
 
-		this._ctxDocumentChanged = CTX_INTERACTIVE_EDITOR_DOCUMENT_CHANGED.bindTo(contextKeyService);
+		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 		this._listener = Event.debounce(_session.textModelN.onDidChangeContent.bind(_session.textModelN), () => { }, 350)(_ => {
 			this._ctxDocumentChanged.set(!_session.textModelN.equalsTextBuffer(_session.textModel0.getTextBuffer()));
 		});
@@ -106,7 +106,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async makeChanges(_response: EditResponse, _edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(_edits: ISingleEditOperation[]): Promise<void> {
 		// nothing to do
 	}
 
@@ -127,6 +127,10 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	toggleDiff(): void {
 		// nothing to do
+	}
+
+	hasFocus(): boolean {
+		return this._widget.hasFocus();
 	}
 }
 
@@ -178,17 +182,17 @@ class InlineDiffDecorations {
 		const tracking: IModelDeltaDecoration = {
 			range: edit.range,
 			options: {
-				description: 'interactive-editor-inline-diff',
+				description: 'inline-chat-inline-diff',
 			}
 		};
 
 		const decorating: IModelDecorationOptions = {
-			description: 'interactive-editor-inline-diff',
-			className: !edit.range.isEmpty() ? 'interactive-editor-lines-inserted-range' : undefined,
+			description: 'inline-chat-inline-diff',
+			className: !edit.range.isEmpty() ? 'inline-chat-lines-inserted-range' : undefined,
 			showIfCollapsed: true,
 			before: {
 				content,
-				inlineClassName: 'interactive-editor-lines-deleted-range-inline',
+				inlineClassName: 'inline-chat-lines-deleted-range-inline',
 				attachedData: edit,
 			}
 		};
@@ -204,14 +208,13 @@ export class LiveStrategy extends EditModeStrategy {
 
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _ctxShowingDiff: IContextKey<boolean>;
-	private readonly _diffToggleListener: IDisposable;
 	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
 
 	constructor(
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
-		protected readonly _widget: InteractiveEditorWidget,
+		protected readonly _widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
@@ -222,22 +225,12 @@ export class LiveStrategy extends EditModeStrategy {
 		this._diffEnabled = _storageService.getBoolean(LiveStrategy._inlineDiffStorageKey, StorageScope.PROFILE, true);
 
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._diffEnabled);
-		this._ctxShowingDiff = CTX_INTERACTIVE_EDITOR_SHOWING_DIFF.bindTo(contextKeyService);
+		this._ctxShowingDiff = CTX_INLINE_CHAT_SHOWING_DIFF.bindTo(contextKeyService);
 		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
-		const modKeys = ModifierKeyEmitter.getInstance();
-		let lastIsAlt: boolean | undefined;
-		this._diffToggleListener = modKeys.event(() => {
-			const isAlt = modKeys.keyStatus.altKey && (!modKeys.keyStatus.ctrlKey && !modKeys.keyStatus.metaKey && !modKeys.keyStatus.shiftKey);
-			if (lastIsAlt !== isAlt) {
-				this.toggleDiff();
-				lastIsAlt = isAlt;
-			}
-		});
 	}
 
 	override dispose(): void {
-		this._diffToggleListener.dispose();
 		this._inlineDiffDecorations.clear();
 		this._ctxShowingDiff.reset();
 	}
@@ -287,7 +280,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
+	override async makeChanges(edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -301,7 +294,7 @@ export class LiveStrategy extends EditModeStrategy {
 		if (++this._editCount === 1) {
 			this._editor.pushUndoStop();
 		}
-		this._editor.executeEdits('interactive-editor-live', edits, ignoreInlineDiff ? undefined : cursorStateComputerAndInlineDiffCollection);
+		this._editor.executeEdits('inline-chat-live', edits, ignoreInlineDiff ? undefined : cursorStateComputerAndInlineDiffCollection);
 	}
 
 	override async renderChanges(response: EditResponse) {
@@ -331,17 +324,21 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 		this._widget.updateStatus(message);
 	}
+
+	hasFocus(): boolean {
+		return this._widget.hasFocus();
+	}
 }
 
 export class LivePreviewStrategy extends LiveStrategy {
 
-	private readonly _diffZone: InteractiveEditorLivePreviewWidget;
-	private readonly _previewZone: InteractiveEditorFileCreatePreviewWidget;
+	private readonly _diffZone: InlineChatLivePreviewWidget;
+	private readonly _previewZone: InlineChatFileCreatePreviewWidget;
 
 	constructor(
 		session: Session,
 		editor: ICodeEditor,
-		widget: InteractiveEditorWidget,
+		widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
 		@IBulkEditService bulkEditService: IBulkEditService,
@@ -350,8 +347,8 @@ export class LivePreviewStrategy extends LiveStrategy {
 	) {
 		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, instaService);
 
-		this._diffZone = instaService.createInstance(InteractiveEditorLivePreviewWidget, editor, session);
-		this._previewZone = instaService.createInstance(InteractiveEditorFileCreatePreviewWidget, editor);
+		this._diffZone = instaService.createInstance(InlineChatLivePreviewWidget, editor, session);
+		this._previewZone = instaService.createInstance(InlineChatFileCreatePreviewWidget, editor);
 	}
 
 	override dispose(): void {
@@ -362,10 +359,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		super.dispose();
 	}
 
-	override async makeChanges(_response: EditResponse, edits: ISingleEditOperation[]): Promise<void> {
-		super.makeChanges(_response, edits, true);
-	}
-
 	override async renderChanges(response: EditResponse) {
 
 		this._updateSummaryMessage();
@@ -374,7 +367,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.showCreation(this._session.wholeRange, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.hide();
 		}
@@ -388,6 +381,10 @@ export class LivePreviewStrategy extends LiveStrategy {
 			this._diffZone.hide();
 		}
 		scrollState.restore(this._editor);
+	}
+
+	override hasFocus(): boolean {
+		return super.hasFocus() || this._diffZone.hasFocus() || this._previewZone.hasFocus();
 	}
 }
 

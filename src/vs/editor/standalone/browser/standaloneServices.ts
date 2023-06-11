@@ -717,6 +717,11 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 		});
 	}
 
+	inspect<T>(resource: URI | undefined, position: IPosition | null, section: string): IConfigurationValue<Readonly<T>> {
+		const language = resource ? this.getLanguage(resource, position) : undefined;
+		return this.configurationService.inspect<T>(section, { resource, overrideIdentifier: language });
+	}
+
 	private getLanguage(resource: URI, position: IPosition | null): string | null {
 		const model = this.modelService.getModel(resource);
 		if (model) {

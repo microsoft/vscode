@@ -1167,6 +1167,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._documentDiffProvider.computeDiff(currentOriginalModel, currentModifiedModel, {
 			ignoreTrimWhitespace: this._options.ignoreTrimWhitespace,
 			maxComputationTimeMs: this._options.maxComputationTime,
+			computeMoves: false,
 		}).then(result => {
 			if (currentToken === this._diffComputationToken
 				&& currentOriginalModel === this._originalEditor.getModel()
@@ -1458,97 +1459,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		// Just do a layout, the strategy might need it
 		this._doLayout();
-	}
-
-	private _getLineChangeAtOrBeforeLineNumber(lineNumber: number, startLineNumberExtractor: (lineChange: ILineChange) => number): ILineChange | null {
-		const lineChanges = (this._diffComputationResult ? this._diffComputationResult.changes : []);
-		if (lineChanges.length === 0 || lineNumber < startLineNumberExtractor(lineChanges[0])) {
-			// There are no changes or `lineNumber` is before the first change
-			return null;
-		}
-
-		let min = 0;
-		let max = lineChanges.length - 1;
-		while (min < max) {
-			const mid = Math.floor((min + max) / 2);
-			const midStart = startLineNumberExtractor(lineChanges[mid]);
-			const midEnd = (mid + 1 <= max ? startLineNumberExtractor(lineChanges[mid + 1]) : Constants.MAX_SAFE_SMALL_INTEGER);
-
-			if (lineNumber < midStart) {
-				max = mid - 1;
-			} else if (lineNumber >= midEnd) {
-				min = mid + 1;
-			} else {
-				// HIT!
-				min = mid;
-				max = mid;
-			}
-		}
-		return lineChanges[min];
-	}
-
-	private _getEquivalentLineForOriginalLineNumber(lineNumber: number): number {
-		const lineChange = this._getLineChangeAtOrBeforeLineNumber(lineNumber, (lineChange) => lineChange.originalStartLineNumber);
-
-		if (!lineChange) {
-			return lineNumber;
-		}
-
-		const originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
-		const modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
-		const lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
-		const lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
-
-
-		const delta = lineNumber - originalEquivalentLineNumber;
-
-		if (delta <= lineChangeOriginalLength) {
-			return modifiedEquivalentLineNumber + Math.min(delta, lineChangeModifiedLength);
-		}
-
-		return modifiedEquivalentLineNumber + lineChangeModifiedLength - lineChangeOriginalLength + delta;
-	}
-
-	private _getEquivalentLineForModifiedLineNumber(lineNumber: number): number {
-		const lineChange = this._getLineChangeAtOrBeforeLineNumber(lineNumber, (lineChange) => lineChange.modifiedStartLineNumber);
-
-		if (!lineChange) {
-			return lineNumber;
-		}
-
-		const originalEquivalentLineNumber = lineChange.originalStartLineNumber + (lineChange.originalEndLineNumber > 0 ? -1 : 0);
-		const modifiedEquivalentLineNumber = lineChange.modifiedStartLineNumber + (lineChange.modifiedEndLineNumber > 0 ? -1 : 0);
-		const lineChangeOriginalLength = (lineChange.originalEndLineNumber > 0 ? (lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1) : 0);
-		const lineChangeModifiedLength = (lineChange.modifiedEndLineNumber > 0 ? (lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1) : 0);
-
-
-		const delta = lineNumber - modifiedEquivalentLineNumber;
-
-		if (delta <= lineChangeModifiedLength) {
-			return originalEquivalentLineNumber + Math.min(delta, lineChangeOriginalLength);
-		}
-
-		return originalEquivalentLineNumber + lineChangeOriginalLength - lineChangeModifiedLength + delta;
-	}
-
-	public getDiffLineInformationForOriginal(lineNumber: number): editorBrowser.IDiffLineInformation | null {
-		if (!this._diffComputationResult) {
-			// Cannot answer that which I don't know
-			return null;
-		}
-		return {
-			equivalentLineNumber: this._getEquivalentLineForOriginalLineNumber(lineNumber)
-		};
-	}
-
-	public getDiffLineInformationForModified(lineNumber: number): editorBrowser.IDiffLineInformation | null {
-		if (!this._diffComputationResult) {
-			// Cannot answer that which I don't know
-			return null;
-		}
-		return {
-			equivalentLineNumber: this._getEquivalentLineForModifiedLineNumber(lineNumber)
-		};
 	}
 
 	public goToDiff(target: 'previous' | 'next'): void {

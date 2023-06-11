@@ -75,7 +75,7 @@ export class SmartLinesDiffComputer implements ILinesDiffComputer {
 			);
 		});
 
-		return new LinesDiff(changes, result.quitEarly);
+		return new LinesDiff(changes, [], result.quitEarly);
 	}
 }
 
@@ -91,7 +91,7 @@ export interface IDiffComputationResult {
 	/**
 	 * The changes as (modern) line range mapping array.
 	 */
-	changes2: LineRangeMapping[];
+	changes2: readonly LineRangeMapping[];
 }
 
 /**

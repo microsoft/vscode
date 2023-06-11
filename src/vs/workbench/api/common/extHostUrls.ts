@@ -8,7 +8,7 @@ import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
 
@@ -24,7 +24,8 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadUrls);
 	}
 
-	registerUriHandler(extensionId: ExtensionIdentifier, handler: vscode.UriHandler): vscode.Disposable {
+	registerUriHandler(extension: IExtensionDescription, handler: vscode.UriHandler): vscode.Disposable {
+		const extensionId = extension.identifier;
 		if (this.handles.has(extensionId)) {
 			throw new Error(`Protocol handler already registered for extension ${extensionId}`);
 		}
@@ -32,7 +33,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		const handle = ExtHostUrls.HandlePool++;
 		this.handles.add(extensionId);
 		this.handlers.set(handle, handler);
-		this._proxy.$registerUriHandler(handle, extensionId);
+		this._proxy.$registerUriHandler(handle, extensionId, extension.displayName || extension.name);
 
 		return toDisposable(() => {
 			this.handles.delete(extensionId);

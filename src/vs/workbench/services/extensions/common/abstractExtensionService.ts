@@ -738,7 +738,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
-		return createExtensionHostManager(this._instantiationService, extensionHost, initialActivationEvents, this._acquireInternalAPI());
+		return createExtensionHostManager(this._instantiationService, extensionHost, initialActivationEvents, this._acquireInternalAPI(extensionHost));
 	}
 
 	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
@@ -1070,13 +1070,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Called by extension host
 
-	private _acquireInternalAPI(): IInternalExtensionService {
+	private _acquireInternalAPI(extensionHost: IExtensionHost): IInternalExtensionService {
 		return {
 			_activateById: (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> => {
 				return this._activateById(extensionId, reason);
 			},
 			_onWillActivateExtension: (extensionId: ExtensionIdentifier): void => {
-				return this._onWillActivateExtension(extensionId);
+				return this._onWillActivateExtension(extensionId, extensionHost.runningLocation);
 			},
 			_onDidActivateExtension: (extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void => {
 				return this._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
@@ -1100,7 +1100,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
+	private _onWillActivateExtension(extensionId: ExtensionIdentifier, runningLocation: ExtensionRunningLocation): void {
+		this._runningLocations.set(extensionId, runningLocation);
 		const extensionStatus = this._getOrCreateExtensionStatus(extensionId);
 		extensionStatus.onWillActivate();
 	}

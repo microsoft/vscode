@@ -92,6 +92,42 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
+class ClosedRepositoriesManager {
+
+	private _repositories: Set<string>;
+	get repositories(): string[] {
+		return [...this._repositories.values()];
+	}
+
+	constructor(private readonly workspaceState: Memento) {
+		this._repositories = new Set<string>(workspaceState.get<string[]>('closedRepositories', []));
+		this.onDidChangeRepositories();
+	}
+
+	addRepository(repository: string): void {
+		this._repositories.add(repository);
+		this.onDidChangeRepositories();
+	}
+
+	deleteRepository(repository: string): boolean {
+		const result = this._repositories.delete(repository);
+		if (result) {
+			this.onDidChangeRepositories();
+		}
+
+		return result;
+	}
+
+	isRepositoryClosed(repository: string): boolean {
+		return this._repositories.has(repository);
+	}
+
+	private onDidChangeRepositories(): void {
+		this.workspaceState.update('closedRepositories', [...this._repositories.values()]);
+		commands.executeCommand('setContext', 'git.closedRepositoryCount', this._repositories.size);
+	}
+}
+
 export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
@@ -169,6 +205,11 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return this._parentRepositories;
 	}
 
+	private _closedRepositoriesManager: ClosedRepositoriesManager;
+	get closedRepositories(): string[] {
+		return [...this._closedRepositoriesManager.repositories];
+	}
+
 	/**
 	 * We maintain a map containing both the path and the canonical path of the
 	 * workspace folders. We are doing this as `git.exe` expands the symbolic links
@@ -181,7 +222,10 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, readonly workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
+		// Repositories managers
+		this._closedRepositoriesManager = new ClosedRepositoriesManager(workspaceState);
+
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -403,7 +447,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`Opening repository: ${repoPath}`);
 		if (this.getRepositoryExact(repoPath)) {
 			this.logger.trace(`Repository for path ${repoPath} already exists`);
@@ -480,12 +524,22 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 				return;
 			}
 
+			// Handle repositories that were closed by the user
+			if (!openIfClosed && this._closedRepositoriesManager.isRepositoryClosed(repositoryRoot)) {
+				this.logger.trace(`Repository for path ${repositoryRoot} is closed`);
+				return;
+			}
+
 			// Open repository
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
 			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
-			repository.status(); // do not await this, we want SCM to know about the repo asap
+			this._closedRepositoriesManager.deleteRepository(repository.root);
+
+			// Do not await this, we want SCM
+			// to know about the repo asap
+			repository.status();
 		} catch (err) {
 			// noop
 			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${err}`);
@@ -633,6 +687,8 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		}
 
 		this.logger.info(`Close repository: ${repository.root}`);
+		this._closedRepositoriesManager.addRepository(openRepository.repository.root);
+
 		openRepository.dispose();
 	}
 

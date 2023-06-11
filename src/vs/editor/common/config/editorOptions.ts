@@ -804,6 +804,10 @@ export interface IDiffEditorBaseOptions {
 		 * Defaults to false.
 		 */
 		collapseUnchangedRegions?: boolean;
+		/**
+		 * Defaults to false.
+		 */
+		showMoves?: boolean;
 	};
 }
 

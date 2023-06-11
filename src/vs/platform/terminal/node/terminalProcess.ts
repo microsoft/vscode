@@ -15,7 +15,7 @@ import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -398,7 +398,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onProcessReady.fire({
+			pid,
+			cwd: this._initialCwd,
+			windowsPty: this.getWindowsPty()
+		});
 	}
 
 	private _sendProcessTitle(ptyProcess: IPty): void {
@@ -548,6 +552,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
+	clearBuffer(): void {
+		this._ptyProcess?.clear();
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		// Prevent lower than 0 to heal from errors
 		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
@@ -615,6 +623,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	getLatency(): Promise<number> {
 		return Promise.resolve(0);
+	}
+
+	getWindowsPty(): IProcessReadyWindowsPty | undefined {
+		return isWindows ? {
+			backend: 'useConpty' in this._ptyOptions && this._ptyOptions.useConpty ? 'conpty' : 'winpty',
+			buildNumber: getWindowsBuildNumber()
+		} : undefined;
 	}
 }
 

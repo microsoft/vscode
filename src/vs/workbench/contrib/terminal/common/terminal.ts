@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions, ITerminalContributions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions, ITerminalContributions, IProcessReadyWindowsPty } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -304,7 +304,7 @@ export interface ITerminalConfiguration {
 		enabled: boolean;
 		decorationsEnabled: boolean;
 	};
-	experimentalImageSupport: boolean;
+	enableImages: boolean;
 	smoothScrolling: boolean;
 }
 
@@ -392,6 +392,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	setDimensions(cols: number, rows: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
+	clearBuffer(): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;
 	processBinary(data: string): void;
@@ -427,7 +428,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	emitData(data: string): void;
 	emitProcessProperty(property: IProcessProperty<any>): void;
-	emitReady(pid: number, cwd: string): void;
+	emitReady(pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void;
 	emitLatency(latency: number): void;
 	emitExit(exitCode: number | undefined): void;
 

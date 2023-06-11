@@ -8,8 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { EditMode, IInteractiveEditorSessionProvider, IInteractiveEditorSession, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorMessageResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -24,11 +24,12 @@ import { Iterable } from 'vs/base/common/iterator';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 export type Recording = {
 	when: Date;
-	session: IInteractiveEditorSession;
-	exchanges: { prompt: string; res: IInteractiveEditorResponse }[];
+	session: IInlineChatSession;
+	exchanges: { prompt: string; res: IInlineChatResponse }[];
 };
 
 type TelemetryData = {
@@ -55,11 +56,61 @@ type TelemetryDataClassification = {
 	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
 };
 
+export enum ExpansionState {
+	EXPANDED = 'expanded',
+	CROPPED = 'cropped',
+	NOT_CROPPED = 'not_cropped'
+}
+
+class SessionWholeRange {
+
+	private static readonly _options = { description: 'inlineChat/session/wholeRange' };
+
+	private readonly _store = new DisposableStore();
+	private readonly _decorationIds: string[] = [];
+
+	constructor(private readonly _textModel: ITextModel, wholeRange: IRange) {
+		this._decorationIds = _textModel.deltaDecorations([], [{ range: wholeRange, options: SessionWholeRange._options }]);
+		this._store.add(toDisposable(() => {
+			if (!_textModel.isDisposed()) {
+				_textModel.deltaDecorations(this._decorationIds, []);
+			}
+		}));
+	}
+
+	dispose() {
+		this._store.dispose();
+	}
+
+	trackEdits(edits: ISingleEditOperation[]): void {
+		const newDeco: IModelDeltaDecoration[] = [];
+		for (const edit of edits) {
+			newDeco.push({ range: edit.range, options: SessionWholeRange._options });
+		}
+		this._decorationIds.push(...this._textModel.deltaDecorations([], newDeco));
+	}
+
+	get value(): Range {
+		let result: Range | undefined;
+		for (const id of this._decorationIds) {
+			const range = this._textModel.getDecorationRange(id);
+			if (range) {
+				if (!result) {
+					result = range;
+				} else {
+					result = Range.plusRange(result, range);
+				}
+			}
+		}
+		return result!;
+	}
+}
+
 export class Session {
 
 	private _lastInput: string | undefined;
-	private _lastExpansionState: boolean | undefined;
-	private _lastTextModelChanges: LineRangeMapping[] | undefined;
+	private _lastExpansionState: ExpansionState | undefined;
+	private _lastTextModelChanges: readonly LineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
@@ -73,9 +124,9 @@ export class Session {
 		readonly editor: ICodeEditor,
 		readonly textModel0: ITextModel,
 		readonly textModelN: ITextModel,
-		readonly provider: IInteractiveEditorSessionProvider,
-		readonly session: IInteractiveEditorSession,
-		private readonly _wholeRangeMarkerId: string
+		readonly provider: IInlineChatSessionProvider,
+		readonly session: IInlineChatSession,
+		readonly wholeRange: SessionWholeRange
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
@@ -104,21 +155,16 @@ export class Session {
 		return this._lastInput;
 	}
 
-	get lastExpansionState() {
-		return this._lastExpansionState ?? false;
+	get lastExpansionState(): ExpansionState | undefined {
+		return this._lastExpansionState;
 	}
 
-	set lastExpansionState(state: boolean) {
+	set lastExpansionState(state: ExpansionState) {
 		this._lastExpansionState = state;
 	}
 
 	get textModelNSnapshotAltVersion(): number | undefined {
 		return this._textModelNSnapshotAltVersion;
-	}
-
-	get wholeRange(): Range {
-		return this.textModelN.getDecorationRange(this._wholeRangeMarkerId)!;
-		// return new Range(1, 1, 1, 1);
 	}
 
 	createSnapshot(): void {
@@ -139,7 +185,7 @@ export class Session {
 		return this._lastTextModelChanges ?? [];
 	}
 
-	set lastTextModelChanges(changes: LineRangeMapping[]) {
+	set lastTextModelChanges(changes: readonly LineRangeMapping[]) {
 		this._lastTextModelChanges = changes;
 	}
 
@@ -218,7 +264,7 @@ export class ErrorResponse {
 export class MarkdownResponse {
 	constructor(
 		readonly localUri: URI,
-		readonly raw: IInteractiveEditorMessageResponse
+		readonly raw: IInlineChatMessageResponse
 	) { }
 }
 
@@ -229,7 +275,7 @@ export class EditResponse {
 	readonly workspaceEdits: ResourceEdit[] | undefined;
 	readonly workspaceEditsIncludeLocalEdits: boolean = false;
 
-	constructor(localUri: URI, readonly raw: IInteractiveEditorBulkEditResponse | IInteractiveEditorEditResponse) {
+	constructor(localUri: URI, readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse) {
 		if (raw.type === 'editorEdit') {
 			//
 			this.localEdits = raw.edits;
@@ -282,9 +328,9 @@ export interface ISessionKeyComputer {
 	getComparisonKey(editor: ICodeEditor, uri: URI): string;
 }
 
-export const IInteractiveEditorSessionService = createDecorator<IInteractiveEditorSessionService>('IInteractiveEditorSessionService');
+export const IInlineChatSessionService = createDecorator<IInlineChatSessionService>('IInlineChatSessionService');
 
-export interface IInteractiveEditorSessionService {
+export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
@@ -305,7 +351,7 @@ type SessionData = {
 	store: IDisposable;
 };
 
-export class InteractiveEditorSessionService implements IInteractiveEditorSessionService {
+export class InlineChatSessionService implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
 
@@ -314,7 +360,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 	private _recordings: Recording[] = [];
 
 	constructor(
-		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
+		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -324,7 +370,7 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 
-		const provider = Iterable.first(this._interactiveEditorService.getAllProvider());
+		const provider = Iterable.first(this._inlineChatService.getAllProvider());
 		if (!provider) {
 			this._logService.trace('[IE] NO provider found');
 			return undefined;
@@ -332,9 +378,9 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
-		let raw: IInteractiveEditorSession | undefined | null;
+		let raw: IInlineChatSession | undefined | null;
 		try {
-			raw = await provider.prepareInteractiveEditorSession(textModel, selection, token);
+			raw = await provider.prepareInlineChatSession(textModel, selection, token);
 		} catch (error) {
 			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
 			this._logService.error(error);
@@ -365,19 +411,15 @@ export class InteractiveEditorSessionService implements IInteractiveEditorSessio
 		if (!wholeRange) {
 			wholeRange = raw.wholeRange ? Range.lift(raw.wholeRange) : editor.getSelection();
 		}
-		if (Range.isEmpty(wholeRange)) {
-			wholeRange = new Range(wholeRange.startLineNumber, 1, wholeRange.endLineNumber, textModel.getLineMaxColumn(wholeRange.endLineNumber));
-		}
 
-		// install a marker for the decoration range
-		const [wholeRangeDecorationId] = textModel.deltaDecorations([], [{ range: wholeRange, options: { description: 'interactiveEditor/session/wholeRange' } }]);
-		store.add(toDisposable(() => {
-			if (!textModel.isDisposed()) {
-				textModel.deltaDecorations([wholeRangeDecorationId], []);
-			}
-		}));
+		// expand to whole lines
+		wholeRange = new Range(wholeRange.startLineNumber, 1, wholeRange.endLineNumber, textModel.getLineMaxColumn(wholeRange.endLineNumber));
 
-		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeDecorationId);
+		// install managed-marker for the decoration range
+		const wholeRangeMgr = new SessionWholeRange(textModel, wholeRange);
+		store.add(wholeRangeMgr);
+
+		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeMgr);
 
 		// store: key -> session
 		const key = this._key(editor, textModel.uri);
