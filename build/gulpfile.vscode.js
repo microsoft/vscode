@@ -276,6 +276,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
+			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)

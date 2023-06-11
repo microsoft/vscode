@@ -2475,6 +2475,7 @@ declare namespace monaco.editor {
 		equals(b: LineRange): boolean;
 		toInclusiveRange(): Range | null;
 		toExclusiveRange(): Range;
+		mapToLineArray<T>(f: (lineNumber: number) => T): T[];
 	}
 
 	/**
@@ -5992,13 +5993,6 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Information about a line in the diff editor
-	 */
-	export interface IDiffLineInformation {
-		readonly equivalentLineNumber: number;
-	}
-
-	/**
 	 * A rich diff editor.
 	 */
 	export interface IDiffEditor extends IEditor {
@@ -6049,16 +6043,6 @@ declare namespace monaco.editor {
 		 * Get the computed diff information.
 		 */
 		getLineChanges(): ILineChange[] | null;
-		/**
-		 * Get information based on computed diff about a line number from the original model.
-		 * If the diff computation is not finished or the model is missing, will return null.
-		 */
-		getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null;
-		/**
-		 * Get information based on computed diff about a line number from the modified model.
-		 * If the diff computation is not finished or the model is missing, will return null.
-		 */
-		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
 		/**
 		 * Update the editor's options after the editor has been created.
 		 */

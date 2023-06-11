@@ -269,6 +269,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
+			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.stripSourceMappingURL())
 			.pipe(jsFilter.restore);

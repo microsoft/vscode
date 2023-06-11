@@ -88,7 +88,7 @@
         "command": "git.reopenClosedRepositories",
         "title": "%command.reopenClosedRepositories%",
         "category": "Git",
-        "enablement": "!operationInProgress && git.ClosedRepositoryCount != 0"
+        "enablement": "!operationInProgress && git.closedRepositoryCount != 0"
       },
       {
         "command": "git.close",

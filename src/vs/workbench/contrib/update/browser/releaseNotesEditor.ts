@@ -258,8 +258,6 @@ export class ReleaseNotesManager {
 					container.appendChild(label);
 
 					const beforeElement = document.querySelector("body > h1")?.nextElementSibling;
-					console.log(beforeElement);
-
 					if (beforeElement) {
 						document.body.insertBefore(container, beforeElement);
 					} else {
