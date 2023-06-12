@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { COI } from 'vs/base/common/network';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 
-const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+const ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
 
 export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Worker {
 	if (!blobUrl.startsWith('blob:')) {

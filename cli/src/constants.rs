@@ -18,7 +18,8 @@ pub const CONTROL_PORT: u16 = 31545;
 ///  2 - Addition of `serve.compressed` property to control whether servermsg's
 ///      are compressed bidirectionally.
 ///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
-pub const PROTOCOL_VERSION: u32 = 3;
+///  4 - The server's msgpack messages are no longer length-prefixed
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// Prefix for the tunnel tag that includes the version.
 pub const PROTOCOL_VERSION_TAG_PREFIX: &str = "protocolv";

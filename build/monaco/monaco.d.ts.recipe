@@ -14,10 +14,45 @@ declare namespace monaco {
 	export type Thenable<T> = PromiseLike<T>;
 
 	export interface Environment {
+		/**
+		 * Define a global `monaco` symbol.
+		 * This is true by default in AMD and false by default in ESM.
+		 */
 		globalAPI?: boolean;
+		/**
+		 * The base url where the editor sources are found (which contains the vs folder)
+		 */
 		baseUrl?: string;
+		/**
+		 * A web worker factory.
+		 * NOTE: If `getWorker` is defined, `getWorkerUrl` is not invoked.
+		 */
 		getWorker?(workerId: string, label: string): Promise<Worker> | Worker;
+		/**
+		 * Return the location for web worker scripts.
+		 * NOTE: If `getWorker` is defined, `getWorkerUrl` is not invoked.
+		 */
 		getWorkerUrl?(workerId: string, label: string): string;
+		/**
+		 * Create a trusted types policy (same API as window.trustedTypes.createPolicy)
+		 */
+		createTrustedTypesPolicy(
+			policyName: string,
+			policyOptions?: ITrustedTypePolicyOptions,
+		): undefined | ITrustedTypePolicy;
+	}
+
+	export interface ITrustedTypePolicyOptions {
+		createHTML?: (input: string, ...arguments: any[]) => string;
+		createScript?: (input: string, ...arguments: any[]) => string;
+		createScriptURL?: (input: string, ...arguments: any[]) => string;
+	}
+
+	export interface ITrustedTypePolicy {
+		readonly name: string;
+		createHTML?(input: string): any;
+		createScript?(input: string): any;
+		createScriptURL?(input: string): any;
 	}
 
 	export interface IDisposable {
@@ -75,7 +110,7 @@ export interface ICommandHandler {
 #include(vs/editor/common/diff/smartLinesDiffComputer): IChange, ICharChange, ILineChange
 #include(vs/editor/common/diff/documentDiffProvider): IDocumentDiffProvider, IDocumentDiffProviderOptions, IDocumentDiff
 #include(vs/editor/common/core/lineRange): LineRange
-#include(vs/editor/common/diff/linesDiffComputer): LineRangeMapping, RangeMapping
+#include(vs/editor/common/diff/linesDiffComputer): LineRangeMapping, RangeMapping, MovedText, SimpleLineRangeMapping
 #include(vs/editor/common/core/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
 #includeAll(vs/editor/common/textModelEvents):

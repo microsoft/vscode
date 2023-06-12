@@ -14,6 +14,7 @@ import { getDocumentDir } from '../../util/document';
 enum MediaKind {
 	Image,
 	Video,
+	Audio,
 }
 
 export const mediaFileExtensions = new Map<string, MediaKind>([
@@ -35,6 +36,11 @@ export const mediaFileExtensions = new Map<string, MediaKind>([
 	// Videos
 	['ogg', MediaKind.Video],
 	['mp4', MediaKind.Video],
+
+	// Audio Files
+	['mp3', MediaKind.Audio],
+	['aac', MediaKind.Audio],
+	['wav', MediaKind.Audio],
 ]);
 
 export const mediaMimes = new Set([
@@ -45,6 +51,9 @@ export const mediaMimes = new Set([
 	'image/webp',
 	'video/mp4',
 	'video/ogg',
+	'audio/mpeg',
+	'audio/aac',
+	'audio/x-wav',
 ]);
 
 
@@ -97,6 +106,7 @@ export function createUriListSnippet(
 
 	let insertedLinkCount = 0;
 	let insertedImageCount = 0;
+	let insertedAudioVideoCount = 0;
 
 	uris.forEach((uri, i) => {
 		const mdPath = getMdPath(dir, uri);
@@ -104,12 +114,18 @@ export function createUriListSnippet(
 		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
 		const insertAsMedia = typeof options?.insertAsMedia === 'undefined' ? mediaFileExtensions.has(ext) : !!options.insertAsMedia;
 		const insertAsVideo = mediaFileExtensions.get(ext) === MediaKind.Video;
+		const insertAsAudio = mediaFileExtensions.get(ext) === MediaKind.Audio;
 
 		if (insertAsVideo) {
-			insertedImageCount++;
-			snippet.appendText(`<video src="${mdPath}" controls title="`);
+			insertedAudioVideoCount++;
+			snippet.appendText(`<video src="${escapeHtmlAttribute(mdPath)}" controls title="`);
 			snippet.appendPlaceholder('Title');
 			snippet.appendText('"></video>');
+		} else if (insertAsAudio) {
+			insertedAudioVideoCount++;
+			snippet.appendText(`<audio src="${escapeHtmlAttribute(mdPath)}" controls title="`);
+			snippet.appendPlaceholder('Title');
+			snippet.appendText('"></audio>');
 		} else {
 			if (insertAsMedia) {
 				insertedImageCount++;
@@ -123,7 +139,7 @@ export function createUriListSnippet(
 			const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
 			snippet.appendPlaceholder(placeholderText, placeholderIndex);
 
-			snippet.appendText(`](${mdPath})`);
+			snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
@@ -132,7 +148,13 @@ export function createUriListSnippet(
 	});
 
 	let label: string;
-	if (insertedImageCount > 0 && insertedLinkCount > 0) {
+	if (insertedAudioVideoCount > 0) {
+		if (insertedLinkCount > 0) {
+			label = vscode.l10n.t('Insert Markdown Media and Links');
+		} else {
+			label = vscode.l10n.t('Insert Markdown Media');
+		}
+	} else if (insertedImageCount > 0 && insertedLinkCount > 0) {
 		label = vscode.l10n.t('Insert Markdown Images and Links');
 	} else if (insertedImageCount > 0) {
 		label = insertedImageCount > 1
@@ -224,11 +246,53 @@ function getMdPath(dir: vscode.Uri | undefined, file: vscode.Uri) {
 			// so that drive-letters are resolved cast insensitively. However we then want to
 			// convert back to a posix path to insert in to the document.
 			const relativePath = path.relative(dir.fsPath, file.fsPath);
-			return encodeURI(path.posix.normalize(relativePath.split(path.sep).join(path.posix.sep)));
+			return path.posix.normalize(relativePath.split(path.sep).join(path.posix.sep));
 		}
 
-		return encodeURI(path.posix.relative(dir.path, file.path));
+		return path.posix.relative(dir.path, file.path);
 	}
 
 	return file.toString(false);
 }
+
+function escapeHtmlAttribute(attr: string): string {
+	return encodeURI(attr).replaceAll('"', '&quot;');
+}
+
+function escapeMarkdownLinkPath(mdPath: string): string {
+	if (needsBracketLink(mdPath)) {
+		return '<' + mdPath.replace('<', '\\<').replace('>', '\\>') + '>';
+	}
+
+	return encodeURI(mdPath);
+}
+
+function needsBracketLink(mdPath: string) {
+	// Links with whitespace or control characters must be enclosed in brackets
+	if (mdPath.startsWith('<') || /\s|[\u007F\u0000-\u001f]/.test(mdPath)) {
+		return true;
+	}
+
+	// Check if the link has mis-matched parens
+	if (!/[\(\)]/.test(mdPath)) {
+		return false;
+	}
+
+	let previousChar = '';
+	let nestingCount = 0;
+	for (const char of mdPath) {
+		if (char === '(' && previousChar !== '\\') {
+			nestingCount++;
+		} else if (char === ')' && previousChar !== '\\') {
+			nestingCount--;
+		}
+
+		if (nestingCount < 0) {
+			return true;
+		}
+		previousChar = char;
+	}
+
+	return nestingCount > 0;
+}
+

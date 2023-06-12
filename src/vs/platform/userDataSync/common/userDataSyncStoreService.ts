@@ -528,7 +528,7 @@ export class UserDataSyncStoreClient extends Disposable {
 
 		const operationId = context.res.headers[HEADER_OPERATION_ID];
 		const requestInfo = { url, status: context.res.statusCode, 'execution-id': options.headers[HEADER_EXECUTION_ID], 'operation-id': operationId };
-		const isSuccess = isSuccessContext(context) || (context.res.statusCode && successCodes.indexOf(context.res.statusCode) !== -1);
+		const isSuccess = isSuccessContext(context) || (context.res.statusCode && successCodes.includes(context.res.statusCode));
 		let failureMessage = '';
 		if (isSuccess) {
 			this.logService.trace('Request succeeded', requestInfo);

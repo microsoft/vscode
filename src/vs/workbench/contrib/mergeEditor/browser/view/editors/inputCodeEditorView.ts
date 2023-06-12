@@ -135,12 +135,14 @@ export class InputCodeEditorView extends CodeEditorView {
 			}
 
 			const blockClassNames = ['merge-editor-block'];
+			let blockPadding: [top: number, right: number, bottom: number, left: number] = [0, 0, 0, 0];
 			const isHandled = model.isInputHandled(modifiedBaseRange, this.inputNumber).read(reader);
 			if (isHandled) {
 				blockClassNames.push('handled');
 			}
 			if (modifiedBaseRange === activeModifiedBaseRange) {
 				blockClassNames.push('focused');
+				blockPadding = [0, 2, 0, 2];
 			}
 			if (modifiedBaseRange.isConflicting) {
 				blockClassNames.push('conflicting');
@@ -161,6 +163,7 @@ export class InputCodeEditorView extends CodeEditorView {
 				options: {
 					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
+					blockPadding,
 					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 					description: 'Merge Editor',
 					minimap: {
