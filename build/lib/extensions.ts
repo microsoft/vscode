@@ -230,7 +230,6 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 	fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
 	const options: IFetchOptions = {
-		verbose: true,
 		base: url,
 		nodeFetchOptions: {
 			headers: baseHeaders

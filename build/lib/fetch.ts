@@ -110,6 +110,7 @@ export interface IGitHubAssetOptions {
 	version: string;
 	name: string | ((name: string) => boolean);
 	checksumSha256?: string;
+	verbose?: boolean;
 }
 
 /**
@@ -121,7 +122,7 @@ export interface IGitHubAssetOptions {
 export function fetchGithub(repo: string, options: IGitHubAssetOptions): Stream {
 	return fetchUrls(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${options.version}`, {
 		base: 'https://api.github.com',
-		verbose: true,
+		verbose: options.verbose,
 		nodeFetchOptions: { headers: ghApiHeaders }
 	}).pipe(through2.obj(async function (file, _enc, callback) {
 		const assetFilter = typeof options.name === 'string' ? (name: string) => name === options.name : options.name;
@@ -132,7 +133,7 @@ export function fetchGithub(repo: string, options: IGitHubAssetOptions): Stream 
 		try {
 			callback(null, await fetchUrl(asset.url, {
 				nodeFetchOptions: { headers: ghDownloadHeaders },
-				verbose: true,
+				verbose: options.verbose,
 				checksumSha256: options.checksumSha256
 			}));
 		} catch (error) {
