@@ -129,22 +129,30 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
-		const newSortedStart = this.sortedIndexes.filter(i => i < start);
-		const newSortedMiddle: number[] = [];
-		const newSortedEnd = this.sortedIndexes.filter(i => i >= end).map(i => i + diff);
-		for (let i = 0; i < elements.length; i++) {
-			const hasTrait = elements[i];
-			if (hasTrait) {
-				newSortedMiddle.push(i + start);
+		const sortedIndexes: number[] = [];
+		let firstSortedIndex: number | undefined = undefined;
+		let i = 0;
+
+		while (i < this.sortedIndexes.length && this.sortedIndexes[i] < start) {
+			sortedIndexes.push(this.sortedIndexes[i++]);
+		}
+
+		for (let j = 0; j < elements.length; j++) {
+			if (elements[j]) {
+				sortedIndexes.push(j + start);
+				firstSortedIndex = firstSortedIndex ?? sortedIndexes[sortedIndexes.length - 1];
 			}
 		}
-		const sortedIndexes = newSortedStart.concat(newSortedMiddle, newSortedEnd);
+
+		while (i < this.sortedIndexes.length && this.sortedIndexes[i] >= end) {
+			sortedIndexes.push(this.sortedIndexes[i++] + diff);
+			firstSortedIndex = firstSortedIndex ?? sortedIndexes[sortedIndexes.length - 1];
+		}
 
 		const length = this.length + diff;
 
 		if (this.sortedIndexes.length > 0 && sortedIndexes.length === 0 && length > 0) {
-			const first = this.sortedIndexes.find(index => index >= start) ?? length - 1;
-			sortedIndexes.push(Math.min(first, length - 1));
+			sortedIndexes.push(Math.min(firstSortedIndex ?? length - 1, length - 1));
 		}
 
 		this.renderer.splice(start, deleteCount, elements.length);
@@ -234,12 +242,13 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 			return this.trait.splice(start, deleteCount, new Array(elements.length).fill(false));
 		}
 
-		const pastElementsWithTrait = new Set<string>(this.trait.get().map(i => this.identityProvider!.getId(this.view.element(i)).toString()));
-		if (pastElementsWithTrait.size === 0) {
+		const pastElementsWithTrait = this.trait.get().map(i => this.identityProvider!.getId(this.view.element(i)).toString());
+		if (pastElementsWithTrait.length === 0) {
 			return this.trait.splice(start, deleteCount, new Array(elements.length).fill(false));
 		}
 
-		const elementsWithTrait: boolean[] = elements.map(e => pastElementsWithTrait.has(this.identityProvider!.getId(e).toString()));
+		const pastElementsWithTraitSet = new Set(pastElementsWithTrait);
+		const elementsWithTrait = elements.map(e => pastElementsWithTraitSet.has(this.identityProvider!.getId(e).toString()));
 		this.trait.splice(start, deleteCount, elementsWithTrait);
 	}
 }
