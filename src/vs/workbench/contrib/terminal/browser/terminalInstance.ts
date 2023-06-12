@@ -1060,25 +1060,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
-		if (this.hasSelection() || (asHtml && command)) {
-			if (asHtml) {
-				const textAsHtml = await xterm.getSelectionAsHtml(command);
-				function listener(e: any) {
-					if (!e.clipboardData.types.includes('text/plain')) {
-						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
-					}
-					e.clipboardData.setData('text/html', textAsHtml);
-					e.preventDefault();
-				}
-				document.addEventListener('copy', listener);
-				document.execCommand('copy');
-				document.removeEventListener('copy', listener);
-			} else {
-				await this._clipboardService.writeText(xterm.raw.getSelection());
-			}
-		} else {
-			this._notificationService.warn(nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
-		}
+		await xterm.copySelection(asHtml, command);
 	}
 
 	get selection(): string | undefined {
@@ -1087,12 +1069,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	clearSelection(): void {
 		this.xterm?.raw.clearSelection();
-	}
-
-	selectAll(): void {
-		// Focus here to ensure the terminal context key is set
-		this.xterm?.raw.focus();
-		this.xterm?.raw.selectAll();
 	}
 
 	private _refreshAltBufferContextKey() {

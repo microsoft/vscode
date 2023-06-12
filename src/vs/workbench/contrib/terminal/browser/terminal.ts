@@ -148,6 +148,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	/** Gets all terminal instances, including editor and terminal view (group) instances. */
 	readonly instances: readonly ITerminalInstance[];
+	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
+	readonly detachedInstances: Iterable<IXtermTerminal>;
 	configHelper: ITerminalConfigHelper;
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
@@ -720,11 +722,6 @@ export interface ITerminalInstance {
 	resetFocusContextKey(): void;
 
 	/**
-	 * Select all text in the terminal.
-	 */
-	selectAll(): void;
-
-	/**
 	 * Focuses the terminal instance if it's able to (the xterm.js instance must exist).
 	 *
 	 * @param force Force focus even if there is a selection.
@@ -981,6 +978,11 @@ export interface IXtermTerminal extends IDisposable {
 	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number }>;
 
 	/**
+	 * Event fired when focus enters (fires with true) or leaves (false) the terminal.
+	 */
+	readonly onDidChangeFocus: Event<boolean>;
+
+	/**
 	 * Gets a view of the current texture atlas used by the renderers.
 	 */
 	readonly textureAtlas: Promise<ImageBitmap> | undefined;
@@ -989,6 +991,11 @@ export interface IXtermTerminal extends IDisposable {
 	 * Whether the `disableStdin` option in xterm.js is set.
 	 */
 	readonly isStdinDisabled: boolean;
+
+	/**
+	 * Whether the terminal is currently focused.
+	 */
+	readonly isFocused: boolean;
 
 	/**
 	 * Attached the terminal to the given element
@@ -1028,6 +1035,11 @@ export interface IXtermTerminal extends IDisposable {
 	 * Gets the font metrics of this xterm.js instance.
 	 */
 	getFont(): ITerminalFont;
+
+	/**
+	 * Prevents the terminal from handling keyboard events.
+	 */
+	setReadonly(): void;
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;

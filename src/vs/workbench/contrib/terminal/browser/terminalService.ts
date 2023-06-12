@@ -58,6 +58,7 @@ export class TerminalService implements ITerminalService {
 
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
+	private _detachedInstances = new Set<IXtermTerminal>();
 	private _terminalEditorActive: IContextKey<boolean>;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
@@ -84,6 +85,9 @@ export class TerminalService implements ITerminalService {
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
+	}
+	get detachedInstances(): Iterable<IXtermTerminal> {
+		return this._detachedInstances;
 	}
 
 	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
@@ -979,7 +983,7 @@ export class TerminalService implements ITerminalService {
 
 	async createDetachedXterm(options: IDetachedXTermOptions): Promise<IXtermTerminal> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-		return this._instantiationService.createInstance(
+		const instance = this._instantiationService.createInstance(
 			XtermTerminal,
 			ctor,
 			this._configHelper,
@@ -993,6 +997,11 @@ export class TerminalService implements ITerminalService {
 			undefined,
 			false,
 		);
+
+		this._detachedInstances.add(instance);
+		instance.onDidDispose(() => this._detachedInstances.delete(instance));
+
+		return instance;
 	}
 
 	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {

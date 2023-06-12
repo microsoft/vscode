@@ -1141,15 +1141,11 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 }
 
 
-const ttPolicy = window.trustedTypes?.createPolicy('outputTerminalData', { createHTML: value => value });
-
 class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private dimensions?: dom.IDimension;
 
 	/** Active terminal instance. */
 	private readonly terminal = this._register(new MutableDisposable<IXtermTerminal>());
-	/** Used to display messages that get rendered to HTML statically */
-	private readonly rawDisplayNode = this._register(new MutableDisposable());
 	/** Listener for streaming result data */
 	private readonly outputDataListener = this._register(new MutableDisposable());
 
@@ -1162,10 +1158,21 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 
 	private async makeTerminal() {
-		return this.terminal.value = await this.terminalService.createDetachedXterm({ rows: 10, cols: 80 });
+		if (this.terminal.value) {
+			this.terminal.value.clearBuffer();
+			this.terminal.value.clearSearchDecorations();
+			return this.terminal.value;
+		}
+
+		const terminal = this.terminal.value = await this.terminalService.createDetachedXterm({ rows: 10, cols: 80 });
+		terminal.setReadonly();
+		return terminal;
 	}
 
 	public async update(subject: InspectSubject) {
+		this.outputDataListener.clear();
+		this.terminal.value?.clearBuffer();
+
 		if (subject instanceof MessageSubject) {
 			const message = subject.messages[subject.messageIndex];
 			if (isDiffable(message) || typeof message.message !== 'string') {
@@ -1174,27 +1181,42 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 			const terminal = await this.makeTerminal();
 			terminal.write(message.message);
 			this.layoutTerminal(terminal);
-			this.renderTerminalToHtml(terminal);
+			this.attachTerminalToDom(terminal);
 		} else {
-			const result = this.resultService.getResult(subject.resultId)?.tasks[subject.taskIndex];
-			if (!result) {
+			const result = this.resultService.getResult(subject.resultId);
+			const task = result?.tasks[subject.taskIndex];
+			if (!task) {
 				return this.clear();
 			}
 
 			const terminal = await this.makeTerminal();
-			for (const buffer of result.output.buffers) {
-				terminal.write(buffer.buffer);
+			if (result instanceof LiveTestResult) {
+				let hadData = false;
+				for (const buffer of task.output.buffers) {
+					hadData ||= buffer.byteLength > 0;
+					terminal.write(buffer.buffer);
+				}
+				if (!hadData && !task.running) {
+					this.writeNotice(terminal, localize('runNoOutout', 'The test run did not record any output.'));
+				}
+			} else {
+				this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
 			}
 
-			terminal.write('\x1b[?25l'); // hide cursor
-			requestAnimationFrame(() => this.layoutTerminal(terminal));
-
-			this.rawDisplayNode.clear();
-			this.container.classList.add('xterm-detached-instance');
-			terminal.attachToElement(this.container, { enableGpu: false });
-
-			this.outputDataListener.value = result.output.onDidWriteData(e => terminal.write(e.buffer));
+			this.attachTerminalToDom(terminal);
+			this.outputDataListener.value = task.output.onDidWriteData(e => terminal.write(e.buffer));
 		}
+	}
+
+	private writeNotice(terminal: IXtermTerminal, str: string) {
+		terminal.write(`\x1b[1m${str}\x1b[0m`);
+	}
+
+	private attachTerminalToDom(terminal: IXtermTerminal) {
+		terminal.write('\x1b[?25l'); // hide cursor
+		requestAnimationFrame(() => this.layoutTerminal(terminal));
+		this.container.classList.add('xterm-detached-instance');
+		terminal.attachToElement(this.container, { enableGpu: false });
 	}
 
 	private clear() {
@@ -1209,14 +1231,6 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 		}
 	}
 
-	private async renderTerminalToHtml(xterm: IXtermTerminal) {
-		const html = await xterm.getContentsAsHtml();
-		const wrapper = document.createElement('div');
-		wrapper.innerHTML = (ttPolicy?.createHTML(html) ?? html) as string;
-		this.rawDisplayNode.value = toDisposable(() => this.container.removeChild(wrapper));
-		this.container.appendChild(wrapper);
-	}
-
 	private layoutTerminal(
 		xterm: IXtermTerminal,
 		width = this.dimensions?.width ?? this.container.clientWidth,
@@ -1226,11 +1240,6 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 		const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
 		if (scaled) {
 			xterm.resize(scaled.cols, scaled.rows);
-		}
-
-		// re-render the html with the width change:
-		if (this.rawDisplayNode.value) {
-			this.renderTerminalToHtml(xterm);
 		}
 	}
 }
@@ -1549,6 +1558,10 @@ class OutputPeekTree extends Disposable {
 			const resultNode = cc.get(result)! as TestResultElement;
 			const disposable = new DisposableStore();
 			disposable.add(result.onNewTask(() => {
+				if (result.tasks.length === 1) {
+					this.requestReveal.fire(new TaskSubject(result.id, 0)); // reveal the first task in new runs
+				}
+
 				if (this.tree.hasElement(resultNode)) {
 					this.tree.setChildren(resultNode, getResultChildren(result), { diffIdentityProvider });
 				}
@@ -2071,6 +2084,28 @@ export class ToggleTestingPeekHistory extends Action2 {
 		opener.historyVisible.value = !opener.historyVisible.value;
 	}
 }
+
+// export class CopyTestOutputSelection extends Action2 {
+// 	public static readonly ID = 'testing.copyTestOutputSelection';
+
+// 	constructor() {
+// 		super({
+// 			id: ToggleTestingPeekHistory.ID,
+// 			title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
+// 			keybinding: [{
+// 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
+// 				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
+// 				weight: KeybindingWeight.WorkbenchContrib,
+// 				when: ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus)
+// 			}],
+// 		});
+// 	}
+
+// 	public override run(accessor: ServicesAccessor) {
+// 		const opener = accessor.get(ITestingPeekOpener);
+// 		opener.historyVisible.value = !opener.historyVisible.value;
+// 	}
+// }
 
 class CreationCache<T> {
 	private readonly v = new WeakMap<object, T>();

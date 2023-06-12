@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.xterm-detached-instance .xterm-viewport,
-.monaco-workbench .editor-instance .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
+.xterm-viewport {
 	/* Use the hack presented in https://stackoverflow.com/a/38748186/1156119 to get opacity transitions working on the scrollbar */
 	-webkit-background-clip: text;
 	background-clip: text;
@@ -13,55 +11,35 @@
 	transition: background-color 800ms linear;
 }
 
-.xterm-detached-instance .xterm-viewport,
-.monaco-workbench .editor-instance .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
+.xterm-viewport {
 	scrollbar-width: thin;
 }
 
-.xterm-detached-instance .xterm-viewport::-webkit-scrollbar,
-.monaco-workbench .editor-instance .xterm-viewport::-webkit-scrollbar,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport::-webkit-scrollbar {
+.xterm-viewport::-webkit-scrollbar {
 	width: 10px;
 }
 
-.xterm-detached-instance .xterm-viewport::-webkit-scrollbar-track,
-.monaco-workbench .editor-instance .xterm-viewport::-webkit-scrollbar-track,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport::-webkit-scrollbar-track {
+.xterm-viewport::-webkit-scrollbar-track {
 	opacity: 0;
 }
 
-.xterm-detached-instance .xterm-viewport::-webkit-scrollbar-thumb,
-.monaco-workbench .editor-instance .xterm-viewport::-webkit-scrollbar-thumb,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport::-webkit-scrollbar-thumb {
+.xterm-viewport::-webkit-scrollbar-thumb  {
 	min-height: 20px;
 	background-color: inherit;
 }
 
-.xterm-detached-instance .force-scrollbar .xterm .xterm-viewport,
-.monaco-workbench .editor-instance .force-scrollbar .xterm .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .force-scrollbar .xterm .xterm-viewport,
-.xterm-detached-instance .xterm.focus .xterm-viewport,
-.monaco-workbench .editor-instance .xterm.focus .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
-.xterm-detached-instance .xterm:focus .xterm-viewport,
-.monaco-workbench .editor-instance .xterm:focus .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm:focus .xterm-viewport,
-.xterm-detached-instance .xterm:hover .xterm-viewport,
-.monaco-workbench .editor-instance .xterm:hover .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm:hover .xterm-viewport {
+.force-scrollbar .xterm .xterm-viewport,
+.xterm.focus .xterm-viewport,
+.xterm:focus .xterm-viewport,
+.xterm:hover .xterm-viewport {
 	transition: opacity 100ms linear;
 	cursor: default;
 }
 
-.xterm-detached-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
-.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
-.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
 	transition: opacity 0ms linear;
 }
 
-.xterm-detached-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:window-inactive,
-.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:window-inactive,
-.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:window-inactive {
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:window-inactive {
 	background-color: inherit;
 }

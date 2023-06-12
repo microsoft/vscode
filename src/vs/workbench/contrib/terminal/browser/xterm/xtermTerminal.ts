@@ -10,6 +10,7 @@ import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize';
 import type { ImageAddon as ImageAddonType } from 'xterm-addon-image';
+import * as dom from 'vs/base/browser/dom';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -35,7 +36,9 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 const enum RenderConstants {
 	/**
@@ -139,6 +142,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
+	private readonly _attachedDisposables = this.add(new DisposableStore());
+	private readonly _anyTerminalFocusContextKey: IContextKey<boolean>;
+	private readonly _anyFocusedTerminalHasSelection: IContextKey<boolean>;
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
@@ -156,6 +162,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 	private readonly _onDidChangeSelection = new Emitter<void>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+	private readonly _onDidChangeFocus = new Emitter<boolean>();
+	readonly onDidChangeFocus = this._onDidChangeFocus.event;
+	private readonly _onDidDispose = new Emitter<void>();
+	readonly onDidDispose = this._onDidDispose.event;
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
@@ -168,6 +178,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}
 		return createImageBitmap(canvas);
 	}
+
+	public isFocused = false;
 
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
@@ -189,7 +201,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		const font = this._configHelper.getFont(undefined, true);
@@ -242,7 +256,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 
 		// Refire events
-		this.add(this.raw.onSelectionChange(() => this._onDidChangeSelection.fire()));
+		this.add(this.raw.onSelectionChange(() => {
+			this._onDidChangeSelection.fire();
+			if (this.isFocused) {
+				this._anyFocusedTerminalHasSelection.set(this.raw.hasSelection());
+			}
+		}));
 
 		// Load addons
 		this._updateUnicodeVersion();
@@ -254,6 +273,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+
+		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
+		this._anyFocusedTerminalHasSelection = TerminalContextKeys.textSelectedInFocused.bindTo(contextKeyService);
 
 		// Load the suggest addon, this should be loaded regardless of the setting as the sequences
 		// may still come in
@@ -302,6 +324,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
+
 		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (enableGpu) {
 			if (this._shouldLoadWebgl()) {
@@ -311,11 +334,30 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			}
 		}
 
+		if (!this.raw.element || !this.raw.textarea) {
+			throw new Error('xterm elements not set after open');
+		}
+
+		const ad = this._attachedDisposables;
+		ad.clear();
+		ad.add(dom.addDisposableListener(this.raw.textarea, 'focus', () => this._setFocused(true)));
+		ad.add(dom.addDisposableListener(this.raw.textarea, 'blur', () => this._setFocused(false)));
+		ad.add(dom.addDisposableListener(this.raw.textarea, 'focusout', () => this._setFocused(false)));
+
 		this._suggestAddon?.setContainer(container);
 
 		this._container = container;
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
+	}
+
+	private _setFocused(isFocused: boolean) {
+		if (isFocused !== this.isFocused) {
+			this.isFocused = isFocused;
+			this._onDidChangeFocus.fire(isFocused);
+			this._anyTerminalFocusContextKey.set(isFocused);
+			this._anyFocusedTerminalHasSelection.set(isFocused && this.raw.hasSelection());
+		}
 	}
 
 	write(data: string | Uint8Array): void {
@@ -514,6 +556,48 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		// the prompt being written
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+	}
+
+	hasSelection(): boolean {
+		return this.raw.hasSelection();
+	}
+
+	clearSelection(): void {
+		this.raw.clearSelection();
+	}
+
+	selectAll(): void {
+		this.raw.selectAll();
+	}
+
+	focus(): void {
+		this.raw.focus();
+	}
+
+	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
+		if (this.hasSelection() || (asHtml && command)) {
+			if (asHtml) {
+				const textAsHtml = await this.getSelectionAsHtml(command);
+				function listener(e: any) {
+					if (!e.clipboardData.types.includes('text/plain')) {
+						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+					}
+					e.clipboardData.setData('text/html', textAsHtml);
+					e.preventDefault();
+				}
+				document.addEventListener('copy', listener);
+				document.execCommand('copy');
+				document.removeEventListener('copy', listener);
+			} else {
+				await this._clipboardService.writeText(this.raw.getSelection());
+			}
+		} else {
+			this._notificationService.warn(localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
+		}
+	}
+
+	setReadonly(): void {
+		this.raw.attachCustomKeyEventHandler(() => false);
 	}
 
 	private _setCursorBlink(blink: boolean): void {
@@ -784,6 +868,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
+	}
+
+	public override dispose(): void {
+		this._anyTerminalFocusContextKey.reset();
+		this._anyFocusedTerminalHasSelection.reset();
+		this._onDidDispose.fire();
+		super.dispose();
 	}
 }
 
