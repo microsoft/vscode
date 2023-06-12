@@ -117,7 +117,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		repository.status().then(() => {
 			authentication.onDidChangeSessions(e => {
 				if (e.provider.id === 'github') {
-					this.updateRepositoryBranchProtection(true);
+					this.updateRepositoryBranchProtection();
 				}
 			});
 			this.updateRepositoryBranchProtection();
@@ -128,18 +128,18 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		return this.branchProtection;
 	}
 
-	private async getRepositoryDetails(owner: string, repo: string, silent: boolean): Promise<GitHubRepository> {
-		const graphql = await getOctokitGraphql(silent);
+	private async getRepositoryDetails(owner: string, repo: string): Promise<GitHubRepository> {
+		const graphql = await getOctokitGraphql();
 		const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_QUERY, { owner, repo });
 
 		return repository;
 	}
 
-	private async getRepositoryRulesets(owner: string, repo: string, silent: boolean): Promise<RepositoryRuleset[]> {
+	private async getRepositoryRulesets(owner: string, repo: string): Promise<RepositoryRuleset[]> {
 		const rulesets: RepositoryRuleset[] = [];
 
 		let cursor: string | undefined = undefined;
-		const graphql = await getOctokitGraphql(silent);
+		const graphql = await getOctokitGraphql();
 
 		while (true) {
 			const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_RULESETS_QUERY, { owner, repo, cursor });
@@ -158,7 +158,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		return rulesets;
 	}
 
-	private async updateRepositoryBranchProtection(silent = false): Promise<void> {
+	private async updateRepositoryBranchProtection(): Promise<void> {
 		const branchProtection: BranchProtection[] = [];
 
 		try {
@@ -171,7 +171,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 				// Repository details
 				this.logger.trace(`Fetching repository details for "${repository.owner}/${repository.repo}".`);
-				const repositoryDetails = await this.getRepositoryDetails(repository.owner, repository.repo, silent);
+				const repositoryDetails = await this.getRepositoryDetails(repository.owner, repository.repo);
 
 				// Check repository write permission
 				if (repositoryDetails.viewerPermission !== 'ADMIN' && repositoryDetails.viewerPermission !== 'MAINTAIN' && repositoryDetails.viewerPermission !== 'WRITE') {
@@ -181,7 +181,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 				// Get repository rulesets
 				const branchProtectionRules: BranchProtectionRule[] = [];
-				const repositoryRulesets = await this.getRepositoryRulesets(repository.owner, repository.repo, silent);
+				const repositoryRulesets = await this.getRepositoryRulesets(repository.owner, repository.repo);
 
 				for (const ruleset of repositoryRulesets) {
 					branchProtectionRules.push({

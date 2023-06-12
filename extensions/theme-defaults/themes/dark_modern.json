@@ -30,7 +30,7 @@
 		"dropdown.background": "#313131",
 		"dropdown.border": "#ffffff1f",
 		"dropdown.foreground": "#cccccc",
-		"dropdown.listBackground": "#313131",
+		"dropdown.listBackground": "#1f1f1f",
 		"editor.background": "#1f1f1f",
 		"editor.findMatchBackground": "#9e6a03",
 		"editor.foreground": "#cccccc",

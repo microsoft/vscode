@@ -10,10 +10,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InteractiveEditorController, InteractiveEditorRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { IInteractiveEditorSessionService, InteractiveEditorSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { IInteractiveEditorService, InteractiveEditorResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { InteractiveEditorServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
+import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatService, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -26,9 +26,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 
-suite('InteractiveEditorController', function () {
+suite('InteractiveChatontroller', function () {
 
-	class TestController extends InteractiveEditorController {
+	class TestController extends InlineChatController {
 
 		static INIT_SEQUENCE: readonly State[] = [State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT];
 		static INIT_SEQUENCE_AUTO_SEND: readonly State[] = [...this.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT];
@@ -57,7 +57,7 @@ suite('InteractiveEditorController', function () {
 			});
 		}
 
-		protected override _nextState(state: State, options: InteractiveEditorRunOptions | undefined): Promise<void> {
+		protected override _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
 			this._onDidChangeState.fire(state);
 			(<State[]>this.states).push(state);
 			return super._nextState(state, options);
@@ -74,19 +74,19 @@ suite('InteractiveEditorController', function () {
 	let model: ITextModel;
 	let ctrl: TestController;
 	// let contextKeys: MockContextKeyService;
-	let interactiveEditorService: InteractiveEditorServiceImpl;
-	let interactiveEditorSessionService: IInteractiveEditorSessionService;
+	let inlineChatService: InlineChatServiceImpl;
+	let inlineChatSessionService: IInlineChatSessionService;
 	let instaService: TestInstantiationService;
 
 	setup(function () {
 
 		const contextKeyService = new MockContextKeyService();
-		interactiveEditorService = new InteractiveEditorServiceImpl(contextKeyService);
+		inlineChatService = new InlineChatServiceImpl(contextKeyService);
 
 		const serviceCollection = new ServiceCollection(
 			[IContextKeyService, contextKeyService],
-			[IInteractiveEditorService, interactiveEditorService],
-			[IInteractiveEditorSessionService, new SyncDescriptor(InteractiveEditorSessionService)],
+			[IInlineChatService, inlineChatService],
+			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionService)],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
 					return {
@@ -99,21 +99,21 @@ suite('InteractiveEditorController', function () {
 		);
 
 		instaService = workbenchInstantiationService(undefined, store).createChild(serviceCollection);
-		interactiveEditorSessionService = instaService.get(IInteractiveEditorSessionService);
+		inlineChatSessionService = instaService.get(IInlineChatSessionService);
 
 		model = instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null);
 		editor = instantiateTestCodeEditor(instaService, model);
 
-		store.add(interactiveEditorService.addProvider({
+		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
-			prepareInteractiveEditorSession() {
+			prepareInlineChatSession() {
 				return {
 					id: Math.random()
 				};
 			},
 			provideResponse(session, request) {
 				return {
-					type: InteractiveEditorResponseType.EditorEdit,
+					type: InlineChatResponseType.EditorEdit,
 					id: Math.random(),
 					edits: [{
 						range: new Range(1, 1, 1, 1),
@@ -155,9 +155,9 @@ suite('InteractiveEditorController', function () {
 		editor.setSelection(new Range(1, 1, 1, 3));
 		ctrl = instaService.createInstance(TestController, editor);
 
-		const d = interactiveEditorService.addProvider({
+		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
-			prepareInteractiveEditorSession() {
+			prepareInlineChatSession() {
 				return {
 					id: Math.random()
 				};
@@ -170,7 +170,7 @@ suite('InteractiveEditorController', function () {
 		ctrl.run({});
 		await Event.toPromise(Event.filter(ctrl.onDidChangeState, e => e === State.WAIT_FOR_INPUT));
 
-		const session = interactiveEditorSessionService.getSession(editor, editor.getModel()!.uri);
+		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
@@ -183,9 +183,9 @@ suite('InteractiveEditorController', function () {
 		editor.setSelection(new Range(1, 1, 1, 1));
 		ctrl = instaService.createInstance(TestController, editor);
 
-		const d = interactiveEditorService.addProvider({
+		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
-			prepareInteractiveEditorSession() {
+			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
 					wholeRange: new Range(1, 1, 1, 3)
@@ -199,7 +199,7 @@ suite('InteractiveEditorController', function () {
 		ctrl.run({});
 		await Event.toPromise(Event.filter(ctrl.onDidChangeState, e => e === State.WAIT_FOR_INPUT));
 
-		const session = interactiveEditorSessionService.getSession(editor, editor.getModel()!.uri);
+		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
@@ -213,7 +213,7 @@ suite('InteractiveEditorController', function () {
 
 		await ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
 
-		const session = interactiveEditorSessionService.getSession(editor, editor.getModel()!.uri);
+		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 11));
 
@@ -227,9 +227,9 @@ suite('InteractiveEditorController', function () {
 
 		editor.setSelection(new Range(3, 1, 3, 1));
 
-		const d = interactiveEditorService.addProvider({
+		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
-			prepareInteractiveEditorSession() {
+			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
 					wholeRange: new Range(3, 1, 3, 3)
@@ -237,7 +237,7 @@ suite('InteractiveEditorController', function () {
 			},
 			provideResponse(session, request) {
 				return {
-					type: InteractiveEditorResponseType.EditorEdit,
+					type: InlineChatResponseType.EditorEdit,
 					id: Math.random(),
 					edits: [{
 						range: new Range(1, 1, 1, 1), // EDIT happens outside of whole range
@@ -252,7 +252,7 @@ suite('InteractiveEditorController', function () {
 
 		await ctrl.waitFor(TestController.INIT_SEQUENCE);
 
-		const session = interactiveEditorSessionService.getSession(editor, editor.getModel()!.uri);
+		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 12));
 
@@ -264,9 +264,9 @@ suite('InteractiveEditorController', function () {
 	});
 
 	test('Stuck inline chat widget #211', async function () {
-		const d = interactiveEditorService.addProvider({
+		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
-			prepareInteractiveEditorSession() {
+			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
 					wholeRange: new Range(3, 1, 3, 3)
@@ -278,7 +278,7 @@ suite('InteractiveEditorController', function () {
 				await timeout(50000);
 
 				return {
-					type: InteractiveEditorResponseType.EditorEdit,
+					type: InlineChatResponseType.EditorEdit,
 					id: Math.random(),
 					edits: [{
 						range: new Range(1, 1, 1, 1), // EDIT happens outside of whole range
