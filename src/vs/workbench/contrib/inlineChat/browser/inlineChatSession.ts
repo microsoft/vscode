@@ -236,11 +236,12 @@ export class Session {
 	}
 }
 
+export type SessionResponse = EditResponse | MarkdownResponse | ErrorResponse | EmptyResponse;
 
 export class SessionExchange {
 	constructor(
 		readonly prompt: string,
-		readonly response: MarkdownResponse | EditResponse | EmptyResponse | ErrorResponse
+		readonly response: SessionResponse
 	) { }
 }
 

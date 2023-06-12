@@ -21,7 +21,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
-import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { EditResponse, Session, SessionResponse } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_SHOWING_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -46,7 +46,7 @@ export abstract class EditModeStrategy {
 
 	abstract hasFocus(): boolean;
 
-	abstract getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined;
+	abstract getWidgetPosition(initialRender: boolean, range?: Range, response?: SessionResponse): Position | undefined;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -135,15 +135,13 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
+	getWidgetPosition(initialRender: boolean, _range: Range, _response: SessionResponse): Position | undefined {
 		const viewModel = this._editor._getViewModel();
 		assertType(viewModel);
 		if (initialRender) {
 			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
-			return this._initialPosition;
-		} else {
-			return minimalJumpPosition(this._editor, this._initialPosition, range, hasEditResponse);
 		}
+		return this._initialPosition;
 	}
 
 	hasFocus(): boolean {
@@ -342,14 +340,39 @@ export class LiveStrategy extends EditModeStrategy {
 		this._widget.updateStatus(message);
 	}
 
-	override getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
+	private _findEditsMaxLineNumber(response: EditResponse): number | void {
+		const edits = response.localEdits;
+		if (edits.length) {
+			let editsMaxLineNumber = 0;
+			for (const edit of edits) {
+				const editStartLine = edit.range.startLineNumber;
+				const editNumberOfLines = (edit.text.match(/\n/g) || []).length;
+				const endLine = editStartLine + editNumberOfLines - 1;
+				if (endLine > editsMaxLineNumber) {
+					editsMaxLineNumber = endLine;
+				}
+			}
+			return editsMaxLineNumber;
+		}
+	}
+
+	override getWidgetPosition(initialRender: boolean, _range: Range, response: SessionResponse): Position | undefined {
 		const viewModel = this._editor._getViewModel();
 		assertType(viewModel);
 		if (initialRender) {
 			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
 			return this._initialPosition;
 		} else {
-			return minimalJumpPosition(this._editor, this._initialPosition, range, hasEditResponse);
+			if (response instanceof EditResponse) {
+				const editsMaxLineNumber = this._findEditsMaxLineNumber(response);
+				if (editsMaxLineNumber) {
+					return new Position(editsMaxLineNumber, 1);
+				} else {
+					return this._initialPosition;
+				}
+			} else {
+				return this._initialPosition;
+			}
 		}
 	}
 
@@ -411,14 +434,14 @@ export class LivePreviewStrategy extends LiveStrategy {
 		scrollState.restore(this._editor);
 	}
 
-	override getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
+	override getWidgetPosition(initialRender: boolean, range: Range, response: SessionResponse): Position | undefined {
 		if (initialRender) {
 			const viewModel = this._editor._getViewModel();
 			assertType(viewModel);
 			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
 			return this._initialPosition;
 		} else {
-			if (hasEditResponse) {
+			if (range && response instanceof EditResponse) {
 				return range.getEndPosition();
 			} else {
 				return this._initialPosition;
@@ -435,21 +458,5 @@ function showSingleCreateFile(accessor: ServicesAccessor, edit: EditResponse) {
 	const editorService = accessor.get(IEditorService);
 	if (edit.singleCreateFileEdit) {
 		editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
-	}
-}
-
-function minimalJumpPosition(editor: ICodeEditor, initialPosition: Position | undefined, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
-	const viewModel = editor._getViewModel();
-	assertType(viewModel);
-	if (hasEditResponse) {
-		const endPosition = range.getEndPosition();
-		const visibleRange = viewModel.getCompletelyVisibleViewRange();
-		if (visibleRange.containsPosition(endPosition)) {
-			return endPosition;
-		} else {
-			return initialPosition;
-		}
-	} else {
-		return initialPosition;
 	}
 }
