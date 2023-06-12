@@ -166,6 +166,9 @@ const nodejsSHA256 = {
 		x64: 'da5658693243b3ecf6a4cba6751a71df1eb9e9703ca93b42a9404aed85f58ad0',
 		armv7l: 'aeab05e35f1d2824ecfb88ca321f1408b44d292b2775f2890972c828e00216d0',
 		arm64: 'adc7032888d4e672a4aac886baede8c04fccdd1a2e7ab4bcf325e3f336f44a3d',
+	},
+	alpine: {
+		// TODO@checksums
 	}
 };
 
