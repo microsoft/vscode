@@ -231,7 +231,7 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:showTranslatedBuildWarning', (event: unknown, message: string) => {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize("runningTranslated", "You are running a translated build. For better performance download a native build for your machine!"),
+				localize("runningTranslated", "You are running an emulated version of {0}. For better performance download the native arm64 version of {0} build for your machine.", this.productService.nameLong),
 				[{
 					label: localize('downloadArmBuild', "Download"),
 					run: () => {
