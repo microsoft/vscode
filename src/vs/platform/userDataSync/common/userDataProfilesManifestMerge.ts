@@ -113,8 +113,8 @@ function compare(from: IUserDataProfileInfo[] | null, to: IUserDataProfileInfo[]
 	to = to.filter(({ id }) => !ignoredProfiles.includes(id));
 	const fromKeys = from.map(({ id }) => id);
 	const toKeys = to.map(({ id }) => id);
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1);
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1);
+	const added = toKeys.filter(key => !fromKeys.includes(key));
+	const removed = fromKeys.filter(key => !toKeys.includes(key));
 	const updated: string[] = [];
 
 	for (const { id, name, shortName } of from) {

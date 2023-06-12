@@ -391,7 +391,14 @@ async function detectAvailableUnixProfiles(
 	// Add non-quick launch profiles
 	if (includeDetectedProfiles) {
 		const contents = (await fsProvider.readFile('/etc/shells')).toString();
-		const profiles = testPaths || contents.split('\n').filter(e => e.trim().includes('#') && e.trim().length > 0);
+		const profiles = (
+			(testPaths || contents.split('\n'))
+				.map(e => {
+					const index = e.indexOf('#');
+					return index === -1 ? e : e.substring(0, index);
+				})
+				.filter(e => e.trim().length > 0)
+		);
 		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {
 			let profileName = basename(profile);

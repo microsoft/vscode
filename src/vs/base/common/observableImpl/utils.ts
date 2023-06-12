@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun } from 'vs/base/common/observableImpl/autorun';
-import { IObservable, BaseObservable, transaction, IReader, ITransaction, ConvenientObservable, IObserver, observableValue, getFunctionName } from 'vs/base/common/observableImpl/base';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, getFunctionName, observableValue, transaction } from 'vs/base/common/observableImpl/base';
 import { derived } from 'vs/base/common/observableImpl/derived';
-import { Event } from 'vs/base/common/event';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
 
 export function constObservable<T>(value: T): IObservable<T> {
@@ -198,6 +198,9 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	}
 }
 
+/**
+ * Creates a signal that can be triggered to invalidate observers.
+ */
 export function observableSignal<TDelta = void>(
 	debugName: string
 ): IObservableSignal<TDelta> {
@@ -287,6 +290,10 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
 export function keepAlive(observable: IObservable<any>, forceRecompute?: boolean): IDisposable {
 	const o = new KeepAliveObserver(forceRecompute ?? false);
 	observable.addObserver(o);
+	if (forceRecompute) {
+		observable.reportChanges();
+	}
+
 	return toDisposable(() => {
 		observable.removeObserver(o);
 	});

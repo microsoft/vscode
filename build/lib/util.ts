@@ -219,7 +219,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 					version: '3',
 					names: [],
 					mappings: '',
-					sources: [f.relative],
+					sources: [f.relative.replace(/\\/g, '/')],
 					sourcesContent: [contents]
 				};
 

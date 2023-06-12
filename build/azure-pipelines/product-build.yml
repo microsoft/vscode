@@ -176,6 +176,7 @@ stages:
           steps:
             - template: ./linux/cli-build-linux.yml
               parameters:
+                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
 
@@ -216,6 +217,7 @@ stages:
           steps:
             - template: ./darwin/cli-build-darwin.yml
               parameters:
+                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
 
@@ -235,6 +237,7 @@ stages:
           steps:
             - template: ./win32/cli-build-win32.yml
               parameters:
+                VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
 

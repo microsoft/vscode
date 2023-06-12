@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -117,7 +118,13 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		const isRemoteWindow = !!this.environmentService.remoteAuthority;
 
 		if (!isRemoteWindow) {
-			this.extensionService.stopExtensionHosts(true); // TODO@sandy081 adopt support for extension host to veto stopping
+			if (!(await this.extensionService.stopExtensionHosts(localize('switch profile', "Switching to a profile.")))) {
+				// If extension host did not stop, do not switch profile
+				if (this.userDataProfilesService.profiles.some(p => p.id === this.userDataProfileService.currentProfile.id)) {
+					await this.userDataProfilesService.setProfileForWorkspace(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()), this.userDataProfileService.currentProfile);
+				}
+				throw new CancellationError();
+			}
 		}
 
 		// In a remote window update current profile before reloading so that data is preserved from current profile if asked to preserve

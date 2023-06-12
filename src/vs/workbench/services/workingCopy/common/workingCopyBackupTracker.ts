@@ -21,7 +21,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 /**
  * The working copy backup tracker deals with:
  * - restoring backups that exist
- * - creating backups for dirty working copies
+ * - creating backups for modified working copies
  * - deleting backups for saved working copies
  * - handling backups on shutdown
  */
@@ -39,8 +39,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	) {
 		super();
 
-		// Fill in initial dirty working copies
-		for (const workingCopy of this.workingCopyService.dirtyWorkingCopies) {
+		// Fill in initial modified working copies
+		for (const workingCopy of this.workingCopyService.modifiedWorkingCopies) {
 			this.onDidRegister(workingCopy);
 		}
 
@@ -114,7 +114,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			return;
 		}
 
-		if (workingCopy.isDirty()) {
+		if (workingCopy.isModified()) {
 			this.scheduleBackup(workingCopy);
 		}
 	}
@@ -159,8 +159,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			return;
 		}
 
-		// Schedule backup if dirty
-		if (workingCopy.isDirty()) {
+		// Schedule backup for modified working copies
+		if (workingCopy.isModified()) {
 			// this listener will make sure that the backup is
 			// pushed out for as long as the user is still changing
 			// the content of the working copy.
@@ -183,8 +183,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				return;
 			}
 
-			// Backup if dirty
-			if (workingCopy.isDirty()) {
+			// Backup if modified
+			if (workingCopy.isModified()) {
 				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString(), workingCopy.typeId);
 
 				try {
@@ -193,7 +193,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 						return;
 					}
 
-					if (workingCopy.isDirty()) {
+					if (workingCopy.isModified()) {
 						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString(), workingCopy.typeId);
 
 						await this.workingCopyBackupService.backup(workingCopy, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
@@ -383,7 +383,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		}
 
 		// Then, resolve each opened editor to make sure the working copy
-		// is loaded and the dirty editor appears properly
+		// is loaded and the modified editor appears properly.
 		// We only do that for editors that are not active in a group
 		// already to prevent calling `resolve` twice!
 		await Promises.settled([...openedEditorsForBackups].map(async openedEditorForBackup => {

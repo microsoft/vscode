@@ -35,6 +35,7 @@ import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickIn
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { getIconClass, renderQuickInputDescription } from './quickInputUtils';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -65,6 +66,7 @@ export interface IQuickInputStyles {
 	readonly keybindingLabel: IKeybindingLabelStyles;
 	readonly list: IListStyles;
 	readonly pickerGroup: { pickerGroupBorder: string | undefined; pickerGroupForeground: string | undefined };
+	readonly colorScheme: ColorScheme;
 }
 
 export interface IQuickInputWidgetStyles {
@@ -1364,6 +1366,7 @@ export class QuickInputController extends Disposable {
 		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const widget = dom.append(container, $('.quick-input-html-widget'));
+		widget.tabIndex = -1;
 
 		const listId = this.idPrefix + 'list';
 		const list = this._register(new QuickInputList(container, listId, this.options));
