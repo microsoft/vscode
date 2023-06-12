@@ -153,6 +153,22 @@ if (defaultNodeTask) {
 	gulp.task(task.define('node', defaultNodeTask));
 }
 
+const nodejsSHA256 = {
+	win32: {
+		x64: product.nodejsRepository ? 'dcdf79b3e67acfbf87fc8719fd1a70009269e254dcffa0139b0cf1bda5de2ef0' : 'f518a70dcab7c3fac5b2e1ef100b4f628edfb160f4fafa9a94ef222da8a6e9ab',
+		x86: product.nodejsRepository ? '7939960792e4266fdbe98fe7f263d3ee97963da143756b53ade6acd4223f9ac9' : '2393aff88be19dbe0205cbde4ff0c1d89911b15de5c99c80f6e5e29604eecd12'
+	},
+	darwin: {
+		x64: '3db26761ad8493b894d42260d7e65094b7af9bc473588739e61bc1c32d6ff955',
+		arm64: 'f9f02f7872e2e8ee54320fce13deb9d56904f32bb0615b6e21aa3371d8899150'
+	},
+	linux: {
+		x64: 'da5658693243b3ecf6a4cba6751a71df1eb9e9703ca93b42a9404aed85f58ad0',
+		armv7l: 'aeab05e35f1d2824ecfb88ca321f1408b44d292b2775f2890972c828e00216d0',
+		arm64: 'adc7032888d4e672a4aac886baede8c04fccdd1a2e7ab4bcf325e3f336f44a3d',
+	}
+};
+
 function nodejs(platform, arch) {
 	const { fetchUrls, fetchGithub } = require('./lib/fetch');
 	const untar = require('gulp-untar');
@@ -161,14 +177,16 @@ function nodejs(platform, arch) {
 		arch = 'x86';
 	}
 
+	const checksumSha256 = nodejsSHA256[platform][arch];
+
 	if (platform === 'win32') {
 		if (product.nodejsRepository) {
 			log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
-			return fetchGithub(product.nodejsRepository, { version: nodeVersion, name: `win-${arch}-node.exe` }) // TODO@checksum
+			return fetchGithub(product.nodejsRepository, { version: nodeVersion, name: `win-${arch}-node.exe`, checksumSha256 })
 				.pipe(rename('node.exe'));
 		}
 		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-		return fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' }) // TODO@checksum
+		return fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 })
 			.pipe(rename('node.exe'));
 	}
 
@@ -183,7 +201,7 @@ function nodejs(platform, arch) {
 		arch = 'armv7l';
 	}
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-	return fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org' }) // TODO@checksum
+	return fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
 		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 		.pipe(filter('**/node'))
 		.pipe(util.setExecutableBit('**'))
