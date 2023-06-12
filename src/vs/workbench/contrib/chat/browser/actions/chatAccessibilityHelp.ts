@@ -18,7 +18,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 	const content = [];
 	if (type === 'chat') {
 		content.push(localize('chat.overview', 'Chat responses will be announced as they come in. A response will indicate the number of code blocks, if any, and then the rest of the response.'));
-		content.push(localize('chat.requestHistory', 'In the input box, use UpArrow/DownArrow to navigate your request history. Edit input and use enter to run a new request.'));
+		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter to run a new request.'));
 		content.push(descriptionForCommand('chat.action.focus', localize('workbench.action.chat.focus', 'The Focus Chat command ({0}) focuses the chat request/response list, which can be navigated with UpArrow/DownArrow.',), localize('workbench.action.chat.focusNoKb', 'The Focus Chat List command focuses the chat request/response list, which can be navigated with UpArrow/DownArrow and is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.chat.focusInput', localize('workbench.action.chat.focusInput', 'The Focus Chat Input command ({0}) focuses the input box for chat requests.'), localize('workbench.action.interactiveSession.focusInputNoKb', 'Focus Chat Input command focuses the input box for chat requests and is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.chat.nextCodeBlock', localize('workbench.action.chat.nextCodeBlock', 'The Chat: Next Code Block command ({0}) focuses the next code block within a response.'), localize('workbench.action.chat.nextCodeBlockNoKb', 'The Chat: Next Code Block command focuses the next code block within a response and is currently not triggerable by a keybinding.'), keybindingService));
@@ -27,7 +27,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 		const startChatKeybinding = keybindingService.lookupKeybinding('inlineChat.start')?.getAriaLabel();
 		content.push(localize('inlineChat.overview', "Inline chat occurs within a code editor and takes into account current selection. It is useful for refactoring, fixing, and more. Keep in mind that Copilot generated code may be incorrect."));
 		content.push(localize('inlineChat.access', "It can be activated via the Fix and Explain with Copilot context menu actions or directly using the command: Inline Chat: Start Code Chat ({0}).", startChatKeybinding));
-		content.push(localize('chat.requestHistoryInline', 'In the input box, use UpArrow/DownArrow to navigate your request history. Edit input and use enter or the make request button to run a new request.'));
+		content.push(localize('chat.requestHistoryInline', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the make request button to run a new request.'));
 		content.push(localize('inlineChat.contextActions', "Explain and Fix with Copilot actions run a request prefixed with /fix or /explain. These prefixes can be used directly in the input box to apply those specific actions."));
 		content.push(localize('inlineChat.fix', "When a request is prefixed with /fix, a response will indicate the problem with the current code. A diff editor will be rendered and can be reached by tabbing."));
 		const diffReviewKeybinding = keybindingService.lookupKeybinding('editor.action.diffReview.next')?.getAriaLabel();
