@@ -225,7 +225,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 		const disposables = new DisposableStore();
 		try {
-			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile));
+			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile, false));
 			const barrier = new Barrier();
 			const exportAction = new BarrierAction(barrier, new Action('export', localize('export', "Export"), undefined, true, async () => {
 				exportAction.enabled = false;
@@ -247,10 +247,20 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	async createFromCurrentProfile(name: string): Promise<void> {
-		const userDataProfilesExportState = this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile);
+		const userDataProfilesExportState = this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile, false);
 		try {
 			const profileTemplate = await userDataProfilesExportState.getProfileTemplate(name, undefined);
 			await this.doImportProfile(profileTemplate);
+		} finally {
+			userDataProfilesExportState.dispose();
+		}
+	}
+
+	async createTemporaryProfile(profile: IUserDataProfile, name: string, extensionsDisabled: boolean): Promise<void> {
+		const userDataProfilesExportState = this.instantiationService.createInstance(UserDataProfileExportState, profile, extensionsDisabled);
+		try {
+			const profileTemplate = await userDataProfilesExportState.getProfileTemplate(name, undefined);
+			await this.importAndSwitch(profileTemplate, true, true, extensionsDisabled, localize('import', "Create Profile"));
 		} finally {
 			userDataProfilesExportState.dispose();
 		}
@@ -342,7 +352,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 			profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
 
-			const importedProfile = await this.importAndSwitch(profileTemplate, true, false, localize('preview profile', "Preview Profile"));
+			const importedProfile = await this.importAndSwitch(profileTemplate, true, false, false, localize('preview profile', "Preview Profile"));
 
 			if (!importedProfile) {
 				return;
@@ -385,7 +395,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 						view.setMessage(undefined);
 						const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
 						if (profileTemplate.extensions) {
-							await that.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, importedProfile);
+							await that.instantiationService.createInstance(ExtensionsResource, false).apply(profileTemplate.extensions, importedProfile);
 						}
 					});
 				}
@@ -393,7 +403,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			disposables.add(Event.debounce(this.extensionManagementService.onDidInstallExtensions, () => undefined, 100)(async () => {
 				const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
 				if (profileTemplate.extensions) {
-					const profileExtensions = await that.instantiationService.createInstance(ExtensionsResource).getProfileExtensions(profileTemplate.extensions!);
+					const profileExtensions = await that.instantiationService.createInstance(ExtensionsResource, false).getProfileExtensions(profileTemplate.extensions!);
 					const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
 					if (profileExtensions.every(e => installed.some(i => areSameExtensions(e.identifier, i.identifier)))) {
 						disposable.dispose();
@@ -432,7 +442,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const importProfileFn = async () => {
 				importAction.enabled = false;
 				const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
-				const importedProfile = await this.importAndSwitch(profileTemplate, false, true, title);
+				const importedProfile = await this.importAndSwitch(profileTemplate, false, true, false, title);
 				if (!importedProfile) {
 					return;
 				}
@@ -448,7 +458,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		return importAction;
 	}
 
-	private async importAndSwitch(profileTemplate: IUserDataProfileTemplate, temporaryProfile: boolean, extensions: boolean, title: string): Promise<IUserDataProfile | undefined> {
+	private async importAndSwitch(profileTemplate: IUserDataProfileTemplate, temporaryProfile: boolean, extensions: boolean, extensionsDisabled: boolean, title: string): Promise<IUserDataProfile | undefined> {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Window,
 			command: showWindowLogActionId,
@@ -481,7 +491,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 			if (profileTemplate.extensions && extensions) {
 				progress.report({ message: localize('progress extensions', "{0} ({1}): Applying Extensions...", title, profileTemplate.name) });
-				await this.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, profile);
+				await this.instantiationService.createInstance(ExtensionsResource, extensionsDisabled).apply(profileTemplate.extensions, profile);
 			}
 
 			progress.report({ message: localize('switching profile', "{0} ({1}): Applying...", title, profileTemplate.name) });
@@ -545,8 +555,8 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		return result?.id;
 	}
 
-	private async getProfileToImport(profileTemplate: IUserDataProfileTemplate, temp?: boolean): Promise<IUserDataProfile | undefined> {
-		const profileName = temp ? `${profileTemplate.name} (${localize('preview', "Preview")})` : profileTemplate.name;
+	private async getProfileToImport(profileTemplate: IUserDataProfileTemplate, temp: boolean): Promise<IUserDataProfile | undefined> {
+		const profileName = profileTemplate.name;
 		const profile = this.userDataProfilesService.profiles.find(p => p.name === profileName);
 		if (profile) {
 			if (temp) {
@@ -666,7 +676,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				await this.instantiationService.createInstance(GlobalStateResource).apply(profile.globalState, this.userDataProfileService.currentProfile);
 			}
 			if (profile.extensions) {
-				await this.instantiationService.createInstance(ExtensionsResource).apply(profile.extensions, this.userDataProfileService.currentProfile);
+				await this.instantiationService.createInstance(ExtensionsResource, false).apply(profile.extensions, this.userDataProfileService.currentProfile);
 			}
 		});
 		this.notificationService.info(localize('applied profile', "{0}: Applied successfully.", PROFILES_CATEGORY.value));
@@ -997,6 +1007,7 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 
 	constructor(
 		readonly profile: IUserDataProfile,
+		private readonly disableExtensions: boolean,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IFileService private readonly fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -1052,7 +1063,7 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			roots.push(globalStateResourceTreeItem);
 		}
 
-		const extensionsResourceTreeItem = this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, exportPreviewProfle);
+		const extensionsResourceTreeItem = this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, exportPreviewProfle, this.disableExtensions);
 		if (await extensionsResourceTreeItem.hasContent()) {
 			roots.push(extensionsResourceTreeItem);
 		}
