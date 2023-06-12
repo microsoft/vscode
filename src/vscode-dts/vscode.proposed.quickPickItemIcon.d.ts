@@ -3,7 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module '@vscode/windows-registry' {
-	export type HKEY = 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG';
-	export function GetStringRegKey(hive: HKEY, path: string, name: string): string | undefined;
+declare module 'vscode' {
+	/**
+	 * Represents an item that can be selected from
+	 * a list of items.
+	 */
+	export interface QuickPickItem {
+		/**
+		 * The icon path or {@link ThemeIcon} for the QuickPickItem.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+	}
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -20,12 +21,13 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDisposable } from 'xterm';
 
-export interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; options: IAccessibleViewOptions }
+
+export interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; onKeyDown?(e: IKeyboardEvent): void; options: IAccessibleViewOptions }
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
-	show(providerId: string): void;
+	show(providerId: string): AccessibleView;
 	registerProvider(provider: IAccessibleContentProvider): IDisposable;
 }
 
@@ -35,6 +37,7 @@ export interface IAccessibleViewOptions {
 
 class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
+	get editorWidget() { return this._editorWidget; }
 	private _editorContainer: HTMLElement;
 
 	constructor(
@@ -99,6 +102,7 @@ class AccessibleView extends Disposable {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
 				}
+				provider.onKeyDown?.(e);
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
 			this._register(this._editorWidget.onDidContentSizeChange(() => this._layout()));
@@ -155,7 +159,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		});
 	}
 
-	show(providerId: string): void {
+	show(providerId: string): AccessibleView {
 		if (!this._accessibleView) {
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
@@ -164,5 +168,6 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			throw new Error(`No accessible view provider with id: ${providerId}`);
 		}
 		this._accessibleView.show(provider);
+		return this._accessibleView;
 	}
 }

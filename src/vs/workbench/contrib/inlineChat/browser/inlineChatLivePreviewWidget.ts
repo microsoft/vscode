@@ -31,6 +31,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
@@ -349,6 +350,7 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 	constructor(
 		parentEditor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@IThemeService themeService: IThemeService,
 
@@ -401,8 +403,8 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 	showCreation(where: Range, uri: URI, edits: TextEdit[]): void {
 
 		this._title.element.setFile(uri, { fileKind: FileKind.FILE });
-
-		const model = this._modelService.createModel('', null, undefined, true);
+		const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
+		const model = this._modelService.createModel('', langSelection, undefined, true);
 		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		this._previewModel.value = model;
 		this._previewEditor.setModel(model);
