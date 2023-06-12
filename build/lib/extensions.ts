@@ -24,7 +24,7 @@ import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
 import { getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
-import { fetchUrls, IFetchOptions, fetchGithub } from './fetch';
+import { fetchUrls, fetchGithub } from './fetch';
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = getVersion(root);
@@ -221,7 +221,7 @@ const baseHeaders = {
 	'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
 
-export function fromMarketplace(serviceUrl: string, { name: extensionName, version, metadata }: IBuiltInExtension): Stream {
+export function fromMarketplace(serviceUrl: string, { name: extensionName, version, metadata }: IBuiltInExtension, options?: { checksumSha256?: string }): Stream {
 	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 	const [publisher, name] = extensionName.split('.');
@@ -229,16 +229,15 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 
 	fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
-	const options: IFetchOptions = {
+	const packageJsonFilter = filter('package.json', { restore: true });
+
+	return fetchUrls('', {
 		base: url,
 		nodeFetchOptions: {
 			headers: baseHeaders
-		}
-	};
-
-	const packageJsonFilter = filter('package.json', { restore: true });
-
-	return fetchUrls('', options) // TODO@checksum
+		},
+		checksumSha256: options?.checksumSha256
+	})
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
