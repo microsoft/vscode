@@ -410,7 +410,8 @@ export class Mangler {
 
 	constructor(
 		private readonly projectPath: string,
-		private readonly log: typeof console.log = () => { }
+		private readonly log: typeof console.log = () => { },
+		private readonly config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean },
 	) {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 
@@ -427,51 +428,55 @@ export class Mangler {
 		// - Find exported symbols.
 
 		const visit = (node: ts.Node): void => {
-			if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
-				const anchor = node.name ?? node;
-				const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
-				if (this.allClassDataByKey.has(key)) {
-					throw new Error('DUPE?');
+			if (this.config.manglePrivateFields) {
+				if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+					const anchor = node.name ?? node;
+					const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
+					if (this.allClassDataByKey.has(key)) {
+						throw new Error('DUPE?');
+					}
+					this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 				}
-				this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 			}
 
-			// Find exported classes, functions, and vars
-			if (
-				(
-					// Exported class
-					ts.isClassDeclaration(node)
-					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
-					&& node.name
-				) || (
-					// Exported function
-					ts.isFunctionDeclaration(node)
-					&& ts.isSourceFile(node.parent)
-					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
-					&& node.name && node.body // On named function and not on the overload
-				) || (
-					// Exported variable
-					ts.isVariableDeclaration(node)
-					&& hasModifier(node.parent.parent, ts.SyntaxKind.ExportKeyword) // Variable statement is exported
-					&& ts.isSourceFile(node.parent.parent.parent)
-				)
+			if (this.config.mangleExports) {
+				// Find exported classes, functions, and vars
+				if (
+					(
+						// Exported class
+						ts.isClassDeclaration(node)
+						&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+						&& node.name
+					) || (
+						// Exported function
+						ts.isFunctionDeclaration(node)
+						&& ts.isSourceFile(node.parent)
+						&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+						&& node.name && node.body // On named function and not on the overload
+					) || (
+						// Exported variable
+						ts.isVariableDeclaration(node)
+						&& hasModifier(node.parent.parent, ts.SyntaxKind.ExportKeyword) // Variable statement is exported
+						&& ts.isSourceFile(node.parent.parent.parent)
+					)
 
-				// Disabled for now because we need to figure out how to handle
-				// enums that are used in monaco or extHost interfaces.
-				/* || (
-					// Exported enum
-					ts.isEnumDeclaration(node)
-					&& ts.isSourceFile(node.parent)
-					&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
-					&& !hasModifier(node, ts.SyntaxKind.ConstKeyword) // Don't bother mangling const enums because these are inlined
-					&& node.name
-				*/
-			) {
-				if (isInAmbientContext(node)) {
-					return;
+					// Disabled for now because we need to figure out how to handle
+					// enums that are used in monaco or extHost interfaces.
+					/* || (
+						// Exported enum
+						ts.isEnumDeclaration(node)
+						&& ts.isSourceFile(node.parent)
+						&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+						&& !hasModifier(node, ts.SyntaxKind.ConstKeyword) // Don't bother mangling const enums because these are inlined
+						&& node.name
+					*/
+				) {
+					if (isInAmbientContext(node)) {
+						return;
+					}
+
+					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, this.service));
 				}
-
-				this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, this.service));
 			}
 
 			ts.forEachChild(node, visit);
@@ -753,7 +758,10 @@ async function _run() {
 
 	fs.cpSync(projectBase, newProjectBase, { recursive: true });
 
-	const mangler = new Mangler(projectPath, console.log);
+	const mangler = new Mangler(projectPath, console.log, {
+		mangleExports: true,
+		manglePrivateFields: true,
+	});
 	for (const [fileName, contents] of await mangler.computeNewFileContents(new Set(['saveState']))) {
 		const newFilePath = path.join(newProjectBase, path.relative(projectBase, fileName));
 		await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });

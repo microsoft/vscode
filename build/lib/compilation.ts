@@ -124,7 +124,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 		// mangle: TypeScript to TypeScript
 		let mangleStream = es.through();
 		if (build && !options.disableMangle) {
-			let ts2tsMangler = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data));
+			let ts2tsMangler = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
 			const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
 			mangleStream = es.through(async function write(data: File & { sourceMap?: RawSourceMap }) {
 				type TypeScriptExt = typeof ts & { normalizePath(path: string): string };
