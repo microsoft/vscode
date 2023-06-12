@@ -24,8 +24,7 @@ import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
 import { getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
-import { remote, IOptions as IRemoteSrcOptions } from './gulpRemoteSource';
-import { assetFromGithub } from './github';
+import { remote, IOptions as IRemoteSrcOptions, fetchGithub } from './fetch';
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = getVersion(root);
@@ -258,7 +257,7 @@ export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension,
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
-	return assetFromGithub(new URL(repo).pathname, { version, name: name => name.endsWith('.vsix'), checksumSha256: options?.checksumSha256 })
+	return fetchGithub(new URL(repo).pathname, { version, name: name => name.endsWith('.vsix'), checksumSha256: options?.checksumSha256 })
 		.pipe(buffer())
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))

@@ -17,7 +17,6 @@ const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
-const { assetFromGithub } = require('./lib/github');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -155,7 +154,7 @@ if (defaultNodeTask) {
 }
 
 function nodejs(platform, arch) {
-	const { remote } = require('./lib/gulpRemoteSource');
+	const { remote, fetchGithub } = require('./lib/fetch');
 	const untar = require('gulp-untar');
 
 	if (arch === 'ia32') {
@@ -165,7 +164,7 @@ function nodejs(platform, arch) {
 	if (platform === 'win32') {
 		if (product.nodejsRepository) {
 			log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
-			return assetFromGithub(product.nodejsRepository, { version: nodeVersion, name: `win-${arch}-node.exe` }) // TODO@checksum
+			return fetchGithub(product.nodejsRepository, { version: nodeVersion, name: `win-${arch}-node.exe` }) // TODO@checksum
 				.pipe(rename('node.exe'));
 		}
 		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
