@@ -27,10 +27,8 @@ const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
 
-// Enable sandbox globally
+// Enable sandbox globally unless disabled via `--no-sandbox` argument
 const args = parseCLIArgs();
-// When --no-sandbox is passes as argument, sandbox will be
-// set to false via https://github.com/minimistjs/minimist/blob/fdbb909cf916b3bac9f76f6ee72c64e05b73c2d9/index.js#L169-L172
 if (args['sandbox']) {
 	app.enableSandbox();
 }
