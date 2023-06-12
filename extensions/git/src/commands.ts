@@ -196,9 +196,9 @@ class FetchAllRemotesItem implements QuickPickItem {
 }
 
 class RepositoryItem implements QuickPickItem {
-	get label(): string {
-		return `$(repo) ${this.path}`;
-	}
+	get label(): string { return `$(repo) ${getRepositoryLabel(this.path)}`; }
+
+	get description(): string { return this.path; }
 
 	constructor(public readonly path: string) { }
 }
@@ -356,6 +356,15 @@ function getCheckoutProcessor(repository: Repository, type: string): CheckoutPro
 	}
 
 	return undefined;
+}
+
+function getRepositoryLabel(repositoryRoot: string): string {
+	const workspaceFolder = workspace.getWorkspaceFolder(Uri.file(repositoryRoot));
+	return workspaceFolder?.uri.toString() === repositoryRoot ? workspaceFolder.name : path.basename(repositoryRoot);
+}
+
+function compareRepositoryLabel(repositoryRoot1: string, repositoryRoot2: string): number {
+	return getRepositoryLabel(repositoryRoot1).localeCompare(getRepositoryLabel(repositoryRoot2));
 }
 
 function sanitizeBranchName(name: string, whitespaceChar: string): string {
@@ -896,7 +905,8 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = this.model.closedRepositories.sort().map(r => new RepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = this.model.closedRepositories
+			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
 
 		const items = this.model.closedRepositories.length === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
@@ -3459,7 +3469,8 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.parentRepositories.keys()).sort().map(r => new RepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.parentRepositories.keys())
+			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
 
 		const items = this.model.parentRepositories.size === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
@@ -3492,7 +3503,8 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new RepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys())
+			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
 
 		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
