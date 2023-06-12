@@ -446,13 +446,11 @@ class ContentHoverData {
 	) { }
 }
 
-
+const HORIZONTAL_SCROLLING_BY = 30;
 const SCROLLBAR_WIDTH = 10;
+const DELTA_SASH_LENGTH = 4;
 const SASH_WIDTH_MINUS_BORDER = 3;
 const BORDER_WIDTH = 1;
-const DELTA_SASH_LENGTH = 4;
-const HORIZONTAL_SCROLLING_BY = 30;
-const HEADER_HEIGHT = 30;
 
 export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentWidget {
 
@@ -598,7 +596,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		this._resizableNode.maxSize = new dom.Dimension(maxRenderingWidth ?? Infinity, maxRenderingHeight ?? Infinity);
 	}
 
-	public _resize(size: dom.Dimension) {
+	override _resize(size: dom.Dimension) {
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._setResizableNodeMaxDimensions();
 		this._setSashDimensions(size.width - DELTA_SASH_LENGTH, 2 * BORDER_WIDTH, size.height - DELTA_SASH_LENGTH, 2 * BORDER_WIDTH);
@@ -607,18 +605,15 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	}
 
 	private _findAvailableSpaceVertically(): number | undefined {
-		if (!this._editor || !this._editor.hasModel() || !this._visibleData?.showAtPosition) {
+		if (!this._visibleData?.showAtPosition) {
 			return;
 		}
-		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
-		const mouseBox = this._editor.getScrolledVisiblePosition(this._visibleData.showAtPosition);
-		const bodyBox = dom.getClientArea(document.body);
-		let availableVerticalSpace: number;
+		const position = this._visibleData.showAtPosition;
+		let availableVerticalSpace: number | undefined;
 		if (this._renderingAbove === ContentWidgetPositionPreference.ABOVE) {
-			availableVerticalSpace = editorBox.top + mouseBox.top - HEADER_HEIGHT;
+			availableVerticalSpace = this._availableVerticalSpaceAbove(position);
 		} else {
-			const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
-			availableVerticalSpace = bodyBox.height - mouseBottom;
+			availableVerticalSpace = this._availableVerticalSpaceBelow(position);
 		}
 		return availableVerticalSpace;
 	}
