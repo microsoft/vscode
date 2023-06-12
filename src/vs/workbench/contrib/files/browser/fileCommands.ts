@@ -239,7 +239,7 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 
 		let separator: '/' | '\\' | undefined = undefined;
 		const copyRelativeOrFullPathSeparatorSection = relative ? 'explorer.copyRelativePathSeparator' : 'explorer.copyPathSeparator';
-		let copyRelativeOrFullPathSeparator: '/' | '\\' | undefined = configurationService.getValue(copyRelativeOrFullPathSeparatorSection);
+		const copyRelativeOrFullPathSeparator: '/' | '\\' | undefined = configurationService.getValue(copyRelativeOrFullPathSeparatorSection);
 		if (copyRelativeOrFullPathSeparator === '/' || copyRelativeOrFullPathSeparator === '\\') {
 			separator = copyRelativeOrFullPathSeparator;
 		}
