@@ -22,7 +22,14 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IDisposable } from 'xterm';
 
 
-export interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; onKeyDown?(e: IKeyboardEvent): void; options: IAccessibleViewOptions }
+export interface IAccessibleContentProvider {
+	id: string;
+	provideContent(): string;
+	onClose(): void;
+	onKeyDown?(e: IKeyboardEvent): void;
+	options: IAccessibleViewOptions;
+}
+
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
 export interface IAccessibleViewService {
@@ -96,7 +103,7 @@ class AccessibleView extends Disposable {
 			if (!domNode) {
 				return;
 			}
-			container.appendChild(domNode);
+			container.appendChild(this._editorContainer);
 			this._layout();
 			this._register(this._editorWidget.onKeyDown((e) => {
 				if (e.keyCode === KeyCode.Escape) {
@@ -113,11 +120,6 @@ class AccessibleView extends Disposable {
 	}
 
 	private _layout(): void {
-		const domNode = this._editorWidget.getDomNode();
-		if (!domNode) {
-			return;
-		}
-
 		const windowWidth = window.innerWidth;
 		const windowHeight = window.innerHeight;
 
@@ -125,9 +127,9 @@ class AccessibleView extends Disposable {
 		const height = Math.min(.4 * windowHeight, this._editorWidget.getContentHeight());
 		this._editorWidget.layout({ width, height });
 		const top = Math.round((windowHeight - height) / 2);
-		domNode.style.top = `${top}px`;
+		this._editorContainer.style.top = `${top}px`;
 		const left = Math.round((windowWidth - width) / 2);
-		domNode.style.left = `${left}px`;
+		this._editorContainer.style.left = `${left}px`;
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
