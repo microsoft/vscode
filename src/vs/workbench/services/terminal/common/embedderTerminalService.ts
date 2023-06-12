@@ -124,6 +124,9 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	resize(): void {
 		// no-op
 	}
+	clearBuffer(): void | Promise<void> {
+		// no-op
+	}
 	acknowledgeDataEvent(): void {
 		// no-op, flow control not currently implemented
 	}
