@@ -285,11 +285,10 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 
 	const scrollTop = outputScrolling ? findScrolledHeight(outputElement) : undefined;
 
-	const existingContent = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 	const previousOutputParent = getPreviousMatchingContentGroup(outputElement);
-
 	// If the previous output item for the same cell was also a stream, append this output to the previous
 	if (previousOutputParent) {
+		const existingContent = previousOutputParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		if (existingContent) {
 			existingContent.replaceWith(newContent);
 
@@ -299,6 +298,7 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 		previousOutputParent.classList.toggle('scrollbar-visible', previousOutputParent.scrollHeight > previousOutputParent.clientHeight);
 		previousOutputParent.scrollTop = scrollTop !== undefined ? scrollTop : previousOutputParent.scrollHeight;
 	} else {
+		const existingContent = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		let contentParent = existingContent?.parentElement;
 		if (existingContent && contentParent) {
 			existingContent.replaceWith(newContent);
