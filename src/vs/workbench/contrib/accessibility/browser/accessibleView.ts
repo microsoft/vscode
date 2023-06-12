@@ -22,7 +22,14 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IDisposable } from 'xterm';
 
 
-export interface IAccessibleContentProvider { id: string; provideContent(): string; onClose(): void; onKeyDown?(e: IKeyboardEvent): void; options: IAccessibleViewOptions }
+export interface IAccessibleContentProvider {
+	id: string;
+	provideContent(): string;
+	onClose(): void;
+	onKeyDown?(e: IKeyboardEvent): void;
+	options: IAccessibleViewOptions;
+}
+
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
 export interface IAccessibleViewService {
