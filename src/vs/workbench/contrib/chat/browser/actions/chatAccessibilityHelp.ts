@@ -25,7 +25,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'chat
 		content.push(descriptionForCommand('workbench.action.chat.clear', localize('workbench.action.chat.clear', 'The Chat Clear command ({0}) clears the request/response list.'), localize('workbench.action.chat.clearNoKb', 'The Chat Clear command clears the request/response list and is currently not triggerable by a keybinding.'), keybindingService));
 	} else {
 		const startChatKeybininding = keybindingService.lookupKeybinding('inlineChat.start')?.getAriaLabel();
-		content.push(localize('inlineChat.overview', "Inline chat occurs within a code editor and takes into account current selection. It is useful for refactoring, fixing, and more. Keep in mind that Copilot generated code may be incorrect."));
+		content.push(localize('inlineChat.overview', "Inline chat occurs within a code editor, taking the current selection into account. It is useful for refactoring, fixing, and more. Keep in mind that Copilot generated code may be incorrect."));
 		content.push(localize('inlineChat.access', "It can be activated via the Fix and Explain with Copilot context menu actions or directly using the command: Inline Chat: Start Code Chat {0}.", startChatKeybininding));
 		content.push(localize('chat.requestHistoryInline', 'In the input box, use UpArrow/DownArrow to navigate your request history. Edit input and use enter or the make request button to run a new request.'));
 		content.push(localize('inlineChat.contextActions', "Explain and Fix with Copilot actions run a request prefixed with /fix or /explain. These prefixes can be used directly in the input box to apply those specific actions."));
