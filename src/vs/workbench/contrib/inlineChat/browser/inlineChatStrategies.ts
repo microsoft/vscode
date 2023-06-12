@@ -419,7 +419,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 			return this._initialPosition;
 		} else {
 			if (hasEditResponse) {
-				return range.getStartPosition();
+				return range.getEndPosition();
 			} else {
 				return this._initialPosition;
 			}
@@ -442,7 +442,7 @@ function minimalJumpPosition(editor: ICodeEditor, initialPosition: Position | un
 	const viewModel = editor._getViewModel();
 	assertType(viewModel);
 	if (hasEditResponse) {
-		const endPosition = range.getStartPosition();
+		const endPosition = range.getEndPosition();
 		const visibleRange = viewModel.getCompletelyVisibleViewRange();
 		if (visibleRange.containsPosition(endPosition)) {
 			return endPosition;
