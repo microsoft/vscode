@@ -113,11 +113,6 @@ class AccessibleView extends Disposable {
 	}
 
 	private _layout(): void {
-		const domNode = this._editorWidget.getDomNode();
-		if (!domNode) {
-			return;
-		}
-
 		const windowWidth = window.innerWidth;
 		const windowHeight = window.innerHeight;
 
