@@ -85,7 +85,7 @@ export interface ExtensionsListViewOptions {
 }
 
 interface IQueryResult {
-	readonly model: IPagedModel<IExtension>;
+	model: IPagedModel<IExtension>;
 	readonly onDidChangeModel?: Event<IPagedModel<IExtension>>;
 	readonly disposables: DisposableStore;
 }
@@ -190,12 +190,7 @@ export class ExtensionsListView extends ViewPane {
 			horizontalScrolling: false,
 			accessibilityProvider: <IListAccessibilityProvider<IExtension | null>>{
 				getAriaLabel(extension: IExtension | null): string {
-					if (!extension) {
-						return '';
-					}
-					const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublihser', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
-					const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
-					return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description}`;
+					return getAriaLabelForExtension(extension);
 				},
 				getWidgetAriaLabel(): string {
 					return localize('extensions', "Extensions");
@@ -269,7 +264,12 @@ export class ExtensionsListView extends ViewPane {
 				const model = this.queryResult.model;
 				this.setModel(model);
 				if (this.queryResult.onDidChangeModel) {
-					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => this.updateModel(model)));
+					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => {
+						if (this.queryResult) {
+							this.queryResult.model = model;
+							this.updateModel(model);
+						}
+					}));
 				}
 				return model;
 			} catch (e) {
@@ -1456,4 +1456,14 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 		}
 	}
 
+}
+
+export function getAriaLabelForExtension(extension: IExtension | null): string {
+	if (!extension) {
+		return '';
+	}
+	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublihser', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
+	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
+	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
+	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
 }

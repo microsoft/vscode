@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -59,7 +60,7 @@ import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainServi
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -117,6 +118,9 @@ import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
 import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/electronPtyHostStarter';
+import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -132,6 +136,7 @@ export class CodeApplication extends Disposable {
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly mainInstantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerService private readonly loggerService: ILoggerService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -308,6 +313,18 @@ export class CodeApplication extends Disposable {
 			// invalidate caches that we know are invalid
 			// (https://github.com/microsoft/vscode/issues/120655)
 			defaultSession.setCodeCachePath(join(this.environmentMainService.codeCachePath, 'chrome'));
+		}
+
+		//#endregion
+
+		//#region UNC Host Allowlist (Windows)
+
+		if (isWindows) {
+			if (this.configurationService.getValue('security.restrictUNCAccess') === false) {
+				disableUNCAccessRestrictions();
+			} else {
+				addUNCHostToAllowlist(this.configurationService.getValue('security.allowedUNCHosts'));
+			}
 		}
 
 		//#endregion
@@ -913,6 +930,20 @@ export class CodeApplication extends Disposable {
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
 		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService));
 
+		// Terminal
+		const ptyHostStarter = new ElectronPtyHostStarter({
+			graceTime: LocalReconnectConstants.GraceTime,
+			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
+			scrollback: this.configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
+		}, this.environmentMainService, this.lifecycleMainService, this.logService);
+		const ptyHostService = new PtyHostService(
+			ptyHostStarter,
+			this.configurationService,
+			this.logService,
+			this.loggerService
+		);
+		services.set(ILocalPtyService, ptyHostService);
+
 		// External terminal
 		if (isWindows) {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
@@ -1057,6 +1088,10 @@ export class CodeApplication extends Disposable {
 		// Profile Storage Changes Listener (shared process)
 		const profileStorageListener = this._register(new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService));
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
+
+		// Terminal
+		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService));
+		mainProcessElectronServer.registerChannel(TerminalIpcChannels.LocalPty, ptyHostChannel);
 
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));

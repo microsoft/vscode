@@ -39,6 +39,7 @@ import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeatu
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getSnippetSuggestSupport, setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 
 function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFeaturesService): ITestCodeEditor {
@@ -59,6 +60,10 @@ function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFe
 			}],
 			[ILabelService, new class extends mock<ILabelService>() { }],
 			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+			[IEnvironmentService, new class extends mock<IEnvironmentService>() {
+				override isBuilt: boolean = true;
+				override isExtensionDevelopment: boolean = false;
+			}],
 		),
 	});
 	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
@@ -142,7 +147,7 @@ suite('SuggestModel - Context', function () {
 
 		assertAutoTrigger(model, 3, true, 'end of word, Das|');
 		assertAutoTrigger(model, 4, false, 'no word Das |');
-		assertAutoTrigger(model, 1, false, 'middle of word D|as');
+		assertAutoTrigger(model, 1, true, 'typing a single character before a word: D|as');
 		assertAutoTrigger(model, 55, false, 'number, 1861|');
 		model.dispose();
 	});
@@ -157,7 +162,7 @@ suite('SuggestModel - Context', function () {
 
 		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
 		assertAutoTrigger(model, 2, false, 'a<|x — should NOT trigger at start of word');
-		assertAutoTrigger(model, 3, false, 'a<x|x —  should NOT trigger in middle of word');
+		assertAutoTrigger(model, 3, true, 'a<x|x —  should trigger after typing a single character before a word');
 		assertAutoTrigger(model, 4, true, 'a<xx|> — should trigger at boundary between languages');
 		assertAutoTrigger(model, 5, false, 'a<xx>|a — should NOT trigger at start of word');
 		assertAutoTrigger(model, 6, true, 'a<xx>a|< — should trigger at end of word');

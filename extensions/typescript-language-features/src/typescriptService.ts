@@ -156,7 +156,7 @@ export interface ITypeScriptServiceClient {
 	 */
 	hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean;
 
-	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
+	getWorkspaceRootForResource(resource: vscode.Uri): vscode.Uri | undefined;
 
 	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion; usedApiVersion: API }>;
 	readonly onProjectLanguageServiceStateChanged: vscode.Event<Proto.ProjectLanguageServiceStateEventBody>;

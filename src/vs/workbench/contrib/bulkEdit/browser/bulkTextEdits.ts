@@ -156,7 +156,7 @@ class EditorEditTask extends ModelEditTask {
 						});
 					}
 				}
-				snippetCtrl.apply(snippetEdits);
+				snippetCtrl.apply(snippetEdits, { undoStopBefore: false, undoStopAfter: false });
 
 			} else {
 				// normal edit

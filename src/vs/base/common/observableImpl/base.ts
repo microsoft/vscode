@@ -7,6 +7,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import type { derived } from 'vs/base/common/observableImpl/derived';
 import { getLogger } from 'vs/base/common/observableImpl/logging';
 
+/**
+ * Represents an observable value.
+ * @template T The type of the value.
+ * @template TChange The type of delta information (usually `void` and only used in advanced scenarios).
+ */
 export interface IObservable<T, TChange = unknown> {
 	/**
 	 * Returns the current value.
@@ -248,6 +253,10 @@ export function getFunctionName(fn: Function): string | undefined {
 export interface ISettableObservable<T, TChange = void> extends IObservable<T, TChange>, ISettable<T, TChange> {
 }
 
+/**
+ * Creates an observable value.
+ * Observers get informed when the value changes.
+ */
 export function observableValue<T, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange> {
 	return new ObservableValue(name, initialValue);
 }

@@ -418,7 +418,9 @@ export abstract class TitleControl extends Themable {
 
 	abstract openEditors(editors: EditorInput[]): void;
 
-	abstract closeEditor(editor: EditorInput, index: number | undefined): void;
+	abstract beforeCloseEditor(editor: EditorInput): void;
+
+	abstract closeEditor(editor: EditorInput): void;
 
 	abstract closeEditors(editors: EditorInput[]): void;
 

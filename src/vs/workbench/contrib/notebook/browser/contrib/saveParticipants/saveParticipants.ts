@@ -22,9 +22,16 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IStoredFileWorkingCopySaveParticipant, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionTriggerType, CodeActionProvider, IWorkspaceTextEdit } from 'vs/editor/common/languages';
+import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { isEqual } from 'vs/base/common/resources';
+
+const NotebookCodeAction = new CodeActionKind('notebook');
+
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -91,13 +98,15 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 	}
 
-	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		const isTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		if (!isTrusted) {
 			return;
@@ -111,10 +120,12 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			return undefined;
 		}
 
-		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('notebook.experimental.codeActionsOnSave');
+		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>(NotebookSetting.codeActionsOnSave);
 		if (!setting) {
 			return undefined;
 		}
+
+		const notebookModel = workingCopy.model.notebookModel;
 
 		const settingItems: string[] = Array.isArray(setting)
 			? setting
@@ -124,21 +135,160 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			return undefined;
 		}
 
-		progress.report({ message: 'CodeActionsOnSave running' });
-		const disposable = new DisposableStore();
+		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => !NotebookCodeAction.contains(x));
+		const notebookCodeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => NotebookCodeAction.contains(x));
+
+		// prioritize `source.fixAll` code actions
+		if (!Array.isArray(setting)) {
+			codeActionsOnSave.sort((a, b) => {
+				if (CodeActionKind.SourceFixAll.contains(a)) {
+					if (CodeActionKind.SourceFixAll.contains(b)) {
+						return 0;
+					}
+					return -1;
+				}
+				if (CodeActionKind.SourceFixAll.contains(b)) {
+					return 1;
+				}
+				return 0;
+			});
+		}
+
+
+
+
+		if (!codeActionsOnSave.length && !notebookCodeActionsOnSave.length) {
+			return undefined;
+		}
+
+		const excludedActions = Array.isArray(setting)
+			? []
+			: Object.keys(setting)
+				.filter(x => setting[x] === false)
+				.map(x => new CodeActionKind(x));
+
+		const nbDisposable = new DisposableStore();
+
+		// run notebook code actions
+		progress.report({ message: localize('notebookSaveParticipants.notebookCodeActions', "Running 'Notebook' code actions") });
 		try {
-			for (const cmd of settingItems) {
-				await this.commandService.executeCommand(cmd);
-			}
+			const cell = notebookModel.cells[0];
+			const ref = await this.textModelService.createModelReference(cell.uri);
+			nbDisposable.add(ref);
+
+			const textEditorModel = ref.object.textEditorModel;
+
+			await this.applyOnSaveActions(textEditorModel, notebookCodeActionsOnSave, excludedActions, progress, token);
 		} catch {
-			// Failure to apply a code action should not block other on save actions
-			this.logService.warn('CodeActionsOnSave failed to apply a code action');
+			this.logService.error('Failed to apply notebook code action on save');
+		} finally {
+			progress.report({ increment: 100 });
+			nbDisposable.dispose();
+		}
+
+		// run cell level code actions
+		const disposable = new DisposableStore();
+		progress.report({ message: localize('notebookSaveParticipants.cellCodeActions', "Running code actions") });
+		try {
+			await Promise.all(notebookModel.cells.map(async cell => {
+				const ref = await this.textModelService.createModelReference(cell.uri);
+				disposable.add(ref);
+
+				const textEditorModel = ref.object.textEditorModel;
+
+				await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
+			}));
+		} catch {
+			this.logService.error('Failed to apply code action on save');
 		} finally {
 			progress.report({ increment: 100 });
 			disposable.dispose();
 		}
 	}
+
+	private createCodeActionsOnSave(settingItems: readonly string[]): CodeActionKind[] {
+		const kinds = settingItems.map(x => new CodeActionKind(x));
+
+		// Remove subsets
+		return kinds.filter(kind => {
+			return kinds.every(otherKind => otherKind.equals(kind) || !otherKind.contains(kind));
+		});
+	}
+
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+
+		const getActionProgress = new class implements IProgress<CodeActionProvider> {
+			private _names = new Set<string>();
+			private _report(): void {
+				progress.report({
+					message: localize(
+						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
+						"Getting code actions from '{0}' ([configure]({1})).",
+						[...this._names].map(name => `'${name}'`).join(', '),
+						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
+					)
+				});
+			}
+			report(provider: CodeActionProvider) {
+				if (provider.displayName && !this._names.has(provider.displayName)) {
+					this._names.add(provider.displayName);
+					this._report();
+				}
+			}
+		};
+
+		for (const codeActionKind of codeActionsOnSave) {
+			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
+			if (token.isCancellationRequested) {
+				actionsToRun.dispose();
+				return;
+			}
+
+			try {
+				for (const action of actionsToRun.validActions) {
+					const codeActionEdits = action.action.edit?.edits;
+					let breakFlag = false;
+					if (!action.action.kind?.includes('notebook')) {
+						for (const edit of codeActionEdits ?? []) {
+							const workspaceTextEdit = edit as IWorkspaceTextEdit;
+							if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
+								continue;
+							} else {
+								// error -> applied to multiple resources
+								breakFlag = true;
+								break;
+							}
+						}
+					}
+					if (breakFlag) {
+						this.logService.warn('Failed to apply code action on save, applied to multiple resources.');
+						continue;
+					}
+					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
+					await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
+					if (token.isCancellationRequested) {
+						return;
+					}
+				}
+			} catch {
+				// Failure to apply a code action should not block other on save actions
+			} finally {
+				actionsToRun.dispose();
+			}
+		}
+	}
+
+	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
+		return getCodeActions(this.languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
+			type: CodeActionTriggerType.Auto,
+			triggerAction: CodeActionTriggerSource.OnSave,
+			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
+		}, progress, token);
+	}
 }
+
+
+
 export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

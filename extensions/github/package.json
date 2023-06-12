@@ -27,7 +27,9 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
-    "contribEditSessions"
+    "contribEditSessions",
+    "canonicalUriProvider",
+    "shareProvider"
   ],
   "contributes": {
     "commands": [
@@ -158,12 +160,12 @@
       {
         "view": "scm",
         "contents": "%welcome.publishFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0"
       },
       {
         "view": "scm",
         "contents": "%welcome.publishWorkspaceFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0"
       }
     ],
     "markdown.previewStyles": [
@@ -176,6 +178,8 @@
     "watch": "gulp watch-extension:github"
   },
   "dependencies": {
+    "@octokit/graphql": "5.0.5",
+    "@octokit/graphql-schema": "14.4.0",
     "@octokit/rest": "19.0.4",
     "tunnel": "^0.0.6"
   },

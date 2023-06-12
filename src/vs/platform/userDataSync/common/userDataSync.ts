@@ -95,8 +95,8 @@ export function registerConfiguration(): IDisposable {
 	const registerIgnoredSettingsSchema = () => {
 		const disallowedIgnoredSettings = getDisallowedIgnoredSettings();
 		const defaultIgnoredSettings = getDefaultIgnoredSettings().filter(s => s !== CONFIGURATION_SYNC_STORE_KEY);
-		const settings = Object.keys(allSettings.properties).filter(setting => defaultIgnoredSettings.indexOf(setting) === -1);
-		const ignoredSettings = defaultIgnoredSettings.filter(setting => disallowedIgnoredSettings.indexOf(setting) === -1);
+		const settings = Object.keys(allSettings.properties).filter(setting => !defaultIgnoredSettings.includes(setting));
+		const ignoredSettings = defaultIgnoredSettings.filter(setting => !disallowedIgnoredSettings.includes(setting));
 		const ignoredSettingsSchema: IJSONSchema = {
 			items: {
 				type: 'string',
@@ -142,6 +142,7 @@ export const enum SyncResource {
 	Extensions = 'extensions',
 	GlobalState = 'globalState',
 	Profiles = 'profiles',
+	WorkspaceState = 'workspaceState',
 }
 export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState, SyncResource.Profiles];
 
@@ -173,7 +174,7 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export type ServerResource = SyncResource | 'machines' | 'editSessions';
+export type ServerResource = SyncResource | 'machines' | 'editSessions' | 'workspaceState';
 export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
@@ -357,6 +358,17 @@ export interface IStorageValue {
 
 export interface IGlobalState {
 	storage: IStringDictionary<IStorageValue>;
+}
+
+export interface IWorkspaceState {
+	folders: IWorkspaceStateFolder[];
+	storage: IStringDictionary<string>;
+	version: number;
+}
+
+export interface IWorkspaceStateFolder {
+	resourceUri: string;
+	workspaceFolderIdentity: string;
 }
 
 export const enum SyncStatus {

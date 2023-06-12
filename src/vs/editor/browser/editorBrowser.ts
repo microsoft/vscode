@@ -21,6 +21,7 @@ import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { ILineChange, IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IDimension } from 'vs/editor/common/core/dimension';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -488,12 +489,6 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	 * Aria label for modified editor.
 	 */
 	modifiedAriaLabel?: string;
-
-	/**
-	 * Is the diff editor inside another editor
-	 * Defaults to false
-	 */
-	isInEmbeddedEditor?: boolean;
 }
 
 /**
@@ -1101,13 +1096,6 @@ export interface IActiveCodeEditor extends ICodeEditor {
 }
 
 /**
- * Information about a line in the diff editor
- */
-export interface IDiffLineInformation {
-	readonly equivalentLineNumber: number;
-}
-
-/**
  * @internal
  */
 export const enum DiffEditorState {
@@ -1201,21 +1189,24 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	getDiffComputationResult(): IDiffComputationResult | null;
 
 	/**
-	 * Get information based on computed diff about a line number from the original model.
-	 * If the diff computation is not finished or the model is missing, will return null.
-	 */
-	getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation | null;
-
-	/**
-	 * Get information based on computed diff about a line number from the modified model.
-	 * If the diff computation is not finished or the model is missing, will return null.
-	 */
-	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
-
-	/**
 	 * Update the editor's options after the editor has been created.
 	 */
 	updateOptions(newOptions: IDiffEditorOptions): void;
+
+	/**
+	 * @internal
+	 */
+	setBoundarySashes(sashes: IBoundarySashes): void;
+
+	/**
+	 * @internal
+	 */
+	goToDiff(target: 'next' | 'previous'): void;
+
+	/**
+	 * @internal
+	 */
+	revealFirstDiff(): unknown;
 }
 
 /**

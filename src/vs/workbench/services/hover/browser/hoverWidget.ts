@@ -201,8 +201,9 @@ export class HoverWidget extends Widget {
 		} else {
 			if (options.hideOnHover === undefined) {
 				// When unset, will default to true when it's a string or when it's markdown that
-				// appears to have a link using a naive check for ']('
-				hideOnHover = typeof options.content === 'string' || isMarkdownString(options.content) && !options.content.value.includes('](');
+				// appears to have a link using a naive check for '](' and '</a>'
+				hideOnHover = typeof options.content === 'string' ||
+					isMarkdownString(options.content) && !options.content.value.includes('](') && !options.content.value.includes('</a>');
 			} else {
 				// It's set explicitly
 				hideOnHover = options.hideOnHover;

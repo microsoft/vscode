@@ -109,7 +109,7 @@ class SelectRefactorCommand implements Command {
 		await tsAction.resolve(nulToken);
 
 		if (tsAction.edit) {
-			if (!(await vscode.workspace.applyEdit(tsAction.edit))) {
+			if (!(await vscode.workspace.applyEdit(tsAction.edit, { isRefactoring: true }))) {
 				vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 				return;
 			}
@@ -145,7 +145,7 @@ class MoveToFileRefactorCommand implements Command {
 		}
 
 		const targetFile = await this.getTargetFile(args.document, file, args.range);
-		if (!targetFile) {
+		if (!targetFile || targetFile.toString() === file.toString()) {
 			return;
 		}
 
@@ -161,7 +161,7 @@ class MoveToFileRefactorCommand implements Command {
 			return;
 		}
 		const edit = toWorkspaceEdit(this.client, response.body.edits);
-		if (!(await vscode.workspace.applyEdit(edit))) {
+		if (!(await vscode.workspace.applyEdit(edit, { isRefactoring: true }))) {
 			vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 			return;
 		}
@@ -175,7 +175,6 @@ class MoveToFileRefactorCommand implements Command {
 		if (response.type !== 'response' || !response.body) {
 			return;
 		}
-		const defaultUri = vscode.Uri.joinPath(Utils.dirname(document.uri), response.body.newFileName);
 
 		const selectExistingFileItem: vscode.QuickPickItem = {
 			label: vscode.l10n.t("Select existing file..."),
@@ -216,7 +215,7 @@ class MoveToFileRefactorCommand implements Command {
 			...destinationItems
 		], {
 			title: vscode.l10n.t("Move to File"),
-			placeHolder: vscode.l10n.t("Enter file path"),
+			placeHolder: vscode.l10n.t("Select move destination"),
 		});
 		if (!picked) {
 			return;
@@ -226,14 +225,14 @@ class MoveToFileRefactorCommand implements Command {
 			const picked = await vscode.window.showOpenDialog({
 				title: vscode.l10n.t("Select move destination"),
 				openLabel: vscode.l10n.t("Move to File"),
-				defaultUri
+				defaultUri: Utils.dirname(document.uri),
 			});
 			return picked?.length ? this.client.toTsFilePath(picked[0]) : undefined;
 		} else if (picked === selectNewFileItem) {
 			const picked = await vscode.window.showSaveDialog({
 				title: vscode.l10n.t("Select move destination"),
 				saveLabel: vscode.l10n.t("Move to File"),
-				defaultUri,
+				defaultUri: this.client.toResource(response.body.newFileName),
 			});
 			return picked ? this.client.toTsFilePath(picked) : undefined;
 		} else {
@@ -481,7 +480,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
 				triggerReason: this.toTsTriggerReason(context),
 				kind: context.only?.value,
-				includeInteractiveActions: true,
+				includeInteractiveActions: this.client.apiVersion.gte(API.v520),
 			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});

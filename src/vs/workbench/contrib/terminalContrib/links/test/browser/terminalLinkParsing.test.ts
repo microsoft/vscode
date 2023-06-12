@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkQueryString, removeLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 
 interface ITestLink {
 	link: string;
@@ -204,6 +204,19 @@ suite('TerminalLinkParsing', () => {
 					}
 				]
 			);
+		});
+	});
+	suite('removeLinkQueryString', () => {
+		test('should remove any query string from the link', () => {
+			strictEqual(removeLinkQueryString('?a=b'), '');
+			strictEqual(removeLinkQueryString('foo?a=b'), 'foo');
+			strictEqual(removeLinkQueryString('./foo?a=b'), './foo');
+			strictEqual(removeLinkQueryString('/foo/bar?a=b'), '/foo/bar');
+			strictEqual(removeLinkQueryString('foo?a=b?'), 'foo');
+			strictEqual(removeLinkQueryString('foo?a=b&c=d'), 'foo');
+		});
+		test('should respect ? in UNC paths', () => {
+			strictEqual(removeLinkQueryString('\\\\?\\foo?a=b'), '\\\\?\\foo',);
 		});
 	});
 	suite('detectLinks', () => {
@@ -458,6 +471,39 @@ suite('TerminalLinkParsing', () => {
 										text: ':400'
 									}
 								}
+							}
+						] as IParsedLink[]
+					);
+				});
+			}
+		});
+
+		suite('query strings', () => {
+			for (const os of operatingSystems) {
+				test(`should exclude query strings from link paths ${osLabel[os]}`, () => {
+					deepStrictEqual(
+						detectLinks(`${osTestPath[os]}?a=b`, os),
+						[
+							{
+								path: {
+									index: 0,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+					deepStrictEqual(
+						detectLinks(`${osTestPath[os]}?a=b&c=d`, os),
+						[
+							{
+								path: {
+									index: 0,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
+								suffix: undefined
 							}
 						] as IParsedLink[]
 					);

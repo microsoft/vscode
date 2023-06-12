@@ -3,40 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 //
+import { DeferredPromise } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData, RemoteConnectionType, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
-
-class PendingPromise<I, R> {
-	public readonly promise: Promise<R>;
-	public readonly input: I;
-	public result: R | null;
-	private _resolve!: (value: R) => void;
-	private _reject!: (err: any) => void;
-
-	constructor(request: I) {
-		this.input = request;
-		this.promise = new Promise<R>((resolve, reject) => {
-			this._resolve = resolve;
-			this._reject = reject;
-		});
-		this.result = null;
-	}
-
-	resolve(result: R): void {
-		this.result = result;
-		this._resolve(this.result);
-	}
-
-	reject(err: any): void {
-		this._reject(err);
-	}
-}
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
@@ -45,16 +20,16 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	private readonly _onDidChangeConnectionData = this._register(new Emitter<void>());
 	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;
 
-	private readonly _resolveAuthorityRequests: Map<string, PendingPromise<string, ResolverResult>>;
+	private readonly _resolveAuthorityRequests: Map<string, DeferredPromise<ResolverResult>>;
 	private readonly _connectionTokens: Map<string, string>;
-	private readonly _canonicalURIRequests: Map<string, PendingPromise<URI, URI>>;
+	private readonly _canonicalURIRequests: Map<string, { input: URI; result: DeferredPromise<URI> }>;
 	private _canonicalURIProvider: ((uri: URI) => Promise<URI>) | null;
 
 	constructor(@IProductService productService: IProductService) {
 		super();
-		this._resolveAuthorityRequests = new Map<string, PendingPromise<string, ResolverResult>>();
+		this._resolveAuthorityRequests = new Map<string, DeferredPromise<ResolverResult>>();
 		this._connectionTokens = new Map<string, string>();
-		this._canonicalURIRequests = new Map<string, PendingPromise<URI, URI>>();
+		this._canonicalURIRequests = new Map();
 		this._canonicalURIProvider = null;
 
 		RemoteAuthorities.setServerRootPath(getRemoteServerRootPath(productService));
@@ -62,19 +37,22 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 
 	resolveAuthority(authority: string): Promise<ResolverResult> {
 		if (!this._resolveAuthorityRequests.has(authority)) {
-			this._resolveAuthorityRequests.set(authority, new PendingPromise<string, ResolverResult>(authority));
+			this._resolveAuthorityRequests.set(authority, new DeferredPromise());
 		}
-		return this._resolveAuthorityRequests.get(authority)!.promise;
+		return this._resolveAuthorityRequests.get(authority)!.p;
 	}
 
 	async getCanonicalURI(uri: URI): Promise<URI> {
 		const key = uri.toString();
-		if (!this._canonicalURIRequests.has(key)) {
-			const request = new PendingPromise<URI, URI>(uri);
-			this._canonicalURIProvider?.(request.input).then((uri) => request.resolve(uri), (err) => request.reject(err));
-			this._canonicalURIRequests.set(key, request);
+		const existing = this._canonicalURIRequests.get(key);
+		if (existing) {
+			return existing.result.p;
 		}
-		return this._canonicalURIRequests.get(key)!.promise;
+
+		const result = new DeferredPromise<URI>();
+		this._canonicalURIProvider?.(uri).then((uri) => result.complete(uri), (err) => result.error(err));
+		this._canonicalURIRequests.set(key, { input: uri, result });
+		return result.p;
 	}
 
 	getConnectionData(authority: string): IRemoteConnectionData | null {
@@ -82,20 +60,19 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 			return null;
 		}
 		const request = this._resolveAuthorityRequests.get(authority)!;
-		if (!request.result) {
+		if (!request.isResolved) {
 			return null;
 		}
 		const connectionToken = this._connectionTokens.get(authority);
 		return {
-			host: request.result.authority.host,
-			port: request.result.authority.port,
+			connectTo: request.value!.authority.connectTo,
 			connectionToken: connectionToken
 		};
 	}
 
 	_clearResolvedAuthority(authority: string): void {
 		if (this._resolveAuthorityRequests.has(authority)) {
-			this._resolveAuthorityRequests.get(authority)!.reject(errors.canceled());
+			this._resolveAuthorityRequests.get(authority)!.cancel();
 			this._resolveAuthorityRequests.delete(authority);
 		}
 	}
@@ -103,11 +80,14 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, options?: ResolvedOptions): void {
 		if (this._resolveAuthorityRequests.has(resolvedAuthority.authority)) {
 			const request = this._resolveAuthorityRequests.get(resolvedAuthority.authority)!;
-			RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.host, resolvedAuthority.port);
+			if (resolvedAuthority.connectTo.type === RemoteConnectionType.WebSocket) {
+				// todo@connor4312 need to implement some kind of loopback for ext host based messaging
+				RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.connectTo.host, resolvedAuthority.connectTo.port);
+			}
 			if (resolvedAuthority.connectionToken) {
 				RemoteAuthorities.setConnectionToken(resolvedAuthority.authority, resolvedAuthority.connectionToken);
 			}
-			request.resolve({ authority: resolvedAuthority, options });
+			request.complete({ authority: resolvedAuthority, options });
 			this._onDidChangeConnectionData.fire();
 		}
 	}
@@ -116,7 +96,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		if (this._resolveAuthorityRequests.has(authority)) {
 			const request = this._resolveAuthorityRequests.get(authority)!;
 			// Avoid that this error makes it to telemetry
-			request.reject(errors.ErrorNoTelemetry.fromError(err));
+			request.error(errors.ErrorNoTelemetry.fromError(err));
 		}
 	}
 
@@ -128,8 +108,8 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 
 	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void {
 		this._canonicalURIProvider = provider;
-		this._canonicalURIRequests.forEach((value) => {
-			this._canonicalURIProvider!(value.input).then((uri) => value.resolve(uri), (err) => value.reject(err));
+		this._canonicalURIRequests.forEach(({ result, input }) => {
+			this._canonicalURIProvider!(input).then((uri) => result.complete(uri), (err) => result.error(err));
 		});
 	}
 }

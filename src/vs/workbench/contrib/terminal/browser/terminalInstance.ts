@@ -17,7 +17,7 @@ import { ErrorNoTelemetry, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
@@ -53,7 +53,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IRequestAddInstanceToGroupEvent, ITerminalChildElement, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -79,7 +79,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import type { IMarker, Terminal as XTermTerminal } from 'xterm';
 import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
-import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { getWorkspaceForTerminal, preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -88,7 +88,7 @@ import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme
 import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { getWorkspaceForTerminal } from 'vs/workbench/services/configurationResolver/common/terminalResolver';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 
 const enum Constants {
 	/**
@@ -162,8 +162,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
-	get container(): HTMLElement | undefined { return this._container; }
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal });
+	get domElement(): HTMLElement { return this._wrapperElement; }
 	private _horizontalScrollbar: DomScrollableElement | undefined;
 	private _terminalFocusContextKey: IContextKey<boolean>;
 	private _terminalHasFixedWidth: IContextKey<boolean>;
@@ -334,19 +334,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 
-	// Internal events
-	private readonly _onDidAttachToElement = new Emitter<HTMLElement>();
-	private readonly _onDidAttachToElementEvent = this._onDidAttachToElement.event;
-	private readonly _onDidLayout = new Emitter<dom.Dimension>();
-	private readonly _onDidLayoutEvent = this._onDidLayout.event;
-
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
-		resource: URI | undefined,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
@@ -390,8 +383,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
 
-		// the resource is already set when it's been moved from another window
-		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
+		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
 
 		if (this._shellLaunchConfig.attachPersistentProcess?.hideFromUser) {
 			this._shellLaunchConfig.hideFromUser = this._shellLaunchConfig.attachPersistentProcess.hideFromUser;
@@ -487,8 +479,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
 				this.shellLaunchConfig.executable = defaultProfile.path;
 				this.shellLaunchConfig.args = defaultProfile.args;
-				this.shellLaunchConfig.icon = defaultProfile.icon;
-				this.shellLaunchConfig.color = defaultProfile.color;
+				if (this.shellLaunchConfig.isExtensionOwnedTerminal) {
+					// Only use default icon and color if they are undefined in the SLC
+					this.shellLaunchConfig.icon ??= defaultProfile.icon;
+					this.shellLaunchConfig.color ??= defaultProfile.color;
+				} else {
+					this.shellLaunchConfig.icon = defaultProfile.icon;
+					this.shellLaunchConfig.color = defaultProfile.color;
+				}
 			}
 
 			await this._createProcess();
@@ -511,7 +509,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration('accessibility.verbosity.terminal')) {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Terminal)) {
 				this._setAriaLabel(this.xterm?.raw, this._instanceId, this.title);
 			}
 			if (e.affectsConfiguration('terminal.integrated')) {
@@ -790,9 +788,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._processManager.os) {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}
-			if (this._processManager.os === OperatingSystem.Windows) {
-				xterm.raw.options.windowsMode = processTraits.requiresWindowsMode || false;
-			}
+			xterm.raw.options.windowsPty = processTraits.windowsPty;
 		});
 		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e));
 
@@ -871,7 +867,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
-		this._onDidAttachToElement.fire(this._container);
+		this.xterm?.refresh();
 
 		setTimeout(() => this._initDragAndDrop(container));
 	}
@@ -928,7 +924,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
 			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
 			// terminals generally
-			const isValidChord = resolveResult?.kind === ResultKind.MoreChordsNeeded && this._configHelper.config.allowChords && event.key !== 'Escape';
+			const isValidChord = resolveResult.kind === ResultKind.MoreChordsNeeded && this._configHelper.config.allowChords && event.key !== 'Escape';
 			if (this._keybindingService.inChordMode || isValidChord) {
 				event.preventDefault();
 				return false;
@@ -948,7 +944,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
-			if (resolveResult && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
+			if (resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
 				// don't alert when terminal is opened or closed
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
 					this._hasHadInput &&
@@ -1343,6 +1339,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	clearBuffer(): void {
+		this._processManager.clearBuffer();
 		this.xterm?.clearBuffer();
 	}
 
@@ -1831,7 +1828,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._resize();
-		this._onDidLayout.fire(dimension);
 
 		// Signal the container is ready
 		this._containerReadyBarrier.open();
@@ -1839,9 +1835,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Layout all contributions
 		for (const contribution of this._contributions.values()) {
 			if (!this.xterm) {
-				this._xtermReadyPromise.then(xterm => contribution.layout?.(xterm));
+				this._xtermReadyPromise.then(xterm => contribution.layout?.(xterm, dimension));
 			} else {
-				contribution.layout?.(this.xterm);
+				contribution.layout?.(this.xterm, dimension);
 			}
 		}
 	}
@@ -1924,7 +1920,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				labelParts.push(nls.localize('terminalScreenReaderMode', "Run the command: Toggle Screen Reader Accessibility Mode for an optimized screen reader experience"));
 			}
 			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ShowTerminalAccessibilityHelp)?.getLabel();
-			if (this._configurationService.getValue('accessibility.verbosity.terminal') && accessibilityHelpKeybinding) {
+			if (this._configurationService.getValue(AccessibilityVerbositySettingId.Terminal) && accessibilityHelpKeybinding) {
 				labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
 			}
 			xterm.textarea.setAttribute('aria-label', labelParts.join('\n'));
@@ -2278,28 +2274,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	forceScrollbarVisibility(): void {
-		this._container?.classList.add('force-scrollbar');
+		this._wrapperElement.classList.add('force-scrollbar');
 	}
 
 	resetScrollbarVisibility(): void {
-		this._container?.classList.remove('force-scrollbar');
-	}
-
-	registerChildElement(child: ITerminalChildElement): IDisposable {
-		const store = new DisposableStore();
-		if (this._container) {
-			this._container.appendChild(child.element);
-		} else {
-			store.add(this._onDidAttachToElementEvent(container => container.appendChild(child.element)));
-		}
-		if (this._lastLayoutDimensions) {
-			child.layout?.(this._lastLayoutDimensions);
-		}
-		store.add(this._onDidLayoutEvent(e => child.layout?.(e)));
-		if (child.xtermReady) {
-			this._xtermReadyPromise.then(xterm => child.xtermReady!(xterm));
-		}
-		return store;
+		this._wrapperElement.classList.remove('force-scrollbar');
 	}
 }
 

@@ -5,7 +5,6 @@
 
 import { exec } from 'child_process';
 import { promises as fs } from 'fs';
-import type * as pty from 'node-pty';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -16,10 +15,11 @@ import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
+import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
 
 const enum ShutdownConstants {
 	/**
@@ -104,7 +104,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
 	private _closeTimeout: any;
-	private _ptyProcess: pty.IPty | undefined;
+	private _ptyProcess: IPty | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
@@ -115,7 +115,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _writeTimeout: NodeJS.Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
-	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
+	private readonly _ptyOptions: IPtyForkOptions | IWindowsPtyForkOptions;
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
@@ -289,13 +289,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async setupPtyProcess(
 		shellLaunchConfig: IShellLaunchConfig,
-		options: pty.IPtyForkOptions,
+		options: IPtyForkOptions,
 		shellIntegrationInjection: IShellIntegrationConfigInjection | undefined
 	): Promise<void> {
 		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
-		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
+		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
 		this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value }));
@@ -337,7 +337,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		super.dispose();
 	}
 
-	private _setupTitlePolling(ptyProcess: pty.IPty) {
+	private _setupTitlePolling(ptyProcess: IPty) {
 		// Send initial timeout async to give event listeners a chance to init
 		setTimeout(() => this._sendProcessTitle(ptyProcess));
 		// Setup polling for non-Windows, for Windows `process` doesn't change
@@ -375,7 +375,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
 				this._logService.trace('IPty#kill');
-				this._ptyProcess.kill(!isWindows ? 'SIGKILL' : undefined);
+				this._ptyProcess.kill();
 			}
 		} catch (ex) {
 			// Swallow, the pty has already been killed
@@ -398,10 +398,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onProcessReady.fire({
+			pid,
+			cwd: this._initialCwd,
+			windowsPty: this.getWindowsPty()
+		});
 	}
 
-	private _sendProcessTitle(ptyProcess: pty.IPty): void {
+	private _sendProcessTitle(ptyProcess: IPty): void {
 		if (this._isDisposed) {
 			return;
 		}
@@ -548,6 +552,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
+	clearBuffer(): void {
+		this._ptyProcess?.clear();
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		// Prevent lower than 0 to heal from errors
 		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
@@ -615,6 +623,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	getLatency(): Promise<number> {
 		return Promise.resolve(0);
+	}
+
+	getWindowsPty(): IProcessReadyWindowsPty | undefined {
+		return isWindows ? {
+			backend: 'useConpty' in this._ptyOptions && this._ptyOptions.useConpty ? 'conpty' : 'winpty',
+			buildNumber: getWindowsBuildNumber()
+		} : undefined;
 	}
 }
 

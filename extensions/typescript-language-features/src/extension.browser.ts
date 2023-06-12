@@ -59,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('5.0.1')));
+			API.fromSimpleString('5.1.3')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
