@@ -96,6 +96,7 @@ export class ExtensionsResourceInitializer implements IProfileResourceInitialize
 export class ExtensionsResource implements IProfileResource {
 
 	constructor(
+		private readonly extensionsDisabled: boolean,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IUserDataProfileStorageService private readonly userDataProfileStorageService: IUserDataProfileStorageService,
@@ -189,7 +190,7 @@ export class ExtensionsResource implements IProfileResource {
 					}
 				}
 				const profileExtension: IProfileExtension = { identifier, displayName: extension.manifest.displayName };
-				if (disabled) {
+				if (this.extensionsDisabled || disabled) {
 					profileExtension.disabled = true;
 				}
 				if (!extension.isBuiltin && extension.pinned) {
@@ -276,17 +277,18 @@ export class ExtensionsResourceExportTreeItem extends ExtensionsResourceTreeItem
 
 	constructor(
 		private readonly profile: IUserDataProfile,
+		private readonly extensionsDisabled: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
 
 	protected getExtensions(): Promise<IProfileExtension[]> {
-		return this.instantiationService.createInstance(ExtensionsResource).getLocalExtensions(this.profile);
+		return this.instantiationService.createInstance(ExtensionsResource, this.extensionsDisabled).getLocalExtensions(this.profile);
 	}
 
 	async getContent(): Promise<string> {
-		return this.instantiationService.createInstance(ExtensionsResource).getContent(this.profile, [...this.excludedExtensions.values()]);
+		return this.instantiationService.createInstance(ExtensionsResource, this.extensionsDisabled).getContent(this.profile, [...this.excludedExtensions.values()]);
 	}
 
 }
@@ -301,11 +303,11 @@ export class ExtensionsResourceImportTreeItem extends ExtensionsResourceTreeItem
 	}
 
 	protected getExtensions(): Promise<IProfileExtension[]> {
-		return this.instantiationService.createInstance(ExtensionsResource).getProfileExtensions(this.content);
+		return this.instantiationService.createInstance(ExtensionsResource, false).getProfileExtensions(this.content);
 	}
 
 	async getContent(): Promise<string> {
-		const extensionsResource = this.instantiationService.createInstance(ExtensionsResource);
+		const extensionsResource = this.instantiationService.createInstance(ExtensionsResource, false);
 		const extensions = await extensionsResource.getProfileExtensions(this.content);
 		return extensionsResource.toContent(extensions, [...this.excludedExtensions.values()]);
 	}

@@ -177,13 +177,17 @@ export class DiffState {
 	public static fromDiffResult(result: IDocumentDiff): DiffState {
 		return new DiffState(
 			result.changes.map(c => new DiffMapping(c)),
-			result.moves || []
+			result.moves || [],
+			result.identical,
+			result.quitEarly,
 		);
 	}
 
 	constructor(
 		public readonly mappings: readonly DiffMapping[],
 		public readonly movedTexts: readonly MovedText[],
+		public readonly identical: boolean,
+		public readonly quitEarly: boolean,
 	) { }
 }
 
