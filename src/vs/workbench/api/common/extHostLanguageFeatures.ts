@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, CodeActionTriggerKind, CodeAction } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -376,6 +376,8 @@ class CodeActionAdapter {
 
 	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>('CodeAction');
 	private readonly _disposables = new Map<number, DisposableStore>();
+	private readonly nbKind = new CodeActionKind('notebook');
+
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -425,12 +427,6 @@ class CodeActionAdapter {
 				continue;
 			}
 
-			const currentKind = (candidate as vscode.CodeAction).kind;
-			const nbKind = new CodeActionKind('notebook');
-			if (codeActionContext.triggerKind !== vscode.CodeActionTriggerKind.Invoke && currentKind && nbKind.contains(currentKind)) {
-				continue;
-			}
-
 			if (CodeActionAdapter._isCommand(candidate)) {
 				// old school: synthetic code action
 				this._apiDeprecation.report('CodeActionProvider.provideCodeActions - return commands', this._extension,
@@ -442,6 +438,11 @@ class CodeActionAdapter {
 					command: this._commands.toInternal(candidate, disposables),
 				});
 			} else {
+				const currentKind = (candidate as CodeAction).kind;
+				if (codeActionContext.triggerKind !== CodeActionTriggerKind.Invoke && currentKind && this.nbKind.contains(currentKind)) {
+					continue;
+				}
+
 				if (codeActionContext.only) {
 					if (!candidate.kind) {
 						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
