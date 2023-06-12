@@ -168,7 +168,7 @@ function nodejs(platform, arch) {
 				.pipe(rename('node.exe'));
 		}
 		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-		return fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', verbose: true }) // TODO@checksum
+		return fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' }) // TODO@checksum
 			.pipe(rename('node.exe'));
 	}
 
@@ -183,7 +183,7 @@ function nodejs(platform, arch) {
 		arch = 'armv7l';
 	}
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-	return fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', verbose: true }) // TODO@checksum
+	return fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org' }) // TODO@checksum
 		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 		.pipe(filter('**/node'))
 		.pipe(util.setExecutableBit('**'))

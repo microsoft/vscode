@@ -43,9 +43,10 @@ export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.T
 }
 
 export async function fetchUrl(url: string, options: IFetchOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
+	const verbose = !!options.verbose ?? (!!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']);
 	try {
 		let startTime = 0;
-		if (options.verbose) {
+		if (verbose) {
 			log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? `(${10 - retries} retry}` : ''}`);
 			startTime = new Date().getTime();
 		}
@@ -56,7 +57,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 				...options.nodeFetchOptions,
 				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
 			});
-			if (options.verbose) {
+			if (verbose) {
 				log(`Fetch completed: Status ${response.status}. Took ${ansiColors.magenta(`${new Date().getTime() - startTime} ms`)}`);
 			}
 			if (response.ok && (response.status >= 200 && response.status < 300)) {
@@ -68,7 +69,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 						throw new Error(`Checksum mismatch for ${url}`);
 					}
 				}
-				if (options.verbose) {
+				if (verbose) {
 					log(`Fetched response body buffer: ${ansiColors.magenta(`${(contents as Buffer).byteLength} bytes`)}`);
 				}
 				return new VinylFile({
@@ -83,7 +84,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 			clearTimeout(timeout);
 		}
 	} catch (e) {
-		if (options.verbose) {
+		if (verbose) {
 			log(`Fetching ${ansiColors.cyan(url)} failed: ${e}`);
 		}
 		if (retries > 0) {
