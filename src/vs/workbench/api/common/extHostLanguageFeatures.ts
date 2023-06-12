@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -414,6 +414,7 @@ class CodeActionAdapter {
 		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
 			return undefined;
 		}
+
 		const cacheId = this._cache.add(commandsOrActions);
 		const disposables = new DisposableStore();
 		this._disposables.set(cacheId, disposables);
@@ -423,6 +424,13 @@ class CodeActionAdapter {
 			if (!candidate) {
 				continue;
 			}
+
+			const currentKind = (candidate as vscode.CodeAction).kind;
+			const nbKind = new CodeActionKind('notebook');
+			if (codeActionContext.triggerKind !== vscode.CodeActionTriggerKind.Invoke && currentKind && nbKind.contains(currentKind)) {
+				continue;
+			}
+
 			if (CodeActionAdapter._isCommand(candidate)) {
 				// old school: synthetic code action
 				this._apiDeprecation.report('CodeActionProvider.provideCodeActions - return commands', this._extension,
