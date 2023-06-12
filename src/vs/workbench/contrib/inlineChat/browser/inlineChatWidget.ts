@@ -26,7 +26,7 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { DropdownWithDefaultActionViewItem, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
@@ -54,7 +54,7 @@ import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineCh
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 
-const defaultAriaLabel = localize('aria-label', "Interactive Editor Input");
+const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -125,7 +125,7 @@ export class InlineChatWidget {
 	private static _modelPool: number = 1;
 
 	private readonly _elements = h(
-		'div.interactive-editor@root',
+		'div.inline-chat@root',
 		[
 			h('div.body', [
 				h('div.content@content', [
@@ -212,12 +212,12 @@ export class InlineChatWidget {
 		this._store.add(this._inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InteractiveEditor)) {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
 				this._updateAriaLabel();
 			}
 		}));
 
-		const uri = URI.from({ scheme: 'vscode', authority: 'interactive-editor', path: `/interactive-editor/model${InlineChatWidget._modelPool++}.txt` });
+		const uri = URI.from({ scheme: 'vscode', authority: 'inline-chat', path: `/inline-chat/model${InlineChatWidget._modelPool++}.txt` });
 		this._inputModel = this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri);
 		this._inputEditor.setModel(this._inputModel);
 
@@ -359,9 +359,9 @@ export class InlineChatWidget {
 			return;
 		}
 		let label = defaultAriaLabel;
-		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InteractiveEditor)) {
-			const kbLabel = this._keybindingService.lookupKeybinding('interactiveEditor.accessibilityHelp')?.getLabel();
-			label = kbLabel ? localize('interactiveEditor.accessibilityHelp', "Interactive Editor Input, Use {0} for Interactive Editor Accessibility Help.", kbLabel) : localize('interactiveSessionInput.accessibilityHelpNoKb', "Interactive Editor Input, Run the Interactive Editor Accessibility Help command for more information.");
+		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
+			const kbLabel = this._keybindingService.lookupKeybinding('inlineChat.accessibilityHelp')?.getLabel();
+			label = kbLabel ? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel) : localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
 		}
 		_inputEditorOptions.ariaLabel = label;
 		this._inputEditor.updateOptions({ ariaLabel: label });
@@ -398,8 +398,8 @@ export class InlineChatWidget {
 				const lineHeight = this.parentEditor.getOption(EditorOption.lineHeight);
 				const editorHeight = this.parentEditor.getLayoutInfo().height;
 				const editorHeightInLines = Math.floor(editorHeight / lineHeight);
-				this._elements.root.style.setProperty('--vscode-interactive-editor-cropped', String(Math.floor(editorHeightInLines / 5)));
-				this._elements.root.style.setProperty('--vscode-interactive-editor-expanded', String(Math.floor(editorHeightInLines / 3)));
+				this._elements.root.style.setProperty('--vscode-inline-chat-cropped', String(Math.floor(editorHeightInLines / 5)));
+				this._elements.root.style.setProperty('--vscode-inline-chat-expanded', String(Math.floor(editorHeightInLines / 3)));
 			}
 		} finally {
 			this._isLayouting = false;
@@ -684,8 +684,8 @@ export class InlineChatWidget {
 					newDecorations.push({
 						range: new Range(1, 1, 1, withSlash.length + 1),
 						options: {
-							description: 'interactive-editor-slash-command',
-							inlineClassName: 'interactive-editor-slash-command',
+							description: 'inline-chat-slash-command',
+							inlineClassName: 'inline-chat-slash-command',
 						}
 					});
 
@@ -694,10 +694,10 @@ export class InlineChatWidget {
 						newDecorations.push({
 							range: new Range(1, withSlash.length + 1, 1, withSlash.length + 2),
 							options: {
-								description: 'interactive-editor-slash-command-detail',
+								description: 'inline-chat-slash-command-detail',
 								after: {
 									content: `${command.detail}`,
-									inlineClassName: 'interactive-editor-slash-command-detail'
+									inlineClassName: 'inline-chat-slash-command-detail'
 								}
 							}
 						});
@@ -720,13 +720,14 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
 	private _dimension?: Dimension;
+	private _indentationWidth: number = 0;
 
 	constructor(
 		editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'interactive-editor-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 + 3 });
+		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 + 3 });
 
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
@@ -766,17 +767,16 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	protected override _doLayout(heightInPixel: number): void {
 
-		const info = this.editor.getLayoutInfo();
-		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
-		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
-
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
-		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
+		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation());
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
-		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
+	}
+
+	private _availableSpaceGivenIndentation(): number {
+		const info = this.editor.getLayoutInfo();
+		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + this._indentationWidth);
 	}
 
 	private _computeHeightInLines(): number {
@@ -791,10 +791,41 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	override show(where: IPosition): void {
-		super.show(where, this._computeHeightInLines());
+	override show(position: Position): void {
+		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
+		this._setMargins(position);
+	}
+
+	private _setMargins(position: Position): void {
+		const viewModel = this.editor._getViewModel();
+		if (!viewModel) {
+			return;
+		}
+		const visibleRange = viewModel.getCompletelyVisibleViewRange();
+		const startLineVisibleRange = visibleRange.startLineNumber;
+		const positionLine = position.lineNumber;
+		let indentationLineNumber: number | undefined;
+		let indentationLevel: number | undefined;
+		for (let lineNumber = positionLine; lineNumber >= startLineVisibleRange; lineNumber--) {
+			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
+			if (currentIndentationLevel !== 0) {
+				indentationLineNumber = lineNumber;
+				indentationLevel = currentIndentationLevel;
+				break;
+			}
+		}
+		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
+		const info = this.editor.getLayoutInfo();
+		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
+		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;
+		const isEnoughAvailableSpaceWithIndentation = this._availableSpaceGivenIndentation() > 400;
+		this._indentationWidth = isEnoughAvailableSpaceWithIndentation ? this._indentationWidth : 0;
+		const spaceLeft = isEnoughAvailableSpaceWithIndentation ? marginWithIndentation : marginWithoutIndentation;
+		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
+		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
+		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 	}
 
 	override hide(): void {

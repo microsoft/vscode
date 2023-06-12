@@ -641,7 +641,18 @@ export interface ITerminalLaunchError {
 export interface IProcessReadyEvent {
 	pid: number;
 	cwd: string;
-	requiresWindowsMode?: boolean;
+	windowsPty: IProcessReadyWindowsPty | undefined;
+}
+
+export interface IProcessReadyWindowsPty {
+	/**
+	 * What pty emulation backend is being used.
+	 */
+	backend: 'conpty' | 'winpty';
+	/**
+	 * The Windows build version (eg. 19045)
+	 */
+	buildNumber: number;
 }
 
 /**
@@ -696,7 +707,7 @@ export interface ITerminalChildProcess {
 	input(data: string): void;
 	processBinary(data: string): Promise<void>;
 	resize(cols: number, rows: number): void;
-	clearBuffer?(): Promise<void>;
+	clearBuffer(): void | Promise<void>;
 
 	/**
 	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow

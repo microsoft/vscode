@@ -52,7 +52,7 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<{ id: number; event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
-	private readonly _onProcessReady = this._register(new Emitter<{ id: number; event: { pid: number; cwd: string } }>());
+	private readonly _onProcessReady = this._register(new Emitter<{ id: number; event: IProcessReadyEvent }>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -720,7 +720,7 @@ class PersistentTerminalProcess extends Disposable {
 			return result;
 		}
 
-		this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, windowsPty: this._terminalProcess.getWindowsPty() });
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
 		this.triggerReplay();
@@ -759,6 +759,7 @@ class PersistentTerminalProcess extends Disposable {
 	}
 	async clearBuffer(): Promise<void> {
 		this._serializer.clearBuffer();
+		this._terminalProcess.clearBuffer();
 	}
 	setUnicodeVersion(version: '6' | '11'): void {
 		this.unicodeVersion = version;
