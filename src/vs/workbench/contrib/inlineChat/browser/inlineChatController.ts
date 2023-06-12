@@ -197,7 +197,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._activeSession);
 		const selectionRange = this._activeSession.wholeRange.value;
 		const widgetPosition = this._strategy?.getWidgetPosition(initialRender, selectionRange, hasEditResponse);
-		this._zone.value.showWidget(widgetPosition ?? selectionRange.getStartPosition());
+		this._zone.value.show(widgetPosition ?? selectionRange.getStartPosition());
 	}
 
 	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
@@ -544,7 +544,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		const { response } = this._activeSession.lastExchange!;
-		this._showWidget(false, response instanceof EditResponse); //  this._updateEditMode, r
+		this._showWidget(false, response instanceof EditResponse);
 
 		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
 			? response.raw.type

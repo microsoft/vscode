@@ -430,7 +430,7 @@ export class InlineChatWidget {
 
 	set value(value: string) {
 		this._inputModel.setValue(value);
-		this._inputEditor.setPosition(this._inputModel.getFullModelRange().getEndPosition());
+		this._inputEditor.setPosition(this._inputModel.getFullModelRange().getStartPosition());
 	}
 
 	selectAll() {
@@ -791,12 +791,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	showWidget(position: Position): void {
-		const widgetPosition = position;
-		super.show(widgetPosition, this._computeHeightInLines());
+	override show(position: Position): void {
+		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
-		this._setMargins(widgetPosition);
+		this._setMargins(position);
 	}
 
 	private _setMargins(position: Position): void {
@@ -804,11 +803,12 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		if (!viewModel) {
 			return;
 		}
-		const positionLineNumber = position.lineNumber;
-		const startLineNumber = viewModel.getCompletelyVisibleViewRange().startLineNumber;
-		let indentationLineNumber;
-		let indentationLevel;
-		for (let lineNumber = positionLineNumber; lineNumber >= startLineNumber; lineNumber--) {
+		const visibleRange = viewModel.getCompletelyVisibleViewRange();
+		const startLineVisibleRange = visibleRange.startLineNumber;
+		const positionLine = position.lineNumber;
+		let indentationLineNumber: number | undefined;
+		let indentationLevel: number | undefined;
+		for (let lineNumber = positionLine; lineNumber >= startLineVisibleRange; lineNumber--) {
 			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
 			if (currentIndentationLevel !== 0) {
 				indentationLineNumber = lineNumber;
@@ -816,7 +816,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				break;
 			}
 		}
-		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? positionLineNumber, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLineNumber));
+		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
 		const info = this.editor.getLayoutInfo();
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;

@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -27,6 +28,8 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 
 export abstract class EditModeStrategy {
 
+	protected _initialPosition: Position | undefined;
+
 	abstract dispose(): void;
 
 	abstract checkChanges(response: EditResponse): boolean;
@@ -41,16 +44,15 @@ export abstract class EditModeStrategy {
 
 	abstract toggleDiff(): void;
 
-	abstract getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined;
-
 	abstract hasFocus(): boolean;
+
+	abstract getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
 
 	private readonly _ctxDocumentChanged: IContextKey<boolean>;
 	private readonly _listener: IDisposable;
-	private _initialPosition: Position | undefined;
 
 	constructor(
 		private readonly _session: Session,
@@ -134,28 +136,13 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
-		console.log('inside of preview strategy');
 		const viewModel = this._editor._getViewModel();
-		if (!viewModel) {
-			return;
-		}
-		const primaryCursorPosition = viewModel.getPrimaryCursorState().viewState.position;
+		assertType(viewModel);
 		if (initialRender) {
-			this._initialPosition = primaryCursorPosition;
+			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
 			return this._initialPosition;
 		} else {
-			if (hasEditResponse) {
-				const visibleRange = viewModel.getCompletelyVisibleViewRange();
-				const endPosition = range.getEndPosition();
-				const endLine = endPosition.lineNumber;
-				if (endLine >= visibleRange.startLineNumber && endLine <= visibleRange.endLineNumber) {
-					return endPosition;
-				} else {
-					return this._initialPosition;
-				}
-			} else {
-				return this._initialPosition;
-			}
+			return minimalJumpPosition(this._editor, this._initialPosition, range, hasEditResponse);
 		}
 	}
 
@@ -240,7 +227,6 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _ctxShowingDiff: IContextKey<boolean>;
 	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
-	protected _initialPosition: Position | undefined;
 
 	constructor(
 		protected readonly _session: Session,
@@ -315,7 +301,7 @@ export class LiveStrategy extends EditModeStrategy {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
-				last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
+				last = !last || last.isBefore(edit.range.getStartPosition()) ? edit.range.getStartPosition() : last;
 				this._inlineDiffDecorations.collectEditOperation(edit);
 			}
 			return last && [Selection.fromPositions(last)];
@@ -356,27 +342,14 @@ export class LiveStrategy extends EditModeStrategy {
 		this._widget.updateStatus(message);
 	}
 
-	getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
+	override getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
 		const viewModel = this._editor._getViewModel();
-		if (!viewModel) {
-			return;
-		}
+		assertType(viewModel);
 		if (initialRender) {
 			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
 			return this._initialPosition;
 		} else {
-			if (hasEditResponse) {
-				const visibleRange = viewModel.getCompletelyVisibleViewRange();
-				const endPosition = range.getEndPosition();
-				const endLine = endPosition.lineNumber;
-				if (endLine >= visibleRange.startLineNumber && endLine <= visibleRange.endLineNumber) {
-					return endPosition;
-				} else {
-					return this._initialPosition;
-				}
-			} else {
-				return this._initialPosition;
-			}
+			return minimalJumpPosition(this._editor, this._initialPosition, range, hasEditResponse);
 		}
 	}
 
@@ -439,14 +412,14 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 
 	override getWidgetPosition(initialRender: boolean, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
-		console.log('inside of live preview strategy');
-		const primaryCursorPosition = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 		if (initialRender) {
-			this._initialPosition = primaryCursorPosition;
+			const viewModel = this._editor._getViewModel();
+			assertType(viewModel);
+			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
 			return this._initialPosition;
 		} else {
 			if (hasEditResponse) {
-				return range.getEndPosition();
+				return range.getStartPosition();
 			} else {
 				return this._initialPosition;
 			}
@@ -462,5 +435,21 @@ function showSingleCreateFile(accessor: ServicesAccessor, edit: EditResponse) {
 	const editorService = accessor.get(IEditorService);
 	if (edit.singleCreateFileEdit) {
 		editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
+	}
+}
+
+function minimalJumpPosition(editor: ICodeEditor, initialPosition: Position | undefined, range: Range, hasEditResponse: boolean | undefined): Position | undefined {
+	const viewModel = editor._getViewModel();
+	assertType(viewModel);
+	if (hasEditResponse) {
+		const endPosition = range.getStartPosition();
+		const visibleRange = viewModel.getCompletelyVisibleViewRange();
+		if (visibleRange.containsPosition(endPosition)) {
+			return endPosition;
+		} else {
+			return initialPosition;
+		}
+	} else {
+		return initialPosition;
 	}
 }
