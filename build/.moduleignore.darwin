@@ -3,6 +3,12 @@
 @vscode/windows-mutex/*.md
 @vscode/windows-mutex/package.json
 
+@vscode/windows-process-tree/lib/**
+@vscode/windows-process-tree/**/*.node
+@vscode/windows-process-tree/LICENSE
+@vscode/windows-process-tree/package.json
+@vscode/windows-process-tree/*.md
+
 @vscode/windows-registry/dist/**
 @vscode/windows-registry/**/*.node
 @vscode/windows-registry/*.md
