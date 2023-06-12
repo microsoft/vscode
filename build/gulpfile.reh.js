@@ -154,7 +154,7 @@ if (defaultNodeTask) {
 }
 
 function nodejs(platform, arch) {
-	const { remote, fetchGithub } = require('./lib/fetch');
+	const { fetchUrls, fetchGithub } = require('./lib/fetch');
 	const untar = require('gulp-untar');
 
 	if (arch === 'ia32') {
@@ -168,7 +168,7 @@ function nodejs(platform, arch) {
 				.pipe(rename('node.exe'));
 		}
 		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', verbose: true }) // TODO@checksum
+		return fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', verbose: true }) // TODO@checksum
 			.pipe(rename('node.exe'));
 	}
 
@@ -183,7 +183,7 @@ function nodejs(platform, arch) {
 		arch = 'armv7l';
 	}
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-	return remote(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', verbose: true }) // TODO@checksum
+	return fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', verbose: true }) // TODO@checksum
 		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 		.pipe(filter('**/node'))
 		.pipe(util.setExecutableBit('**'))

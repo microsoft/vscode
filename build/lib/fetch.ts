@@ -12,14 +12,14 @@ import * as crypto from 'crypto';
 import * as through2 from 'through2';
 import { Stream } from 'stream';
 
-export interface IOptions {
+export interface IFetchOptions {
 	base?: string;
-	fetchOptions?: RequestInit;
+	nodeFetchOptions?: RequestInit;
 	verbose?: boolean;
 	checksumSha256?: string;
 }
 
-export function remote(urls: string[] | string, options: IOptions): es.ThroughStream {
+export function fetchUrls(urls: string[] | string, options: IFetchOptions): es.ThroughStream {
 	if (options === undefined) {
 		options = {};
 	}
@@ -34,7 +34,7 @@ export function remote(urls: string[] | string, options: IOptions): es.ThroughSt
 
 	return es.readArray(urls).pipe(es.map<string, VinylFile | void>((data: string, cb) => {
 		const url = [options.base, data].join('');
-		remoteFile(url, options).then(file => {
+		fetchUrl(url, options).then(file => {
 			cb(undefined, file);
 		}, error => {
 			cb(error);
@@ -42,7 +42,7 @@ export function remote(urls: string[] | string, options: IOptions): es.ThroughSt
 	}));
 }
 
-export async function remoteFile(url: string, options: IOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
+export async function fetchUrl(url: string, options: IFetchOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
 	try {
 		let startTime = 0;
 		if (options.verbose) {
@@ -53,7 +53,7 @@ export async function remoteFile(url: string, options: IOptions, retries = 10, r
 		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
 		try {
 			const response = await fetch(url, {
-				...options.fetchOptions,
+				...options.nodeFetchOptions,
 				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
 			});
 			if (options.verbose) {
@@ -88,7 +88,7 @@ export async function remoteFile(url: string, options: IOptions, retries = 10, r
 		}
 		if (retries > 0) {
 			await new Promise(resolve => setTimeout(resolve, retryDelay));
-			return remoteFile(url, options, retries - 1, retryDelay);
+			return fetchUrl(url, options, retries - 1, retryDelay);
 		}
 		throw e;
 	}
@@ -119,10 +119,10 @@ export interface IGitHubAssetOptions {
  * @returns a stream with the asset as file
  */
 export function fetchGithub(repo: string, options: IGitHubAssetOptions): Stream {
-	return remote(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${options.version}`, {
+	return fetchUrls(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${options.version}`, {
 		base: 'https://api.github.com',
 		verbose: true,
-		fetchOptions: { headers: ghApiHeaders }
+		nodeFetchOptions: { headers: ghApiHeaders }
 	}).pipe(through2.obj(async function (file, _enc, callback) {
 		const assetFilter = typeof options.name === 'string' ? (name: string) => name === options.name : options.name;
 		const asset = JSON.parse(file.contents.toString()).assets.find((a: { name: string }) => assetFilter(a.name));
@@ -130,8 +130,8 @@ export function fetchGithub(repo: string, options: IGitHubAssetOptions): Stream 
 			return callback(new Error(`Could not find asset in release of ${repo} @ ${options.version}`));
 		}
 		try {
-			callback(null, await remoteFile(asset.url, {
-				fetchOptions: { headers: ghDownloadHeaders },
+			callback(null, await fetchUrl(asset.url, {
+				nodeFetchOptions: { headers: ghDownloadHeaders },
 				verbose: true,
 				checksumSha256: options.checksumSha256
 			}));

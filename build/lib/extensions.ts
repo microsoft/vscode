@@ -24,7 +24,7 @@ import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
 import { getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
-import { remote, IOptions as IRemoteSrcOptions, fetchGithub } from './fetch';
+import { fetchUrls, IFetchOptions, fetchGithub } from './fetch';
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = getVersion(root);
@@ -229,17 +229,17 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 
 	fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
-	const options: IRemoteSrcOptions = {
+	const options: IFetchOptions = {
 		verbose: true,
 		base: url,
-		fetchOptions: {
+		nodeFetchOptions: {
 			headers: baseHeaders
 		}
 	};
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
-	return remote('', options) // TODO@checksum
+	return fetchUrls('', options) // TODO@checksum
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
