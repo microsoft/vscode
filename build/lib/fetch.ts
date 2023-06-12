@@ -67,11 +67,9 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 					hash.update(contents);
 					if (hash.digest('hex') !== options.checksumSha256) {
 						throw new Error(`Checksum mismatch for ${ansiColors.cyan(url)}`);
-					} else {
+					} else if (verbose) {
 						log(`Verified SHA256 checksums match for ${ansiColors.cyan(url)}`);
 					}
-				} else {
-					log.warn(`Unable to verify SHA256 of ${ansiColors.cyan(url)} because no checksumSha256 was provided!`);
 				}
 				if (verbose) {
 					log(`Fetched response body buffer: ${ansiColors.magenta(`${(contents as Buffer).byteLength} bytes`)}`);

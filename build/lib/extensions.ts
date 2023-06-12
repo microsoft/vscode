@@ -22,7 +22,7 @@ const buffer = require('gulp-buffer');
 import * as jsoncParser from 'jsonc-parser';
 import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
-import { getExtensionStream } from './builtInExtensions';
+import { IExtensionDefinition, getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
 import { fetchUrls, fetchGithub } from './fetch';
 
@@ -221,7 +221,7 @@ const baseHeaders = {
 	'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
 
-export function fromMarketplace(serviceUrl: string, { name: extensionName, version, metadata }: IBuiltInExtension, options?: { checksumSha256?: string }): Stream {
+export function fromMarketplace(serviceUrl: string, { name: extensionName, version, sha256, metadata }: IExtensionDefinition): Stream {
 	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 	const [publisher, name] = extensionName.split('.');
@@ -236,7 +236,7 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 		nodeFetchOptions: {
 			headers: baseHeaders
 		},
-		checksumSha256: options?.checksumSha256
+		checksumSha256: sha256
 	})
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
@@ -248,14 +248,18 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 }
 
 
-export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension, options?: { checksumSha256?: string }): Stream {
+export function fromGithub({ name, version, repo, sha256, metadata }: IExtensionDefinition): Stream {
 	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 	fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
-	return fetchGithub(new URL(repo).pathname, { version, name: name => name.endsWith('.vsix'), checksumSha256: options?.checksumSha256 })
+	return fetchGithub(new URL(repo).pathname, {
+		version,
+		name: name => name.endsWith('.vsix'),
+		checksumSha256: sha256
+	})
 		.pipe(buffer())
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
@@ -282,16 +286,9 @@ const marketplaceWebExtensionsExclude = new Set([
 	'ms-vscode.vscode-js-profile-table'
 ]);
 
-interface IBuiltInExtension {
-	name: string;
-	version: string;
-	repo: string;
-	metadata: any;
-}
-
 const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions: IBuiltInExtension[] = productJson.builtInExtensions || [];
-const webBuiltInExtensions: IBuiltInExtension[] = productJson.webBuiltInExtensions || [];
+const builtInExtensions: IExtensionDefinition[] = productJson.builtInExtensions || [];
+const webBuiltInExtensions: IExtensionDefinition[] = productJson.webBuiltInExtensions || [];
 
 type ExtensionKind = 'ui' | 'workspace' | 'web';
 interface IExtensionManifest {
