@@ -65,7 +65,7 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { ITerminalService, IXtermTerminal, RendererType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
@@ -1144,23 +1144,6 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 const ttPolicy = window.trustedTypes?.createPolicy('outputTerminalData', { createHTML: value => value });
 
 class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
-	private static lastMeasurementInfo?: { font: string; metrics: TextMetrics };
-	private static getTextMeasurements(xtermTerminal: IXtermTerminal) {
-		const opts = xtermTerminal.raw.options;
-		const font = `${opts.fontWeight || ''} ${opts.fontSize}px ${opts.fontFamily}`;
-		if (font === this.lastMeasurementInfo?.font) {
-			return this.lastMeasurementInfo.metrics;
-		}
-
-		const canvas = document.createElement('canvas');
-		const context = canvas.getContext('2d')!;
-		context.font = font;
-		// allow-any-unicode-next-line
-		const metrics = context.measureText('█');
-		PlainTextMessagePeek.lastMeasurementInfo = { font, metrics };
-		return metrics;
-	}
-
 	private dimensions?: dom.IDimension;
 
 	/** Active terminal instance. */
@@ -1189,7 +1172,7 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 				return this.clear();
 			}
 			const terminal = await this.makeTerminal();
-			terminal.raw.write(message.message);
+			terminal.write(message.message);
 			this.layoutTerminal(terminal);
 			this.renderTerminalToHtml(terminal);
 		} else {
@@ -1200,17 +1183,17 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 
 			const terminal = await this.makeTerminal();
 			for (const buffer of result.output.buffers) {
-				terminal.raw.write(buffer.buffer);
+				terminal.write(buffer.buffer);
 			}
 
-			terminal.raw.write('\x1b[?25l'); // hide cursor
-			this.layoutTerminal(terminal);
+			terminal.write('\x1b[?25l'); // hide cursor
+			requestAnimationFrame(() => this.layoutTerminal(terminal));
 
 			this.rawDisplayNode.clear();
 			this.container.classList.add('xterm-detached-instance');
-			terminal.attachToElement(this.container, RendererType.Dom);
+			terminal.attachToElement(this.container, { enableGpu: false });
 
-			this.outputDataListener.value = result.output.onDidWriteData(e => terminal.raw.write(e.buffer));
+			this.outputDataListener.value = result.output.onDidWriteData(e => terminal.write(e.buffer));
 		}
 	}
 
@@ -1241,15 +1224,8 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	) {
 		width -= 10; // scrollbar width
 		const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
-
 		if (scaled) {
-			xterm.raw.resize(scaled.cols, scaled.rows);
-		} else {
-			const metrics = PlainTextMessagePeek.getTextMeasurements(xterm);
-			xterm.raw.resize(
-				Math.floor(width / metrics.width),
-				Math.floor(height / (metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent)),
-			);
+			xterm.resize(scaled.cols, scaled.rows);
 		}
 
 		// re-render the html with the width change:

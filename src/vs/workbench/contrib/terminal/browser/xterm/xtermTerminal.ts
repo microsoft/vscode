@@ -18,7 +18,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants, RendererType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -298,15 +298,17 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		return result;
 	}
 
-	attachToElement(container: HTMLElement, enabledRenderers: RendererType = RendererType.All): HTMLElement {
+	attachToElement(container: HTMLElement, { enableGpu = true }: IXtermAttachToElementOptions = {}): HTMLElement {
 		if (!this._container) {
 			this.raw.open(container);
 		}
 		// TODO: Move before open to the DOM renderer doesn't initialize
-		if ((enabledRenderers & RendererType.WebGL) && this._shouldLoadWebgl()) {
-			this._enableWebglRenderer();
-		} else if ((enabledRenderers & RendererType.Canvas) && this._shouldLoadCanvas()) {
-			this._enableCanvasRenderer();
+		if (enableGpu) {
+			if (this._shouldLoadWebgl()) {
+				this._enableWebglRenderer();
+			} else if (this._shouldLoadCanvas()) {
+				this._enableCanvasRenderer();
+			}
 		}
 
 		this._suggestAddon?.setContainer(container);
@@ -314,6 +316,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._container = container;
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
+	}
+
+	write(data: string | Uint8Array): void {
+		this.raw.write(data);
+	}
+
+	resize(columns: number, rows: number): void {
+		this.raw.resize(columns, rows);
 	}
 
 	updateConfig(): void {

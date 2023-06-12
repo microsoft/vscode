@@ -958,19 +958,14 @@ export const enum XtermTerminalConstants {
 	SearchHighlightLimit = 1000
 }
 
-export const enum RendererType {
-	WebGL = 1 << 0,
-	Canvas = 1 << 1,
-	Dom = 1 << 2,
-	All = RendererType.Canvas | RendererType.Dom | RendererType.Canvas,
+export interface IXtermAttachToElementOptions {
+	/**
+	 * Whether GPU rendering should be enabled for this element, defaults to true.
+	 */
+	enableGpu?: boolean;
 }
 
 export interface IXtermTerminal extends IDisposable {
-	/**
-	 * Underlying xterm terminal.
-	 */
-	readonly raw: RawXtermTerminal;
-
 	/**
 	 * An object that tracks when commands are run and enables navigating and selecting between
 	 * them.
@@ -998,9 +993,9 @@ export interface IXtermTerminal extends IDisposable {
 	/**
 	 * Attached the terminal to the given element
 	 * @param container Container the terminal will be rendered in
-	 * @param enabledRenderers Bits of renderers that are allowable in this context. Defaults to all renderers if undefined.
+	 * @param options Additional options for mounting the terminal in an element
 	 */
-	attachToElement(container: HTMLElement, enabledRenderers?: RendererType): void;
+	attachToElement(container: HTMLElement, options?: IXtermAttachToElementOptions): void;
 
 	findResult?: { resultIndex: number; resultCount: number };
 
@@ -1018,6 +1013,16 @@ export interface IXtermTerminal extends IDisposable {
 	 * Forces the terminal to redraw its viewport.
 	 */
 	forceRedraw(): void;
+
+	/**
+	 * Writes data to the terminal.
+	 */
+	write(data: string | Uint8Array): void;
+
+	/**
+	 * Resizes the terminal.
+	 */
+	resize(columns: number, rows: number): void;
 
 	/**
 	 * Gets the font metrics of this xterm.js instance.
