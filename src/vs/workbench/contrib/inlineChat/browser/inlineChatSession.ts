@@ -120,7 +120,7 @@ export class Session {
 	private _textModelNSnapshotAltVersion: number | undefined;
 
 	constructor(
-		public editMode: EditMode,
+		readonly editMode: EditMode,
 		readonly editor: ICodeEditor,
 		readonly textModel0: ITextModel,
 		readonly textModelN: ITextModel,

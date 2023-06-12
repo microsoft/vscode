@@ -239,7 +239,6 @@ export class InlineChatController implements IEditorContribution {
 			return State.CANCEL;
 		}
 
-		session.editMode = this._getMode();
 		switch (session.editMode) {
 			case EditMode.Live:
 				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value.widget);
