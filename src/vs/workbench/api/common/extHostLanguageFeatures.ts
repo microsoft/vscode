@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, CodeActionTriggerKind, CodeAction } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -378,7 +378,6 @@ class CodeActionAdapter {
 	private readonly _disposables = new Map<number, DisposableStore>();
 	private readonly nbKind = new CodeActionKind('notebook');
 
-
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
@@ -426,7 +425,6 @@ class CodeActionAdapter {
 			if (!candidate) {
 				continue;
 			}
-
 			if (CodeActionAdapter._isCommand(candidate)) {
 				// old school: synthetic code action
 				this._apiDeprecation.report('CodeActionProvider.provideCodeActions - return commands', this._extension,
