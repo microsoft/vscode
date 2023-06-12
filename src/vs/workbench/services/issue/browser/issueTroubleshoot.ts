@@ -218,7 +218,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	}
 
 	private async askToReportIssue(detail: string): Promise<void> {
-		const isStable = this.productService.quality !== 'stable';
+		const isStable = this.productService.quality === 'stable';
 		if (isStable) {
 			const res = await this.askToReproduceIssueWithInsiders();
 			if (res === undefined) {
