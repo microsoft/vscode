@@ -85,7 +85,7 @@ abstract class ErrorHandler {
 			return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
 		}
 
-		let _wasWrapped = Symbol('prepareStackTrace wrapped');
+		const _wasWrapped = Symbol('prepareStackTrace wrapped');
 		let _prepareStackTrace = prepareStackTraceAndFindExtension;
 		Object.assign(_prepareStackTrace, { [_wasWrapped]: true });
 		Object.defineProperty(Error, 'prepareStackTrace', {
@@ -96,7 +96,7 @@ abstract class ErrorHandler {
 			set(v) {
 				if (v && (v as any)[_wasWrapped]) {
 					_prepareStackTrace = v;
-					return
+					return;
 				}
 
 				_prepareStackTrace = function (error, stackTrace) {
