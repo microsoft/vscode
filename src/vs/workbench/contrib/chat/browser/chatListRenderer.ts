@@ -367,8 +367,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					isFullyRendered: renderValue.isFullString
 				};
 
-				// Don't add the cursor if it will go after a codeblock, since this will always cause layout shifting
-				// when the codeblock is the last thing in the response, and that happens often.
 				const result = this.renderMarkdown(new MarkdownString(renderValue.value), element, disposables, templateData, true);
 				// Doing the progressive render
 				dom.clearNode(templateData.value);
