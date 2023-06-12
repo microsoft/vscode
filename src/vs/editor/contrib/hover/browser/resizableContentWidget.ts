@@ -59,7 +59,7 @@ abstract class ResizableContentWidget extends Disposable implements IContentWidg
 		return this._contentPosition;
 	}
 
-	findRenderingPreference(widgetHeight: number, showAtPosition: IPosition): ContentWidgetPositionPreference | undefined {
+	protected _findRenderingPreference(widgetHeight: number, showAtPosition: IPosition): ContentWidgetPositionPreference | undefined {
 		const editorDomNode = this._editor.getDomNode();
 		if (!editorDomNode) {
 			return;
@@ -165,6 +165,11 @@ export class SingleSizePersistingOptions {
 		@IStorageService public readonly storageService: IStorageService
 	) { }
 }
+
+/**
+ * TODO: Add another class for the resizable content widget, where using the idea that Alex had mentioned
+ */
+
 
 /**
  * Abstract class which defines a resizable widgets for which one single global size is persisted.
