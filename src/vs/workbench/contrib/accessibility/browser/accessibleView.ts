@@ -105,10 +105,11 @@ class AccessibleView extends Disposable {
 			}
 			container.appendChild(this._editorContainer);
 			this._layout();
-			this._register(this._editorWidget.onKeyDown((e) => {
+			this._register(this._editorWidget.onKeyUp((e) => {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
 				}
+				e.stopPropagation();
 				provider.onKeyDown?.(e);
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
