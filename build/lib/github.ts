@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Stream } from 'stream';
-import fetch from 'node-fetch';
-import { remote } from './gulpRemoteSource';
+import { remote, remoteFile } from './gulpRemoteSource';
 import * as through2 from 'through2';
 
 const ghApiHeaders: Record<string, string> = {
@@ -20,29 +19,37 @@ const ghDownloadHeaders = {
 	Accept: 'application/octet-stream',
 };
 
+export interface IGitHubAssetOptions {
+	version: string;
+	name: string | ((name: string) => boolean);
+	checksumSha256?: string;
+}
+
 /**
  * @param repo for example `Microsoft/vscode`
  * @param version for example `16.17.1` - must be a valid releases tag
  * @param assetName for example (name) => name === `win-x64-node.exe` - must be an asset that exists
  * @returns a stream with the asset as file
  */
-export function assetFromGithub(repo: string, version: string, assetFilter: (name: string) => boolean): Stream {
-	return remote(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${version}`, {
+export function assetFromGithub(repo: string, options: IGitHubAssetOptions): Stream {
+	return remote(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${options.version}`, {
 		base: 'https://api.github.com',
 		verbose: true,
 		fetchOptions: { headers: ghApiHeaders }
 	}).pipe(through2.obj(async function (file, _enc, callback) {
+		const assetFilter = typeof options.name === 'string' ? (name: string) => name === options.name : options.name;
 		const asset = JSON.parse(file.contents.toString()).assets.find((a: { name: string }) => assetFilter(a.name));
 		if (!asset) {
-			return callback(new Error(`Could not find asset in release of ${repo} @ ${version}`));
+			return callback(new Error(`Could not find asset in release of ${repo} @ ${options.version}`));
 		}
-		const response = await fetch(asset.url, { headers: ghDownloadHeaders });
-		if (response.ok) {
-			file.contents = response.body.pipe(through2());
-			callback(null, file);
-		} else {
-			return callback(new Error(`Request ${response.url} failed with status code: ${response.status}`));
+		try {
+			callback(null, await remoteFile(asset.url, {
+				fetchOptions: { headers: ghDownloadHeaders },
+				verbose: true,
+				checksumSha256: options.checksumSha256
+			}));
+		} catch (error) {
+			callback(error);
 		}
-
 	}));
 }

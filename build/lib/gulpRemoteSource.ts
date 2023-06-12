@@ -32,7 +32,7 @@ export function remote(urls: string[] | string, options: IOptions): es.ThroughSt
 
 	return es.readArray(urls).pipe(es.map<string, VinylFile | void>((data: string, cb) => {
 		const url = [options.base, data].join('');
-		fetchWithRetry(url, options).then(file => {
+		remoteFile(url, options).then(file => {
 			cb(undefined, file);
 		}, error => {
 			cb(error);
@@ -40,7 +40,7 @@ export function remote(urls: string[] | string, options: IOptions): es.ThroughSt
 	}));
 }
 
-async function fetchWithRetry(url: string, options: IOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
+export async function remoteFile(url: string, options: IOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
 	try {
 		let startTime = 0;
 		if (options.verbose) {
@@ -86,7 +86,7 @@ async function fetchWithRetry(url: string, options: IOptions, retries = 10, retr
 		}
 		if (retries > 0) {
 			await new Promise(resolve => setTimeout(resolve, retryDelay));
-			return fetchWithRetry(url, options, retries - 1, retryDelay);
+			return remoteFile(url, options, retries - 1, retryDelay);
 		}
 		throw e;
 	}

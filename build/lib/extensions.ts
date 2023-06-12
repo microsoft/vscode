@@ -240,7 +240,7 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
-	return remote('', options)
+	return remote('', options) // TODO@checksum
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
@@ -251,14 +251,14 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 }
 
 
-export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension): Stream {
+export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension, options?: { checksumSha256?: string }): Stream {
 	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 	fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
-	return assetFromGithub(new URL(repo).pathname, version, name => name.endsWith('.vsix'))
+	return assetFromGithub(new URL(repo).pathname, { version, name: name => name.endsWith('.vsix'), checksumSha256: options?.checksumSha256 })
 		.pipe(buffer())
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))

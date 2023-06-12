@@ -165,11 +165,11 @@ function nodejs(platform, arch) {
 	if (platform === 'win32') {
 		if (product.nodejsRepository) {
 			log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
-			return assetFromGithub(product.nodejsRepository, nodeVersion, name => name === `win-${arch}-node.exe`)
+			return assetFromGithub(product.nodejsRepository, { version: nodeVersion, name: `win-${arch}-node.exe` }) // TODO@checksum
 				.pipe(rename('node.exe'));
 		}
 		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', verbose: true })
+		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', verbose: true }) // TODO@checksum
 			.pipe(rename('node.exe'));
 	}
 
@@ -184,7 +184,7 @@ function nodejs(platform, arch) {
 		arch = 'armv7l';
 	}
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-	return remote(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', verbose: true })
+	return remote(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', verbose: true }) // TODO@checksum
 		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 		.pipe(filter('**/node'))
 		.pipe(util.setExecutableBit('**'))

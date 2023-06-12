@@ -70,7 +70,7 @@ function isUpToDate(extension: IExtensionDefinition): boolean {
 
 function getExtensionDownloadStream(extension: IExtensionDefinition) {
 	const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
-	return (galleryServiceUrl ? ext.fromMarketplace(galleryServiceUrl, extension) : ext.fromGithub(extension))
+	return (galleryServiceUrl ? ext.fromMarketplace(galleryServiceUrl, extension) : ext.fromGithub(extension)) // TODO@checksum
 		.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
 }
 
