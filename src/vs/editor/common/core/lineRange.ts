@@ -4,11 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { Range } from 'vs/editor/common/core/range';
 
 /**
  * A range of lines (1-based).
  */
 export class LineRange {
+	public static fromRange(range: Range): LineRange {
+		return new LineRange(range.startLineNumber, range.endLineNumber);
+	}
+
+	public static subtract(a: LineRange, b: LineRange | undefined): LineRange[] {
+		if (!b) {
+			return [a];
+		}
+		if (a.startLineNumber < b.startLineNumber && b.endLineNumberExclusive < a.endLineNumberExclusive) {
+			return [
+				new LineRange(a.startLineNumber, b.startLineNumber),
+				new LineRange(b.endLineNumberExclusive, a.endLineNumberExclusive)
+			];
+		} else if (b.startLineNumber <= a.startLineNumber && a.endLineNumberExclusive <= b.endLineNumberExclusive) {
+			return [];
+		} else if (b.endLineNumberExclusive < a.endLineNumberExclusive) {
+			return [new LineRange(Math.max(b.endLineNumberExclusive, a.startLineNumber), a.endLineNumberExclusive)];
+		} else {
+			return [new LineRange(a.startLineNumber, Math.min(b.startLineNumber, a.endLineNumberExclusive))];
+		}
+	}
+
 	/**
 	 * @param lineRanges An array of sorted line ranges.
 	 */
@@ -76,6 +99,10 @@ export class LineRange {
 			result.push(current);
 		}
 		return result;
+	}
+
+	public static ofLength(startLineNumber: number, length: number): LineRange {
+		return new LineRange(startLineNumber, startLineNumber + length);
 	}
 
 	/**
@@ -154,11 +181,34 @@ export class LineRange {
 		return undefined;
 	}
 
+	public intersectsStrict(other: LineRange): boolean {
+		return this.startLineNumber < other.endLineNumberExclusive && other.startLineNumber < this.endLineNumberExclusive;
+	}
+
 	public overlapOrTouch(other: LineRange): boolean {
 		return this.startLineNumber <= other.endLineNumberExclusive && other.startLineNumber <= this.endLineNumberExclusive;
 	}
 
 	public equals(b: LineRange): boolean {
 		return this.startLineNumber === b.startLineNumber && this.endLineNumberExclusive === b.endLineNumberExclusive;
+	}
+
+	public toInclusiveRange(): Range | null {
+		if (this.isEmpty) {
+			return null;
+		}
+		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER);
+	}
+
+	public toExclusiveRange(): Range {
+		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive, 1);
+	}
+
+	public mapToLineArray<T>(f: (lineNumber: number) => T): T[] {
+		const result: T[] = [];
+		for (let lineNumber = this.startLineNumber; lineNumber < this.endLineNumberExclusive; lineNumber++) {
+			result.push(f(lineNumber));
+		}
+		return result;
 	}
 }

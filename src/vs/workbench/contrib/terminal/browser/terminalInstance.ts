@@ -776,9 +776,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._processManager.os) {
 				lineDataEventAddon.setOperatingSystem(this._processManager.os);
 			}
-			if (this._processManager.os === OperatingSystem.Windows) {
-				xterm.raw.options.windowsMode = processTraits.requiresWindowsMode || false;
-			}
+			xterm.raw.options.windowsPty = processTraits.windowsPty;
 		});
 		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e));
 
@@ -1329,6 +1327,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	clearBuffer(): void {
+		this._processManager.clearBuffer();
 		this.xterm?.clearBuffer();
 	}
 

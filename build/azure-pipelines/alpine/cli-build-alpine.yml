@@ -15,6 +15,21 @@ steps:
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
+
+    # Install yarn as the ARM64 build agent is using vanilla Ubuntu
+    - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+      - task: Npm@1
+        displayName: Install yarn
+        inputs:
+          command: custom
+          customCommand: install --global yarn
+
+    - script: |
+        set -e
+        yarn --frozen-lockfile --ignore-optional
+      workingDirectory: build
+      displayName: Install pipeline build
+
     - script: node build/azure-pipelines/distro/apply-cli-patches
       displayName: Apply distro patches
 
@@ -22,7 +37,7 @@ steps:
     displayName: Download openssl prebuilt
     inputs:
       command: custom
-      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.5
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.8
       customRegistry: useFeed
       customFeed: "Monaco/openssl-prebuilt"
       workingDir: $(Build.ArtifactStagingDirectory)
@@ -30,7 +45,7 @@ steps:
   - script: |
       set -e
       mkdir $(Build.ArtifactStagingDirectory)/openssl
-      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.5.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.8.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
   # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile

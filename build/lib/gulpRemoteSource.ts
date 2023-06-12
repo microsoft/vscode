@@ -7,11 +7,14 @@ import * as es from 'event-stream';
 import fetch, { RequestInit } from 'node-fetch';
 import * as VinylFile from 'vinyl';
 import * as through2 from 'through2';
+import * as log from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 
 export interface IOptions {
 	base?: string;
 	buffer?: boolean;
 	fetchOptions?: RequestInit;
+	verbose?: boolean;
 }
 
 export function remote(urls: string[] | string, options: IOptions): es.ThroughStream {
@@ -41,24 +44,47 @@ export function remote(urls: string[] | string, options: IOptions): es.ThroughSt
 	}));
 }
 
-async function fetchWithRetry(url: string, options: IOptions, retries = 3, retryDelay = 1000): Promise<VinylFile> {
+async function fetchWithRetry(url: string, options: IOptions, retries = 10, retryDelay = 1000): Promise<VinylFile> {
 	try {
-		const response = await fetch(url, options.fetchOptions);
-		if (response.ok && (response.status >= 200 && response.status < 300)) {
-			// request must be piped out once created, or we'll get this error: "You cannot pipe after data has been emitted from the response."
-			const contents = options.buffer ? await response.buffer() : response.body.pipe(through2());
-			return new VinylFile({
-				cwd: '/',
-				base: options.base,
-				path: url,
-				contents
-			});
+		let startTime = 0;
+		if (options.verbose) {
+			log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? `(${10 - retries} retry}` : ''}`);
+			startTime = new Date().getTime();
 		}
-		throw new Error(`Request ${url} failed with status code: ${response.status}`);
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
+		try {
+			const response = await fetch(url, {
+				...options.fetchOptions,
+				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
+			});
+			if (options.verbose) {
+				log(`Fetch completed: Status ${response.status}. Took ${ansiColors.magenta(`${new Date().getTime() - startTime} ms`)}`);
+			}
+			if (response.ok && (response.status >= 200 && response.status < 300)) {
+				// request must be piped out once created, or we'll get this error: "You cannot pipe after data has been emitted from the response."
+				const contents = options.buffer ? await response.buffer() : response.body.pipe(through2());
+				if (options.buffer && options.verbose) {
+					log(`Fetched response body buffer: ${ansiColors.magenta(`${(contents as Buffer).byteLength} bytes`)}`);
+				}
+				return new VinylFile({
+					cwd: '/',
+					base: options.base,
+					path: url,
+					contents
+				});
+			}
+			throw new Error(`Request ${ansiColors.magenta(url)} failed with status code: ${response.status}`);
+		} finally {
+			clearTimeout(timeout);
+		}
 	} catch (e) {
+		if (options.verbose) {
+			log(`Fetching ${ansiColors.cyan(url)} failed: ${e}`);
+		}
 		if (retries > 0) {
-			await new Promise(c => setTimeout(c, retryDelay));
-			return fetchWithRetry(url, options, retries - 1, retryDelay * 3);
+			await new Promise(resolve => setTimeout(resolve, retryDelay));
+			return fetchWithRetry(url, options, retries - 1, retryDelay);
 		}
 		throw e;
 	}

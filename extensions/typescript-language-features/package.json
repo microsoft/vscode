@@ -1282,12 +1282,12 @@
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {

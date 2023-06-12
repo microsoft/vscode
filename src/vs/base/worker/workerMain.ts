@@ -5,25 +5,50 @@
 
 (function () {
 
-	const MonacoEnvironment = (<any>globalThis).MonacoEnvironment;
-	const monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
+	interface IMonacoEnvironment {
+		baseUrl?: string;
+		createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
+			policyName: string,
+			policyOptions?: Options,
+		): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
+	}
+	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+	const monacoBaseUrl = monacoEnvironment && monacoEnvironment.baseUrl ? monacoEnvironment.baseUrl : '../../../';
 
-	const trustedTypesPolicy = (
-		typeof self.trustedTypes?.createPolicy === 'function'
-			? self.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL: value => value,
-				createScript: (_, ...args: string[]) => {
-					// workaround a chrome issue not allowing to create new functions
-					// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
-					const fnArgs = args.slice(0, -1).join(',');
-					const fnBody = args.pop()!.toString();
-					// Do not add a new line to fnBody, as this will confuse source maps.
-					const body = `(function anonymous(${fnArgs}) { ${fnBody}\n})`;
-					return body;
-				}
-			})
-			: undefined
-	);
+	function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
+		policyName: string,
+		policyOptions?: Options,
+	): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>> {
+
+		if (monacoEnvironment?.createTrustedTypesPolicy) {
+			try {
+				return monacoEnvironment.createTrustedTypesPolicy(policyName, policyOptions);
+			} catch (err) {
+				console.warn(err);
+				return undefined;
+			}
+		}
+
+		try {
+			return self.trustedTypes?.createPolicy(policyName, policyOptions);
+		} catch (err) {
+			console.warn(err);
+			return undefined;
+		}
+	}
+
+	const trustedTypesPolicy = createTrustedTypesPolicy('amdLoader', {
+		createScriptURL: value => value,
+		createScript: (_, ...args: string[]) => {
+			// workaround a chrome issue not allowing to create new functions
+			// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
+			const fnArgs = args.slice(0, -1).join(',');
+			const fnBody = args.pop()!.toString();
+			// Do not add a new line to fnBody, as this will confuse source maps.
+			const body = `(function anonymous(${fnArgs}) { ${fnBody}\n})`;
+			return body;
+		}
+	});
 
 	function canUseEval(): boolean {
 		try {

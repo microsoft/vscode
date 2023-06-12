@@ -13,6 +13,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/acti
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -26,6 +27,9 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { ShareProviderCountContext, ShareService } from 'vs/workbench/contrib/share/browser/shareService';
 import { IShareService } from 'vs/workbench/contrib/share/common/share';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const targetMenus = [
 	MenuId.EditorContextShare,
@@ -73,28 +77,38 @@ class ShareWorkbenchContribution {
 
 			override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 				const shareService = accessor.get(IShareService);
-				const resourceUri = accessor.get(IWorkspaceContextService).getWorkspace().folders[0].uri;
+				const activeEditor = accessor.get(IEditorService)?.activeEditor;
+				const resourceUri = (activeEditor && EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }))
+					?? accessor.get(IWorkspaceContextService).getWorkspace().folders[0].uri;
 				const clipboardService = accessor.get(IClipboardService);
 				const dialogService = accessor.get(IDialogService);
 				const urlService = accessor.get(IOpenerService);
+				const progressService = accessor.get(IProgressService);
+				const selection = accessor.get(ICodeEditorService).getActiveCodeEditor()?.getSelection() ?? undefined;
 
-				const uri = await shareService.provideShare({ resourceUri }, new CancellationTokenSource().token);
-				if (uri) {
-					const uriText = uri.toString();
+				const result = await progressService.withProgress({
+					location: ProgressLocation.Window,
+					detail: localize('generating link', 'Generating link...')
+				}, async () => shareService.provideShare({ resourceUri, selection }, new CancellationTokenSource().token));
+
+				if (result) {
+					const uriText = result.toString();
+					const isResultText = typeof result === 'string';
 					await clipboardService.writeText(uriText);
+
 					dialogService.prompt(
 						{
 							type: Severity.Info,
-							message: localize('shareSuccess', 'Copied link to clipboard!'),
+							message: isResultText ? localize('shareTextSuccess', 'Copied text to clipboard!') : localize('shareSuccess', 'Copied link to clipboard!'),
 							custom: {
 								icon: Codicon.check,
 								markdownDetails: [{
 									markdown: new MarkdownString(`<div aria-label='${uriText}'>${uriText}</div>`, { supportHtml: true }),
-									classes: ['share-dialog-input']
+									classes: [isResultText ? 'share-dialog-input-text' : 'share-dialog-input-link']
 								}]
 							},
 							cancelButton: localize('close', 'Close'),
-							buttons: [{ label: localize('open link', 'Open Link'), run: () => { urlService.open(uri, { openExternal: true }); } }]
+							buttons: isResultText ? [] : [{ label: localize('open link', 'Open Link'), run: () => { urlService.open(result, { openExternal: true }); } }]
 						}
 					);
 				}
