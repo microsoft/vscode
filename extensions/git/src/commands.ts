@@ -3469,10 +3469,10 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.parentRepositories.keys())
+		const repositoriesQuickPickItems: QuickPickItem[] = this.model.parentRepositories
 			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
 
-		const items = this.model.parentRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+		const items = this.model.parentRepositories.length === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
 
 		const repositoryItem = await window.showQuickPick(items, { title, placeHolder });
@@ -3482,7 +3482,7 @@ export class CommandCenter {
 
 		if (repositoryItem === allRepositoriesQuickPickItem) {
 			// All Repositories
-			parentRepositories.push(...this.model.parentRepositories.keys());
+			parentRepositories.push(...this.model.parentRepositories);
 		} else {
 			// One Repository
 			parentRepositories.push((repositoryItem as RepositoryItem).path);

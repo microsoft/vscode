@@ -68,16 +68,6 @@ class UnsafeRepositoryMap extends RepositoryMap<string> {
 	}
 }
 
-/**
- * Key   - normalized path used in user interface
- * Value - value indicating whether the repository should be opened
- */
-class ParentRepositoryMap extends RepositoryMap {
-	updateContextKey(): void {
-		commands.executeCommand('setContext', 'git.parentRepositoryCount', this.size);
-	}
-}
-
 export interface ModelChangeEvent {
 	repository: Repository;
 	uri: Uri;
@@ -125,6 +115,47 @@ class ClosedRepositoriesManager {
 	private onDidChangeRepositories(): void {
 		this.workspaceState.update('closedRepositories', [...this._repositories.values()]);
 		commands.executeCommand('setContext', 'git.closedRepositoryCount', this._repositories.size);
+	}
+}
+
+class ParentRepositoriesManager {
+
+	/**
+	 * Key   - normalized path used in user interface
+	 * Value - value indicating whether the repository should be opened
+	 */
+	private _repositories = new Set<string>;
+	get repositories(): string[] {
+		return [...this._repositories.values()];
+	}
+
+	constructor(private readonly globalState: Memento) { }
+
+	addRepository(repository: string): void {
+		this._repositories.add(repository);
+		this.onDidChangeRepositories();
+	}
+
+	deleteRepository(repository: string): boolean {
+		const result = this._repositories.delete(repository);
+		if (result) {
+			this.onDidChangeRepositories();
+		}
+
+		return result;
+	}
+
+	hasRepository(repository: string): boolean {
+		return this._repositories.has(repository);
+	}
+
+	openRepository(repository: string): void {
+		this.globalState.update(`parentRepository:${repository}`, true);
+		this.deleteRepository(repository);
+	}
+
+	private onDidChangeRepositories(): void {
+		commands.executeCommand('setContext', 'git.parentRepositoryCount', this._repositories.size);
 	}
 }
 
@@ -200,9 +231,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return this._unsafeRepositories;
 	}
 
-	private _parentRepositories = new ParentRepositoryMap();
-	get parentRepositories(): ParentRepositoryMap {
-		return this._parentRepositories;
+	private _parentRepositoriesManager: ParentRepositoriesManager;
+	get parentRepositories(): string[] {
+		return this._parentRepositoriesManager.repositories;
 	}
 
 	private _closedRepositoriesManager: ClosedRepositoriesManager;
@@ -225,6 +256,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, readonly workspaceState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
 		// Repositories managers
 		this._closedRepositoriesManager = new ClosedRepositoriesManager(workspaceState);
+		this._parentRepositoriesManager = new ParentRepositoriesManager(globalState);
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
@@ -260,7 +292,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			await initialScanFn();
 		}
 
-		if (this._parentRepositories.size !== 0 &&
+		if (this.parentRepositories.length !== 0 &&
 			parentRepositoryConfig === 'prompt') {
 			// Parent repositories notification
 			this.showParentRepositoryNotification();
@@ -497,13 +529,13 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 				if (isRepositoryOutsideWorkspace) {
 					this.logger.trace(`Repository in parent folder: ${repositoryRoot}`);
 
-					if (!this._parentRepositories.has(repositoryRoot)) {
+					if (!this._parentRepositoriesManager.hasRepository(repositoryRoot)) {
 						// Show a notification if the parent repository is opened after the initial scan
 						if (this.state === 'initialized' && parentRepositoryConfig === 'prompt') {
 							this.showParentRepositoryNotification();
 						}
 
-						this._parentRepositories.set(repositoryRoot);
+						this._parentRepositoriesManager.addRepository(repositoryRoot);
 					}
 
 					return;
@@ -547,11 +579,8 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	async openParentRepository(repoPath: string): Promise<void> {
-		// Mark the repository to be opened from the parent folders
-		this.globalState.update(`parentRepository:${repoPath}`, true);
-
 		await this.openRepository(repoPath);
-		this.parentRepositories.delete(repoPath);
+		this._parentRepositoriesManager.openRepository(repoPath);
 	}
 
 	private async getRepositoryRoot(repoPath: string): Promise<{ repositoryRoot: string; unsafeRepositoryMatch: RegExpMatchArray | null }> {
@@ -907,7 +936,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	private async showParentRepositoryNotification(): Promise<void> {
-		const message = this.parentRepositories.size === 1 ?
+		const message = this.parentRepositories.length === 1 ?
 			l10n.t('A git repository was found in the parent folders of the workspace or the open file(s). Would you like to open the repository?') :
 			l10n.t('Git repositories were found in the parent folders of the workspace or the open file(s). Would you like to open the repositories?');
 
@@ -925,7 +954,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			await config.update('openRepositoryInParentFolders', choice === always ? 'always' : 'never', true);
 
 			if (choice === always) {
-				for (const parentRepository of [...this.parentRepositories.keys()]) {
+				for (const parentRepository of this.parentRepositories) {
 					await this.openParentRepository(parentRepository);
 				}
 			}
