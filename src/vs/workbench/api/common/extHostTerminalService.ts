@@ -816,15 +816,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	private _getTerminalObjectIndexById<T extends ExtHostTerminal>(array: T[], id: ExtHostTerminalIdentifier): number | null {
-		let index: number | null = null;
-		array.some((item, i) => {
-			const thisId = item._id;
-			if (thisId === id) {
-				index = i;
-				return true;
-			}
-			return false;
+		const index = array.findIndex(item => {
+			return item._id === id;
 		});
+		if (index === -1) {
+			return null;
+		}
 		return index;
 	}
 
