@@ -301,7 +301,7 @@ export class LiveStrategy extends EditModeStrategy {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
-				last = !last || last.isBefore(edit.range.getStartPosition()) ? edit.range.getStartPosition() : last;
+				last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
 				this._inlineDiffDecorations.collectEditOperation(edit);
 			}
 			return last && [Selection.fromPositions(last)];

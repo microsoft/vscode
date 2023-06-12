@@ -430,7 +430,7 @@ export class InlineChatWidget {
 
 	set value(value: string) {
 		this._inputModel.setValue(value);
-		this._inputEditor.setPosition(this._inputModel.getFullModelRange().getStartPosition());
+		this._inputEditor.setPosition(this._inputModel.getFullModelRange().getEndPosition());
 	}
 
 	selectAll() {

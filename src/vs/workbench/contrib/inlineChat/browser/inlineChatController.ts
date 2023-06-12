@@ -197,7 +197,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._activeSession);
 		const selectionRange = this._activeSession.wholeRange.value;
 		const widgetPosition = this._strategy?.getWidgetPosition(initialRender, selectionRange, hasEditResponse);
-		this._zone.value.show(widgetPosition ?? selectionRange.getStartPosition());
+		this._zone.value.show(widgetPosition ?? selectionRange.getEndPosition());
 	}
 
 	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
