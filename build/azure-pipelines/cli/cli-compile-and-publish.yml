@@ -8,6 +8,7 @@ parameters:
     default: {}
   - name: VSCODE_CHECK_ONLY
     type: boolean
+    default: false
 
 steps:
   - ${{ if parameters.VSCODE_CHECK_ONLY }}:

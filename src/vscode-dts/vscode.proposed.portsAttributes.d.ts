@@ -72,8 +72,9 @@ declare module 'vscode' {
 	export interface PortAttributesSelector {
 		/**
 		 * Specifying a port range will cause your provider to only be called for ports within the range.
+		 * The start is inclusive and the end is exclusive.
 		 */
-		portRange?: [number, number];
+		portRange?: [number, number] | number;
 
 		/**
 		 * Specifying a command pattern will cause your provider to only be called for processes whose command line matches the pattern.

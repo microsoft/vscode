@@ -115,13 +115,13 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			const cleanUNCPrefix = (value: string): string => {
 				if (value.indexOf('\\\\?\\') === 0) {
-					return value.substr(4);
+					return value.substring(4);
 				} else if (value.indexOf('\\??\\') === 0) {
-					return value.substr(4);
+					return value.substring(4);
 				} else if (value.indexOf('"\\\\?\\') === 0) {
-					return '"' + value.substr(5);
+					return '"' + value.substring(5);
 				} else if (value.indexOf('"\\??\\') === 0) {
-					return '"' + value.substr(5);
+					return '"' + value.substring(5);
 				} else {
 					return value;
 				}
@@ -169,10 +169,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							reject(new Error(`Root process ${rootPid} not found`));
 						}
 					});
-				},
-					// Workaround duplicate enum identifiers issue in @vscode/windows-process-tree
-					// Ref https://github.com/microsoft/vscode/pull/179508
-					(windowsProcessTree.ProcessDataFlag as any).CommandLine | (windowsProcessTree.ProcessDataFlag as any).Memory);
+				}, windowsProcessTree.ProcessDataFlag.CommandLine | windowsProcessTree.ProcessDataFlag.Memory);
 			});
 		} else {	// OS X & Linux
 			function calculateLinuxCpuUsage() {

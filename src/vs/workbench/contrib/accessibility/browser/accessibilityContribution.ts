@@ -9,7 +9,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -70,7 +69,7 @@ function registerCommand<T extends Command>(command: T): T {
 
 export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 	id: 'editor.action.accessibilityHelp',
-	precondition: EditorContextKeys.focus.negate(),
+	precondition: undefined,
 	kbOpts: {
 		primary: KeyMod.Alt | KeyCode.F1,
 		weight: KeybindingWeight.WorkbenchContrib,

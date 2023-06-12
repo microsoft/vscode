@@ -518,6 +518,8 @@ export interface TransferQuickPickItem {
 	// shared properties from IQuickPickItem
 	type?: 'item';
 	label: string;
+	iconPath?: { light?: URI; dark: URI };
+	iconClass?: string;
 	description?: string;
 	detail?: string;
 	picked?: boolean;
@@ -1424,7 +1426,7 @@ export enum CandidatePortSource {
 }
 
 export interface PortAttributesSelector {
-	portRange?: [number, number];
+	portRange?: [number, number] | number;
 	commandPattern?: RegExp;
 }
 

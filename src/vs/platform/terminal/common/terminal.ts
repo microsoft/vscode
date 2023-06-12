@@ -707,7 +707,7 @@ export interface ITerminalChildProcess {
 	input(data: string): void;
 	processBinary(data: string): Promise<void>;
 	resize(cols: number, rows: number): void;
-	clearBuffer?(): Promise<void>;
+	clearBuffer(): void | Promise<void>;
 
 	/**
 	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow

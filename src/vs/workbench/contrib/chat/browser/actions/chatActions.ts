@@ -108,7 +108,7 @@ export function registerChatActions() {
 					return;
 				}
 				runAccessibilityHelpAction(accessor, codeEditor, 'chat');
-			}, EditorContextKeys.textInputFocus));
+			}, CONTEXT_IN_CHAT_INPUT));
 		}
 	}
 	registerEditorContribution(ChatAccessibilityHelpContribution.ID, ChatAccessibilityHelpContribution, EditorContributionInstantiation.AfterFirstRender);
