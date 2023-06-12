@@ -101,10 +101,10 @@
   dependencies:
     node-addon-api "^3.0.2"
 
-"@vscode/windows-process-tree@0.4.2":
-  version "0.4.2"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.4.2.tgz#54d010fdeb06dfe3a9c6d58fcb3ed9acfc962f33"
-  integrity sha512-b20865s1HG1VtGt887KrB1blwFS6p4L1Fl1o/WplO9j7sGBle8sLqkNnGXbCaRNgdIgfXtitmzG366FVynJZdQ==
+"@vscode/windows-process-tree@^0.5.0":
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.5.0.tgz#b8205b862c75a1e0ad8b7bf4350dc85036ee3a2c"
+  integrity sha512-y8Oliel/rBSYh9f1T4F0zQjJNPeJRgYRhEKZsjas7JXKLf46FpE3Ux8e9+7HelUD8dXFH7C7N6895nU0WhrMlg==
   dependencies:
     nan "^2.17.0"
 
