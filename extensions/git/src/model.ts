@@ -34,40 +34,6 @@ class RepositoryPick implements QuickPickItem {
 	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
-abstract class RepositoryMap<T = void> extends Map<string, T> {
-	constructor() {
-		super();
-		this.updateContextKey();
-	}
-
-	override set(key: string, value: T): this {
-		const result = super.set(key, value);
-		this.updateContextKey();
-
-		return result;
-	}
-
-	override delete(key: string): boolean {
-		const result = super.delete(key);
-		this.updateContextKey();
-
-		return result;
-	}
-
-	abstract updateContextKey(): void;
-}
-
-/**
- * Key   - normalized path used in user interface
- * Value - path extracted from the output of the `git status` command
- *         used when calling `git config --global --add safe.directory`
- */
-class UnsafeRepositoryMap extends RepositoryMap<string> {
-	updateContextKey(): void {
-		commands.executeCommand('setContext', 'git.unsafeRepositoryCount', this.size);
-	}
-}
-
 export interface ModelChangeEvent {
 	repository: Repository;
 	uri: Uri;
@@ -159,6 +125,45 @@ class ParentRepositoriesManager {
 	}
 }
 
+class UnsafeRepositoriesManager {
+
+	/**
+	 * Key   - normalized path used in user interface
+	 * Value - path extracted from the output of the `git status` command
+	 *         used when calling `git config --global --add safe.directory`
+	 */
+	private _repositories = new Map<string, string>();
+	get repositories(): string[] {
+		return [...this._repositories.keys()];
+	}
+
+	addRepository(repository: string, path: string): void {
+		this._repositories.set(repository, path);
+		this.onDidChangeRepositories();
+	}
+
+	deleteRepository(repository: string): boolean {
+		const result = this._repositories.delete(repository);
+		if (result) {
+			this.onDidChangeRepositories();
+		}
+
+		return result;
+	}
+
+	getRepositoryPath(repository: string): string | undefined {
+		return this._repositories.get(repository);
+	}
+
+	hasRepository(repository: string): boolean {
+		return this._repositories.has(repository);
+	}
+
+	private onDidChangeRepositories(): void {
+		commands.executeCommand('setContext', 'git.unsafeRepositoryCount', this._repositories.size);
+	}
+}
+
 export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
@@ -226,9 +231,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
-	private _unsafeRepositories = new UnsafeRepositoryMap();
-	get unsafeRepositories(): UnsafeRepositoryMap {
-		return this._unsafeRepositories;
+	private _unsafeRepositoriesManager: UnsafeRepositoriesManager;
+	get unsafeRepositories(): string[] {
+		return this._unsafeRepositoriesManager.repositories;
 	}
 
 	private _parentRepositoriesManager: ParentRepositoriesManager;
@@ -257,6 +262,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		// Repositories managers
 		this._closedRepositoriesManager = new ClosedRepositoriesManager(workspaceState);
 		this._parentRepositoriesManager = new ParentRepositoriesManager(globalState);
+		this._unsafeRepositoriesManager = new UnsafeRepositoriesManager();
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
@@ -296,7 +302,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			parentRepositoryConfig === 'prompt') {
 			// Parent repositories notification
 			this.showParentRepositoryNotification();
-		} else if (this._unsafeRepositories.size !== 0) {
+		} else if (this.unsafeRepositories.length !== 0) {
 			// Unsafe repositories notification
 			this.showUnsafeRepositoryNotification();
 		}
@@ -547,11 +553,11 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 				this.logger.trace(`Unsafe repository: ${repositoryRoot}`);
 
 				// Show a notification if the unsafe repository is opened after the initial scan
-				if (this._state === 'initialized' && !this._unsafeRepositories.has(repositoryRoot)) {
+				if (this._state === 'initialized' && !this._unsafeRepositoriesManager.hasRepository(repositoryRoot)) {
 					this.showUnsafeRepositoryNotification();
 				}
 
-				this._unsafeRepositories.set(repositoryRoot, unsafeRepositoryMatch[2]);
+				this._unsafeRepositoriesManager.addRepository(repositoryRoot, unsafeRepositoryMatch[2]);
 
 				return;
 			}
@@ -903,6 +909,14 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return [...this.pushErrorHandlers];
 	}
 
+	getUnsafeRepositoryPath(repository: string): string | undefined {
+		return this._unsafeRepositoriesManager.getRepositoryPath(repository);
+	}
+
+	deleteUnsafeRepository(repository: string): boolean {
+		return this._unsafeRepositoriesManager.deleteRepository(repository);
+	}
+
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
 		const workspaceFolders = (workspace.workspaceFolders || [])
 			.filter(folder => folder.uri.scheme === 'file');
@@ -969,7 +983,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			return;
 		}
 
-		const message = this._unsafeRepositories.size === 1 ?
+		const message = this.unsafeRepositories.length === 1 ?
 			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
 			l10n.t('The git repositories in the current folder are potentially unsafe as the folders are owned by someone other than the current user.');
 
