@@ -108,7 +108,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 
 		const res = await this.dialogService.confirm({
 			message: localize('troubleshoot issue', "Troubleshoot Issue"),
-			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify if the issue is with {0} or caused by an extension.\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing problems.", this.productService.nameShort),
+			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify if the issue is with {0} or caused by an extension.\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing problems.", this.productService.nameLong),
 			primaryButton: localize({ key: 'msg', comment: ['&& denotes a mnemonic'] }, "&&Troubleshoot Issue"),
 			custom: true
 		});
@@ -159,7 +159,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	}
 
 	private async reproduceIssueWithExtensionsDisabled(): Promise<void> {
-		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temprarily disabled all extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temprarily disabled all installed extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'good') {
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.state!.profile) ?? this.userDataProfilesService.defaultProfile;
 			await this.reproduceIssueWithExtensionsBisect(profile);
@@ -180,10 +180,10 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 			await this.stop();
 		}
 		if (result === 'good') {
-			await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting is done and has identified that the issue is caused by your settings. Please report the issue by sharing your settings."));
+			await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting has identified that the issue is caused by your settings. Please report the issue by sharing your settings."));
 		}
 		if (result === 'bad') {
-			await this.askToReportIssue(localize('issue is in core', "Issue troubleshooting is done and has identified that the issue is with {0}.", this.productService.nameShort));
+			await this.askToReportIssue(localize('issue is in core', "Issue troubleshooting has identified that the issue is with {0}.", this.productService.nameLong));
 		}
 	}
 
@@ -217,45 +217,45 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 		});
 	}
 
-	private async askToReportIssue(detail: string): Promise<void> {
-		const isStable = this.productService.quality === 'stable';
-		if (isStable) {
+	private async askToReportIssue(message: string): Promise<void> {
+		let isCheckedInInsiders = false;
+		if (this.productService.quality === 'stable') {
 			const res = await this.askToReproduceIssueWithInsiders();
-			if (res === undefined) {
-				return this.reportIssue(false);
-			}
-			if (res) {
+			if (res === 'good') {
 				await this.dialogService.prompt({
 					type: Severity.Info,
 					message: localize('troubleshoot issue', "Troubleshoot Issue"),
-					detail: localize('use insiders', "This likely means that the issue has been addressed already and will be available in an upcoming release. You can safely use {0} insiders until the new stable version is available.", this.productService.nameShort),
+					detail: localize('use insiders', "This likely means that the issue has been addressed already and will be available in an upcoming release. You can safely use {0} insiders until the new stable version is available.", this.productService.nameLong),
 					custom: true
 				});
 				return;
 			}
+			if (res === 'stop') {
+				await this.stop();
+				return;
+			}
+			if (res === 'bad') {
+				isCheckedInInsiders = true;
+			}
 		}
-		const res = await this.dialogService.confirm({
-			type: Severity.Info,
-			message: localize('troubleshoot issue', "Troubleshoot Issue"),
-			primaryButton: localize({ key: 'report', comment: ['&& denotes a mnemonic'] }, "&&Report Issue & Continue"),
-			cancelButton: localize('continue', "Continue"),
-			detail,
-			custom: true
+
+		await this.issueService.openReporter({
+			issueBody: `> ${message} ${isCheckedInInsiders ? `It is confirmed that the issue exists in ${this.productService.nameLong} Insiders` : ''}`,
 		});
-		if (res.confirmed) {
-			await this.reportIssue(isStable);
-		}
 	}
 
-	private async askToReproduceIssueWithInsiders(): Promise<boolean | undefined> {
+	private async askToReproduceIssueWithInsiders(): Promise<TroubleShootResult | undefined> {
 		const confirmRes = await this.dialogService.confirm({
 			type: 'info',
 			message: localize('troubleshoot issue', "Troubleshoot Issue"),
-			primaryButton: localize('download insiders', "Download {0} Insiders", this.productService.nameShort),
+			primaryButton: localize('download insiders', "Download {0} Insiders", this.productService.nameLong),
 			cancelButton: localize('report anyway', "Report Issue Anyway"),
-			detail: localize('ask to download insiders', "Please try to download and reproduce the issue in {0} insiders.", this.productService.nameShort),
-			custom: true
+			detail: localize('ask to download insiders', "Please try to download and reproduce the issue in {0} insiders.", this.productService.nameLong),
+			custom: {
+				disableCloseAction: true,
+			}
 		});
+
 		if (!confirmRes.confirmed) {
 			return undefined;
 		}
@@ -265,22 +265,27 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 			return undefined;
 		}
 
-		const res = await this.dialogService.confirm({
+		const res = await this.dialogService.prompt<TroubleShootResult>({
 			type: 'info',
 			message: localize('troubleshoot issue', "Troubleshoot Issue"),
-			primaryButton: localize('good', "I can't reproduce"),
-			cancelButton: localize('bad', "I can reproduce"),
-			detail: localize('ask to reproduce issue', "Please try to reproduce the issue in {0} insiders and confirm if the issue exists there.", this.productService.nameShort),
-			custom: true
+			buttons: [{
+				label: localize('good', "I can't reproduce"),
+				run: () => 'good'
+			}, {
+				label: localize('bad', "I can reproduce"),
+				run: () => 'bad'
+			}],
+			cancelButton: {
+				label: localize('stop', "Stop"),
+				run: () => 'stop'
+			},
+			detail: localize('ask to reproduce issue', "Please try to reproduce the issue in {0} insiders and confirm if the issue exists there.", this.productService.nameLong),
+			custom: {
+				disableCloseAction: true,
+			}
 		});
 
-		return !!res.confirmed;
-	}
-
-	private reportIssue(checkedInInsiders: boolean): Promise<void> {
-		return this.issueService.openReporter({
-			issueBody: `> This issue is reported using the **Troubleshoot Issue** feature. ${checkedInInsiders ? localize('confirmed in insiders', "It is confirmed that the issue exists in Insiders.") : ''}`,
-		});
+		return res.result;
 	}
 
 	private _state: TroubleShootState | undefined | null;
