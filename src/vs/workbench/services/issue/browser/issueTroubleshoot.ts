@@ -25,6 +25,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { URI } from 'vs/base/common/uri';
 
 const ITroubleshootIssueService = createDecorator<ITroubleshootIssueService>('ITroubleshootIssueService');
 
@@ -90,6 +92,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 		@IProductService private readonly productService: IProductService,
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 	}
@@ -106,7 +109,8 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 		const res = await this.dialogService.confirm({
 			message: localize('troubleshoot issue', "Troubleshoot Issue"),
 			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify if the issue is with {0} or caused by an extension.\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing problems.", this.productService.nameShort),
-			primaryButton: localize({ key: 'msg', comment: ['&& denotes a mnemonic'] }, "&&Troubleshoot Issue")
+			primaryButton: localize({ key: 'msg', comment: ['&& denotes a mnemonic'] }, "&&Troubleshoot Issue"),
+			custom: true
 		});
 
 		if (!res.confirmed) {
@@ -155,7 +159,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	}
 
 	private async reproduceIssueWithExtensionsDisabled(): Promise<void> {
-		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has disabled all extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temprarily disabled all extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'good') {
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.state!.profile) ?? this.userDataProfilesService.defaultProfile;
 			await this.reproduceIssueWithExtensionsBisect(profile);
@@ -171,15 +175,15 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	private async reproduceIssueWithEmptyProfile(): Promise<void> {
 		await this.userDataProfileManagementService.createAndEnterTransientProfile();
 		this.updateState(this.state);
-		const result = await this.askToReproduceIssue(localize('empty.profile', "Issue troubleshooting is active and has reset your settings to defaults. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		const result = await this.askToReproduceIssue(localize('empty.profile', "Issue troubleshooting is active and has temporarily reset your settings to defaults. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		if (result === 'stop') {
+			await this.stop();
+		}
 		if (result === 'good') {
 			await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting is done and has identified that the issue is caused by your settings. Please report the issue by sharing your settings."));
 		}
 		if (result === 'bad') {
 			await this.askToReportIssue(localize('issue is in core', "Issue troubleshooting is done and has identified that the issue is with {0}.", this.productService.nameShort));
-		}
-		if (result === 'stop') {
-			await this.stop();
 		}
 	}
 
@@ -193,11 +197,11 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	private askToReproduceIssue(message: string): Promise<TroubleShootResult> {
 		return new Promise((c, e) => {
 			const goodPrompt: IPromptChoice = {
-				label: localize('Good Now', "Good Now"),
+				label: localize('I cannot reproduce', "I can't reproduce"),
 				run: () => c('good')
 			};
 			const badPrompt: IPromptChoice = {
-				label: localize('This is Bad', "This is Bad"),
+				label: localize('This is Bad', "I can reproduce"),
 				run: () => c('bad')
 			};
 			const stop: IPromptChoice = {
@@ -214,16 +218,69 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	}
 
 	private async askToReportIssue(detail: string): Promise<void> {
+		const isStable = this.productService.quality !== 'stable';
+		if (isStable) {
+			const res = await this.askToReproduceIssueWithInsiders();
+			if (res === undefined) {
+				return this.reportIssue(false);
+			}
+			if (res) {
+				await this.dialogService.prompt({
+					type: Severity.Info,
+					message: localize('troubleshoot issue', "Troubleshoot Issue"),
+					detail: localize('use insiders', "This likely means that the issue has been addressed already and will be available in an upcoming release. You can safely use {0} insiders until the new stable version is available.", this.productService.nameShort),
+					custom: true
+				});
+				return;
+			}
+		}
 		const res = await this.dialogService.confirm({
 			type: Severity.Info,
 			message: localize('troubleshoot issue', "Troubleshoot Issue"),
 			primaryButton: localize({ key: 'report', comment: ['&& denotes a mnemonic'] }, "&&Report Issue & Continue"),
 			cancelButton: localize('continue', "Continue"),
 			detail,
+			custom: true
 		});
 		if (res.confirmed) {
-			return await this.issueService.openReporter();
+			await this.reportIssue(isStable);
 		}
+	}
+
+	private async askToReproduceIssueWithInsiders(): Promise<boolean | undefined> {
+		const confirmRes = await this.dialogService.confirm({
+			type: 'info',
+			message: localize('troubleshoot issue', "Troubleshoot Issue"),
+			primaryButton: localize('download insiders', "Download {0} Insiders", this.productService.nameShort),
+			cancelButton: localize('report anyway', "Report Issue Anyway"),
+			detail: localize('ask to download insiders', "Please try to download and reproduce the issue in {0} insiders.", this.productService.nameShort),
+			custom: true
+		});
+		if (!confirmRes.confirmed) {
+			return undefined;
+		}
+
+		const opened = await this.openerService.open(URI.parse('https://aka.ms/vscode-insiders'));
+		if (!opened) {
+			return undefined;
+		}
+
+		const res = await this.dialogService.confirm({
+			type: 'info',
+			message: localize('troubleshoot issue', "Troubleshoot Issue"),
+			primaryButton: localize('good', "I can't reproduce"),
+			cancelButton: localize('bad', "I can reproduce"),
+			detail: localize('ask to reproduce issue', "Please try to reproduce the issue in {0} insiders and confirm if the issue exists there.", this.productService.nameShort),
+			custom: true
+		});
+
+		return !!res.confirmed;
+	}
+
+	private reportIssue(checkedInInsiders: boolean): Promise<void> {
+		return this.issueService.openReporter({
+			issueBody: `> This issue is reported using the **Troubleshoot Issue** feature. ${checkedInInsiders ? localize('confirmed in insiders', "It is confirmed that the issue exists in Insiders.") : ''}`,
+		});
 	}
 
 	private _state: TroubleShootState | undefined | null;
