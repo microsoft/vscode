@@ -6,15 +6,15 @@
 import * as es from 'event-stream';
 import fetch, { RequestInit } from 'node-fetch';
 import * as VinylFile from 'vinyl';
-import * as through2 from 'through2';
 import * as log from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
+import * as crypto from 'crypto';
 
 export interface IOptions {
 	base?: string;
-	buffer?: boolean;
 	fetchOptions?: RequestInit;
 	verbose?: boolean;
+	checksumSha256?: string;
 }
 
 export function remote(urls: string[] | string, options: IOptions): es.ThroughStream {
@@ -24,10 +24,6 @@ export function remote(urls: string[] | string, options: IOptions): es.ThroughSt
 
 	if (typeof options.base !== 'string' && options.base !== null) {
 		options.base = '/';
-	}
-
-	if (typeof options.buffer !== 'boolean') {
-		options.buffer = true;
 	}
 
 	if (!Array.isArray(urls)) {
@@ -62,9 +58,15 @@ async function fetchWithRetry(url: string, options: IOptions, retries = 10, retr
 				log(`Fetch completed: Status ${response.status}. Took ${ansiColors.magenta(`${new Date().getTime() - startTime} ms`)}`);
 			}
 			if (response.ok && (response.status >= 200 && response.status < 300)) {
-				// request must be piped out once created, or we'll get this error: "You cannot pipe after data has been emitted from the response."
-				const contents = options.buffer ? await response.buffer() : response.body.pipe(through2());
-				if (options.buffer && options.verbose) {
+				const contents = await response.buffer();
+				if (options.checksumSha256) {
+					const hash = crypto.createHash('sha256');
+					hash.update(contents);
+					if (hash.digest('hex') !== options.checksumSha256) {
+						throw new Error(`Checksum mismatch for ${url}`);
+					}
+				}
+				if (options.verbose) {
 					log(`Fetched response body buffer: ${ansiColors.magenta(`${(contents as Buffer).byteLength} bytes`)}`);
 				}
 				return new VinylFile({
@@ -89,7 +91,3 @@ async function fetchWithRetry(url: string, options: IOptions, retries = 10, retr
 		throw e;
 	}
 }
-
-
-
-

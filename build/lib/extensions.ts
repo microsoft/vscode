@@ -231,6 +231,7 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 	fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
 	const options: IRemoteSrcOptions = {
+		verbose: true,
 		base: url,
 		fetchOptions: {
 			headers: baseHeaders

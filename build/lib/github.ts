@@ -29,6 +29,7 @@ const ghDownloadHeaders = {
 export function assetFromGithub(repo: string, version: string, assetFilter: (name: string) => boolean): Stream {
 	return remote(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${version}`, {
 		base: 'https://api.github.com',
+		verbose: true,
 		fetchOptions: { headers: ghApiHeaders }
 	}).pipe(through2.obj(async function (file, _enc, callback) {
 		const asset = JSON.parse(file.contents.toString()).assets.find((a: { name: string }) => assetFilter(a.name));
