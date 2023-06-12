@@ -802,8 +802,8 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		const visibleRange = viewModel.getCompletelyVisibleViewRange();
 		const startLineVisibleRange = visibleRange.startLineNumber;
 		const positionLine = position.lineNumber;
-		let indentationLineNumber;
-		let indentationLevel;
+		let indentationLineNumber: number | undefined;
+		let indentationLevel: number | undefined;
 		for (let lineNumber = positionLine; lineNumber >= startLineVisibleRange; lineNumber--) {
 			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
 			if (currentIndentationLevel !== 0) {
