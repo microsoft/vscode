@@ -720,7 +720,10 @@ export class InlineChatController implements IEditorContribution {
 		}
 
 		const changedText = this._activeSession.asChangedText();
+		if (changedText && this._activeSession?.lastExchange?.response instanceof EditResponse) {
+			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Undone);
 
+		}
 		this._messages.fire(Message.CANCEL_SESSION);
 		return changedText;
 	}
