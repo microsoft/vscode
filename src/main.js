@@ -28,7 +28,12 @@ const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
 
 // Enable sandbox globally
-app.enableSandbox();
+const args = parseCLIArgs();
+// When --no-sandbox is passes as argument, sandbox will be
+// set to false via https://github.com/minimistjs/minimist/blob/fdbb909cf916b3bac9f76f6ee72c64e05b73c2d9/index.js#L169-L172
+if (args['sandbox']) {
+	app.enableSandbox();
+}
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -37,7 +42,6 @@ const portable = bootstrapNode.configurePortable(product);
 bootstrap.enableASARSupport();
 
 // Set userData path before app 'ready' event
-const args = parseCLIArgs();
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 if (process.platform === 'win32') {
 	const userDataUNCHost = getUNCHost(userDataPath);
@@ -464,7 +468,13 @@ function parseCLIArgs() {
 			'locale',
 			'js-flags',
 			'crash-reporter-directory'
-		]
+		],
+		default: {
+			'sandbox': true
+		},
+		alias: {
+			'no-sandbox': 'sandbox'
+		}
 	});
 }
 
