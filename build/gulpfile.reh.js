@@ -143,7 +143,7 @@ function getNodeChecksum(nodeVersion, platform, arch) {
 			break;
 
 		case 'alpine':
-			expectedName = `${platform}-${arch}-node`;
+			expectedName = `${platform}-${arch}/node`;
 			break;
 	}
 
@@ -191,7 +191,7 @@ function nodejs(platform, arch) {
 		arch = 'armv7l';
 	} else if (arch === 'alpine') {
 		platform = 'alpine';
-		arch = 'armv7l';
+		arch = 'x64';
 	}
 
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejs.repository}...`);
