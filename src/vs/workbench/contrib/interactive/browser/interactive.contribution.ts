@@ -19,7 +19,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground */ } from 'vs/editor/contrib/peekView/browser/peekView';
+import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
@@ -28,7 +28,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -41,7 +40,6 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-// import { Color } from 'vs/base/common/color';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
@@ -83,9 +81,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 	constructor(
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService,
-		@ILogService logService: ILogService
+		@IEditorService editorService: IEditorService
 	) {
 		super();
 
@@ -252,8 +248,7 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 		return JSON.stringify({
 			resource: input.primary.resource,
 			inputResource: input.inputResource,
-			name: input.getName(),
-			data: input.getSerialization()
+			name: input.getName()
 		});
 	}
 
@@ -272,7 +267,6 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 		}
 
 		const input = InteractiveEditorInput.create(instantiationService, resource, inputResource);
-		input.restoreSerialization(data.data);
 		return input;
 	}
 }
