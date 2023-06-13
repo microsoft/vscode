@@ -399,6 +399,18 @@ export class SuggestController implements IEditorContribution {
 				return true;
 			}).then(applied => {
 				this._logService.trace('[suggest] async resolving of edits DONE (ms, applied?)', sw.elapsed(), applied);
+				type AsyncSuggestEdits = { providerId: string; applied: boolean };
+				type AsyncSuggestEditsClassification = {
+					owner: 'jrieken';
+					comment: 'Information about async additional text edits';
+					providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
+					applied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If async additional text edits could be applied' };
+				};
+				this._telemetryService.publicLog2<AsyncSuggestEdits, AsyncSuggestEditsClassification>('suggest.asyncAdditionalEdits', {
+					providerId: item.extensionId?.value ?? 'unknown',
+					applied
+				});
+			}).finally(() => {
 				docListener.dispose();
 				typeListener.dispose();
 			}));
