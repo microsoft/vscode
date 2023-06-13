@@ -43,7 +43,7 @@ import { IEditor, IEditorContribution, ScrollType } from 'vs/editor/common/edito
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { IPeekViewService, PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
+import { IPeekViewService, PeekViewWidget, peekViewResultsBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -64,9 +64,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IDetachedXtermTerminal, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
@@ -720,11 +722,12 @@ class TestResultsViewContent extends Disposable {
 		this.splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
 
 		const { historyVisible, showRevealLocationOnMessages } = this.options;
+		const isInPeekView = this.editor !== undefined;
 		const messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
 		this.contentProviders = [
 			this._register(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
 			this._register(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),
-			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, messageContainer)),
+			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, messageContainer, isInPeekView)),
 		];
 
 		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
@@ -1145,33 +1148,55 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private dimensions?: dom.IDimension;
 
 	/** Active terminal instance. */
-	private readonly terminal = this._register(new MutableDisposable<IXtermTerminal>());
+	private readonly terminal = this._register(new MutableDisposable<IDetachedXtermTerminal>());
 	/** Listener for streaming result data */
 	private readonly outputDataListener = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly container: HTMLElement,
+		private readonly isInPeekView: boolean,
 		@ITestResultService private readonly resultService: ITestResultService,
 		@ITerminalService private readonly terminalService: ITerminalService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 	}
 
 	private async makeTerminal() {
-		if (this.terminal.value) {
-			this.terminal.value.clearBuffer();
-			this.terminal.value.clearSearchDecorations();
-			return this.terminal.value;
+		const prev = this.terminal.value;
+		if (prev) {
+			prev.clearBuffer();
+			prev.clearSearchDecorations();
+			// clearBuffer tries to retain the prompt line, but this doesn't exist for tests.
+			// So clear the screen (J) and move to home (H) to ensure previous data is cleaned up.
+			prev.write(`\x1b[2J\x1b[0;0H`);
+			return prev;
 		}
 
-		const terminal = this.terminal.value = await this.terminalService.createDetachedXterm({ rows: 10, cols: 80 });
-		terminal.setReadonly();
-		return terminal;
+		return this.terminal.value = await this.terminalService.createDetachedXterm({
+			rows: 10,
+			cols: 80,
+			readonly: true,
+			colorProvider: {
+				getBackgroundColor: theme => {
+					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+					if (terminalBackground) {
+						return terminalBackground;
+					}
+					if (this.isInPeekView) {
+						return theme.getColor(peekViewResultsBackground);
+					}
+					const location = this.viewDescriptorService.getViewLocationById(Testing.ResultsViewId);
+					return location === ViewContainerLocation.Panel
+						? theme.getColor(PANEL_BACKGROUND)
+						: theme.getColor(SIDE_BAR_BACKGROUND);
+				},
+			}
+		});
 	}
 
 	public async update(subject: InspectSubject) {
 		this.outputDataListener.clear();
-		this.terminal.value?.clearBuffer();
 
 		if (subject instanceof MessageSubject) {
 			const message = subject.messages[subject.messageIndex];
@@ -1208,11 +1233,11 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 		}
 	}
 
-	private writeNotice(terminal: IXtermTerminal, str: string) {
-		terminal.write(`\x1b[1m${str}\x1b[0m`);
+	private writeNotice(terminal: IDetachedXtermTerminal, str: string) {
+		terminal.write(`\x1b[2m${str}\x1b[0m`);
 	}
 
-	private attachTerminalToDom(terminal: IXtermTerminal) {
+	private attachTerminalToDom(terminal: IDetachedXtermTerminal) {
 		terminal.write('\x1b[?25l'); // hide cursor
 		requestAnimationFrame(() => this.layoutTerminal(terminal));
 		this.container.classList.add('xterm-detached-instance');
@@ -1232,7 +1257,7 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 
 	private layoutTerminal(
-		xterm: IXtermTerminal,
+		xterm: IDetachedXtermTerminal,
 		width = this.dimensions?.width ?? this.container.clientWidth,
 		height = this.dimensions?.height ?? this.container.clientHeight
 	) {

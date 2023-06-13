@@ -19,7 +19,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -111,7 +111,7 @@ function getFullBufferLineAsString(lineIndex: number, buffer: IBuffer): { lineDa
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
  * of the scope of this class.
  */
-export class XtermTerminal extends DisposableStore implements IXtermTerminal, IInternalXtermTerminal {
+export class XtermTerminal extends DisposableStore implements IXtermTerminal, IDetachedXtermTerminal, IInternalXtermTerminal {
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
 
@@ -126,7 +126,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
-	private _container?: HTMLElement;
+	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
 
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
@@ -179,7 +179,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		return createImageBitmap(canvas);
 	}
 
-	public isFocused = false;
+	public get isFocused() {
+		return !!this.raw.element?.contains(document.activeElement);
+	}
 
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
@@ -320,13 +322,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		return result;
 	}
 
-	attachToElement(container: HTMLElement, { enableGpu = true }: IXtermAttachToElementOptions = {}): HTMLElement {
-		if (!this._container) {
+	attachToElement(container: HTMLElement, partialOptions?: Partial<IXtermAttachToElementOptions>): HTMLElement {
+		const options: IXtermAttachToElementOptions = { enableGpu: true, ...partialOptions };
+		if (!this._attached) {
 			this.raw.open(container);
 		}
 
 		// TODO: Move before open to the DOM renderer doesn't initialize
-		if (enableGpu) {
+		if (options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
 				this._enableWebglRenderer();
 			} else if (this._shouldLoadCanvas()) {
@@ -346,18 +349,15 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 		this._suggestAddon?.setContainer(container);
 
-		this._container = container;
+		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
-		return this._container.querySelector('.xterm-screen')!;
+		return this._attached?.container.querySelector('.xterm-screen')!;
 	}
 
 	private _setFocused(isFocused: boolean) {
-		if (isFocused !== this.isFocused) {
-			this.isFocused = isFocused;
-			this._onDidChangeFocus.fire(isFocused);
-			this._anyTerminalFocusContextKey.set(isFocused);
-			this._anyFocusedTerminalHasSelection.set(isFocused && this.raw.hasSelection());
-		}
+		this._onDidChangeFocus.fire(isFocused);
+		this._anyTerminalFocusContextKey.set(isFocused);
+		this._anyFocusedTerminalHasSelection.set(isFocused && this.raw.hasSelection());
 	}
 
 	write(data: string | Uint8Array): void {
@@ -388,14 +388,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
 		this.raw.options.smoothScrollDuration = config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0;
-		if (this._shouldLoadWebgl()) {
-			this._enableWebglRenderer();
-		} else {
-			this._disposeOfWebglRenderer();
-			if (this._shouldLoadCanvas()) {
-				this._enableCanvasRenderer();
+		if (this._attached?.options.enableGpu) {
+			if (this._shouldLoadWebgl()) {
+				this._enableWebglRenderer();
 			} else {
-				this._disposeOfCanvasRenderer();
+				this._disposeOfWebglRenderer();
+				if (this._shouldLoadCanvas()) {
+					this._enableCanvasRenderer();
+				} else {
+					this._disposeOfCanvasRenderer();
+				}
 			}
 		}
 		this._refreshImageAddon();
@@ -567,6 +569,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	selectAll(): void {
+		this.raw.focus();
 		this.raw.selectAll();
 	}
 
@@ -594,10 +597,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		} else {
 			this._notificationService.warn(localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
 		}
-	}
-
-	setReadonly(): void {
-		this.raw.attachCustomKeyEventHandler(() => false);
 	}
 
 	private _setCursorBlink(blink: boolean): void {

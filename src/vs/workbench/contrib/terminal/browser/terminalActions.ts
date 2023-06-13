@@ -182,10 +182,12 @@ export function registerActiveInstanceAction(
 }
 
 /**
- * A wrapper around {@link registerTerminalAction} that ensures an active instance exists and
- * provides it to the run function.
+ * A wrapper around {@link registerTerminalAction} that ensures an active terminal
+ * exists and provides it to the run function.
+ *
+ * This includes detached xterm terminals that are not managed by an {@link ITerminalInstance}.
  */
-export function registerActiveTerminalAction(
+export function registerActiveXtermAction(
 	options: IAction2Options & { run: (activeTerminal: XtermTerminal, accessor: ServicesAccessor, instance?: ITerminalInstance, args?: unknown) => void | Promise<unknown> }
 ): IDisposable {
 	const originalRun = options.run;
@@ -595,7 +597,7 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollDownLine,
 		title: { value: localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)"), original: 'Scroll Down (Line)' },
 		keybinding: {
@@ -608,7 +610,7 @@ export function registerTerminalActions() {
 		run: (xterm) => xterm.scrollDownLine()
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollDownPage,
 		title: { value: localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)"), original: 'Scroll Down (Page)' },
 		keybinding: {
@@ -621,7 +623,7 @@ export function registerTerminalActions() {
 		run: (xterm) => xterm.scrollDownPage()
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollToBottom,
 		title: { value: localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom"), original: 'Scroll to Bottom' },
 		keybinding: {
@@ -634,7 +636,7 @@ export function registerTerminalActions() {
 		run: (xterm) => xterm.scrollToBottom()
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollUpLine,
 		title: { value: localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)"), original: 'Scroll Up (Line)' },
 		keybinding: {
@@ -647,7 +649,7 @@ export function registerTerminalActions() {
 		run: (xterm) => xterm.scrollUpLine()
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollUpPage,
 		title: { value: localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)"), original: 'Scroll Up (Page)' },
 		f1: true,
@@ -662,7 +664,7 @@ export function registerTerminalActions() {
 		run: (xterm) => xterm.scrollUpPage()
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.ScrollToTop,
 		title: { value: localize('workbench.action.terminal.scrollToTop', "Scroll to Top"), original: 'Scroll to Top' },
 		keybinding: {
@@ -675,7 +677,7 @@ export function registerTerminalActions() {
 		run: (xterm) => xterm.scrollToTop()
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.ClearSelection,
 		title: { value: localize('workbench.action.terminal.clearSelection', "Clear Selection"), original: 'Clear Selection' },
 		keybinding: {
@@ -905,7 +907,7 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.SelectToPreviousLine,
 		title: { value: localize('workbench.action.terminal.selectToPreviousLine', "Select To Previous Line"), original: 'Select To Previous Line' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -916,7 +918,7 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.SelectToNextLine,
 		title: { value: localize('workbench.action.terminal.selectToNextLine', "Select To Next Line"), original: 'Select To Next Line' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -1180,7 +1182,7 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerActiveTerminalAction({
+	registerActiveXtermAction({
 		id: TerminalCommandId.SelectAll,
 		title: { value: localize('workbench.action.terminal.selectAll', "Select All"), original: 'Select All' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -1483,7 +1485,7 @@ export function registerTerminalActions() {
 
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
-		registerActiveTerminalAction({
+		registerActiveXtermAction({
 			id: TerminalCommandId.CopySelection,
 			title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
 			// TODO: Why is copy still showing up when text isn't selected?
@@ -1500,7 +1502,7 @@ export function registerTerminalActions() {
 			run: (activeInstance) => activeInstance.copySelection()
 		});
 
-		registerActiveTerminalAction({
+		registerActiveXtermAction({
 			id: TerminalCommandId.CopyAndClearSelection,
 			title: { value: localize('workbench.action.terminal.copyAndClearSelection', "Copy and Clear Selection"), original: 'Copy and Clear Selection' },
 			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected)),
@@ -1518,7 +1520,7 @@ export function registerTerminalActions() {
 			}
 		});
 
-		registerActiveTerminalAction({
+		registerActiveXtermAction({
 			id: TerminalCommandId.CopySelectionAsHtml,
 			title: { value: localize('workbench.action.terminal.copySelectionAsHtml', "Copy Selection as HTML"), original: 'Copy Selection as HTML' },
 			f1: true,

@@ -99,7 +99,7 @@ export namespace TerminalContextKeys {
 	/** Whether text is selected in the active terminal. */
 	export const textSelected = new RawContextKey<boolean>(TerminalContextKeyStrings.TextSelected, false, localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal."));
 
-	/** Whether text is selected in a focused terminal. Focused terminals are ones active in a terminal view or an editor, where a focused terminal simply has DOM focus. */
+	/** Whether text is selected in a focused terminal. `textSelected` counts text selected in an active in a terminal view or an editor, where `textSelectedInFocused` simply counts text in an element with DOM focus. */
 	export const textSelectedInFocused = new RawContextKey<boolean>(TerminalContextKeyStrings.TextSelectedInFocused, false, localize('terminalTextSelectedInFocusedContextKey', "Whether text is selected in a focused terminal."));
 
 	/** Whether text is NOT selected in the active terminal. */

@@ -30,7 +30,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, IXtermTerminal, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IDetachedXTermOptions, IDetachedXtermTerminal, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, IXtermTerminal, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -50,7 +50,6 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Color } from 'vs/base/common/color';
 import { emptyTerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export class TerminalService implements ITerminalService {
@@ -981,7 +980,7 @@ export class TerminalService implements ITerminalService {
 		return this._createTerminal(shellLaunchConfig, location, options);
 	}
 
-	async createDetachedXterm(options: IDetachedXTermOptions): Promise<IXtermTerminal> {
+	async createDetachedXterm(options: IDetachedXTermOptions): Promise<IDetachedXtermTerminal> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
 		const instance = this._instantiationService.createInstance(
 			XtermTerminal,
@@ -989,14 +988,16 @@ export class TerminalService implements ITerminalService {
 			this._configHelper,
 			options.cols,
 			options.rows,
-			{
-				getBackgroundColor: () => Color.transparent,
-			},
+			options.colorProvider,
 			emptyTerminalCapabilityStore,
 			'',
 			undefined,
 			false,
 		);
+
+		if (options.readonly) {
+			instance.raw.attachCustomKeyEventHandler(() => false);
+		}
 
 		this._detachedInstances.add(instance);
 		instance.onDidDispose(() => this._detachedInstances.delete(instance));

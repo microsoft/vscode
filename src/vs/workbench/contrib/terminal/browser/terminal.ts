@@ -141,6 +141,8 @@ export const enum TerminalConnectionState {
 export interface IDetachedXTermOptions {
 	cols: number;
 	rows: number;
+	colorProvider: IXtermColorProvider;
+	readonly?: boolean;
 }
 
 export interface ITerminalService extends ITerminalInstanceHost {
@@ -182,7 +184,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * tracked as a terminal instance.
 	 * @params options The options to create the terminal with
 	 */
-	createDetachedXterm(options: IDetachedXTermOptions): Promise<IXtermTerminal>;
+	createDetachedXterm(options: IDetachedXTermOptions): Promise<IDetachedXtermTerminal>;
 
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
@@ -959,7 +961,7 @@ export interface IXtermAttachToElementOptions {
 	/**
 	 * Whether GPU rendering should be enabled for this element, defaults to true.
 	 */
-	enableGpu?: boolean;
+	enableGpu: boolean;
 }
 
 export interface IXtermTerminal extends IDisposable {
@@ -1002,7 +1004,7 @@ export interface IXtermTerminal extends IDisposable {
 	 * @param container Container the terminal will be rendered in
 	 * @param options Additional options for mounting the terminal in an element
 	 */
-	attachToElement(container: HTMLElement, options?: IXtermAttachToElementOptions): void;
+	attachToElement(container: HTMLElement, options?: Partial<IXtermAttachToElementOptions>): void;
 
 	findResult?: { resultIndex: number; resultCount: number };
 
@@ -1022,24 +1024,10 @@ export interface IXtermTerminal extends IDisposable {
 	forceRedraw(): void;
 
 	/**
-	 * Writes data to the terminal.
-	 */
-	write(data: string | Uint8Array): void;
-
-	/**
-	 * Resizes the terminal.
-	 */
-	resize(columns: number, rows: number): void;
-
-	/**
 	 * Gets the font metrics of this xterm.js instance.
 	 */
 	getFont(): ITerminalFont;
 
-	/**
-	 * Prevents the terminal from handling keyboard events.
-	 */
-	setReadonly(): void;
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
@@ -1078,6 +1066,19 @@ export interface IXtermTerminal extends IDisposable {
 	 * Refreshes the terminal after it has been moved.
 	 */
 	refresh(): void;
+}
+
+export interface IDetachedXtermTerminal extends IXtermTerminal {
+
+	/**
+	 * Writes data to the terminal.
+	 */
+	write(data: string | Uint8Array): void;
+
+	/**
+	 * Resizes the terminal.
+	 */
+	resize(columns: number, rows: number): void;
 }
 
 export interface IInternalXtermTerminal {
