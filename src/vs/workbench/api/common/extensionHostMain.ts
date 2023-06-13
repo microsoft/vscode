@@ -103,7 +103,7 @@ abstract class ErrorHandler {
 					prepareStackTraceAndFindExtension(error, stackTrace);
 					return v.call(Error, error, stackTrace);
 				};
-				
+
 				Object.assign(_prepareStackTrace, { [_wasWrapped]: true });
 			},
 		});
