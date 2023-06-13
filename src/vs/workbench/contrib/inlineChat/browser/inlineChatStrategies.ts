@@ -13,7 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, IValidEditOperation } from 'vs/editor/common/model';
+import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -36,6 +36,8 @@ export abstract class EditModeStrategy {
 	abstract cancel(): Promise<void>;
 
 	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
+
+	abstract undoChanges(response: EditResponse): Promise<void>;
 
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
@@ -107,6 +109,10 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async makeChanges(_edits: ISingleEditOperation[]): Promise<void> {
+		// nothing to do
+	}
+
+	override async undoChanges(_response: EditResponse): Promise<void> {
 		// nothing to do
 	}
 
@@ -275,9 +281,7 @@ export class LiveStrategy extends EditModeStrategy {
 			return;
 		}
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		while (targetAltVersion < modelN.getAlternativeVersionId() && modelN.canUndo()) {
-			modelN.undo();
-		}
+		LiveStrategy._undoModelUntil(modelN, targetAltVersion);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[], ignoreInlineDiff?: boolean): Promise<void> {
@@ -297,6 +301,11 @@ export class LiveStrategy extends EditModeStrategy {
 		this._editor.executeEdits('inline-chat-live', edits, ignoreInlineDiff ? undefined : cursorStateComputerAndInlineDiffCollection);
 	}
 
+	override async undoChanges(response: EditResponse): Promise<void> {
+		const { textModelN } = this._session;
+		LiveStrategy._undoModelUntil(textModelN, response.modelAltVersionId);
+	}
+
 	override async renderChanges(response: EditResponse) {
 
 		this._inlineDiffDecorations.update();
@@ -306,6 +315,12 @@ export class LiveStrategy extends EditModeStrategy {
 			this._widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._widget.hideCreatePreview();
+		}
+	}
+
+	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
+		while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
+			model.undo();
 		}
 	}
 
@@ -371,6 +386,11 @@ export class LivePreviewStrategy extends LiveStrategy {
 		} else {
 			this._previewZone.hide();
 		}
+	}
+
+	override async undoChanges(response: EditResponse): Promise<void> {
+		this._diffZone.lockToDiff();
+		super.undoChanges(response);
 	}
 
 	protected override _doToggleDiff(): void {
