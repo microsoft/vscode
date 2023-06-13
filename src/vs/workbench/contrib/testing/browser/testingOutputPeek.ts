@@ -1270,7 +1270,6 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private attachTerminalToDom(terminal: IDetachedXtermTerminal) {
 		terminal.write('\x1b[?25l'); // hide cursor
 		requestAnimationFrame(() => this.layoutTerminal(terminal));
-		this.container.classList.add('xterm-detached-instance');
 		terminal.attachToElement(this.container, { enableGpu: false });
 	}
 
@@ -1291,7 +1290,7 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 		width = this.dimensions?.width ?? this.container.clientWidth,
 		height = this.dimensions?.height ?? this.container.clientHeight
 	) {
-		width -= 10; // scrollbar width
+		width -= 10 + 8; // scrollbar width + margin
 		const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
 		if (scaled) {
 			xterm.resize(scaled.cols, scaled.rows);
