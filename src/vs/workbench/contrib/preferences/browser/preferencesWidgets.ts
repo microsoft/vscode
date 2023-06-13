@@ -52,7 +52,6 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
@@ -142,7 +141,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	private async update(): Promise<void> {
+	private update(): void {
 		let total = 0;
 		this._folderSettingCounts.forEach(n => total += n);
 
@@ -272,7 +271,7 @@ export class SettingsTargetsWidget extends Widget {
 
 		this.userRemoteSettings = new Action('userSettingsRemote', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
 		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_REMOTE).then(uri => {
-			this.userRemoteSettings.tooltip = localize('userSettings', "User");
+			this.userRemoteSettings.tooltip = localize('userSettingsRemote', "Remote");
 		});
 
 		this.workspaceSettings = new Action('workspaceSettings', '', '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
