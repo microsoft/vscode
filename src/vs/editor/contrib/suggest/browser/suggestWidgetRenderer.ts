@@ -45,9 +45,10 @@ const _completionItemColor = new class ColorExtractor {
 			out[0] = item.completion.detail;
 			return true;
 		}
-		if (typeof item.completion.documentation === 'string') {
-			const match = ColorExtractor._regexRelaxed.exec(item.completion.documentation);
-			if (match && (match.index === 0 || match.index + match[0].length === item.completion.documentation.length)) {
+		const documentation = typeof item.completion.documentation === 'string' ? item.completion.documentation : item.completion.documentation?.value;
+		if (typeof documentation === 'string') {
+			const match = ColorExtractor._regexRelaxed.exec(documentation);
+			if (match && (match.index === 0 || match.index + match[0].length === documentation.length)) {
 				out[0] = match[0];
 				return true;
 			}
