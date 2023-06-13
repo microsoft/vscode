@@ -1157,6 +1157,8 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 */
 	getModel(): editorCommon.IDiffEditorModel | null;
 
+	createViewModel(model: editorCommon.IDiffEditorModel): editorCommon.IDiffEditorViewModel;
+
 	/**
 	 * Sets the current model attached to this editor.
 	 * If the previous model was created by the editor via the value key in the options
@@ -1165,7 +1167,7 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * will not be destroyed.
 	 * It is safe to call setModel(null) to simply detach the current model from the editor.
 	 */
-	setModel(model: editorCommon.IDiffEditorModel | null): void;
+	setModel(model: editorCommon.IDiffEditorModel | editorCommon.IDiffEditorViewModel | null): void;
 
 	/**
 	 * Get the `original` editor.
