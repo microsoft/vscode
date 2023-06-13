@@ -425,7 +425,7 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		if (model === null) {
-			throw new Error('?');
+			throw new Error('The Interactive Window model could not be resolved');
 		}
 
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);

@@ -10,7 +10,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { filter } from 'vs/base/common/objects';
-import { extname } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -280,14 +279,8 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 			throw new Error('CANNOT open file notebook with this provider');
 		}
 
-		let data: NotebookData = {
-			metadata: {},
-			cells: []
-		};
-		if (extname(resource) !== '.interactive') {
-			const bytes = await streamToBuffer(stream);
-			data = await info.serializer.dataToNotebook(bytes);
-		}
+		const bytes = await streamToBuffer(stream);
+		const data = await info.serializer.dataToNotebook(bytes);
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
