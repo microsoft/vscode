@@ -28,7 +28,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, MarkdownResponse, Session, SessionExchange, SessionResponse } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -193,10 +193,10 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- state machine
 
-	private _showWidget(initialRender: boolean = false, response?: SessionResponse) {
+	private _showWidget(initialRender: boolean = false) {
 		assertType(this._activeSession);
 		const selectionRange = this._activeSession.wholeRange.value;
-		const widgetPosition = this._strategy?.getWidgetPosition(initialRender, selectionRange, response);
+		const widgetPosition = this._strategy?.getWidgetPosition(initialRender, selectionRange);
 		this._zone.value.show(widgetPosition ?? selectionRange.getEndPosition());
 	}
 
@@ -241,14 +241,14 @@ export class InlineChatController implements IEditorContribution {
 
 		switch (session.editMode) {
 			case EditMode.Live:
-				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value.widget);
+				this._strategy = this._instaService.createInstance(LiveStrategy, this._editor, session, this._zone.value.widget);
 				break;
 			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._editor, this._zone.value.widget);
+				this._strategy = this._instaService.createInstance(PreviewStrategy, this._editor, session, this._zone.value.widget);
 				break;
 			case EditMode.LivePreview:
 			default:
-				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value.widget);
+				this._strategy = this._instaService.createInstance(LivePreviewStrategy, this._editor, session, this._zone.value.widget);
 				break;
 		}
 
@@ -543,7 +543,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		const { response } = this._activeSession.lastExchange!;
-		this._showWidget(false, response);
+		this._showWidget(false);
 
 		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
 			? response.raw.type
