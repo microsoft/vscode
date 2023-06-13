@@ -130,6 +130,30 @@ function getNodeVersion() {
 	return target;
 }
 
+function getNodeChecksum(nodeVersion, platform, arch) {
+	let expectedName;
+	switch (platform) {
+		case 'win32':
+			expectedName = `win-${arch}/node.exe`;
+			break;
+
+		case 'darwin':
+		case 'linux':
+			expectedName = `node-v${nodeVersion}-${platform}-${arch}.tar.gz`;
+			break;
+	}
+
+	const nodeJsChecksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'nodejs.txt'), 'utf8');
+	for (const checksum of nodeJsChecksums.split('\n')) {
+		const [checksum, name] = line.split(/\s+/);
+		if (name === expectedName) {
+			return checksum;
+		}
+	}
+	return undefined;
+}
+
+
 const nodeVersion = getNodeVersion();
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
@@ -159,9 +183,11 @@ function nodejs(platform, arch) {
 
 	if (arch === 'ia32') {
 		arch = 'x86';
+	} else if (arch === 'armhf') {
+		arch = 'armv7l';
 	}
 
-	const checksumSha256 = product.nodejs.sha256[platform][arch];
+	const checksumSha256 = getNodeChecksum(nodeVersion, platform, arch);
 
 	if (platform === 'win32') {
 		if (product.nodejs.repository !== 'https://nodejs.org') { // custom node.js builds are currently only supported for windows
@@ -181,9 +207,6 @@ function nodejs(platform, arch) {
 		return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
 	}
 
-	if (arch === 'armhf') {
-		arch = 'armv7l';
-	}
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
 	return fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
 		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
