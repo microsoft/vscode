@@ -199,10 +199,13 @@ export class GlyphMarginWidgets extends ViewPart {
 	}
 
 	public override dispose(): void {
-		this._context.removeEventHandler(this);
 		this._renderResult = null;
 		this._widgets = {};
 		super.dispose();
+	}
+
+	public getWidgets(): IWidgetData[] {
+		return Object.values(this._widgets);
 	}
 
 	// --- begin event handlers

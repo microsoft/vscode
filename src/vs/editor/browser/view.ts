@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -52,6 +53,7 @@ import { inputLatency } from 'vs/base/browser/performance';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
 import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
+import { GlyphMarginLane } from 'vs/editor/common/model';
 
 
 export interface IContentWidgetData {
@@ -95,6 +97,7 @@ export class View extends ViewEventHandler {
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
+	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
 
 	constructor(
@@ -170,15 +173,15 @@ export class View extends ViewEventHandler {
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
 
-		const margin = new Margin(this._context);
-		margin.getDomNode().appendChild(this._viewZones.marginDomNode);
-		margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
-		this._viewParts.push(margin);
-
 		// Glyph margin widgets
 		this._glyphMarginWidgets = new GlyphMarginWidgets(this._context);
 		this._viewParts.push(this._glyphMarginWidgets);
+
+		const margin = new Margin(this._context);
+		margin.getDomNode().appendChild(this._viewZones.marginDomNode);
+		margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
 		margin.getDomNode().appendChild(this._glyphMarginWidgets.domNode);
+		this._viewParts.push(margin);
 
 		// Content widgets
 		this._contentWidgets = new ViewContentWidgets(this._context, this.domNode);
@@ -212,7 +215,6 @@ export class View extends ViewEventHandler {
 		this._linesContent.appendChild(this._viewZones.domNode);
 		this._linesContent.appendChild(this._viewLines.getDomNode());
 		this._linesContent.appendChild(this._contentWidgets.domNode);
-		// this._linesContent.appendChild(this._glyphMarginWidgets.domNode);
 		this._linesContent.appendChild(this._viewCursors.getDomNode());
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
@@ -237,8 +239,68 @@ export class View extends ViewEventHandler {
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
+		if (this._shouldRecomputeGlyphMarginLanes) {
+			this._shouldRecomputeGlyphMarginLanes = false;
+			this._context.configuration.setGlyphMarginDecorationLaneCount(this._computeGlyphMarginLaneCount());
+		}
 		inputLatency.onRenderStart();
 		this._renderNow();
+	}
+
+	private _computeGlyphMarginLaneCount(): number {
+		const model = this._context.viewModel.model;
+		type Glyph = { range: Range; lane: GlyphMarginLane };
+		let glyphs: Glyph[] = [];
+
+		// Add all margin decorations
+		glyphs = glyphs.concat(model.getAllMarginDecorations().map((decoration) => {
+			const lane = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Left;
+			return { range: decoration.range, lane };
+		}));
+
+		// Add all glyph margin widgets
+		glyphs = glyphs.concat(this._glyphMarginWidgets.getWidgets().map((widget) => {
+			const range = model.validateRange(widget.preference.range);
+			return { range, lane: widget.preference.lane };
+		}));
+
+		// Sorted by their start position
+		glyphs.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+
+		let leftDecRange: Range | null = null;
+		let rightDecRange: Range | null = null;
+		for (const decoration of glyphs) {
+
+			if (decoration.lane === GlyphMarginLane.Left && (!leftDecRange || Range.compareRangesUsingEnds(leftDecRange, decoration.range) < 0)) {
+				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
+				leftDecRange = decoration.range;
+			}
+
+			if (decoration.lane === GlyphMarginLane.Right && (!rightDecRange || Range.compareRangesUsingEnds(rightDecRange, decoration.range) < 0)) {
+				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
+				rightDecRange = decoration.range;
+			}
+
+			if (leftDecRange && rightDecRange) {
+
+				if (leftDecRange.endLineNumber < rightDecRange.startLineNumber) {
+					// there's no chance for `leftDecRange` to ever intersect something going further
+					leftDecRange = null;
+					continue;
+				}
+
+				if (rightDecRange.endLineNumber < leftDecRange.startLineNumber) {
+					// there's no chance for `rightDecRange` to ever intersect something going further
+					rightDecRange = null;
+					continue;
+				}
+
+				// leftDecRange and rightDecRange are intersecting or touching => we need two lanes
+				return 2;
+			}
+		}
+
+		return 1;
 	}
 
 	private _createPointerHandlerHelper(): IPointerHandlerHelper {
@@ -326,6 +388,12 @@ export class View extends ViewEventHandler {
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections;
+		return false;
+	}
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		if (e.affectsGlyphMargin) {
+			this._shouldRecomputeGlyphMarginLanes = true;
+		}
 		return false;
 	}
 	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -561,6 +629,7 @@ export class View extends ViewEventHandler {
 
 	public addGlyphMarginWidget(widgetData: IGlyphMarginWidgetData): void {
 		this._glyphMarginWidgets.addWidget(widgetData.widget);
+		this._shouldRecomputeGlyphMarginLanes = true;
 		this._scheduleRender();
 	}
 
@@ -568,12 +637,14 @@ export class View extends ViewEventHandler {
 		const newPreference = widgetData.position;
 		const shouldRender = this._glyphMarginWidgets.setWidgetPosition(widgetData.widget, newPreference);
 		if (shouldRender) {
+			this._shouldRecomputeGlyphMarginLanes = true;
 			this._scheduleRender();
 		}
 	}
 
 	public removeGlyphMarginWidget(widgetData: IGlyphMarginWidgetData): void {
 		this._glyphMarginWidgets.removeWidget(widgetData.widget);
+		this._shouldRecomputeGlyphMarginLanes = true;
 		this._scheduleRender();
 	}
 

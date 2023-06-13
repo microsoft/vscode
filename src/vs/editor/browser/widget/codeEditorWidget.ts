@@ -32,7 +32,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IAttachedView, GlyphMarginLane } from 'vs/editor/common/model';
+import { EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IAttachedView } from 'vs/editor/common/model';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -1526,7 +1526,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		if (this._modelData && this._modelData.hasRealView) {
 			this._modelData.view.addGlyphMarginWidget(widgetData);
-			this._setGlyphMarginLaneWidth();
 		}
 	}
 
@@ -1537,7 +1536,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			widgetData.position = widget.getPosition();
 			if (this._modelData && this._modelData.hasRealView) {
 				this._modelData.view.layoutGlyphMarginWidget(widgetData);
-				this._setGlyphMarginLaneWidth();
 			}
 		}
 	}
@@ -1549,61 +1547,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			delete this._glyphMarginWidgets[widgetId];
 			if (this._modelData && this._modelData.hasRealView) {
 				this._modelData.view.removeGlyphMarginWidget(widgetData);
-				this._setGlyphMarginLaneWidth();
 			}
 		}
-	}
-
-	private _setGlyphMarginLaneWidth() {
-		const decorations = this._modelData?.model.getAllMarginDecorations() ?? [];
-		decorations.push(...Object.values(this._glyphMarginWidgets).map((widget) => ({
-			ownerId: 0,
-			id: widget.widget.getId(),
-			options: { glyphMargin: { position: widget.position.lane }, description: widget.widget.getId(), },
-			range: new Range(widget.position.range.startLineNumber, widget.position.range.startColumn, widget.position.range.endLineNumber, widget.position.range.endColumn),
-		})));
-
-		let hasTwoLanes = false;
-
-		// Decorations are already sorted by their start position, but protect against future changes
-		decorations.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-
-		let leftDecRange: Range | null = null;
-		let rightDecRange: Range | null = null;
-		for (const decoration of decorations) {
-			const position = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Left;
-
-			if (position === GlyphMarginLane.Left && (!leftDecRange || Range.compareRangesUsingEnds(leftDecRange, decoration.range) < 0)) {
-				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
-				leftDecRange = decoration.range;
-			}
-
-			if (position === GlyphMarginLane.Right && (!rightDecRange || Range.compareRangesUsingEnds(rightDecRange, decoration.range) < 0)) {
-				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
-				rightDecRange = decoration.range;
-			}
-
-			if (leftDecRange && rightDecRange) {
-
-				if (leftDecRange.endLineNumber < rightDecRange.startLineNumber) {
-					// there's no chance for `leftDecRange` to ever intersect something going further
-					leftDecRange = null;
-					continue;
-				}
-
-				if (rightDecRange.endLineNumber < leftDecRange.startLineNumber) {
-					// there's no chance for `rightDecRange` to ever intersect something going further
-					rightDecRange = null;
-					continue;
-				}
-
-				// leftDecRange and rightDecRange are intersecting or touching => we need two lanes
-				hasTwoLanes = true;
-				break;
-			}
-		}
-
-		this._configuration.setGlyphMarginDecorationLaneCount(hasTwoLanes ? 2 : 1);
 	}
 
 	public changeViewZones(callback: (accessor: editorBrowser.IViewZoneChangeAccessor) => void): void {
@@ -1777,9 +1722,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 				case OutgoingViewModelEventKind.ModelDecorationsChanged:
 					this._onDidChangeModelDecorations.fire(e.event);
-					if (e.event.affectsGlyphMargin) {
-						this._setGlyphMarginLaneWidth();
-					}
 					break;
 				case OutgoingViewModelEventKind.ModelLanguageChanged:
 					this._domElement.setAttribute('data-mode-id', model.getLanguageId());
