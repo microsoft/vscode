@@ -86,6 +86,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private virtualWorkspaceLocation: { scheme: string; authority: string } | undefined = undefined;
 
 	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
+	private connectionToken: string | undefined = undefined;
 	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
 
 	private networkState: 'online' | 'offline' | 'high-latency' | undefined = undefined;
@@ -267,7 +268,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			// Try to resolve the authority to figure out connection state
 			(async () => {
 				try {
-					await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+					this.connectionToken = authority.connectionToken;
 
 					this.setConnectionState('connected');
 				} catch (error) {
@@ -302,8 +304,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private scheduleMeasureNetworkConnectionLatency(): void {
 		if (
-			!this.remoteAuthority ||								// only when having a remote connection
-			this.measureNetworkConnectionLatencyScheduler			// already scheduled
+			!this.remoteAuthority ||						// only when having a remote connection
+			this.measureNetworkConnectionLatencyScheduler	// already scheduled
 		) {
 			return;
 		}
@@ -334,11 +336,44 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private setNetworkState(newState: 'online' | 'offline' | 'high-latency'): void {
 		if (this.networkState !== newState) {
+			const oldState = this.networkState;
 			this.networkState = newState;
+
+			if (newState === 'high-latency') {
+				this.logService.warn(`Remote network connection appears to have high latency (${remoteConnectionLatencyMeasurer.latency?.current?.toFixed(2)}ms last, ${remoteConnectionLatencyMeasurer.latency?.average?.toFixed(2)}ms average)`);
+			}
+
+			if (this.connectionToken) {
+				if (newState === 'online' && oldState === 'high-latency') {
+					this.logNetworkConnectionHealthTelemetry(this.connectionToken, 'good');
+				} else if (newState === 'high-latency' && oldState === 'online') {
+					this.logNetworkConnectionHealthTelemetry(this.connectionToken, 'poor');
+				}
+			}
 
 			// update status
 			this.updateRemoteStatusIndicator();
 		}
+	}
+
+	private logNetworkConnectionHealthTelemetry(connectionToken: string, connectionHealth: 'good' | 'poor'): void {
+		type RemoteConnectionHealthClassification = {
+			owner: 'alexdima';
+			comment: 'The remote connection health has changed (round trip time)';
+			remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+			reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+			connectionHealth: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The health of the connection: good or poor.' };
+		};
+		type RemoteConnectionHealthEvent = {
+			remoteName: string | undefined;
+			reconnectionToken: string;
+			connectionHealth: 'good' | 'poor';
+		};
+		this.telemetryService.publicLog2<RemoteConnectionHealthEvent, RemoteConnectionHealthClassification>('remoteConnectionHealth', {
+			remoteName: getRemoteName(this.remoteAuthority),
+			reconnectionToken: connectionToken,
+			connectionHealth
+		});
 	}
 
 	private validatedGroup(group: string) {
@@ -373,8 +408,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			return;
 		}
 
-		// Show for remote windows on the desktop, but not when in code server web
-		if (this.remoteAuthority && (!isWeb || this.environmentService.options?.webSocketFactory)) {
+		// Show for remote windows on the desktop
+		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
@@ -437,7 +472,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private renderRemoteStatusIndicator(initialText: string, initialTooltip?: string | MarkdownString, command?: string, showProgress?: boolean): void {
-		const { text, tooltip, ariaLabel } = this.withNetworkStatus(initialText, initialTooltip);
+		const { text, tooltip, ariaLabel } = this.withNetworkStatus(initialText, initialTooltip, showProgress);
 
 		const properties: IStatusbarEntry = {
 			name: nls.localize('remoteHost', "Remote Host"),
@@ -457,35 +492,37 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private withNetworkStatus(initialText: string, initialTooltip?: string | MarkdownString): { text: string; tooltip: string | IMarkdownString | undefined; ariaLabel: string } {
+	private withNetworkStatus(initialText: string, initialTooltip?: string | MarkdownString, showProgress?: boolean): { text: string; tooltip: string | IMarkdownString | undefined; ariaLabel: string } {
 		let text = initialText;
 		let tooltip = initialTooltip;
 		let ariaLabel = getCodiconAriaLabel(text);
 
-		// `initialText` can have a "$(remote)" codicon in the beginning
-		// but it may not have it depending on the environment.
-		// the following function will replace the codicon in the beginning with
-		// another icon or add it to the beginning if no icon
+		function textWithAlert(): string {
 
-		function insertOrReplaceCodicon(target: string, codicon: string): string {
-			if (target.startsWith('$(remote)')) {
-				return target.replace('$(remote)', codicon);
+			// `initialText` can have a codicon in the beginning that already
+			// indicates some kind of status, or we may have been asked to
+			// show progress, where a spinning codicon appears. we only want
+			// to replace with an alert icon for when a normal remote indicator
+			// is shown.
+
+			if (!showProgress && initialText.startsWith('$(remote)')) {
+				return initialText.replace('$(remote)', '$(alert)');
 			}
 
-			return `${codicon} ${target}`;
+			return initialText;
 		}
 
 		switch (this.networkState) {
 			case 'offline': {
-				text = insertOrReplaceCodicon(initialText, '$(alert)');
-
 				const offlineMessage = nls.localize('networkStatusOfflineTooltip', "Network appears to be offline, certain features might be unavailable.");
+
+				text = textWithAlert();
 				tooltip = this.appendTooltipLine(tooltip, offlineMessage);
 				ariaLabel = `${ariaLabel}, ${offlineMessage}`;
 				break;
 			}
 			case 'high-latency':
-				text = insertOrReplaceCodicon(initialText, '$(alert)');
+				text = textWithAlert();
 				tooltip = this.appendTooltipLine(tooltip, nls.localize('networkStatusHighLatencyTooltip', "Network appears to have high latency ({0}ms last, {1}ms average), certain features may be slow to respond.", remoteConnectionLatencyMeasurer.latency?.current?.toFixed(2), remoteConnectionLatencyMeasurer.latency?.average?.toFixed(2)));
 				break;
 		}

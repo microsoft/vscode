@@ -138,10 +138,12 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			createTestRun: (request, name, persist = true) => {
 				return this.runTracker.createTestRun(controllerId, collection, request, name, persist);
 			},
-			invalidateTestResults: item => {
+			invalidateTestResults: items => {
 				checkProposedApiEnabled(extension, 'testInvalidateResults');
-				const id = item ? TestId.fromExtHostTestItem(item, controllerId).toString() : controllerId;
-				return this.proxy.$markTestRetired(id);
+				for (const item of items instanceof Array ? items : [items]) {
+					const id = item ? TestId.fromExtHostTestItem(item, controllerId).toString() : controllerId;
+					this.proxy.$markTestRetired(id);
+				}
 			},
 			set resolveHandler(fn) {
 				collection.resolveHandler = fn;

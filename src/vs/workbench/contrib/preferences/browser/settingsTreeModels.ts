@@ -750,7 +750,7 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 function isExtensionToggleSetting(setting: ISetting, productService: IProductService): boolean {
 	return ENABLE_EXTENSION_TOGGLE_SETTINGS &&
 		!!productService.extensionRecommendations &&
-		!!setting.extensionId;
+		!!setting.displayExtensionId;
 }
 
 function isExcludeSetting(setting: ISetting): boolean {

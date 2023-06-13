@@ -667,6 +667,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._instanceId, newCollection);
 		this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 	}
+
+	async clearBuffer(): Promise<void> {
+		this._process?.clearBuffer?.();
+	}
 }
 
 class AckDataBufferer {

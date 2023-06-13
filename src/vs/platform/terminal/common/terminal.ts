@@ -117,7 +117,7 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
-	ExperimentalImageSupport = 'terminal.integrated.experimentalImageSupport',
+	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
@@ -318,6 +318,7 @@ export interface IPtyService extends IPtyHostController {
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
 	resize(id: number, cols: number, rows: number): Promise<void>;
+	clearBuffer(id: number): Promise<void>;
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
 	getLatency(id: number): Promise<number>;
@@ -328,6 +329,7 @@ export interface IPtyService extends IPtyHostController {
 	orphanQuestionReply(id: number): Promise<void>;
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
+
 	installAutoReply(match: string, reply: string): Promise<void>;
 	uninstallAllAutoReplies(): Promise<void>;
 	uninstallAutoReply(match: string): Promise<void>;
@@ -639,7 +641,18 @@ export interface ITerminalLaunchError {
 export interface IProcessReadyEvent {
 	pid: number;
 	cwd: string;
-	requiresWindowsMode?: boolean;
+	windowsPty: IProcessReadyWindowsPty | undefined;
+}
+
+export interface IProcessReadyWindowsPty {
+	/**
+	 * What pty emulation backend is being used.
+	 */
+	backend: 'conpty' | 'winpty';
+	/**
+	 * The Windows build version (eg. 19045)
+	 */
+	buildNumber: number;
 }
 
 /**
@@ -694,6 +707,7 @@ export interface ITerminalChildProcess {
 	input(data: string): void;
 	processBinary(data: string): Promise<void>;
 	resize(cols: number, rows: number): void;
+	clearBuffer(): void | Promise<void>;
 
 	/**
 	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow

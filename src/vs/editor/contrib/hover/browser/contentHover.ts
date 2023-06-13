@@ -610,6 +610,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
 			this._setVisibleData(null);
+			this._hoverFocusedKey.set(false);
 			this._editor.layoutContentWidget(this);
 			if (stoleFocus) {
 				this._editor.focus();
