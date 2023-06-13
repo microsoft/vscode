@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ITransaction, derived, observableSignal, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, ITransaction, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { isDefined } from 'vs/base/common/types';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -13,13 +13,13 @@ import { Range } from 'vs/editor/common/core/range';
 import { IDocumentDiff, IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import { LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { lineRangeMappingFromRangeMappings } from 'vs/editor/common/diff/standardLinesDiffComputer';
-import { IDiffEditorModel } from 'vs/editor/common/editorCommon';
+import { IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
 import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
 import { lengthAdd, lengthDiffNonNegative, lengthGetLineCount, lengthOfRange, lengthToPosition, lengthZero, positionToLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 
-export class DiffModel extends Disposable {
+export class DiffModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>('isDiffUpToDate', false);
 	public readonly isDiffUpToDate: IObservable<boolean> = this._isDiffUpToDate;
 
@@ -183,6 +183,10 @@ export class DiffModel extends Disposable {
 				return;
 			}
 		}
+	}
+
+	public async waitForDiff(): Promise<void> {
+		await waitForState(this.isDiffUpToDate, s => s);
 	}
 }
 
