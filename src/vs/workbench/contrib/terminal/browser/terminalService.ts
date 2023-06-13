@@ -50,7 +50,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { emptyTerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -989,7 +989,7 @@ export class TerminalService implements ITerminalService {
 			options.cols,
 			options.rows,
 			options.colorProvider,
-			emptyTerminalCapabilityStore,
+			options.capabilities || new TerminalCapabilityStore(),
 			'',
 			undefined,
 			false,

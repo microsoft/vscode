@@ -61,7 +61,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -1146,6 +1149,7 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 
 class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private dimensions?: dom.IDimension;
+	private readonly terminalCwd = this._register(new MutableObservableValue<string>(''));
 
 	/** Active terminal instance. */
 	private readonly terminal = this._register(new MutableDisposable<IDetachedXtermTerminal>());
@@ -1158,6 +1162,7 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 		@ITestResultService private readonly resultService: ITestResultService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IWorkspaceContextService private readonly workspaceContext: IWorkspaceContextService,
 	) {
 		super();
 	}
@@ -1173,10 +1178,21 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 			return prev;
 		}
 
+		const capabilities = new TerminalCapabilityStore();
+		const cwd = this.terminalCwd;
+		capabilities.add(TerminalCapability.CwdDetection, {
+			type: TerminalCapability.CwdDetection,
+			get cwds() { return [cwd.value]; },
+			onDidChangeCwd: cwd.onDidChange,
+			getCwd: () => cwd.value,
+			updateCwd: () => { },
+		});
+
 		return this.terminal.value = await this.terminalService.createDetachedXterm({
 			rows: 10,
 			cols: 80,
 			readonly: true,
+			capabilities,
 			colorProvider: {
 				getBackgroundColor: theme => {
 					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
@@ -1203,6 +1219,8 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 			if (isDiffable(message) || typeof message.message !== 'string') {
 				return this.clear();
 			}
+
+			this.updateCwd(subject.test.uri);
 			const terminal = await this.makeTerminal();
 			terminal.write(message.message);
 			this.layoutTerminal(terminal);
@@ -1213,6 +1231,10 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 			if (!task) {
 				return this.clear();
 			}
+
+			// Update the cwd and use the first test to try to hint at the correct cwd,
+			// but often this will fall back to the first workspace folder.
+			this.updateCwd(Iterable.find(result.tests, t => !!t.item.uri)?.item.uri);
 
 			const terminal = await this.makeTerminal();
 			if (result instanceof LiveTestResult) {
@@ -1230,6 +1252,14 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 
 			this.attachTerminalToDom(terminal);
 			this.outputDataListener.value = task.output.onDidWriteData(e => terminal.write(e.buffer));
+		}
+	}
+
+	private updateCwd(testUri?: URI) {
+		const wf = (testUri && this.workspaceContext.getWorkspaceFolder(testUri))
+			|| this.workspaceContext.getWorkspace().folders[0];
+		if (wf) {
+			this.terminalCwd.value = wf.uri.fsPath;
 		}
 	}
 

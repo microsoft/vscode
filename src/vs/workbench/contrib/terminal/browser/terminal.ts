@@ -142,6 +142,7 @@ export interface IDetachedXTermOptions {
 	cols: number;
 	rows: number;
 	colorProvider: IXtermColorProvider;
+	capabilities?: ITerminalCapabilityStore;
 	readonly?: boolean;
 }
 
