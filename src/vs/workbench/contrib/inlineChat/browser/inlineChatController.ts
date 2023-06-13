@@ -657,7 +657,7 @@ export class InlineChatController implements IEditorContribution {
 		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
-	rerun(): void {
+	regenerate(): void {
 		this._messages.fire(Message.RERUN_INPUT);
 	}
 

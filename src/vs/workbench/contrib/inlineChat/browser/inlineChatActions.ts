@@ -163,8 +163,8 @@ export class ReRunRequestAction extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'inlineChat.rerun',
-			title: localize('rerun', 'Rerun Request'),
+			id: 'inlineChat.regenerate',
+			title: localize('rerun', 'Regenerate Response'),
 			icon: Codicon.refresh,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EMPTY.negate(), CTX_INLINE_CHAT_LAST_RESPONSE_TYPE),
 			menu: {
@@ -176,7 +176,7 @@ export class ReRunRequestAction extends AbstractInlineChatAction {
 	}
 
 	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController): void {
-		ctrl.rerun();
+		ctrl.regenerate();
 	}
 
 }
