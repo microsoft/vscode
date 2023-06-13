@@ -404,18 +404,20 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		};
 	}
 
-	private async _getSearchAddon(): Promise<SearchAddonType> {
-		if (this._searchAddon) {
-			return this._searchAddon;
+	private _searchAddonPromise: Promise<SearchAddonType> | undefined;
+	private _getSearchAddon(): Promise<SearchAddonType> {
+		if (!this._searchAddonPromise) {
+			this._searchAddonPromise = this._getSearchAddonConstructor().then((AddonCtor) => {
+				this._searchAddon = new AddonCtor({ highlightLimit: XtermTerminalConstants.SearchHighlightLimit });
+				this.raw.loadAddon(this._searchAddon);
+				this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
+					this._lastFindResult = results;
+					this._onDidChangeFindResults.fire(results);
+				});
+				return this._searchAddon;
+			});
 		}
-		const AddonCtor = await this._getSearchAddonConstructor();
-		this._searchAddon = new AddonCtor({ highlightLimit: XtermTerminalConstants.SearchHighlightLimit });
-		this.raw.loadAddon(this._searchAddon);
-		this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
-			this._lastFindResult = results;
-			this._onDidChangeFindResults.fire(results);
-		});
-		return this._searchAddon;
+		return this._searchAddonPromise;
 	}
 
 	clearSearchDecorations(): void {

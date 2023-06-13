@@ -75,6 +75,7 @@
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/windows-mutex": "^0.4.4",
+    "@vscode/windows-process-tree": "^0.5.0",
     "@vscode/windows-registry": "^1.1.0",
     "graceful-fs": "4.2.8",
     "http-proxy-agent": "^2.1.0",
@@ -85,7 +86,7 @@
     "native-is-elevated": "0.6.0",
     "native-keymap": "^3.3.2",
     "native-watchdog": "^1.4.1",
-    "node-pty": "0.11.0-beta33",
+    "node-pty": "1.0",
     "tas-client-umd": "0.1.8",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.7.0",
@@ -227,7 +228,6 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "@vscode/windows-process-tree": "0.4.2",
     "windows-foreground-love": "0.5.0"
   }
 }
