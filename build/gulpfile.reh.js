@@ -148,7 +148,7 @@ function getNodeChecksum(nodeVersion, platform, arch) {
 	}
 
 	const nodeJsChecksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'nodejs.txt'), 'utf8');
-	for (const checksum of nodeJsChecksums.split('\n')) {
+	for (const line of nodeJsChecksums.split('\n')) {
 		const [checksum, name] = line.split(/\s+/);
 		if (name === expectedName) {
 			return checksum;
@@ -156,7 +156,6 @@ function getNodeChecksum(nodeVersion, platform, arch) {
 	}
 	return undefined;
 }
-
 
 const nodeVersion = getNodeVersion();
 
