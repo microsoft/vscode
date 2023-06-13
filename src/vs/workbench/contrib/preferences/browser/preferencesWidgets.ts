@@ -33,7 +33,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CONTEXT_SETTINGS_EDITOR_IN_USER_TAB } from 'vs/workbench/contrib/preferences/common/preferences';
 
@@ -232,7 +231,6 @@ export class SettingsTargetsWidget extends Widget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -264,15 +262,12 @@ export class SettingsTargetsWidget extends Widget {
 		}));
 
 		this.userLocalSettings = new Action('userSettings', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
-		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_LOCAL).then(uri => {
-			// Don't wait to create UI on resolving remote
-			this.userLocalSettings.tooltip = localize('userSettings', "User");
-		});
+		this.userLocalSettings.tooltip = localize('userSettings', "User");
 
 		this.userRemoteSettings = new Action('userSettingsRemote', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
-		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_REMOTE).then(uri => {
-			this.userRemoteSettings.tooltip = localize('userSettingsRemote', "Remote");
-		});
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
+		this.userRemoteSettings.tooltip = localize('userSettingsRemote', "Remote") + (hostLabel ? ` [${hostLabel}]` : '');
 
 		this.workspaceSettings = new Action('workspaceSettings', '', '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
 
