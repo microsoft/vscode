@@ -174,7 +174,7 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			if (details.isMainFrame) {
+			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
 				return callback(allowedPermissionsInMainFrame.has(permission));
 			}
 
@@ -186,7 +186,7 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInWebview.has(permission);
 			}
 
-			if (details.isMainFrame) {
+			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
 				return allowedPermissionsInMainFrame.has(permission);
 			}
 
