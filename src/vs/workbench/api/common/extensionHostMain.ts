@@ -65,12 +65,15 @@ abstract class ErrorHandler {
 		const mainThreadErrors = rpcService.getProxy(MainContext.MainThreadErrors);
 
 		const map = await extensionService.getExtensionPathIndex();
-		const extensionErrors = new WeakMap<Error, ExtensionIdentifier | undefined>();
+		const extensionErrors = new WeakMap<Error, { extensionIdentifier: ExtensionIdentifier | undefined; stack: string }>();
 
 		// PART 1
 		// set the prepareStackTrace-handle and use it as a side-effect to associate errors
 		// with extensions - this works by looking up callsites in the extension path index
 		function prepareStackTraceAndFindExtension(error: Error, stackTrace: errors.V8CallSite[]) {
+			if (extensionErrors.has(error)) {
+				return extensionErrors.get(error)!.stack;
+			}
 			let stackTraceMessage = '';
 			let extension: IExtensionDescription | undefined;
 			let fileName: string | null;
@@ -81,20 +84,21 @@ abstract class ErrorHandler {
 					extension = map.findSubstr(URI.file(fileName));
 				}
 			}
-			extensionErrors.set(error, extension?.identifier);
-			return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
+			const result = `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
+			extensionErrors.set(error, { extensionIdentifier: extension?.identifier, stack: result });
+			return result;
 		}
 
-		const _wasWrapped = Symbol('prepareStackTrace wrapped');
 		let _prepareStackTrace = prepareStackTraceAndFindExtension;
-		Object.assign(_prepareStackTrace, { [_wasWrapped]: true });
+
 		Object.defineProperty(Error, 'prepareStackTrace', {
 			configurable: false,
 			get() {
 				return _prepareStackTrace;
 			},
 			set(v) {
-				if (v && (v as any)[_wasWrapped]) {
+				if (v === prepareStackTraceAndFindExtension) {
+					// back to default
 					_prepareStackTrace = v;
 					return;
 				}
@@ -103,8 +107,6 @@ abstract class ErrorHandler {
 					prepareStackTraceAndFindExtension(error, stackTrace);
 					return v.call(Error, error, stackTrace);
 				};
-
-				Object.assign(_prepareStackTrace, { [_wasWrapped]: true });
 			},
 		});
 
@@ -115,16 +117,16 @@ abstract class ErrorHandler {
 		errors.setUnexpectedErrorHandler(err => {
 			logService.error(err);
 
-			const data = errors.transformErrorForSerialization(err);
-			const extension = extensionErrors.get(err);
-			if (!extension) {
-				mainThreadErrors.$onUnexpectedError(data);
+			const errorData = errors.transformErrorForSerialization(err);
+			const stackData = extensionErrors.get(err);
+			if (!stackData?.extensionIdentifier) {
+				mainThreadErrors.$onUnexpectedError(errorData);
 				return;
 			}
 
-			mainThreadExtensions.$onExtensionRuntimeError(extension, data);
-			const reported = extensionTelemetry.onExtensionError(extension, err);
-			logService.trace('forwarded error to extension?', reported, extension);
+			mainThreadExtensions.$onExtensionRuntimeError(stackData.extensionIdentifier, errorData);
+			const reported = extensionTelemetry.onExtensionError(stackData.extensionIdentifier, err);
+			logService.trace('forwarded error to extension?', reported, stackData);
 		});
 	}
 }
