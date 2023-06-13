@@ -82,8 +82,8 @@
 	padding: 2px;
 }
 
-.interactive-item-container .header .monaco-toolbar .checked .action-label,
-.interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
+.interactive-item-container .header .monaco-toolbar .checked.action-label,
+.interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
 	border-color: var(--vscode-inputOption-activeBorder);
 	background-color: var(--vscode-inputOption-activeBackground);
