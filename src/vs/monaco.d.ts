@@ -2501,6 +2501,7 @@ declare namespace monaco.editor {
 		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
 		toString(): string;
 		get changedLineCount(): any;
+		flip(): LineRangeMapping;
 	}
 
 	/**
@@ -2517,6 +2518,7 @@ declare namespace monaco.editor {
 		readonly modifiedRange: Range;
 		constructor(originalRange: Range, modifiedRange: Range);
 		toString(): string;
+		flip(): RangeMapping;
 	}
 
 	export class MovedText {
@@ -2528,6 +2530,7 @@ declare namespace monaco.editor {
 		 */
 		readonly changes: readonly LineRangeMapping[];
 		constructor(lineRangeMapping: SimpleLineRangeMapping, changes: readonly LineRangeMapping[]);
+		flip(): MovedText;
 	}
 
 	export class SimpleLineRangeMapping {
@@ -2535,6 +2538,7 @@ declare namespace monaco.editor {
 		readonly modifiedRange: LineRange;
 		constructor(originalRange: LineRange, modifiedRange: LineRange);
 		toString(): string;
+		flip(): SimpleLineRangeMapping;
 	}
 	export interface IDimension {
 		width: number;
