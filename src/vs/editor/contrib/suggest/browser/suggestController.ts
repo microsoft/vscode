@@ -379,7 +379,7 @@ export class SuggestController implements IEditorContribution {
 
 			tasks.push(item.resolve(cts.token).then(() => {
 				if (!item.completion.additionalTextEdits || cts.token.isCancellationRequested) {
-					return false;
+					return undefined;
 				}
 				if (position && item.completion.additionalTextEdits.some(edit => Position.isBefore(position!, Range.getStartPosition(edit.range)))) {
 					return false;
@@ -406,10 +406,12 @@ export class SuggestController implements IEditorContribution {
 					providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
 					applied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If async additional text edits could be applied' };
 				};
-				this._telemetryService.publicLog2<AsyncSuggestEdits, AsyncSuggestEditsClassification>('suggest.asyncAdditionalEdits', {
-					providerId: item.extensionId?.value ?? 'unknown',
-					applied
-				});
+				if (typeof applied === 'boolean') {
+					this._telemetryService.publicLog2<AsyncSuggestEdits, AsyncSuggestEditsClassification>('suggest.asyncAdditionalEdits', {
+						providerId: item.extensionId?.value ?? 'unknown',
+						applied
+					});
+				}
 			}).finally(() => {
 				docListener.dispose();
 				typeListener.dispose();
