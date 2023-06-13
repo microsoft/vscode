@@ -121,7 +121,7 @@ export class BufferContentTracker {
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
-				if (line.length) {
+				if (currentLine.length) {
 					this._priorEditorViewportLineCount++;
 					this._lines.push(currentLine);
 					currentLine = '';

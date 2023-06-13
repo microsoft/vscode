@@ -72,22 +72,18 @@ suite('Buffer Content Tracker', () => {
 		assert.strictEqual(bufferTracker.lines.length, 0);
 		await writeP(xterm.raw, prompt);
 		xterm.clearBuffer();
-		await bufferTracker.update();
+		bufferTracker.update();
 		assert.deepStrictEqual(bufferTracker.lines, [prompt]);
-		assert.strictEqual(bufferTracker.lines.length, 1);
 	});
 	test('repeated updates should not change the content', async () => {
 		assert.strictEqual(bufferTracker.lines.length, 0);
 		await writeP(xterm.raw, prompt);
-		await bufferTracker.update();
+		bufferTracker.update();
 		assert.deepStrictEqual(bufferTracker.lines, [prompt]);
-		assert.strictEqual(bufferTracker.lines.length, 1);
-		await bufferTracker.update();
+		bufferTracker.update();
 		assert.deepStrictEqual(bufferTracker.lines, [prompt]);
-		assert.strictEqual(bufferTracker.lines.length, 1);
-		await bufferTracker.update();
+		bufferTracker.update();
 		assert.deepStrictEqual(bufferTracker.lines, [prompt]);
-		assert.strictEqual(bufferTracker.lines.length, 1);
 	});
 	test('should add lines in the viewport and scrollback', async () => {
 		await writeAndAssertBufferState(promptPlusData, 38, xterm.raw, bufferTracker);
@@ -98,15 +94,15 @@ suite('Buffer Content Tracker', () => {
 	test('should refresh viewport', async () => {
 		await writeAndAssertBufferState(promptPlusData, 6, xterm.raw, bufferTracker);
 		await writeP(xterm.raw, '\x1b[3Ainserteddata');
-		await bufferTracker.update();
+		bufferTracker.update();
 		assert.deepStrictEqual(bufferTracker.lines, [promptPlusData, promptPlusData, `${promptPlusData}inserteddata`, promptPlusData, promptPlusData, promptPlusData]);
 	});
 	test('should refresh viewport with full scrollback', async () => {
 		const content = `${prompt}\r\n`.repeat(1030).trimEnd();
 		await writeP(xterm.raw, content);
-		await bufferTracker.update();
+		bufferTracker.update();
 		await writeP(xterm.raw, '\x1b[4Ainsertion');
-		await bufferTracker.update();
+		bufferTracker.update();
 		const expected = content.split('\r\n');
 		expected[1025] = `${prompt}insertion`;
 		assert.deepStrictEqual(bufferTracker.lines[1025], `${prompt}insertion`);
@@ -114,7 +110,7 @@ suite('Buffer Content Tracker', () => {
 	test('should cap the size of the cached lines, removing old lines in favor of new lines', async () => {
 		const content = `${prompt}\r\n`.repeat(1036).trimEnd();
 		await writeP(xterm.raw, content);
-		await bufferTracker.update();
+		bufferTracker.update();
 		const expected = content.split('\r\n');
 		// delete the 6 lines that should be trimmed
 		for (let i = 0; i < 6; i++) {
@@ -122,7 +118,7 @@ suite('Buffer Content Tracker', () => {
 		}
 		// insert a new character
 		await writeP(xterm.raw, '\x1b[2Ainsertion');
-		await bufferTracker.update();
+		bufferTracker.update();
 		expected[1027] = `${prompt}insertion`;
 		assert.strictEqual(bufferTracker.lines.length, expected.length);
 		assert.deepStrictEqual(bufferTracker.lines, expected);
@@ -132,7 +128,7 @@ suite('Buffer Content Tracker', () => {
 async function writeAndAssertBufferState(data: string, rows: number, terminal: Terminal, bufferTracker: BufferContentTracker): Promise<void> {
 	const content = `${data}\r\n`.repeat(rows).trimEnd();
 	await writeP(terminal, content);
-	await bufferTracker.update();
+	bufferTracker.update();
 	assert.strictEqual(bufferTracker.lines.length, rows);
 	assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
 }
