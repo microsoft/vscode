@@ -373,4 +373,7 @@ import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 // Share
 import 'vs/workbench/contrib/share/browser/share.contribution';
 
+// Recorder
+import 'vs/workbench/contrib/recorder/browser/recorder.contribution';
+
 //#endregion
