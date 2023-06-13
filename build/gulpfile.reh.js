@@ -141,6 +141,10 @@ function getNodeChecksum(nodeVersion, platform, arch) {
 		case 'linux':
 			expectedName = `node-v${nodeVersion}-${platform}-${arch}.tar.gz`;
 			break;
+
+		case 'alpine':
+			expectedName = `${platform}-${arch}-node`;
+			break;
 	}
 
 	const nodeJsChecksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'nodejs.txt'), 'utf8');
@@ -185,34 +189,42 @@ function nodejs(platform, arch) {
 		arch = 'x86';
 	} else if (arch === 'armhf') {
 		arch = 'armv7l';
+	} else if (arch === 'alpine') {
+		platform = 'alpine';
+		arch = 'armv7l';
 	}
+
+	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejs.repository}...`);
 
 	const checksumSha256 = getNodeChecksum(nodeVersion, platform, arch);
 
-	if (platform === 'win32') {
-		if (product.nodejs.repository !== 'https://nodejs.org') { // custom node.js builds are currently only supported for windows
-			log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejs.repository}...`);
-			return fetchGithub(product.nodejs.repository, { version: product.nodejs.version, name: `win-${arch}-node.exe`, checksumSha256 })
-				.pipe(rename('node.exe'));
-		}
-		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-		return fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 })
-			.pipe(rename('node.exe'));
+	if (checksumSha256) {
+		log(`Using SHA256 checksum for checking integrity: ${checksumSha256}`);
+	} else {
+		log.warn(`Unable to verify integrity of downloaded node.js binary because no SHA256 checksum was found!`);
 	}
 
-	if (arch === 'alpine' || platform === 'alpine') {
-		const imageName = arch === 'arm64' ? 'arm64v8/node' : 'node';
-		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from docker image ${imageName}`);
-		const contents = cp.execSync(`docker run --rm ${imageName}:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
-		return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
+	switch (platform) {
+		case 'win32':
+			if (product.nodejs.repository !== 'https://nodejs.org') {
+				return fetchGithub(product.nodejs.repository, { version: product.nodejs.version, name: `win-${arch}-node.exe`, checksumSha256 }).pipe(rename('node.exe'));
+			} else {
+				return fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 }).pipe(rename('node.exe'));
+			}
+		case 'darwin':
+		case 'linux':
+			return fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
+				.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+				.pipe(filter('**/node'))
+				.pipe(util.setExecutableBit('**'))
+				.pipe(rename('node'));
+		case 'alpine':
+			if (product.nodejs.repository !== 'https://nodejs.org') {
+				return fetchGithub(product.nodejs.repository, { version: product.nodejs.version, name: `alpine-${arch}-node`, checksumSha256 }).pipe(rename('node'));
+			} else {
+				throw new Error('There is no official release of node.js for Alpine Linux');
+			}
 	}
-
-	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-	return fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
-		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
-		.pipe(filter('**/node'))
-		.pipe(util.setExecutableBit('**'))
-		.pipe(rename('node'));
 }
 
 function packageTask(type, platform, arch, sourceFolderName, destinationFolderName) {
