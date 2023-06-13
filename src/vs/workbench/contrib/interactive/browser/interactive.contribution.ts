@@ -38,7 +38,7 @@ import { contrastBorder, listInactiveSelectionBackground, registerColor, transpa
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
@@ -81,7 +81,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 	constructor(
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -134,19 +135,36 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			{
 				createEditorInput: ({ resource, options }) => {
 					const data = CellUri.parse(resource);
-					let notebookUri: URI = resource;
 					let cellOptions: IResourceEditorInput | undefined;
 
 					if (data) {
-						notebookUri = data.notebook;
 						cellOptions = { resource, options };
 					}
 
 					const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
 
-					const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === notebookUri.toString());
+					const editorInput = createEditor(resource, this.instantiationService);
 					return {
-						editor: editorInput!.editor,
+						editor: editorInput,
+						options: notebookOptions
+					};
+				},
+				createUntitledEditorInput: ({ resource, options }) => {
+					if (!resource) {
+						throw new Error('Interactive window editors must have a resource name');
+					}
+					const data = CellUri.parse(resource);
+					let cellOptions: IResourceEditorInput | undefined;
+
+					if (data) {
+						cellOptions = { resource, options };
+					}
+
+					const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
+
+					const editorInput = createEditor(resource, this.instantiationService);
+					return {
+						editor: editorInput,
 						options: notebookOptions
 					};
 				}
@@ -180,6 +198,15 @@ class InteractiveInputContentProvider implements ITextModelContentProvider {
 	}
 }
 
+function createEditor(resource: URI, instantiationService: IInstantiationService): EditorInput {
+	const counter = /\/Interactive-(\d+)/.exec(resource.path);
+	const inputBoxPath = counter && counter[1] ? `/InteractiveInput-${counter[1]}` : 'InteractiveInput';
+	const inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: inputBoxPath });
+	const editorInput = InteractiveEditorInput.create(instantiationService, resource, inputUri);
+
+	return editorInput;
+}
+
 class InteractiveWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
 	constructor(
@@ -207,12 +234,7 @@ class InteractiveWindowWorkingCopyEditorHandler extends Disposable implements IW
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
-		const counter = /\/Interactive-(\d+)/.exec(workingCopy.resource.path);
-		const inputBoxPath = counter && counter[1] ? `/InteractiveInput-${counter[1]}` : 'InteractiveInput';
-		const inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: inputBoxPath });
-		const editorInput = InteractiveEditorInput.create(this._instantiationService, workingCopy.resource, inputUri);
-
-		return editorInput;
+		return createEditor(workingCopy.resource, this._instantiationService);
 	}
 
 	private async _installHandler(): Promise<void> {
@@ -386,9 +408,9 @@ registerAction2(class extends Action2 {
 			}
 		}
 
-		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri, title);
 		historyService.clearHistory(notebookUri);
-		const editorPane = await editorService.openEditor(editorInput, editorOptions, group);
+		const editorInput: IUntypedEditorInput = { resource: notebookUri, options: editorOptions };
+		const editorPane = await editorService.openEditor(editorInput, group);
 		const editorControl = editorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		logService.debug('New interactive window opened. Notebook editor id', editorControl?.notebookEditor?.getId());

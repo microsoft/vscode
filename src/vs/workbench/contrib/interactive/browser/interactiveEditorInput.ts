@@ -18,6 +18,7 @@ import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/bro
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class InteractiveEditorInput extends EditorInput implements ICompositeNotebookEditorInput {
 	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string) {
@@ -79,6 +80,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
 		super();
@@ -136,6 +138,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 			return this._inputResolver;
 		}
 
+		await this._extensionService.activateByEvent('onNotebook:interactive');
 		this._inputResolver = this._resolveEditorModel();
 
 		return this._inputResolver;
