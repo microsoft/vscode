@@ -306,7 +306,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			if (!m) { return; }
 
 			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.originalRange.contains(e.position.lineNumber));
-
 			m.syncedMovedTexts.set(movedText, undefined);
 		}));
 		return editor;
@@ -322,7 +321,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			if (!m) { return; }
 
 			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modifiedRange.contains(e.position.lineNumber));
-
 			m.syncedMovedTexts.set(movedText, undefined);
 		}));
 		// Revert change when an arrow is clicked.
