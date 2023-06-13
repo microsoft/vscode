@@ -1055,6 +1055,9 @@ class StandaloneAudioService implements IAudioCueService {
 
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
 	}
+	playAudioCueLoop(cue: AudioCue): IDisposable {
+		return toDisposable(() => { });
+	}
 }
 
 export interface IEditorOverrideServices {

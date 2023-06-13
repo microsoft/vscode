@@ -16,6 +16,7 @@ import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -115,6 +116,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IAudioCueService private readonly audioCueService: IAudioCueService
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
@@ -390,8 +392,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const input = query ?? editorValue;
+			const cue = this.audioCueService.playAudioCueLoop(AudioCue.break);
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
 			if (result) {
+				cue.dispose();
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,6 +22,7 @@ export interface IAudioCueService {
 	onEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
+	playAudioCueLoop(cue: AudioCue): IDisposable;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -85,6 +86,23 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		} finally {
 			this.playingSounds.delete(sound);
 		}
+	}
+
+	public playAudioCueLoop(cue: AudioCue): IDisposable {
+		let playing = true;
+		const playSound = () => {
+			if (playing) {
+				this.playSound(cue.sound, true).finally(() => {
+					if (playing) {
+						playSound();
+					}
+				});
+			}
+		};
+		playSound();
+		return toDisposable(() => {
+			playing = false;
+		});
 	}
 
 	private readonly obsoleteAudioCuesEnabled = observableFromEvent(
