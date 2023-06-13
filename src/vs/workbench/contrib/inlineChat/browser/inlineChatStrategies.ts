@@ -343,7 +343,7 @@ export class LiveStrategy extends EditModeStrategy {
 		let lastLineOfLocalEdits: number | undefined;
 		for (const change of lastTextModelChanges) {
 			const changeEndLineNumber = change.modifiedRange.endLineNumberExclusive - 1;
-			if (!lastLineOfLocalEdits || lastLineOfLocalEdits < changeEndLineNumber) {
+			if (typeof lastLineOfLocalEdits === 'undefined' || lastLineOfLocalEdits < changeEndLineNumber) {
 				lastLineOfLocalEdits = changeEndLineNumber;
 			}
 		}
