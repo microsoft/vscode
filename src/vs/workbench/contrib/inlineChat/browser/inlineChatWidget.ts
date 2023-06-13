@@ -795,10 +795,9 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
-		this._setMargins(position);
 	}
 
-	private _setMargins(position: Position): void {
+	public setMargins(position: Position): void {
 		const viewModel = this.editor._getViewModel();
 		if (!viewModel) {
 			return;

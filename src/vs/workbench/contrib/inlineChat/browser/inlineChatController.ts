@@ -203,7 +203,11 @@ export class InlineChatController implements IEditorContribution {
 		} else {
 			widgetPosition = this._strategy.getWidgetPosition();
 		}
-		this._zone.value.show((widgetPosition ?? this._zone.value.position) ?? this._activeSession.wholeRange.value.getEndPosition());
+		const position = ((widgetPosition ?? this._zone.value.position) ?? this._activeSession.wholeRange.value.getEndPosition());
+		this._zone.value.show(position);
+		if (initialRender) {
+			this._zone.value.setMargins(position);
+		}
 	}
 
 	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
