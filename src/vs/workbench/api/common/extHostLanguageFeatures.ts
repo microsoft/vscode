@@ -1046,12 +1046,20 @@ class CompletionsAdapter {
 			additionalTextEdits: resolvedItem.additionalTextEdits
 		};
 
-		if (item.insertText !== resolvedItem.insertText) {
+		if (CompletionsAdapter._insertTextIdent(item.insertText) !== CompletionsAdapter._insertTextIdent(resolvedItem.insertText)) {
 			this._apiDeprecation.report('CompletionItem.insertText', this._extension, 'extension MAY NOT change \'insertText\' of a CompletionItem during resolve');
 			enforcedResolvedItem.insertText = resolvedItem.insertText;
 		}
 
 		return this._convertCompletionItem(enforcedResolvedItem, id);
+	}
+
+	private static _insertTextIdent(insertText: string | vscode.SnippetString | undefined) {
+		switch (typeof insertText) {
+			case 'string': return insertText;
+			case 'undefined': return undefined;
+			case 'object': return insertText.value;
+		}
 	}
 
 	releaseCompletionItems(id: number): any {
