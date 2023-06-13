@@ -43,7 +43,7 @@ export abstract class EditModeStrategy {
 
 	abstract hasFocus(): boolean;
 
-	abstract getWidgetPosition(): Position | null;
+	abstract getWidgetPosition(): Position | undefined;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -131,8 +131,8 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	getWidgetPosition(): Position | null {
-		return null;
+	getWidgetPosition(): Position | undefined {
+		return;
 	}
 
 	hasFocus(): boolean {
@@ -331,7 +331,7 @@ export class LiveStrategy extends EditModeStrategy {
 		this._widget.updateStatus(message);
 	}
 
-	private _lastLineOfLocalEdits(): number | undefined {
+	override getWidgetPosition(): Position | undefined {
 		const lastTextModelChanges = this._session.lastTextModelChanges;
 		let lastLineOfLocalEdits: number | undefined;
 		for (const change of lastTextModelChanges) {
@@ -340,16 +340,7 @@ export class LiveStrategy extends EditModeStrategy {
 				lastLineOfLocalEdits = changeEndLineNumber;
 			}
 		}
-		return lastLineOfLocalEdits;
-	}
-
-	override getWidgetPosition(): Position | null {
-		const isEditResponse = this._session.lastExchange?.response instanceof EditResponse;
-		if (isEditResponse) {
-			const lastLineOfLocalEdits = this._lastLineOfLocalEdits();
-			return lastLineOfLocalEdits ? new Position(lastLineOfLocalEdits, 1) : null;
-		}
-		return null;
+		return lastLineOfLocalEdits ? new Position(lastLineOfLocalEdits, 1) : undefined;
 	}
 
 	hasFocus(): boolean {
@@ -408,14 +399,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 			this._diffZone.hide();
 		}
 		scrollState.restore(this._editor);
-	}
-
-	override getWidgetPosition(): Position | null {
-		const isEditResponse = this._session.lastExchange?.response instanceof EditResponse;
-		if (isEditResponse) {
-			return this._session.wholeRange.value.getEndPosition();
-		}
-		return null;
 	}
 
 	override hasFocus(): boolean {
