@@ -1400,10 +1400,10 @@
     bindings "^1.2.1"
     nan "^2.17.0"
 
-"@vscode/windows-process-tree@0.4.2":
-  version "0.4.2"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.4.2.tgz#54d010fdeb06dfe3a9c6d58fcb3ed9acfc962f33"
-  integrity sha512-b20865s1HG1VtGt887KrB1blwFS6p4L1Fl1o/WplO9j7sGBle8sLqkNnGXbCaRNgdIgfXtitmzG366FVynJZdQ==
+"@vscode/windows-process-tree@^0.5.0":
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.5.0.tgz#b8205b862c75a1e0ad8b7bf4350dc85036ee3a2c"
+  integrity sha512-y8Oliel/rBSYh9f1T4F0zQjJNPeJRgYRhEKZsjas7JXKLf46FpE3Ux8e9+7HelUD8dXFH7C7N6895nU0WhrMlg==
   dependencies:
     nan "^2.17.0"
 
@@ -6973,10 +6973,10 @@ node-gyp-build@^4.3.0:
   resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.3.0.tgz#9f256b03e5826150be39c764bf51e993946d71a3"
   integrity sha512-iWjXZvmboq0ja1pUGULQBexmxq8CV4xBhX7VDOTbL7ZR4FOowwY/VOtRxBN/yKxmdGoIp4j5ysNT4u3S2pDQ3Q==
 
-node-pty@0.11.0-beta33:
-  version "0.11.0-beta33"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta33.tgz#722a729fb9449f591279bee1f8b431b71a9af4a1"
-  integrity sha512-SoP5BbSfvc8Um51rIriUEOPvMltc43iTaKXGJaJKLR3+NfQbjcCcNQGyOd9P9pvBccWYg+Rncv18qMtJKIAi1Q==
+node-pty@1.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.0.0.tgz#7daafc0aca1c4ca3de15c61330373af4af5861fd"
+  integrity sha512-wtBMWWS7dFZm/VgqElrTvtfMq4GzJ6+edFI0Y0zyzygUSZMgZdraDUMUhCIvkjhJjme15qWmbyJbtAx4ot4uZA==
   dependencies:
     nan "^2.17.0"
 
