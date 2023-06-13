@@ -47,6 +47,10 @@ export abstract class EditModeStrategy {
 	abstract hasFocus(): boolean;
 
 	abstract getWidgetPosition(initialRender: boolean, range?: Range, response?: SessionResponse): Position | undefined;
+
+	needsIndentationRecalculation(initialRender: boolean): boolean {
+		return true;
+	}
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -447,6 +451,13 @@ export class LivePreviewStrategy extends LiveStrategy {
 				return this._initialPosition;
 			}
 		}
+	}
+
+	override needsIndentationRecalculation(initialRender: boolean): boolean {
+		if (!initialRender && this._diffEnabled) {
+			return false;
+		}
+		return true;
 	}
 
 	override hasFocus(): boolean {
