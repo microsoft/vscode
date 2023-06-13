@@ -27,12 +27,6 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 
 export abstract class EditModeStrategy {
 
-	constructor(protected readonly _editor: ICodeEditor) {
-		this._initialPosition = this._editor.getPosition();
-	}
-
-	protected _initialPosition: Position | null;
-
 	abstract dispose(): void;
 
 	abstract checkChanges(response: EditResponse): boolean;
@@ -49,7 +43,7 @@ export abstract class EditModeStrategy {
 
 	abstract hasFocus(): boolean;
 
-	abstract getWidgetPosition(initialRender: boolean, range: Range): Position | null;
+	abstract getWidgetPosition(): Position | null;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -58,14 +52,13 @@ export class PreviewStrategy extends EditModeStrategy {
 	private readonly _listener: IDisposable;
 
 	constructor(
-		_editor: ICodeEditor,
 		private readonly _session: Session,
 		private readonly _widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		super(_editor);
+		super();
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 		this._listener = Event.debounce(_session.textModelN.onDidChangeContent.bind(_session.textModelN), () => { }, 350)(_ => {
@@ -138,8 +131,8 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	getWidgetPosition(_initialRender: boolean, _range: Range): Position | null {
-		return this._initialPosition;
+	getWidgetPosition(): Position | null {
+		return null;
 	}
 
 	hasFocus(): boolean {
@@ -225,8 +218,8 @@ export class LiveStrategy extends EditModeStrategy {
 	private _editCount: number = 0;
 
 	constructor(
-		_editor: ICodeEditor,
 		protected readonly _session: Session,
+		protected readonly _editor: ICodeEditor,
 		protected readonly _widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService protected _storageService: IStorageService,
@@ -234,7 +227,7 @@ export class LiveStrategy extends EditModeStrategy {
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		super(_editor);
+		super();
 		this._diffEnabled = _storageService.getBoolean(LiveStrategy._inlineDiffStorageKey, StorageScope.PROFILE, true);
 
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._diffEnabled);
@@ -350,18 +343,13 @@ export class LiveStrategy extends EditModeStrategy {
 		return lastLineOfLocalEdits;
 	}
 
-	override getWidgetPosition(initialRender: boolean, _range: Range): Position | null {
-		if (initialRender) {
-			return this._initialPosition;
-		} else {
-			const isEditResponse = this._session.lastExchange?.response instanceof EditResponse;
-			if (isEditResponse) {
-				const lastLineOfLocalEdits = this._lastLineOfLocalEdits();
-				return lastLineOfLocalEdits ? new Position(lastLineOfLocalEdits, 1) : this._initialPosition;
-			} else {
-				return this._initialPosition;
-			}
+	override getWidgetPosition(): Position | null {
+		const isEditResponse = this._session.lastExchange?.response instanceof EditResponse;
+		if (isEditResponse) {
+			const lastLineOfLocalEdits = this._lastLineOfLocalEdits();
+			return lastLineOfLocalEdits ? new Position(lastLineOfLocalEdits, 1) : null;
 		}
+		return null;
 	}
 
 	hasFocus(): boolean {
@@ -375,8 +363,8 @@ export class LivePreviewStrategy extends LiveStrategy {
 	private readonly _previewZone: InlineChatFileCreatePreviewWidget;
 
 	constructor(
-		editor: ICodeEditor,
 		session: Session,
+		editor: ICodeEditor,
 		widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
@@ -384,7 +372,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
-		super(editor, session, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, instaService);
+		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, instaService);
 
 		this._diffZone = instaService.createInstance(InlineChatLivePreviewWidget, editor, session);
 		this._previewZone = instaService.createInstance(InlineChatFileCreatePreviewWidget, editor);
@@ -422,17 +410,12 @@ export class LivePreviewStrategy extends LiveStrategy {
 		scrollState.restore(this._editor);
 	}
 
-	override getWidgetPosition(initialRender: boolean, range: Range): Position | null {
-		if (initialRender) {
-			return this._initialPosition;
-		} else {
-			const isEditResponse = this._session.lastExchange?.response instanceof EditResponse;
-			if (range && isEditResponse) {
-				return range.getEndPosition();
-			} else {
-				return this._initialPosition;
-			}
+	override getWidgetPosition(): Position | null {
+		const isEditResponse = this._session.lastExchange?.response instanceof EditResponse;
+		if (isEditResponse) {
+			return this._session.wholeRange.value.getEndPosition();
 		}
+		return null;
 	}
 
 	override hasFocus(): boolean {
