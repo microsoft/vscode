@@ -28,7 +28,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, MarkdownResponse, Session, SessionExchange, SessionResponse } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, MarkdownResponse, Session, SessionExchange } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -193,16 +193,6 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- state machine
 
-	private _showWidget(initialRender: boolean = false, response?: SessionResponse) {
-		assertType(this._activeSession);
-		assertType(this._strategy);
-		const selectionRange = this._activeSession.wholeRange.value;
-		const widgetPosition = this._strategy.getWidgetPosition(initialRender, selectionRange, response) ?? selectionRange.getEndPosition();
-		this._zone.value.show(widgetPosition);
-		const needsIndentationRecalculation = this._strategy.needsIndentationRecalculation(initialRender);
-		this._zone.value.adjustMargins(widgetPosition, needsIndentationRecalculation);
-	}
-
 	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
 		this._log('setState to ', state);
 		const nextState = await this[state](options);
@@ -247,7 +237,7 @@ export class InlineChatController implements IEditorContribution {
 				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value.widget);
 				break;
 			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._editor, this._zone.value.widget);
+				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value.widget);
 				break;
 			case EditMode.LivePreview:
 			default:
@@ -279,8 +269,8 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 		this._zone.value.widget.value = this._activeSession.lastInput ?? '';
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
+		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
-		this._showWidget(true);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -369,6 +359,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._activeSession);
 
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
+		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 
 		if (options?.message) {
 			this._zone.value.widget.value = options?.message;
@@ -546,7 +537,6 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		const { response } = this._activeSession.lastExchange!;
-		this._showWidget(false, response);
 
 		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
 			? response.raw.type

@@ -795,9 +795,28 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
+		this._setMargins(position);
 	}
 
-	private _setMarginsUsingIndentationWidth() {
+	private _setMargins(position: Position): void {
+		const viewModel = this.editor._getViewModel();
+		if (!viewModel) {
+			return;
+		}
+		const visibleRange = viewModel.getCompletelyVisibleViewRange();
+		const startLineVisibleRange = visibleRange.startLineNumber;
+		const positionLine = position.lineNumber;
+		let indentationLineNumber: number | undefined;
+		let indentationLevel: number | undefined;
+		for (let lineNumber = positionLine; lineNumber >= startLineVisibleRange; lineNumber--) {
+			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
+			if (currentIndentationLevel !== 0) {
+				indentationLineNumber = lineNumber;
+				indentationLevel = currentIndentationLevel;
+				break;
+			}
+		}
+		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
 		const info = this.editor.getLayoutInfo();
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;
@@ -807,30 +826,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
 		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
 		this.widget.domNode.style.marginRight = `${spaceRight}px`;
-	}
-
-	public adjustMargins(position: Position, needsIndentationRecalculation: boolean): void {
-		if (needsIndentationRecalculation) {
-			const viewModel = this.editor._getViewModel();
-			if (!viewModel) {
-				return;
-			}
-			const visibleRange = viewModel.getCompletelyVisibleViewRange();
-			const startLineVisibleRange = visibleRange.startLineNumber;
-			const positionLine = position.lineNumber;
-			let indentationLineNumber: number | undefined;
-			let indentationLevel: number | undefined;
-			for (let lineNumber = positionLine; lineNumber >= startLineVisibleRange; lineNumber--) {
-				const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
-				if (currentIndentationLevel !== 0) {
-					indentationLineNumber = lineNumber;
-					indentationLevel = currentIndentationLevel;
-					break;
-				}
-			}
-			this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
-		}
-		this._setMarginsUsingIndentationWidth();
 	}
 
 	override hide(): void {

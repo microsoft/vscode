@@ -5,7 +5,6 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -21,14 +20,12 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
-import { EditResponse, Session, SessionResponse } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_SHOWING_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
-
-	protected _initialPosition: Position | undefined;
 
 	abstract dispose(): void;
 
@@ -45,12 +42,6 @@ export abstract class EditModeStrategy {
 	abstract toggleDiff(): void;
 
 	abstract hasFocus(): boolean;
-
-	abstract getWidgetPosition(initialRender: boolean, range?: Range, response?: SessionResponse): Position | undefined;
-
-	needsIndentationRecalculation(initialRender: boolean): boolean {
-		return true;
-	}
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -60,7 +51,6 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	constructor(
 		private readonly _session: Session,
-		private readonly _editor: ICodeEditor,
 		private readonly _widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -137,15 +127,6 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	toggleDiff(): void {
 		// nothing to do
-	}
-
-	getWidgetPosition(initialRender: boolean, _range: Range, _response: SessionResponse): Position | undefined {
-		const viewModel = this._editor._getViewModel();
-		assertType(viewModel);
-		if (initialRender) {
-			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
-		}
-		return this._initialPosition;
 	}
 
 	hasFocus(): boolean {
@@ -344,42 +325,6 @@ export class LiveStrategy extends EditModeStrategy {
 		this._widget.updateStatus(message);
 	}
 
-	private _findEditsMaxLineNumber(response: EditResponse): number | void {
-		const edits = response.localEdits;
-		if (edits.length) {
-			let editsMaxLineNumber = 0;
-			for (const edit of edits) {
-				const editStartLine = edit.range.startLineNumber;
-				const editNumberOfLines = (edit.text.match(/\n/g) || []).length;
-				const endLine = editStartLine + editNumberOfLines - 1;
-				if (endLine > editsMaxLineNumber) {
-					editsMaxLineNumber = endLine;
-				}
-			}
-			return editsMaxLineNumber;
-		}
-	}
-
-	override getWidgetPosition(initialRender: boolean, _range: Range, response: SessionResponse): Position | undefined {
-		const viewModel = this._editor._getViewModel();
-		assertType(viewModel);
-		if (initialRender) {
-			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
-			return this._initialPosition;
-		} else {
-			if (response instanceof EditResponse) {
-				const editsMaxLineNumber = this._findEditsMaxLineNumber(response);
-				if (editsMaxLineNumber) {
-					return new Position(editsMaxLineNumber, 1);
-				} else {
-					return this._initialPosition;
-				}
-			} else {
-				return this._initialPosition;
-			}
-		}
-	}
-
 	hasFocus(): boolean {
 		return this._widget.hasFocus();
 	}
@@ -436,28 +381,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 			this._diffZone.hide();
 		}
 		scrollState.restore(this._editor);
-	}
-
-	override getWidgetPosition(initialRender: boolean, range: Range, response: SessionResponse): Position | undefined {
-		if (initialRender) {
-			const viewModel = this._editor._getViewModel();
-			assertType(viewModel);
-			this._initialPosition = viewModel.getPrimaryCursorState().viewState.position;
-			return this._initialPosition;
-		} else {
-			if (range && response instanceof EditResponse) {
-				return range.getEndPosition();
-			} else {
-				return this._initialPosition;
-			}
-		}
-	}
-
-	override needsIndentationRecalculation(initialRender: boolean): boolean {
-		if (!initialRender && this._diffEnabled) {
-			return false;
-		}
-		return true;
 	}
 
 	override hasFocus(): boolean {
