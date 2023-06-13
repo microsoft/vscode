@@ -195,9 +195,15 @@ export class InlineChatController implements IEditorContribution {
 
 	private _showWidget(initialRender: boolean = false) {
 		assertType(this._activeSession);
-		const selectionRange = this._activeSession.wholeRange.value;
-		const widgetPosition = this._strategy?.getWidgetPosition(initialRender, selectionRange);
-		this._zone.value.show(widgetPosition ?? selectionRange.getEndPosition());
+		assertType(this._strategy);
+
+		let widgetPosition: Position | null;
+		if (initialRender) {
+			widgetPosition = this._editor.getPosition();
+		} else {
+			widgetPosition = this._strategy.getWidgetPosition();
+		}
+		this._zone.value.show((widgetPosition ?? this._zone.value.position) ?? this._activeSession.wholeRange.value.getEndPosition());
 	}
 
 	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
@@ -241,14 +247,14 @@ export class InlineChatController implements IEditorContribution {
 
 		switch (session.editMode) {
 			case EditMode.Live:
-				this._strategy = this._instaService.createInstance(LiveStrategy, this._editor, session, this._zone.value.widget);
+				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value.widget);
 				break;
 			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, this._editor, session, this._zone.value.widget);
+				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value.widget);
 				break;
 			case EditMode.LivePreview:
 			default:
-				this._strategy = this._instaService.createInstance(LivePreviewStrategy, this._editor, session, this._zone.value.widget);
+				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value.widget);
 				break;
 		}
 
