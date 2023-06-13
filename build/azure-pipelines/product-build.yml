@@ -144,11 +144,11 @@ resources:
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-arm64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-arm64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-arm64
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-armhf
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-armhf
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-armhf
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: snapcraft

@@ -14,12 +14,12 @@ import { isDefined } from 'vs/base/common/types';
 import { Constants } from 'vs/base/common/uint';
 import 'vs/css!./style';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IMouseTargetViewZone } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget';
-import { diffAddDecoration, diffDeleteDecoration, diffFullLineAddDecoration, diffFullLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
+import { arrowRevertChange, diffAddDecoration, diffDeleteDecoration, diffFullLineAddDecoration, diffFullLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
 import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorSash';
 import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/lineAlignment';
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
@@ -40,6 +40,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffMapping, DiffModel } from './diffModel';
+import { Range } from 'vs/editor/common/core/range';
+import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 	enableSplitViewResizing: true,
@@ -142,7 +144,16 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._register(keepAlive(this._sash, true));
 
 		this._register(new UnchangedRangesFeature(this._originalEditor, this._modifiedEditor, this._diffModel));
-		this._register(this._instantiationService.createInstance(ViewZoneManager, this._originalEditor, this._modifiedEditor, this._diffModel, this._options.map(o => o.renderSideBySide)));
+		this._register(
+			this._instantiationService.createInstance(
+				ViewZoneManager,
+				this._originalEditor,
+				this._modifiedEditor,
+				this._diffModel,
+				this._options.map((o) => o.renderSideBySide),
+				this
+			)
+		);
 
 		this._register(this._instantiationService.createInstance(OverviewRulerPart,
 			this._originalEditor,
@@ -229,6 +240,10 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				originalDecorations.push({ range: i.originalRange, options: diffDeleteDecoration });
 				modifiedDecorations.push({ range: i.modifiedRange, options: diffAddDecoration });
 			}
+
+			if (!m.lineRangeMapping.modifiedRange.isEmpty) {
+				modifiedDecorations.push({ range: Range.fromPositions(new Position(m.lineRangeMapping.modifiedRange.startLineNumber, 1)), options: arrowRevertChange });
+			}
 		}
 
 		if (currentMove) {
@@ -311,24 +326,32 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			m.syncedMovedTexts.set(movedText, undefined);
 		}));
 		// Revert change when an arrow is clicked.
-		/*TODO
 		this._register(editor.onMouseDown(event => {
 			if (!event.event.rightButton && event.target.position && event.target.element?.className.includes('arrow-revert-change')) {
 				const lineNumber = event.target.position.lineNumber;
-				const viewZone = event.target as editorBrowser.IMouseTargetViewZone | undefined;
-				const change = this._diffComputationResult?.changes.find(c =>
-					// delete change
-					viewZone?.detail.afterLineNumber === c.modifiedStartLineNumber ||
-					// other changes
-					(c.modifiedEndLineNumber > 0 && c.modifiedStartLineNumber === lineNumber));
-				if (change) {
-					this.revertChange(change);
+				const viewZone = event.target as IMouseTargetViewZone | undefined;
+
+				const model = this._diffModel.get();
+				if (!model) {
+					return;
 				}
+				const diffs = model.diff.get()?.mappings;
+				if (!diffs) {
+					return;
+				}
+				const diff = diffs.find(d =>
+					viewZone?.detail.afterLineNumber === d.lineRangeMapping.modifiedRange.startLineNumber - 1 ||
+					d.lineRangeMapping.modifiedRange.startLineNumber === lineNumber
+				);
+				if (!diff) {
+					return;
+				}
+				this.revert(diff.lineRangeMapping);
+
 				event.event.stopPropagation();
-				this._updateDecorations();
 				return;
 			}
-		}));*/
+		}));
 
 		return editor;
 	}
@@ -577,6 +600,17 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			identical: diffState.identical,
 			quitEarly: diffState.quitEarly,
 		};
+	}
+
+	public revert(diff: LineRangeMapping): void {
+		const model = this._model.get();
+		if (!model) {
+			return;
+		}
+		const originalText = model.original.getValueInRange(diff.originalRange.toExclusiveRange());
+		this._modifiedEditor.executeEdits('diffEditor', [
+			{ range: diff.modifiedRange.toExclusiveRange(), text: originalText }
+		]);
 	}
 
 	private _goTo(diff: DiffMapping): void {
