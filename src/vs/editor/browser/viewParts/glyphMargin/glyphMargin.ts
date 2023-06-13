@@ -6,6 +6,7 @@
 import 'vs/css!./glyphMargin';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { Range } from 'vs/editor/common/core/range';
 import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
@@ -262,7 +263,9 @@ export class GlyphMarginWidgets extends ViewPart {
 
 	public setWidgetPosition(widget: IGlyphMarginWidget, preference: IGlyphMarginWidgetPosition): boolean {
 		const myWidget = this._widgets[widget.getId()];
-		if (myWidget.preference === preference) {
+		if (myWidget.preference.lane === preference.lane
+			&& myWidget.preference.zIndex === preference.zIndex
+			&& Range.equalsRange(myWidget.preference.range, preference.range)) {
 			return false;
 		}
 
@@ -301,7 +304,7 @@ export class GlyphMarginWidgets extends ViewPart {
 		const widgets = Object.values(this._widgets);
 		for (let i = 0, len = widgets.length; i < len; i++) {
 			const w = widgets[i];
-			const glyphMarginClassName = w.widget.className;
+			const glyphMarginClassName = w.widget.getDomNode().className;
 			if (glyphMarginClassName) {
 				r[rLen++] = new DecorationToRender(w.preference.range.startLineNumber, w.preference.range.endLineNumber, glyphMarginClassName, w.preference.zIndex, w.preference.lane, w.domNode);
 			}
@@ -438,7 +441,10 @@ export class GlyphMarginWidgets extends ViewPart {
 	}
 
 	private _renderWidget(ctx: RestrictedRenderingContext, renderedWidget: GlyphMarginWidget): void {
-		renderedWidget.domNode.setClassName(`cgmr codicon ${renderedWidget.className}`);
+		const className = renderedWidget.className.includes('cgmr codicon ')
+			? renderedWidget.className
+			: `cgmr codicon ${renderedWidget.className}`;
+		renderedWidget.domNode.setClassName(className);
 		renderedWidget.domNode.setLeft(renderedWidget.left);
 		renderedWidget.domNode.setWidth(renderedWidget.width);
 		renderedWidget.domNode.setHeight(this._lineHeight);

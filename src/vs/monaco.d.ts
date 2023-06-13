@@ -5384,10 +5384,6 @@ declare namespace monaco.editor {
 	 */
 	export interface IGlyphMarginWidget {
 		/**
-		 * The class name to apply to the glyph widget.
-		 */
-		className: string;
-		/**
 		 * Get a unique identifier of the glyph widget.
 		 */
 		getId(): string;
