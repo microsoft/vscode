@@ -44,7 +44,7 @@ export class RecorderContribution implements IWorkbenchContribution {
 			};
 
 			audioRecorder.onstop = () => {
-				audio = new Audio(window.URL.createObjectURL(new Blob(chunks, { 'type': 'audio/ogg; codecs=opus' })));
+				audio = new Audio(window.URL.createObjectURL(new Blob(chunks, { 'type': 'audio/ogg; codecs=vorbis' })));
 			};
 		});
 
