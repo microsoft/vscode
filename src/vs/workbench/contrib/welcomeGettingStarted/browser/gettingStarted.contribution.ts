@@ -251,10 +251,12 @@ registerAction2(class extends Action2 {
 			quickPick.hide();
 		});
 		quickPick.onDidHide(() => quickPick.dispose());
-		quickPick.show();
 		await extensionService.whenInstalledExtensionsRegistered();
+		gettingStartedService.onDidAddWalkthrough(async () => {
+			quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
+		});
+		quickPick.show();
 		quickPick.busy = false;
-		quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
 	}
 });
 

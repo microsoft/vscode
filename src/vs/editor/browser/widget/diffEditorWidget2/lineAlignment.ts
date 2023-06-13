@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from 'vs/base/browser/dom';
 import { ArrayQueue } from 'vs/base/common/arrays';
+import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
 import { autorun, autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
@@ -14,6 +16,7 @@ import { IViewZone } from 'vs/editor/browser/editorBrowser';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
+import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 import { DiffMapping, DiffModel } from 'vs/editor/browser/widget/diffEditorWidget2/diffModel';
 import { InlineDiffDeletedCodeMargin } from 'vs/editor/browser/widget/diffEditorWidget2/inlineDiffDeletedCodeMargin';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditorWidget2/renderLines';
@@ -49,6 +52,7 @@ export class ViewZoneManager extends Disposable {
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _diffModel: IObservable<DiffModel | undefined>,
 		private readonly _renderSideBySide: IObservable<boolean>,
+		private readonly _diffEditorWidget: DiffEditorWidget2,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
@@ -190,10 +194,11 @@ export class ViewZoneManager extends Disposable {
 								marginDomNode,
 								this._modifiedEditor,
 								a.diff,
+								this._diffEditorWidget,
 								result.viewLineCounts,
 								this._originalEditor.getModel()!,
 								this._contextMenuService,
-								this._clipboardService
+								this._clipboardService,
 							)
 						);
 
@@ -245,10 +250,22 @@ export class ViewZoneManager extends Disposable {
 							continue;
 						}
 
+						function createViewZoneMarginArrow(): HTMLElement {
+							const arrow = document.createElement('div');
+							arrow.className = 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight);
+							return $('div', {}, arrow);
+						}
+
+						let marginDomNode: HTMLElement | undefined = undefined;
+						if (a.diff && a.diff.modifiedRange.isEmpty) {
+							marginDomNode = createViewZoneMarginArrow();
+						}
+
 						modViewZones.push({
 							afterLineNumber: a.modifiedRange.endLineNumberExclusive - 1,
 							domNode: createFakeLinesDiv(),
 							heightInPx: -delta,
+							marginDomNode,
 						});
 					}
 				}
