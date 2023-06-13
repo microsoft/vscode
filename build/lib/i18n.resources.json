@@ -521,6 +521,10 @@
 		{
 			"name": "vs/workbench/contrib/accessibility",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/issue",
+			"project": "vscode-workbench"
 		}
 	]
 }
