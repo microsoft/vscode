@@ -208,6 +208,8 @@ export class Sound {
 	public static readonly diffLineInserted = Sound.register({ fileName: 'diffLineInserted.mp3' });
 	public static readonly diffLineDeleted = Sound.register({ fileName: 'diffLineDeleted.mp3' });
 	public static readonly diffLineModified = Sound.register({ fileName: 'diffLineModified.mp3' });
+	public static readonly chatRequestSent = Sound.register({ fileName: 'chatRequestSent.mp3' });
+	public static readonly chatResponsePending = Sound.register({ fileName: 'chatResponsePending.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -325,6 +327,18 @@ export class AudioCue {
 		name: localize('audioCues.diffLineModified', 'Diff Line Modified'),
 		sound: Sound.diffLineModified,
 		settingsKey: 'audioCues.diffLineModified'
+	});
+
+	public static readonly chatRequestSent = AudioCue.register({
+		name: localize('audioCues.chatRequestSent', 'Chat Request Sent'),
+		sound: Sound.chatRequestSent,
+		settingsKey: 'audioCues.chatRequestSent'
+	});
+
+	public static readonly chatResponsePending = AudioCue.register({
+		name: localize('audioCues.chatResponsePending', 'Chat Response Pending'),
+		sound: Sound.chatResponsePending,
+		settingsKey: 'audioCues.chatResponsePending'
 	});
 
 	private constructor(

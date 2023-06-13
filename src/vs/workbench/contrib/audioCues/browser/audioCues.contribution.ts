@@ -117,6 +117,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.notebookCellFailed', "Plays a sound when a notebook cell execution fails."),
 			...audioCueFeatureBase,
 		},
+		'audioCues.chatRequestSent': {
+			'description': localize('audioCues.chatRequestSent', "Plays a sound when a chat request is made."),
+			...audioCueFeatureBase
+		},
+		'audioCues.chatResponsePending': {
+			'description': localize('audioCues.chatResponsePending', "Plays a sound on loop while the response is pending."),
+			...audioCueFeatureBase
+		}
 	}
 });
 

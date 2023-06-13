@@ -390,18 +390,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.instantiationService.invokeFunction(clearChatSession, this);
 				return;
 			}
-
+			await this.audioCueService.playAudioCue(AudioCue.chatRequestSent);
 			const input = query ?? editorValue;
-			const cue = this.audioCueService.playAudioCueLoop(AudioCue.break);
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
+			const cue = this.audioCueService.playAudioCueLoop(AudioCue.chatResponsePending);
 			if (result) {
-				cue.dispose();
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					if (lastResponse) {
 						const errorDetails = lastResponse.errorDetails ? ` ${lastResponse.errorDetails.message}` : '';
+						cue.dispose();
 						alert(lastResponse.response.value + errorDetails);
 					}
 				});
