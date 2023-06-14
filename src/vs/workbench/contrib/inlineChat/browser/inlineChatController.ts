@@ -194,6 +194,20 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- state machine
 
+	private _showWidget(initialRender: boolean = false) {
+		assertType(this._activeSession);
+		assertType(this._strategy);
+		assertType(this._editor.hasModel());
+
+		let widgetPosition: Position | undefined;
+		if (initialRender) {
+			widgetPosition = this._editor.getPosition();
+		} else {
+			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getEndPosition();
+		}
+		this._zone.value.show(widgetPosition);
+	}
+
 	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
 		this._log('setState to ', state);
 		const nextState = await this[state](options);
@@ -270,8 +284,8 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? '';
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
-		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
+		this._showWidget(true);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -361,7 +375,6 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
-		this._zone.value.show(this._activeSession.wholeRange.value.getEndPosition());
 
 		if (options?.message) {
 			this._zone.value.widget.value = options?.message;
@@ -548,6 +561,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		const { response } = this._activeSession.lastExchange!;
+		this._showWidget(false);
 
 		this._ctxLastResponseType.set(response instanceof EditResponse || response instanceof MarkdownResponse
 			? response.raw.type
