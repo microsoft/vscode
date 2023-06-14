@@ -47,6 +47,8 @@ export abstract class EditModeStrategy {
 	abstract hasFocus(): boolean;
 
 	abstract getWidgetPosition(): Position | undefined;
+
+	abstract needsMargin(): boolean;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -144,6 +146,10 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	hasFocus(): boolean {
 		return this._widget.hasFocus();
+	}
+
+	needsMargin(): boolean {
+		return true;
 	}
 }
 
@@ -357,6 +363,10 @@ export class LiveStrategy extends EditModeStrategy {
 			}
 		}
 		return lastLineOfLocalEdits ? new Position(lastLineOfLocalEdits, 1) : undefined;
+	}
+
+	override needsMargin(): boolean {
+		return Boolean(this._session.lastTextModelChanges.length);
 	}
 
 	hasFocus(): boolean {
