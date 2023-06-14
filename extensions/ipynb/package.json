@@ -14,8 +14,8 @@
     "dropMetadata"
   ],
   "activationEvents": [
-		"onNotebook:jupyter-notebook",
-    "onNotebook:interactive"
+    "onNotebook:jupyter-notebook",
+    "onNotebookSerializer:interactive"
   ],
   "extensionKind": [
     "workspace",
