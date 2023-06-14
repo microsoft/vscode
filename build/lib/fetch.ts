@@ -69,6 +69,8 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 					} else if (verbose) {
 						log(`Verified SHA256 checksums match for ${ansiColors.cyan(url)}`);
 					}
+				} else if (verbose) {
+					log(`Skipping checksum verification for ${ansiColors.cyan(url)} because no expected checksum was provided`);
 				}
 				if (verbose) {
 					log(`Fetched response body buffer: ${ansiColors.magenta(`${(contents as Buffer).byteLength} bytes`)}`);
