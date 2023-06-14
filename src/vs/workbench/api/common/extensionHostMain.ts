@@ -32,7 +32,7 @@ export interface IConsolePatchFn {
 	(mainThreadConsole: MainThreadConsoleShape): any;
 }
 
-abstract class ErrorHandler {
+export abstract class ErrorHandler {
 
 	static {
 		// increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -89,6 +89,7 @@ abstract class ErrorHandler {
 			return result;
 		}
 
+		const _wasWrapped = Symbol('prepareStackTrace wrapped');
 		let _prepareStackTrace = prepareStackTraceAndFindExtension;
 
 		Object.defineProperty(Error, 'prepareStackTrace', {
@@ -97,8 +98,7 @@ abstract class ErrorHandler {
 				return _prepareStackTrace;
 			},
 			set(v) {
-				if (v === prepareStackTraceAndFindExtension) {
-					// back to default
+				if (v === prepareStackTraceAndFindExtension || v[_wasWrapped]) {
 					_prepareStackTrace = v;
 					return;
 				}
@@ -107,6 +107,8 @@ abstract class ErrorHandler {
 					prepareStackTraceAndFindExtension(error, stackTrace);
 					return v.call(Error, error, stackTrace);
 				};
+
+				Object.assign(_prepareStackTrace, { [_wasWrapped]: true });
 			},
 		});
 
