@@ -154,65 +154,75 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 		assert.strictEqual(findSubstrCount, 2);
 		assert.strictEqual(do_something_count, 2);
 	});
-});
 
-suite('ExtensionHostMain#ErrorHandler - from https://gist.github.com/thecrypticace/f0f2e182082072efdaf0f8e1537d2cce', function () {
 
-	test("Restored, separate operations", () => {
-		// Actual Test
-		let original;
+	suite('https://gist.github.com/thecrypticace/f0f2e182082072efdaf0f8e1537d2cce', function () {
 
-		// Operation 1
-		original = Error.prepareStackTrace;
-		for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
-		assert.ok(new Error().stack);
-		Error.prepareStackTrace = original;
+		test("Restored, separate operations", () => {
+			// Actual Test
+			let original;
 
-		// Operation 2
-		original = Error.prepareStackTrace;
-		for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
-		assert.ok(new Error().stack);
-		Error.prepareStackTrace = original;
+			// Operation 1
+			original = Error.prepareStackTrace;
+			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
+			const err1 = new Error();
+			assert.ok(err1.stack);
+			assert.strictEqual(findSubstrCount, 1);
+			Error.prepareStackTrace = original;
 
-		// Operation 3
-		original = Error.prepareStackTrace;
-		for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
-		assert.ok(new Error().stack);
-		Error.prepareStackTrace = original;
+			// Operation 2
+			original = Error.prepareStackTrace;
+			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
+			assert.ok(new Error().stack);
+			assert.strictEqual(findSubstrCount, 2);
+			Error.prepareStackTrace = original;
 
-		// Operation 4
-		original = Error.prepareStackTrace;
-		for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
-		assert.ok(new Error().stack);
-		Error.prepareStackTrace = original;
-	});
+			// Operation 3
+			original = Error.prepareStackTrace;
+			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
+			assert.ok(new Error().stack);
+			assert.strictEqual(findSubstrCount, 3);
+			Error.prepareStackTrace = original;
 
-	test("Never restored, separate operations", () => {
-		// Operation 1
-		for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
-		assert.ok(new Error().stack);
+			// Operation 4
+			original = Error.prepareStackTrace;
+			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
+			assert.ok(new Error().stack);
+			assert.strictEqual(findSubstrCount, 4);
+			Error.prepareStackTrace = original;
 
-		// Operation 2
-		for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
-		assert.ok(new Error().stack);
+			// Back to Operation 1
+			assert.ok(err1.stack);
+			assert.strictEqual(findSubstrCount, 4);
+		});
 
-		// Operation 3
-		for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
-		assert.ok(new Error().stack);
+		test("Never restored, separate operations", () => {
+			// Operation 1
+			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
+			assert.ok(new Error().stack);
 
-		// Operation 4
-		for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
-		assert.ok(new Error().stack);
-	});
+			// Operation 2
+			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
+			assert.ok(new Error().stack);
 
-	test("Restored, too many uses before restoration", async () => {
-		const original = Error.prepareStackTrace;
-		Error.prepareStackTrace = (_, stack) => stack;
+			// Operation 3
+			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
+			assert.ok(new Error().stack);
 
-		// Operation 1 — more uses of `prepareStackTrace`
-		for (let i = 0; i < 10_000; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
-		assert.ok(new Error().stack);
+			// Operation 4
+			for (let i = 0; i < 12_500; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
+			assert.ok(new Error().stack);
+		});
 
-		Error.prepareStackTrace = original;
+		test("Restored, too many uses before restoration", async () => {
+			const original = Error.prepareStackTrace;
+			Error.prepareStackTrace = (_, stack) => stack;
+
+			// Operation 1 — more uses of `prepareStackTrace`
+			for (let i = 0; i < 10_000; ++i) { Error.prepareStackTrace = Error.prepareStackTrace; }
+			assert.ok(new Error().stack);
+
+			Error.prepareStackTrace = original;
+		});
 	});
 });
