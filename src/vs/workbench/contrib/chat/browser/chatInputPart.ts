@@ -31,6 +31,7 @@ import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = dom.$;
 
@@ -80,7 +81,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -154,9 +156,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!domNode) {
 			return;
 		}
-		this._inputEditorElement.removeChild(domNode);
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			this._inputEditorElement.removeChild(domNode);
+		}
 		this._inputEditor.setValue('');
-		this._inputEditorElement.appendChild(domNode);
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			this._inputEditorElement.appendChild(domNode);
+		}
 		this._inputEditor.focus();
 	}
 
