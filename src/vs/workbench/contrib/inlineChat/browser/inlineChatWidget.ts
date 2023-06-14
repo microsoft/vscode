@@ -44,7 +44,7 @@ import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineCh
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
@@ -53,6 +53,9 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IdleValue } from 'vs/base/common/async';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { ButtonBar, IButton } from 'vs/base/browser/ui/button/button';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -193,7 +196,9 @@ export class InlineChatWidget {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 
 		// input editor logic
@@ -333,9 +338,63 @@ export class InlineChatWidget {
 				return createActionViewItem(this._instantiationService, action, options);
 			}
 		};
-		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INLINE_CHAT_WIDGET_STATUS, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
-		this._store.add(statusToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-		this._store.add(statusToolbar);
+		// const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INLINE_CHAT_WIDGET_STATUS, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+		// this._store.add(statusToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		// this._store.add(statusToolbar);
+
+		// TODO@jrieken extract this as re-usable MenuButtonBar similar to MenuWorkbenchToolBar
+		// add telemetry for workbench actions....
+		//
+		const menu = this._menuService.createMenu(MENU_INLINE_CHAT_WIDGET_STATUS, this._contextKeyService);
+		const buttonBar = new ButtonBar(this._elements.statusToolbar);
+		this._store.add(menu);
+		this._store.add(buttonBar);
+
+		const populateButtonBarFromMenu = () => {
+
+			buttonBar.clear();
+
+			const actions = menu
+				.getActions({ renderShortTitle: true })
+				.flatMap(entry => entry[1]);
+
+			for (let i = 0; i < actions.length; i++) {
+				const action = actions[i];
+				let btnAction: IAction;
+				let btn: IButton;
+
+				if (action instanceof SubmenuItemAction && action.actions.length > 0) {
+					const [first, ...rest] = action.actions;
+					btnAction = first;
+					btn = buttonBar.addButtonWithDropdown({
+						secondary: i > 0,
+						actions: rest,
+						contextMenuProvider: this._contextMenuService
+					});
+				} else {
+					btnAction = action;
+					btn = buttonBar.addButton({ secondary: i > 0 });
+				}
+
+				btn.label = btnAction.label;
+				btn.enabled = btnAction.enabled;
+				const kb = _keybindingService.lookupKeybinding(btnAction.id);
+				if (kb) {
+					btn.element.title = localize('labelWithKeybinding', "{0} ({1})", btnAction.label, kb.getLabel());
+				}
+				btn.onDidClick(async () => {
+					try {
+						await btnAction.run();
+					} catch (error) {
+						onUnexpectedError(error);
+					}
+				});
+			}
+		};
+
+		populateButtonBarFromMenu();
+		this._store.add(menu.onDidChange(populateButtonBarFromMenu));
+
 
 		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, MENU_INLINE_CHAT_WIDGET_FEEDBACK, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
 		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
