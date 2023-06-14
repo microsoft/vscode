@@ -132,7 +132,7 @@
     "@typescript-eslint/eslint-plugin": "^5.57.0",
     "@typescript-eslint/experimental-utils": "^5.57.0",
     "@typescript-eslint/parser": "^5.57.0",
-    "@vscode/gulp-electron": "^1.34.0",
+    "@vscode/gulp-electron": "^1.35.0",
     "@vscode/l10n-dev": "0.0.21",
     "@vscode/telemetry-extractor": "^1.9.9",
     "@vscode/test-web": "^0.0.41",
