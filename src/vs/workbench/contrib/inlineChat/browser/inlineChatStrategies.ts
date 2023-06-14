@@ -45,6 +45,10 @@ export abstract class EditModeStrategy {
 	abstract toggleDiff(): void;
 
 	abstract hasFocus(): boolean;
+
+	abstract getWidgetPosition(): Position | undefined;
+
+	abstract needsMargin(): boolean;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -136,8 +140,16 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
+	getWidgetPosition(): Position | undefined {
+		return;
+	}
+
 	hasFocus(): boolean {
 		return this._widget.hasFocus();
+	}
+
+	needsMargin(): boolean {
+		return true;
 	}
 }
 
@@ -339,6 +351,22 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('lines.N', "Changed {0} lines", linesChanged);
 		}
 		this._widget.updateStatus(message);
+	}
+
+	override getWidgetPosition(): Position | undefined {
+		const lastTextModelChanges = this._session.lastTextModelChanges;
+		let lastLineOfLocalEdits: number | undefined;
+		for (const change of lastTextModelChanges) {
+			const changeEndLineNumber = change.modifiedRange.endLineNumberExclusive - 1;
+			if (typeof lastLineOfLocalEdits === 'undefined' || lastLineOfLocalEdits < changeEndLineNumber) {
+				lastLineOfLocalEdits = changeEndLineNumber;
+			}
+		}
+		return lastLineOfLocalEdits ? new Position(lastLineOfLocalEdits, 1) : undefined;
+	}
+
+	override needsMargin(): boolean {
+		return Boolean(this._session.lastTextModelChanges.length);
 	}
 
 	hasFocus(): boolean {
