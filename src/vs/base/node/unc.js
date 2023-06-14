@@ -119,7 +119,7 @@
 
 		function isUNCAccessRestrictionsDisabled() {
 			if (process.platform !== 'win32') {
-				return false;
+				return true;
 			}
 
 			return process.enableUNCAccessChecks === false;
