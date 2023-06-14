@@ -178,7 +178,7 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInMainFrame.has(permission));
 			}
 
-			return callback(true);
+			return callback(false);
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
@@ -190,7 +190,7 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInMainFrame.has(permission);
 			}
 
-			return true;
+			return false;
 		});
 
 		//#endregion
