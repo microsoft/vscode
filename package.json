@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.80.0",
-  "distro": "c523cf770e3f05498d5d51a3d7d1dd2d04375276",
+  "distro": "a44605dbeeed7ad5c41513260004329c4f502793",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -75,6 +75,8 @@
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/windows-mutex": "^0.4.4",
+    "@vscode/windows-process-tree": "^0.5.0",
+    "@vscode/windows-registry": "^1.1.0",
     "graceful-fs": "4.2.8",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
@@ -84,20 +86,20 @@
     "native-is-elevated": "0.6.0",
     "native-keymap": "^3.3.2",
     "native-watchdog": "^1.4.1",
-    "node-pty": "0.11.0-beta32",
+    "node-pty": "1.0",
     "tas-client-umd": "0.1.8",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "9.0.0",
-    "xterm": "5.2.0",
-    "xterm-addon-canvas": "0.4.0",
-    "xterm-addon-image": "0.4.0",
-    "xterm-addon-search": "0.12.0",
-    "xterm-addon-serialize": "0.10.0",
+    "xterm": "5.3.0-beta.1",
+    "xterm-addon-canvas": "0.5.0-beta.1",
+    "xterm-addon-image": "0.4.1",
+    "xterm-addon-search": "0.13.0-beta.1",
+    "xterm-addon-serialize": "0.11.0-beta.1",
     "xterm-addon-unicode11": "0.5.0",
-    "xterm-addon-webgl": "0.15.0",
-    "xterm-headless": "5.2.0",
+    "xterm-addon-webgl": "0.16.0-beta.1",
+    "xterm-headless": "5.3.0-beta.1",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -226,8 +228,6 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "@vscode/windows-process-tree": "0.4.2",
-    "@vscode/windows-registry": "1.0.10",
     "windows-foreground-love": "0.5.0"
   }
 }

@@ -44,6 +44,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	private readonly _inlineDiffDecorations: IEditorDecorationsCollection;
 	private _dim: Dimension | undefined;
 	private _isVisible: boolean = false;
+	private _isDiffLocked: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -134,6 +135,8 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	override show(): void {
 		assertType(this.editor.hasModel());
 		this._sessionStore.clear();
+		this._isDiffLocked = false;
+		this._isVisible = true;
 
 		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
 			const result = this._diffEditor.getDiffComputationResult();
@@ -148,11 +151,18 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			}
 		}));
 		this._updateFromChanges(this._session.wholeRange.value, this._session.lastTextModelChanges);
-		this._isVisible = true;
+	}
+
+	lockToDiff(): void {
+		this._isDiffLocked = true;
 	}
 
 	private _updateFromChanges(range: Range, changes: readonly LineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
+
+		if (this._isDiffLocked) {
+			return;
+		}
 
 		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
 			// no change or changes to an empty file

@@ -28,8 +28,8 @@ export class UnchangedRangesFeature extends Disposable {
 			const m = this._diffModel.get();
 			transaction(tx => {
 				for (const s of this._originalEditor.getSelections() || []) {
-					m?.revealOriginalLine(s.getStartPosition().lineNumber, tx);
-					m?.revealOriginalLine(s.getEndPosition().lineNumber, tx);
+					m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, tx);
+					m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, tx);
 				}
 			});
 		}));
@@ -38,8 +38,8 @@ export class UnchangedRangesFeature extends Disposable {
 			const m = this._diffModel.get();
 			transaction(tx => {
 				for (const s of this._modifiedEditor.getSelections() || []) {
-					m?.revealModifiedLine(s.getStartPosition().lineNumber, tx);
-					m?.revealModifiedLine(s.getEndPosition().lineNumber, tx);
+					m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, tx);
+					m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, tx);
 				}
 			});
 		}));

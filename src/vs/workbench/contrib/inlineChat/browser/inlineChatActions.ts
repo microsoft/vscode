@@ -159,6 +159,28 @@ export class MakeRequestAction extends AbstractInlineChatAction {
 	}
 }
 
+export class ReRunRequestAction extends AbstractInlineChatAction {
+
+	constructor() {
+		super({
+			id: 'inlineChat.regenerate',
+			title: localize('rerun', 'Regenerate Response'),
+			icon: Codicon.refresh,
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EMPTY.negate(), CTX_INLINE_CHAT_LAST_RESPONSE_TYPE),
+			menu: {
+				id: MENU_INLINE_CHAT_WIDGET_STATUS,
+				group: '0_main',
+				order: 1,
+			}
+		});
+	}
+
+	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController): void {
+		ctrl.regenerate();
+	}
+
+}
+
 export class StopRequestAction extends AbstractInlineChatAction {
 
 	constructor() {

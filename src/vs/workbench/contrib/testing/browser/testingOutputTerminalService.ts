@@ -259,6 +259,9 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	public resize(): void {
 		// no-op
 	}
+	public clearBuffer(): void | Promise<void> {
+		// no-op
+	}
 	public acknowledgeDataEvent(): void {
 		// no-op, flow control not currently implemented
 	}

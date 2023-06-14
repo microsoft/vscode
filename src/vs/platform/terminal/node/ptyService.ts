@@ -759,6 +759,7 @@ class PersistentTerminalProcess extends Disposable {
 	}
 	async clearBuffer(): Promise<void> {
 		this._serializer.clearBuffer();
+		this._terminalProcess.clearBuffer();
 	}
 	setUnicodeVersion(version: '6' | '11'): void {
 		this.unicodeVersion = version;

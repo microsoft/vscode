@@ -42,8 +42,9 @@ export class MovedBlocksLinesPart extends Disposable {
 		const originalScrollTop = observableFromEvent(this._originalEditor.onDidScrollChange, () => this._originalEditor.getScrollTop());
 		const modifiedScrollTop = observableFromEvent(this._modifiedEditor.onDidScrollChange, () => this._modifiedEditor.getScrollTop());
 
-
 		this._register(autorun('update', (reader) => {
+			element.replaceChildren();
+
 			const info = this._originalEditorLayoutInfo.read(reader);
 			const info2 = this._modifiedEditorLayoutInfo.read(reader);
 			if (!info || !info2) {
@@ -55,8 +56,6 @@ export class MovedBlocksLinesPart extends Disposable {
 			if (!moves) {
 				return;
 			}
-
-			element.replaceChildren();
 
 			let idx = 0;
 			for (const m of moves) {
