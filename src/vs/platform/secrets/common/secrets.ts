@@ -7,7 +7,7 @@ import { SequencerByKey } from 'vs/base/common/async';
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event, PauseableEmitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
@@ -28,7 +28,7 @@ export class SecretStorageService implements ISecretStorageService {
 
 	private _storagePrefix = 'secret://';
 
-	private readonly _onDidChangeSecret = new Emitter<string>();
+	private readonly _onDidChangeSecret = new PauseableEmitter<string>();
 	onDidChangeSecret: Event<string> = this._onDidChangeSecret.event;
 
 	private readonly _sequencer = new SequencerByKey<string>();
@@ -44,6 +44,11 @@ export class SecretStorageService implements ISecretStorageService {
 
 	private onDidChangeValue(key: string): void {
 		if (!key.startsWith(this._storagePrefix)) {
+			return;
+		}
+
+		if (this._onDidChangeSecret.isPaused) {
+			this._logService.trace(`[SecretStorageService] Skipping change event for secret: ${key} because it is paused`);
 			return;
 		}
 
@@ -79,7 +84,12 @@ export class SecretStorageService implements ISecretStorageService {
 
 			const encrypted = await this._encryptionService.encrypt(value);
 			const fullKey = this.getKey(key);
-			this._storageService.store(fullKey, encrypted, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			try {
+				this._onDidChangeSecret.pause();
+				this._storageService.store(fullKey, encrypted, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			} finally {
+				this._onDidChangeSecret.resume();
+			}
 		});
 	}
 
@@ -88,7 +98,12 @@ export class SecretStorageService implements ISecretStorageService {
 			await this.initialized;
 
 			const fullKey = this.getKey(key);
-			this._storageService.remove(fullKey, StorageScope.APPLICATION);
+			try {
+				this._onDidChangeSecret.pause();
+				this._storageService.remove(fullKey, StorageScope.APPLICATION);
+			} finally {
+				this._onDidChangeSecret.resume();
+			}
 		});
 	}
 
