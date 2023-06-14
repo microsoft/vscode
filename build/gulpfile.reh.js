@@ -224,7 +224,7 @@ function nodejs(platform, arch) {
 			if (checksumSha256) {
 				const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');
 				if (actualSHA256Checksum !== checksumSha256) {
-					throw new Error(`Checksum mismatch for node.js from docker image`);
+					throw new Error(`Checksum mismatch for node.js from docker image (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
 				}
 			}
 			return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);

@@ -65,7 +65,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 				if (options.checksumSha256) {
 					const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');
 					if (actualSHA256Checksum !== options.checksumSha256) {
-						throw new Error(`Checksum mismatch for ${ansiColors.cyan(url)}`);
+						throw new Error(`Checksum mismatch for ${ansiColors.cyan(url)} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
 					} else if (verbose) {
 						log(`Verified SHA256 checksums match for ${ansiColors.cyan(url)}`);
 					}
