@@ -6,7 +6,7 @@
 import { SequencerByKey } from 'vs/base/common/async';
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -34,15 +34,12 @@ export class SecretStorageService implements ISecretStorageService {
 	private readonly _sequencer = new SequencerByKey<string>();
 	private initialized = this.init();
 
-	private _basicStorageService: IBasicStorageService;
-
 	constructor(
-		@IStorageService storageService: IStorageService,
+		@IStorageService private _storageService: IStorageService,
 		@IEncryptionService private _encryptionService: IEncryptionService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		this._basicStorageService = storageService;
-		this._basicStorageService.onDidChangeValue(e => this.onDidChangeValue(e.key));
+		this._storageService.onDidChangeValue(e => this.onDidChangeValue(e.key));
 	}
 
 	private onDidChangeValue(key: string): void {
@@ -61,7 +58,7 @@ export class SecretStorageService implements ISecretStorageService {
 			await this.initialized;
 
 			const fullKey = this.getKey(key);
-			const encrypted = this._basicStorageService.get(fullKey, StorageScope.APPLICATION);
+			const encrypted = this._storageService.get(fullKey, StorageScope.APPLICATION);
 			if (!encrypted) {
 				return undefined;
 			}
@@ -82,7 +79,7 @@ export class SecretStorageService implements ISecretStorageService {
 
 			const encrypted = await this._encryptionService.encrypt(value);
 			const fullKey = this.getKey(key);
-			this._basicStorageService.store(fullKey, encrypted, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this._storageService.store(fullKey, encrypted, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		});
 	}
 
@@ -91,7 +88,7 @@ export class SecretStorageService implements ISecretStorageService {
 			await this.initialized;
 
 			const fullKey = this.getKey(key);
-			this._basicStorageService.remove(fullKey, StorageScope.APPLICATION);
+			this._storageService.remove(fullKey, StorageScope.APPLICATION);
 		});
 	}
 
@@ -102,35 +99,10 @@ export class SecretStorageService implements ISecretStorageService {
 
 		this._logService.trace('[SecretStorageService] Encryption is not available, falling back to in-memory storage');
 
-		this._basicStorageService = new InMemoryStorageService();
+		this._storageService = new InMemoryStorageService();
 	}
 
 	private getKey(key: string): string {
 		return `${this._storagePrefix}${key}`;
-	}
-}
-
-interface IBasicStorageService {
-	readonly onDidChangeValue: Event<IStorageValueChangeEvent>;
-	get(key: string, scope: StorageScope): string | undefined;
-	store(key: string, value: any, scope: StorageScope, target: StorageTarget): void;
-	remove(key: string, scope: StorageScope): void;
-}
-
-class InMemoryStorageService implements IBasicStorageService {
-	onDidChangeValue: Event<IStorageValueChangeEvent> = Event.None;
-
-	private readonly _store = new Map<string, string>();
-
-	get(key: string, _scope: StorageScope): string | undefined {
-		return this._store.get(key);
-	}
-
-	store(key: string, value: string, _scope: StorageScope): void {
-		this._store.set(key, value);
-	}
-
-	remove(key: string, _scope: StorageScope): void {
-		this._store.delete(key);
 	}
 }
