@@ -105,7 +105,6 @@ class FixedLabelStrategy implements IActionLayoutStrategy {
 	}
 }
 
-
 class FixedLabellessStrategy extends FixedLabelStrategy {
 	constructor(
 		notebookEditor: INotebookEditorDelegate,
@@ -647,7 +646,7 @@ export class NotebookEditorToolbar extends Disposable {
 class WorkbenchLabelStrategy implements IActionLayoutStrategy {
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
-		readonly editorToolbar: NotebookEditorToolbar2,
+		readonly editorToolbar: NotebookEditorWorkbenchToolbar,
 		readonly instantiationService: IInstantiationService) { }
 
 	actionProvider(action: IAction): ActionViewItem | undefined {
@@ -661,37 +660,13 @@ class WorkbenchLabelStrategy implements IActionLayoutStrategy {
 
 	calculateActions(leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] } {
 		const initialPrimaryActions = this.editorToolbar.primaryActions;
+		const initialSecondaryActions = this.editorToolbar.secondaryActions;
 
-		let size = 0;
-		const actions: IActionModel[] = [];
-		const overflow: IActionModel[] = [];
-
-		for (let i = 0; i < initialPrimaryActions.length; i++) {
-			const actionModel = initialPrimaryActions[i];
-
-			const itemSize = actionModel.size;
-
-			if (size + itemSize <= leftToolbarContainerMaxWidth) {
-				size += ACTION_PADDING + itemSize;
-				actions.push(actionModel);
-			} else {
-				if (size === 0) {
-					actions.push(actionModel);
-				}
-				else {
-					overflow.push(actionModel);
-				}
-			}
-		}
-
-		return {
-			primaryActions: actions.map(action => action.action),
-			secondaryActions: [...initialPrimaryActions.slice(actions.length).map(action => action.action), ...this.editorToolbar.secondaryActions]
-		};
+		return workbenchCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
 	}
 }
 
-export class NotebookEditorToolbar2 extends Disposable {
+export class NotebookEditorWorkbenchToolbar extends Disposable {
 	// private _editorToolbarContainer!: HTMLElement;
 	private _leftToolbarScrollable!: DomScrollableElement;
 	private _notebookTopLeftToolbarContainer!: HTMLElement;
@@ -916,17 +891,6 @@ export class NotebookEditorToolbar2 extends Disposable {
 
 	private _updateStrategy() {
 		this._strategy = new WorkbenchLabelStrategy(this.notebookEditor, this, this.instantiationService);
-		// switch (this._renderLabel) {
-		// 	case RenderLabel.Always:
-		// 		this._strategy = new FixedLabelStrategy(this.notebookEditor, this, this.instantiationService);
-		// 		break;
-		// 	case RenderLabel.Never:
-		// 		this._strategy = new FixedLabellessStrategy(this.notebookEditor, this, this.instantiationService);
-		// 		break;
-		// 	case RenderLabel.Dynamic:
-		// 		this._strategy = new DynamicLabelStrategy(this.notebookEditor, this, this.instantiationService);
-		// 		break;
-		// }
 	}
 
 	private _convertConfiguration(value: RenderLabelWithFallback): RenderLabel {
@@ -1046,7 +1010,7 @@ export class NotebookEditorToolbar2 extends Disposable {
 			}
 
 			const kernelWidth = (rightToolbar.getItemsLength() ? rightToolbar.getItemWidth(0) : 0) + ACTION_PADDING;
-			const leftToolbarContainerMaxWidth = this._dimension.width - kernelWidth - (TOGGLE_MORE_ACTION_WIDTH + ACTION_PADDING) /** ... */ - ACTION_PADDING /** toolbar left margin */;
+			const leftToolbarContainerMaxWidth = this._dimension.width - kernelWidth - (ACTION_PADDING + TOGGLE_MORE_ACTION_WIDTH) - (/** toolbar left margin */ACTION_PADDING) - (/** toolbar right margin */ACTION_PADDING);
 			const calculatedActions = this._strategy.calculateActions(leftToolbarContainerMaxWidth);
 			this._notebookLeftToolbar.setActions(calculatedActions.primaryActions, calculatedActions.secondaryActions);
 		}
@@ -1076,3 +1040,57 @@ export class NotebookEditorToolbar2 extends Disposable {
 		super.dispose();
 	}
 }
+
+export function workbenchCalculateActions(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] } {
+	let currentSize = 0;
+	const renderActions: IActionModel[] = [];
+	const overflow: IActionModel[] = [];
+	let containerFull = false;
+
+	for (let i = 0; i < initialPrimaryActions.length; i++) {
+		const actionModel = initialPrimaryActions[i];
+		const itemSize = actionModel.size;
+
+		// if two separators in a row, ignore the second
+		if (actionModel.action instanceof Separator && renderActions.length > 0 && renderActions[renderActions.length - 1].action instanceof Separator) {
+			continue;
+		}
+
+		if (currentSize + itemSize <= leftToolbarContainerMaxWidth && !containerFull) { // if next item fits within left container width, push to rendered actions
+			currentSize += ACTION_PADDING + itemSize;
+			renderActions.push(actionModel);
+		} else {
+			containerFull = true;
+			if (currentSize === 0) { // size 0 implies a hidden item, keep in primary to allow for Workbench to handle visibility
+				renderActions.push(actionModel);
+			} else {
+				if (actionModel.action instanceof Separator) { // never push a separator to overflow
+					continue;
+				}
+				overflow.push(actionModel);
+			}
+		}
+	}
+
+	for (let i = (renderActions.length - 1); i !== 0; i--) {
+		const temp = renderActions[i];
+		if (temp.size === 0) {
+			continue;
+		}
+		if (temp.action instanceof Separator) {
+			renderActions.splice(i, 1);
+		}
+		break;
+	}
+
+
+	if (renderActions.length && renderActions[renderActions.length - 1].action instanceof Separator) {
+		renderActions.pop();
+	}
+
+	return {
+		primaryActions: renderActions.map(action => action.action),
+		secondaryActions: [...initialPrimaryActions.slice(renderActions.length).map(action => action.action), ...initialSecondaryActions]
+	};
+}
+
