@@ -1345,15 +1345,15 @@ export class ExtensionEditor extends EditorPane {
 		if (!webviewEditors.length) {
 			return false;
 		}
-
+		const renderEditors = Array.from(webviewEditors).sort((a, b) => a.viewType.localeCompare(b.viewType));
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('customEditors', "Custom Editors ({0})", webviewEditors.length)),
+			$('summary', { tabindex: '0' }, localize('customEditors', "Custom Editors ({0})", renderEditors.length)),
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('customEditors view type', "View Type")),
 					$('th', undefined, localize('customEditors priority', "Priority")),
 					$('th', undefined, localize('customEditors filenamePattern', "Filename Pattern"))),
-				...webviewEditors.map(webviewEditor =>
+				...renderEditors.map(webviewEditor =>
 					$('tr', undefined,
 						$('td', undefined, webviewEditor.viewType),
 						$('td', undefined, webviewEditor.priority),
