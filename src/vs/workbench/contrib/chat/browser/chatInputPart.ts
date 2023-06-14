@@ -59,6 +59,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private followupsDisposables = this._register(new DisposableStore());
 
 	private _inputEditor!: CodeEditorWidget;
+	private _inputEditorElement!: HTMLElement;
+
 	public get inputEditor() {
 		return this._inputEditor;
 	}
@@ -148,8 +150,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.history.add(editorValue);
 		}
 
-		this._inputEditor.focus();
+		const domNode = this._inputEditor.getDomNode();
+		if (!domNode) {
+			return;
+		}
+		this._inputEditorElement.removeChild(domNode);
 		this._inputEditor.setValue('');
+		this._inputEditorElement.appendChild(domNode);
+		this._inputEditor.focus();
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
@@ -181,8 +189,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.suggest = { showIcons: false };
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 
-		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
-		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
+		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
+		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
