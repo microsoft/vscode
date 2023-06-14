@@ -7,8 +7,8 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { findLast } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IObservable, ISettableObservable, autorun, derived, keepAlive, observableValue, waitForState } from 'vs/base/common/observable';
-import { disposableObservableValue } from 'vs/base/common/observableImpl/base';
+import { IObservable, ISettableObservable, autorun, derived, keepAlive, observableValue } from 'vs/base/common/observable';
+import { disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
 import { derivedWithStore } from 'vs/base/common/observableImpl/derived';
 import { isDefined } from 'vs/base/common/types';
 import { Constants } from 'vs/base/common/uint';
@@ -32,7 +32,7 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { EditorType, IContentSizeChangedEvent, IDiffEditorModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
+import { EditorType, IContentSizeChangedEvent, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -306,7 +306,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			if (!m) { return; }
 
 			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.originalRange.contains(e.position.lineNumber));
-
 			m.syncedMovedTexts.set(movedText, undefined);
 		}));
 		return editor;
@@ -322,7 +321,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			if (!m) { return; }
 
 			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modifiedRange.contains(e.position.lineNumber));
-
 			m.syncedMovedTexts.set(movedText, undefined);
 		}));
 		// Revert change when an arrow is clicked.
@@ -484,22 +482,27 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		}
 	}
 
-	override getModel(): IDiffEditorModel | null { return this._model.get(); }
-
-	override setModel(model: IDiffEditorModel | null): void {
-		this._originalEditor.setModel(model ? model.original : null);
-		this._modifiedEditor.setModel(model ? model.modified : null);
-
-		this._model.set(model, undefined);
-
-		this._diffModel.set(model ? new DiffModel(
+	public createViewModel(model: IDiffEditorModel): IDiffEditorViewModel {
+		return new DiffModel(
 			model,
 			this._options.map(o => o.ignoreTrimWhitespace),
 			this._options.map(o => o.maxComputationTime),
 			this._options.map(o => o.experimental.collapseUnchangedRegions!),
 			this._options.map(o => o.experimental.showMoves! && o.renderSideBySide),
 			this._instantiationService.createInstance(WorkerBasedDocumentDiffProvider, this._options.get())
-		) : undefined, undefined);
+		);
+	}
+
+	override getModel(): IDiffEditorModel | null { return this._model.get(); }
+
+	override setModel(model: IDiffEditorModel | null | IDiffEditorViewModel): void {
+		const vm = model ? ('model' in model) ? model : this.createViewModel(model) : undefined;
+		this._originalEditor.setModel(vm ? vm.model.original : null);
+		this._modifiedEditor.setModel(vm ? vm.model.modified : null);
+		transaction(tx => {
+			this._model.set(vm?.model ?? null, tx);
+			this._diffModel.set(vm as (DiffModel | undefined), tx);
+		});
 	}
 
 	override updateOptions(_newOptions: IDiffEditorOptions): void {
@@ -641,13 +644,22 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			return;
 		}
 		// wait for the diff computation to finish
-		waitForState(diffModel.isDiffUpToDate, s => s).then(() => {
+		this.waitForDiff().then(() => {
 			const diffs = diffModel.diff.get()?.mappings;
 			if (!diffs || diffs.length === 0) {
 				return;
 			}
 			this._goTo(diffs[0]);
 		});
+	}
+
+
+	public async waitForDiff(): Promise<void> {
+		const diffModel = this._diffModel.get();
+		if (!diffModel) {
+			return;
+		}
+		await diffModel.waitForDiff();
 	}
 }
 
