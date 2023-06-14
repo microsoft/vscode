@@ -12,6 +12,10 @@ import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { observableFromEvent, derived } from 'vs/base/common/observable';
 
+export const enum AudioCueGroupId {
+	chatResponsePending = 'chatResponsePending'
+}
+
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
 export interface IAudioCueService {
@@ -23,6 +27,7 @@ export interface IAudioCueService {
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
 	playAudioCueLoop(cue: AudioCue): IDisposable;
+	playRandomAudioCue(groupId: AudioCueGroupId, loop?: boolean): IDisposable | void;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -50,6 +55,16 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
 		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
+	}
+
+	public playRandomAudioCue(groupId: AudioCueGroupId, loop?: boolean): void | IDisposable {
+		const cues = AudioCue.allAudioCues.filter(cue => cue.groupId === groupId);
+		const index = Math.floor(Math.random() * cues.length);
+		if (loop) {
+			return this.playAudioCueLoop(cues[index]);
+		} else {
+			this.playAudioCue(cues[index]);
+		}
 	}
 
 	private getVolumeInPercent(): number {
@@ -209,7 +224,11 @@ export class Sound {
 	public static readonly diffLineDeleted = Sound.register({ fileName: 'diffLineDeleted.mp3' });
 	public static readonly diffLineModified = Sound.register({ fileName: 'diffLineModified.mp3' });
 	public static readonly chatRequestSent = Sound.register({ fileName: 'chatRequestSent.mp3' });
-	public static readonly chatResponsePending = Sound.register({ fileName: 'chatResponsePending.mp3' });
+	public static readonly chatResponsePending1 = Sound.register({ fileName: 'chatResponsePending1.mp3' });
+	public static readonly chatResponsePending2 = Sound.register({ fileName: 'chatResponsePending2.mp3' });
+	public static readonly chatResponsePending3 = Sound.register({ fileName: 'chatResponsePending3.mp3' });
+	public static readonly chatResponsePending4 = Sound.register({ fileName: 'chatResponsePending4.mp3' });
+	public static readonly chatResponsePending5 = Sound.register({ fileName: 'chatResponsePending5.mp3' });
 	public static readonly chatResponseReceived = Sound.register({ fileName: 'chatResponseReceived.mp3' });
 
 	private constructor(public readonly fileName: string) { }
@@ -217,13 +236,13 @@ export class Sound {
 
 export class AudioCue {
 	private static _audioCues = new Set<AudioCue>();
-
 	private static register(options: {
 		name: string;
 		sound: Sound;
 		settingsKey: string;
+		groupId?: AudioCueGroupId;
 	}): AudioCue {
-		const audioCue = new AudioCue(options.sound, options.name, options.settingsKey);
+		const audioCue = new AudioCue(options.sound, options.name, options.settingsKey, options.groupId);
 		AudioCue._audioCues.add(audioCue);
 		return audioCue;
 	}
@@ -336,10 +355,35 @@ export class AudioCue {
 		settingsKey: 'audioCues.chatRequestSent'
 	});
 
-	public static readonly chatResponsePending = AudioCue.register({
+	public static readonly chatResponsePending = {
 		name: localize('audioCues.chatResponsePending', 'Chat Response Pending'),
-		sound: Sound.chatResponsePending,
-		settingsKey: 'audioCues.chatResponsePending'
+		settingsKey: 'audioCues.chatResponsePending',
+		groupId: AudioCueGroupId.chatResponsePending
+	};
+
+	public static readonly chatResponsePending1 = AudioCue.register({
+		sound: Sound.chatResponsePending1,
+		...this.chatResponsePending
+	});
+
+	public static readonly chatResponsePending2 = AudioCue.register({
+		sound: Sound.chatResponsePending2,
+		...this.chatResponsePending
+	});
+
+	public static readonly chatResponsePending3 = AudioCue.register({
+		sound: Sound.chatResponsePending3,
+		...this.chatResponsePending
+	});
+
+	public static readonly chatResponsePending4 = AudioCue.register({
+		sound: Sound.chatResponsePending4,
+		...this.chatResponsePending
+	});
+
+	public static readonly chatResponsePending5 = AudioCue.register({
+		sound: Sound.chatResponsePending5,
+		...this.chatResponsePending
 	});
 
 	public static readonly chatResponseReceived = AudioCue.register({
@@ -352,5 +396,6 @@ export class AudioCue {
 		public readonly sound: Sound,
 		public readonly name: string,
 		public readonly settingsKey: string,
+		public readonly groupId?: string
 	) { }
 }

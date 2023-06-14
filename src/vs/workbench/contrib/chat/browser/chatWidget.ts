@@ -16,7 +16,7 @@ import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AudioCue, AudioCueGroupId, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -390,16 +390,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.instantiationService.invokeFunction(clearChatSession, this);
 				return;
 			}
-			await this.audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
+			this.audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
 			const input = query ?? editorValue;
-			const cue = this.audioCueService.playAudioCueLoop(AudioCue.chatResponsePending);
+			const cue = this.audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponsePending, true);
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
-			const audioCueService = this.audioCueService;
 			if (result) {
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(async () => {
-					cue.dispose();
-					audioCueService.playAudioCue(AudioCue.chatResponseReceived, true);
+					cue?.dispose();
+					this.audioCueService.playAudioCue(AudioCue.chatResponseReceived, true);
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					if (lastResponse) {
