@@ -81,7 +81,7 @@
       {
         "id": "snippets",
         "aliases": [
-            "Snippets"
+            "Code Snippets"
         ],
         "extensions": [
           ".code-snippets"
@@ -90,10 +90,7 @@
           "**/User/snippets/*.json",
           "**/User/profiles/*/snippets/*.json"
         ],
-        "configuration": "./language-configuration.json",
-        "icon": {
-            
-        }
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
