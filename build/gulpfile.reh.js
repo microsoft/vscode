@@ -182,6 +182,7 @@ if (defaultNodeTask) {
 function nodejs(platform, arch) {
 	const { fetchUrls, fetchGithub } = require('./lib/fetch');
 	const untar = require('gulp-untar');
+	const crypto = require('crypto');
 
 	if (arch === 'ia32') {
 		arch = 'x86';
