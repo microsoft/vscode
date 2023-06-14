@@ -52,4 +52,13 @@ export class EncryptionMainService implements ICommonEncryptionService {
 			return value;
 		}
 	}
+
+	async isEncryptionAvailable(): Promise<boolean> {
+		try {
+			await this.encryption();
+			return true;
+		} catch (e) {
+			return false;
+		}
+	}
 }
