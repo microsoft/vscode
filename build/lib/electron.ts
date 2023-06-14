@@ -28,7 +28,6 @@ function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
 const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 const commit = getVersion(root);
-const msBuildNumber = '20472245';
 
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
@@ -93,7 +92,7 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 
 export const config = {
 	version: util.getElectronVersion(),
-	tag: product.electronRepository ? `v${util.getElectronVersion()}-${msBuildNumber}` : undefined,
+	tag: product.electronRepository ? `v${util.getElectronVersion()}-${util.getMSBuildId()}` : undefined,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2023 Microsoft. All rights reserved',

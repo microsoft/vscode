@@ -390,6 +390,12 @@ export function getElectronVersion(): string {
 	return target;
 }
 
+export function getMSBuildId(): string {
+	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
+	const id = /^ms_build_id "(.*)"$/m.exec(yarnrc)![1];
+	return id;
+}
+
 export function acquireWebNodePaths() {
 	const root = path.join(__dirname, '..', '..');
 	const webPackageJSON = path.join(root, '/remote/web', 'package.json');
