@@ -32,6 +32,7 @@ import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { isWindows } from 'vs/base/common/platform';
 
 const $ = dom.$;
 
@@ -156,11 +157,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!domNode) {
 			return;
 		}
-		if (this.accessibilityService.isScreenReaderOptimized()) {
+		const handleDom = this.accessibilityService.isScreenReaderOptimized() && !isWindows;
+		if (handleDom) {
 			this._inputEditorElement.removeChild(domNode);
 		}
 		this._inputEditor.setValue('');
-		if (this.accessibilityService.isScreenReaderOptimized()) {
+		if (handleDom) {
 			this._inputEditorElement.appendChild(domNode);
 		}
 		this._inputEditor.focus();
