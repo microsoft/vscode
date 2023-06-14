@@ -381,8 +381,11 @@ class CodeMain {
 		}
 
 		// Print --status usage info
+		// Note: intentionally using `console.log` here so that we
+		// ensure this message ends up in stdout from the calling
+		// terminal.
 		if (environmentMainService.args.status) {
-			logService.warn(localize('statusWarning', "Warning: The --status argument can only be used if {0} is already running. Please run it again after {0} has started.", productService.nameShort));
+			console.log(localize('statusWarning', "Warning: The --status argument can only be used if {0} is already running. Please run it again after {0} has started.", productService.nameShort));
 
 			throw new ExpectedError('Terminating...');
 		}
