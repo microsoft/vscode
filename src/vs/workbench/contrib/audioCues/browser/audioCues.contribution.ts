@@ -124,6 +124,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'audioCues.chatResponsePending': {
 			'description': localize('audioCues.chatResponsePending', "Plays a sound on loop while the response is pending."),
 			...audioCueFeatureBase
+		},
+		'audioCues.chatResponseReceived': {
+			'description': localize('audioCues.chatResponseReceived', "Plays a sound on loop while the response has been received."),
+			...audioCueFeatureBase
 		}
 	}
 });
