@@ -63,9 +63,8 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 			if (response.ok && (response.status >= 200 && response.status < 300)) {
 				const contents = await response.buffer();
 				if (options.checksumSha256) {
-					const hash = crypto.createHash('sha256');
-					hash.update(contents);
-					if (hash.digest('hex') !== options.checksumSha256) {
+					const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');
+					if (actualSHA256Checksum !== options.checksumSha256) {
 						throw new Error(`Checksum mismatch for ${ansiColors.cyan(url)}`);
 					} else if (verbose) {
 						log(`Verified SHA256 checksums match for ${ansiColors.cyan(url)}`);
