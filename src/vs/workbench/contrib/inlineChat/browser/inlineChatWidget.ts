@@ -795,13 +795,12 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
-		this._setMargins(position);
 	}
 
-	private _setMargins(position: Position): void {
+	private _calculateIndentationWidth(position: Position): number {
 		const viewModel = this.editor._getViewModel();
 		if (!viewModel) {
-			return;
+			return 0;
 		}
 		const visibleRange = viewModel.getCompletelyVisibleViewRange();
 		const startLineVisibleRange = visibleRange.startLineNumber;
@@ -816,7 +815,16 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				break;
 			}
 		}
-		this._indentationWidth = this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
+		return this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
+	}
+
+	setMargins(position: Position, indentationWidth?: number): void {
+		if (indentationWidth === undefined) {
+			indentationWidth = this._calculateIndentationWidth(position);
+		}
+		if (this._indentationWidth === indentationWidth) {
+			return;
+		}
 		const info = this.editor.getLayoutInfo();
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;

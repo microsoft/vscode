@@ -1447,7 +1447,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 	async installWorkspaceRecommendations(): Promise<void> {
 		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
 		if (installableRecommendations.length) {
-			await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));
+			await this.extensionManagementService.installGalleryExtensions(installableRecommendations.map(i => ({ extension: i.gallery!, options: {} })));
 		} else {
 			this.notificationService.notify({
 				severity: Severity.Info,

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -44,6 +45,10 @@ export abstract class EditModeStrategy {
 	abstract toggleDiff(): void;
 
 	abstract hasFocus(): boolean;
+
+	abstract getWidgetPosition(): Position | undefined;
+
+	abstract needsMargin(): boolean;
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -135,8 +140,16 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
+	getWidgetPosition(): Position | undefined {
+		return;
+	}
+
 	hasFocus(): boolean {
 		return this._widget.hasFocus();
+	}
+
+	needsMargin(): boolean {
+		return true;
 	}
 }
 
@@ -340,6 +353,22 @@ export class LiveStrategy extends EditModeStrategy {
 		this._widget.updateStatus(message);
 	}
 
+	override getWidgetPosition(): Position | undefined {
+		const lastTextModelChanges = this._session.lastTextModelChanges;
+		let lastLineOfLocalEdits: number | undefined;
+		for (const change of lastTextModelChanges) {
+			const changeEndLineNumber = change.modifiedRange.endLineNumberExclusive - 1;
+			if (typeof lastLineOfLocalEdits === 'undefined' || lastLineOfLocalEdits < changeEndLineNumber) {
+				lastLineOfLocalEdits = changeEndLineNumber;
+			}
+		}
+		return lastLineOfLocalEdits ? new Position(lastLineOfLocalEdits, 1) : undefined;
+	}
+
+	override needsMargin(): boolean {
+		return Boolean(this._session.lastTextModelChanges.length);
+	}
+
 	hasFocus(): boolean {
 		return this._widget.hasFocus();
 	}
@@ -347,8 +376,8 @@ export class LiveStrategy extends EditModeStrategy {
 
 export class LivePreviewStrategy extends LiveStrategy {
 
-	private readonly _diffZone: InlineChatLivePreviewWidget;
-	private readonly _previewZone: InlineChatFileCreatePreviewWidget;
+	private readonly _diffZone: Lazy<InlineChatLivePreviewWidget>;
+	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 
 	constructor(
 		session: Session,
@@ -362,15 +391,15 @@ export class LivePreviewStrategy extends LiveStrategy {
 	) {
 		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, instaService);
 
-		this._diffZone = instaService.createInstance(InlineChatLivePreviewWidget, editor, session);
-		this._previewZone = instaService.createInstance(InlineChatFileCreatePreviewWidget, editor);
+		this._diffZone = new Lazy(() => instaService.createInstance(InlineChatLivePreviewWidget, editor, session));
+		this._previewZone = new Lazy(() => instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
 	}
 
 	override dispose(): void {
-		this._diffZone.hide();
-		this._diffZone.dispose();
-		this._previewZone.hide();
-		this._previewZone.dispose();
+		this._diffZone.rawValue?.hide();
+		this._diffZone.rawValue?.dispose();
+		this._previewZone.rawValue?.hide();
+		this._previewZone.rawValue?.dispose();
 		super.dispose();
 	}
 
@@ -378,33 +407,33 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 		this._updateSummaryMessage();
 		if (this._diffEnabled) {
-			this._diffZone.show();
+			this._diffZone.value.show();
 		}
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.value.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
-			this._previewZone.hide();
+			this._previewZone.value.hide();
 		}
 	}
 
 	override async undoChanges(response: EditResponse): Promise<void> {
-		this._diffZone.lockToDiff();
+		this._diffZone.value.lockToDiff();
 		super.undoChanges(response);
 	}
 
 	protected override _doToggleDiff(): void {
 		const scrollState = StableEditorScrollState.capture(this._editor);
 		if (this._diffEnabled) {
-			this._diffZone.show();
+			this._diffZone.value.show();
 		} else {
-			this._diffZone.hide();
+			this._diffZone.value.hide();
 		}
 		scrollState.restore(this._editor);
 	}
 
 	override hasFocus(): boolean {
-		return super.hasFocus() || this._diffZone.hasFocus() || this._previewZone.hasFocus();
+		return super.hasFocus() || this._diffZone.value.hasFocus() || this._previewZone.value.hasFocus();
 	}
 }
 

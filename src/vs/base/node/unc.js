@@ -117,11 +117,20 @@
 			process.enableUNCAccessChecks = false;
 		}
 
+		function isUNCAccessRestrictionsDisabled() {
+			if (process.platform !== 'win32') {
+				return true;
+			}
+
+			return process.enableUNCAccessChecks === false;
+		}
+
 		return {
 			getUNCHostAllowlist,
 			addUNCHostToAllowlist,
 			getUNCHost,
-			disableUNCAccessRestrictions
+			disableUNCAccessRestrictions,
+			isUNCAccessRestrictionsDisabled
 		};
 	}
 
