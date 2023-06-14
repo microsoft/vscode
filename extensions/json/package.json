@@ -111,7 +111,7 @@
       },
       {
         "language": "snippets",
-        "scopeName": "source.json.snippets",
+        "scopeName": "source.json.comments.snippets",
         "path": "./syntaxes/snippets.tmLanguage.json"
       }
     ]
