@@ -32,43 +32,39 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { join } from 'path';
 import { memoize } from 'vs/base/common/decorators';
 
-export function traceRpc(): Function {
-	function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
-		return (target: any, key: string, descriptor: any) => {
-			let fnKey: string | null = null;
-			let fn: Function | null = null;
+export function traceRpc(_target: any, key: string, descriptor: any) {
+	let fnKey: string | null = null;
+	let fn: Function | null = null;
 
-			if (typeof descriptor.value === 'function') {
-				fnKey = 'value';
-				fn = descriptor.value;
-			} else if (typeof descriptor.get === 'function') {
-				fnKey = 'get';
-				fn = descriptor.get;
-			}
+	if (typeof descriptor.value === 'function') {
+		fnKey = 'value';
+		fn = descriptor.value;
 
-			if (!fn) {
-				throw new Error('not supported');
-			}
-
-			descriptor[fnKey!] = mapFn(fn, key);
-		};
+		if (fn!.length !== 0) {
+			console.warn('Memoize should only be used in functions with zero parameters');
+		}
+	} else if (typeof descriptor.get === 'function') {
+		fnKey = 'get';
+		fn = descriptor.get;
 	}
-	return createDecorator((fn, key) => {
-		// The PtyService type is unsafe, this decorator should only be used on PtyService
-		return async function (this: PtyService, ...args: any[]) {
-			if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
-				this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
-			}
-			if (this.traceRpcArgs.simulatedLatency) {
-				await timeout(this.traceRpcArgs.simulatedLatency);
-			}
-			const result = await fn.apply(this, args);
-			if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
-				this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fn.name}`, result);
-			}
-			return result;
-		};
-	});
+
+	if (!fn) {
+		throw new Error('not supported');
+	}
+
+	descriptor[fnKey!] = async function (...args: any[]) {
+		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
+			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fnKey}(${args.map(e => JSON.stringify(e)).join(', ')})`);
+		}
+		if (this.traceRpcArgs.simulatedLatency) {
+			await timeout(this.traceRpcArgs.simulatedLatency);
+		}
+		const result = await fn.apply(this, args);
+		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
+			this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fnKey}`, result);
+		}
+		return result;
+	};
 }
 
 type WorkspaceId = string;
@@ -131,7 +127,7 @@ export class PtyService extends Disposable implements IPtyService {
 		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async refreshIgnoreProcessNames(names: string[]): Promise<void> {
 		ignoreProcessNames.length = 0;
 		ignoreProcessNames.push(...names);
@@ -143,12 +139,12 @@ export class PtyService extends Disposable implements IPtyService {
 	onPtyHostResponsive?: Event<void> | undefined;
 	onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent> | undefined;
 
-	@traceRpc()
+	@traceRpc
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
 		return this._detachInstanceRequestStore.createRequest({ workspaceId, instanceId });
 	}
 
-	@traceRpc()
+	@traceRpc
 	async acceptDetachInstanceReply(requestId: number, persistentProcessId: number): Promise<void> {
 		let processDetails: IProcessDetails | undefined = undefined;
 		const pty = this._ptys.get(persistentProcessId);
@@ -158,7 +154,7 @@ export class PtyService extends Disposable implements IPtyService {
 		this._detachInstanceRequestStore.acceptReply(requestId, processDetails);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
 		const stdout = await new Promise<string>((resolve, reject) => {
 			exec(isWindows ? `netstat -ano | findstr "${port}"` : `lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
@@ -184,7 +180,7 @@ export class PtyService extends Disposable implements IPtyService {
 		throw new Error(`Could not kill process with port ${port}`);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async serializeTerminalState(ids: number[]): Promise<string> {
 		const promises: Promise<ISerializedTerminalState>[] = [];
 		for (const [persistentProcessId, persistentProcess] of this._ptys.entries()) {
@@ -210,7 +206,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return JSON.stringify(serialized);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocale: string) {
 		for (const terminal of state) {
 			const restoreMessage = localize('terminal-history-restored', "History restored");
@@ -244,12 +240,12 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	@traceRpc()
+	@traceRpc
 	async shutdownAll(): Promise<void> {
 		this.dispose();
 	}
 
-	@traceRpc()
+	@traceRpc
 	async createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cwd: string,
@@ -296,7 +292,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return id;
 	}
 
-	@traceRpc()
+	@traceRpc
 	async attachToProcess(id: number): Promise<void> {
 		try {
 			await this._throwIfNoPty(id).attach();
@@ -307,44 +303,44 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	@traceRpc()
+	@traceRpc
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
 		this._throwIfNoPty(id).setTitle(title, titleSource);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async updateIcon(id: number, userInitiated: boolean, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
 		this._throwIfNoPty(id).setIcon(userInitiated, icon, color);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async clearBuffer(id: number): Promise<void> {
 		this._throwIfNoPty(id).clearBuffer();
 	}
 
-	@traceRpc()
+	@traceRpc
 	async refreshProperty<T extends ProcessPropertyType>(id: number, type: T): Promise<IProcessPropertyMap[T]> {
 		return this._throwIfNoPty(id).refreshProperty(type);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async updateProperty<T extends ProcessPropertyType>(id: number, type: T, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._throwIfNoPty(id).updateProperty(type, value);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async detachFromProcess(id: number, forcePersist?: boolean): Promise<void> {
 		return this._throwIfNoPty(id).detach(forcePersist);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async reduceConnectionGraceTime(): Promise<void> {
 		for (const pty of this._ptys.values()) {
 			pty.reduceGraceTime();
 		}
 	}
 
-	@traceRpc()
+	@traceRpc
 	async listProcesses(): Promise<IProcessDetails[]> {
 		const persistentProcesses = Array.from(this._ptys.entries()).filter(([_, pty]) => pty.shouldPersistTerminal);
 
@@ -354,55 +350,55 @@ export class PtyService extends Disposable implements IPtyService {
 		return allTerminals.filter(entry => entry.isOrphan);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		const pty = this._ptys.get(id);
 		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
 	}
 
-	@traceRpc()
+	@traceRpc
 	async shutdown(id: number, immediate: boolean): Promise<void> {
 		// Don't throw if the pty is already shutdown
 		return this._ptys.get(id)?.shutdown(immediate);
 	}
-	@traceRpc()
+	@traceRpc
 	async input(id: number, data: string): Promise<void> {
 		return this._throwIfNoPty(id).input(data);
 	}
-	@traceRpc()
+	@traceRpc
 	async processBinary(id: number, data: string): Promise<void> {
 		return this._throwIfNoPty(id).writeBinary(data);
 	}
-	@traceRpc()
+	@traceRpc
 	async resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._throwIfNoPty(id).resize(cols, rows);
 	}
-	@traceRpc()
+	@traceRpc
 	async getInitialCwd(id: number): Promise<string> {
 		return this._throwIfNoPty(id).getInitialCwd();
 	}
-	@traceRpc()
+	@traceRpc
 	async getCwd(id: number): Promise<string> {
 		return this._throwIfNoPty(id).getCwd();
 	}
-	@traceRpc()
+	@traceRpc
 	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._throwIfNoPty(id).acknowledgeDataEvent(charCount);
 	}
-	@traceRpc()
+	@traceRpc
 	async setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
 		return this._throwIfNoPty(id).setUnicodeVersion(version);
 	}
-	@traceRpc()
+	@traceRpc
 	async getLatency(id: number): Promise<number> {
 		return 0;
 	}
-	@traceRpc()
+	@traceRpc
 	async orphanQuestionReply(id: number): Promise<void> {
 		return this._throwIfNoPty(id).orphanQuestionReply();
 	}
 
-	@traceRpc()
+	@traceRpc
 	async installAutoReply(match: string, reply: string) {
 		this._autoReplies.set(match, reply);
 		// If the auto reply exists on any existing terminals it will be overridden
@@ -410,7 +406,7 @@ export class PtyService extends Disposable implements IPtyService {
 			p.installAutoReply(match, reply);
 		}
 	}
-	@traceRpc()
+	@traceRpc
 	async uninstallAllAutoReplies() {
 		for (const match of this._autoReplies.keys()) {
 			for (const p of this._ptys.values()) {
@@ -418,24 +414,24 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 		}
 	}
-	@traceRpc()
+	@traceRpc
 	async uninstallAutoReply(match: string) {
 		for (const p of this._ptys.values()) {
 			p.uninstallAutoReply(match);
 		}
 	}
 
-	@traceRpc()
+	@traceRpc
 	async getDefaultSystemShell(osOverride: OperatingSystem = OS): Promise<string> {
 		return getSystemShell(osOverride, process.env);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async getEnvironment(): Promise<IProcessEnvironment> {
 		return { ...process.env };
 	}
 
-	@traceRpc()
+	@traceRpc
 	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix' | unknown): Promise<string> {
 		if (direction === 'win-to-unix') {
 			if (!isWindows) {
@@ -488,7 +484,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return undefined;
 	}
 
-	@traceRpc()
+	@traceRpc
 	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
 		try {
 			return this._revivedPtyIdMap.get(id)?.newId;
@@ -498,12 +494,12 @@ export class PtyService extends Disposable implements IPtyService {
 		return undefined;
 	}
 
-	@traceRpc()
+	@traceRpc
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
 
-	@traceRpc()
+	@traceRpc
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
 		if (layout) {
