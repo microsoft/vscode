@@ -7,6 +7,10 @@
 	z-index: 3;
 }
 
+.monaco-editor .zone-widget-container.inside-selection {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
 .monaco-editor .inline-chat {
 	color: inherit;
 	padding: 6px;

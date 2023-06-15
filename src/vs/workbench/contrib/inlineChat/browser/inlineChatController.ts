@@ -38,7 +38,6 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Lazy } from 'vs/base/common/lazy';
-import { Selection } from 'vs/editor/common/core/selection';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -101,7 +100,6 @@ export class InlineChatController implements IEditorContribution {
 	private _activeSession?: Session;
 	private _strategy?: EditModeStrategy;
 	private _ignoreModelContentChanged = false;
-	private _selection: Selection | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -201,34 +199,20 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 		assertType(this._editor.hasModel());
 
-		const info = this._editor.getLayoutInfo();
-		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
-		this._zone.value.container!.style.marginLeft = `${marginWithoutIndentation}px`;
-
 		let widgetPosition: Position | undefined;
 		if (initialRender) {
-			this._selection = this._editor.getSelection();
 			widgetPosition = this._editor.getSelection().getEndPosition();
-			this._zone.value.setMargins(widgetPosition);
-			console.log('widgetPosition : ', widgetPosition);
-			console.log('selection : ', this._editor.getSelection());
+			this._zone.value.setContainerMargins();
+			this._zone.value.setWidgetMargins(widgetPosition);
 		} else {
 			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getEndPosition();
 			const needsMargin = this._strategy.needsMargin();
 			if (!needsMargin) {
-				this._zone.value.setMargins(widgetPosition, 0);
+				this._zone.value.setWidgetMargins(widgetPosition, 0);
 			}
-			// TODO: clean up
-			const widgetLineNumber = widgetPosition.lineNumber;
-			if (this._selection && widgetLineNumber >= this._selection.startLineNumber && widgetLineNumber < this._selection.endLineNumber) {
-				console.log('this._zone.value.container : ', this._zone.value.container);
-				this._zone.value.container!.style.backgroundColor = `var(--vscode-inlineChat-regionHighlight)`;
-			}
-			console.log('widgetPosition : ', widgetPosition);
-			console.log('selection : ', this._editor.getSelection());
-			console.log('this._activeSession.wholeRange : ', this._activeSession.wholeRange);
 		}
 		this._zone.value.show(widgetPosition);
+		this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.selection);
 	}
 
 	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
@@ -301,7 +285,6 @@ export class InlineChatController implements IEditorContribution {
 			range: this._activeSession.wholeRange.value,
 			options: InlineChatController._decoBlock
 		}]);
-		console.log('wholeRangeDecoration', wholeRangeDecoration);
 		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
 
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);

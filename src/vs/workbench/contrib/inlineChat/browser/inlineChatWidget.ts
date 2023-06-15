@@ -7,7 +7,7 @@ import 'vs/css!./inlineChat';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -47,8 +47,8 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IdleValue } from 'vs/base/common/async';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -740,17 +740,17 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 
 	protected override _doLayout(heightInPixel: number): void {
-		console.log('inside of _doLayout');
+
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
-		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation());
+		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation(this._indentationWidth));
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
 	}
 
-	private _availableSpaceGivenIndentation(): number {
+	private _availableSpaceGivenIndentation(indentationWidth: number | undefined): number {
 		const info = this.editor.getLayoutInfo();
-		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + (this._indentationWidth ?? 0));
+		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + (indentationWidth ?? 0));
 	}
 
 	private _computeHeightInLines(): number {
@@ -769,6 +769,14 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
+	}
+
+	public updateBackgroundColor(position: Position, selection: IRange) {
+		if (!this.container) {
+			return;
+		}
+		const widgetLineNumber = position.lineNumber;
+		this.container.classList.toggle('inside-selection', widgetLineNumber >= selection.startLineNumber && widgetLineNumber < selection.endLineNumber);
 	}
 
 	private _calculateIndentationWidth(position: Position): number {
@@ -792,21 +800,25 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		return this.editor.getOffsetForColumn(indentationLineNumber ?? positionLine, indentationLevel ?? viewModel.getLineFirstNonWhitespaceColumn(positionLine));
 	}
 
-	setMargins(position: Position, indentationWidth?: number): void {
+	setContainerMargins(): void {
+		if (!this.container) {
+			return;
+		}
+		const info = this.editor.getLayoutInfo();
+		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
+		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
+	}
+
+	setWidgetMargins(position: Position, indentationWidth?: number): void {
 		if (indentationWidth === undefined) {
 			indentationWidth = this._calculateIndentationWidth(position);
 		}
 		if (this._indentationWidth === indentationWidth) {
 			return;
 		}
-		this._indentationWidth = indentationWidth;
-		const info = this.editor.getLayoutInfo();
-		const isEnoughAvailableSpaceWithIndentation = this._availableSpaceGivenIndentation() > 400;
-		this._indentationWidth = isEnoughAvailableSpaceWithIndentation ? this._indentationWidth : 0;
-		const spaceLeft = isEnoughAvailableSpaceWithIndentation ? this._indentationWidth : 0;
-		const spaceRight = info.minimap.minimapWidth;
-		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
-		this.widget.domNode.style.marginRight = `${spaceRight}px`;
+		this._indentationWidth = this._availableSpaceGivenIndentation(indentationWidth) > 400 ? indentationWidth : 0;
+		this.widget.domNode.style.marginLeft = `${this._indentationWidth}px`;
+		this.widget.domNode.style.marginRight = `${this.editor.getLayoutInfo().minimap.minimapWidth}px`;
 	}
 
 	override hide(): void {
