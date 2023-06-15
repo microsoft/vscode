@@ -37,13 +37,28 @@ interface IActionModel {
 	renderLabel: boolean;
 }
 
-enum RenderLabel {
+export enum RenderLabel {
 	Always = 0,
 	Never = 1,
 	Dynamic = 2
 }
 
-type RenderLabelWithFallback = true | false | 'always' | 'never' | 'dynamic';
+export type RenderLabelWithFallback = true | false | 'always' | 'never' | 'dynamic';
+
+export function convertConfiguration(value: RenderLabelWithFallback): RenderLabel {
+	switch (value) {
+		case true:
+			return RenderLabel.Always;
+		case false:
+			return RenderLabel.Never;
+		case 'always':
+			return RenderLabel.Always;
+		case 'never':
+			return RenderLabel.Never;
+		case 'dynamic':
+			return RenderLabel.Dynamic;
+	}
+}
 
 const ICON_ONLY_ACTION_WIDTH = 21;
 const TOGGLE_MORE_ACTION_WIDTH = 21;
@@ -354,7 +369,7 @@ export class NotebookEditorToolbar extends Disposable {
 		this._register(this._notebookGlobalActionsMenu);
 
 		this._useGlobalToolbar = this.notebookOptions.getLayoutConfiguration().globalToolbar;
-		this._renderLabel = this._convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
+		this._renderLabel = convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
 		this._updateStrategy();
 
 		const context = {
@@ -433,7 +448,7 @@ export class NotebookEditorToolbar extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(NotebookSetting.globalToolbarShowLabel)) {
-				this._renderLabel = this._convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
+				this._renderLabel = convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
 				this._updateStrategy();
 				const oldElement = this._notebookLeftToolbar.getElement();
 				oldElement.parentElement?.removeChild(oldElement);
@@ -476,21 +491,6 @@ export class NotebookEditorToolbar extends Disposable {
 			case RenderLabel.Dynamic:
 				this._strategy = new DynamicLabelStrategy(this.notebookEditor, this, this.instantiationService);
 				break;
-		}
-	}
-
-	private _convertConfiguration(value: RenderLabelWithFallback): RenderLabel {
-		switch (value) {
-			case true:
-				return RenderLabel.Always;
-			case false:
-				return RenderLabel.Never;
-			case 'always':
-				return RenderLabel.Always;
-			case 'never':
-				return RenderLabel.Never;
-			case 'dynamic':
-				return RenderLabel.Dynamic;
 		}
 	}
 
@@ -643,7 +643,7 @@ export class NotebookEditorToolbar extends Disposable {
 	}
 }
 
-class WorkbenchLabelStrategy implements IActionLayoutStrategy {
+class WorkbenchAlwaysLabelStrategy implements IActionLayoutStrategy {
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
 		readonly editorToolbar: NotebookEditorWorkbenchToolbar,
@@ -666,8 +666,58 @@ class WorkbenchLabelStrategy implements IActionLayoutStrategy {
 	}
 }
 
+class WorkbenchNeverLabelStrategy implements IActionLayoutStrategy {
+	constructor(
+		readonly notebookEditor: INotebookEditorDelegate,
+		readonly editorToolbar: NotebookEditorWorkbenchToolbar,
+		readonly instantiationService: IInstantiationService) { }
+
+	actionProvider(action: IAction): ActionViewItem | undefined {
+		if (action.id === SELECT_KERNEL_ID) {
+			//	this is being disposed by the consumer
+			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+		}
+
+		return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
+	}
+
+	calculateActions(leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] } {
+		const initialPrimaryActions = this.editorToolbar.primaryActions;
+		const initialSecondaryActions = this.editorToolbar.secondaryActions;
+
+		return workbenchCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
+	}
+}
+
+// class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
+
+// 	constructor(
+// 		readonly notebookEditor: INotebookEditorDelegate,
+// 		readonly editorToolbar: NotebookEditorToolbar,
+// 		readonly instantiationService: IInstantiationService) {
+// 	}
+
+// 	actionProvider(action: IAction) {
+// 		if (action.id === SELECT_KERNEL_ID) {
+// 			// 	// this is being disposed by the consumer
+// 			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+// 		}
+
+// 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
+// 		if (!a || a.renderLabel) {
+// 			// render new action with label to get a correct full width.
+// 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
+// 		} else {
+// 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
+// 		}
+// 	}
+
+// 	calculateActions(leftToolbarContainerMaxWidth: number) {
+// 	}
+
+// }
+
 export class NotebookEditorWorkbenchToolbar extends Disposable {
-	// private _editorToolbarContainer!: HTMLElement;
 	private _leftToolbarScrollable!: DomScrollableElement;
 	private _notebookTopLeftToolbarContainer!: HTMLElement;
 	private _notebookTopRightToolbarContainer!: HTMLElement;
@@ -715,7 +765,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService
+		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
@@ -766,7 +816,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		this._register(this._notebookGlobalActionsMenu);
 
 		this._useGlobalToolbar = this.notebookOptions.getLayoutConfiguration().globalToolbar;
-		this._renderLabel = this._convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
+		this._renderLabel = this._convertConfiguration(this.configurationService.getValue(NotebookSetting.globalToolbarShowLabel));
 		this._updateStrategy();
 
 		const context = {
@@ -890,7 +940,17 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 	}
 
 	private _updateStrategy() {
-		this._strategy = new WorkbenchLabelStrategy(this.notebookEditor, this, this.instantiationService);
+		switch (this._renderLabel) {
+			case RenderLabel.Always:
+				this._strategy = new WorkbenchAlwaysLabelStrategy(this.notebookEditor, this, this.instantiationService);
+				break;
+			case RenderLabel.Never:
+				this._strategy = new WorkbenchNeverLabelStrategy(this.notebookEditor, this, this.instantiationService);
+				break;
+			case RenderLabel.Dynamic:
+				this._strategy = new WorkbenchAlwaysLabelStrategy(this.notebookEditor, this, this.instantiationService); // todo: defer to always, incorrect
+				break;
+		}
 	}
 
 	private _convertConfiguration(value: RenderLabelWithFallback): RenderLabel {
@@ -1099,6 +1159,10 @@ export function workbenchCalculateActions(initialPrimaryActions: IActionModel[],
 
 	if (renderActions.length && renderActions[renderActions.length - 1].action instanceof Separator) {
 		renderActions.pop();
+	}
+
+	if (overflow.length !== 0) {
+		overflow.push(new Separator());
 	}
 
 	return {
