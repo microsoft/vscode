@@ -701,7 +701,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 + 3 });
+		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 + 3, allowBehindVerticalScrollbar: true });
 
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
@@ -740,7 +740,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 
 	protected override _doLayout(heightInPixel: number): void {
-
+		console.log('inside of _doLayout');
 		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
 		const width = Math.min(maxWidth, this._availableSpaceGivenIndentation());
 		this._dimension = new Dimension(width, heightInPixel);
@@ -801,12 +801,10 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		}
 		this._indentationWidth = indentationWidth;
 		const info = this.editor.getLayoutInfo();
-		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
-		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;
 		const isEnoughAvailableSpaceWithIndentation = this._availableSpaceGivenIndentation() > 400;
 		this._indentationWidth = isEnoughAvailableSpaceWithIndentation ? this._indentationWidth : 0;
-		const spaceLeft = isEnoughAvailableSpaceWithIndentation ? marginWithIndentation : marginWithoutIndentation;
-		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
+		const spaceLeft = isEnoughAvailableSpaceWithIndentation ? this._indentationWidth : 0;
+		const spaceRight = info.minimap.minimapWidth;
 		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
 		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 	}
