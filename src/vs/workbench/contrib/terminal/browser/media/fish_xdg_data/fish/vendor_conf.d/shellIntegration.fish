@@ -98,9 +98,22 @@ function __vsc_cmd_clear --on-event fish_cancel
 	__vsc_esc D
 end
 
+# Preserve the user's existing prompt, to wrap in our escape sequences.
+function init_vscode_shell_integration
+	echo "$fish_prompt"
+	functions --copy fish_prompt __vsc_fish_prompt
+end
+
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
+	if type -q init_vscode_shell_integration
+		if set -q fish_prompt
+			init_vscode_shell_integration
+			functions --erase init_vscode_shell_integration
+		end
+	end
+
 	__vsc_esc P Cwd=(__vsc_escape_value "$PWD")
 
 	# If a command marker exists, remove it.
@@ -128,9 +141,6 @@ function __vsc_fish_has_mode_prompt -d "Returns true if fish_mode_prompt is defi
 	functions fish_mode_prompt | string match -rvq '^ *(#|function |end$|$)'
 end
 
-# Preserve the user's existing prompt, to wrap in our escape sequences.
-functions --copy fish_prompt __vsc_fish_prompt
-
 # Preserve and wrap fish_mode_prompt (which appears to the left of the regular
 # prompt), but only if it's not defined as an empty function (which is the
 # officially documented way to disable that feature).
@@ -143,14 +153,18 @@ if __vsc_fish_has_mode_prompt
 	end
 
 	function fish_prompt
-		__vsc_fish_prompt
+		if set -q __vsc_fish_prompt
+			__vsc_fish_prompt
+		end
 		__vsc_fish_cmd_start
 	end
 else
 	# No fish_mode_prompt, so put everything in fish_prompt.
 	function fish_prompt
 		__vsc_fish_prompt_start
-		__vsc_fish_prompt
+		if set -q __vsc_fish_prompt
+			__vsc_fish_prompt
+		end
 		__vsc_fish_cmd_start
 	end
 end
