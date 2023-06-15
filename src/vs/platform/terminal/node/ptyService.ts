@@ -43,9 +43,6 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 		if (fn!.length !== 0) {
 			console.warn('Memoize should only be used in functions with zero parameters');
 		}
-	} else if (typeof descriptor.get === 'function') {
-		fnKey = 'get';
-		fn = descriptor.get;
 	}
 
 	if (!fn) {
@@ -59,7 +56,7 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		const result = await fn.apply(this, args);
+		const result = await fn!.apply(this, args);
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
 			this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fnKey}`, result);
 		}
@@ -576,22 +573,6 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 		return pty;
 	}
-
-	// private async _traceRpc<T>(impl: () => T, ...args: unknown[]): Promise<T> {
-	// 	let method: string | undefined;
-	// 	if (this._logService.getLevel() === LogLevel.Trace) {
-	// 		method = this._getCallingMethod(new Error().stack);
-	// 		this._logService.trace(`[RPC Request] PtyService#${method}(${args.map(e => JSON.stringify(e)).join(', ')})`);
-	// 	}
-	// 	if (this._simulatedLatency) {
-	// 		await timeout(this._simulatedLatency);
-	// 	}
-	// 	const result = impl();
-	// 	if (this._logService.getLevel() === LogLevel.Trace) {
-	// 		this._logService.trace(`[RPC Response] PtyService#${method}`, result);
-	// 	}
-	// 	return result;
-	// }
 }
 
 const enum InteractionState {
