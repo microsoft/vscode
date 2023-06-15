@@ -126,6 +126,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register((chatWidgetService as ChatWidgetService).register(this));
 		this._chatAccessibilityService = new ChatAccessibilityService(audioCueService);
+		this._register(this._chatAccessibilityService);
 	}
 
 	get providerId(): string {
