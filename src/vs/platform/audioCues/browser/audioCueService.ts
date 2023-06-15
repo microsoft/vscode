@@ -26,7 +26,7 @@ export interface IAudioCueService {
 	onEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
-	playAudioCueLoop(cue: AudioCue): IDisposable;
+	playAudioCueLoop(cue: AudioCue, milliseconds: number): IDisposable;
 	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void;
 }
 
@@ -75,10 +75,11 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	private readonly playingSounds = new Set<Sound>();
 
 	public async playSound(sound: Sound, allowManyInParallel = false): Promise<void> {
+		console.log(sound.fileName, allowManyInParallel);
 		if (!allowManyInParallel && this.playingSounds.has(sound)) {
 			return;
 		}
-
+		console.log('playing', sound.fileName);
 		this.playingSounds.add(sound);
 		const url = FileAccess.asBrowserUri(`vs/platform/audioCues/browser/media/${sound.fileName}`).toString(true);
 
@@ -99,14 +100,16 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 	}
 
-	public playAudioCueLoop(cue: AudioCue): IDisposable {
+	public playAudioCueLoop(cue: AudioCue, milliseconds: number): IDisposable {
 		let playing = true;
 		const playSound = () => {
 			if (playing) {
 				this.playAudioCue(cue, true).finally(() => {
-					if (playing) {
-						playSound();
-					}
+					setTimeout(() => {
+						if (playing) {
+							playSound();
+						}
+					}, milliseconds);
 				});
 			}
 		};
