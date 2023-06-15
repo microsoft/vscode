@@ -225,11 +225,14 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 	private async getAndDeleteOldPassword(extensionId: string, key: string): Promise<string | undefined> {
 		const password = await this.getOldPassword(extensionId, key);
 		if (password) {
-			await this.deleteOldPassword(extensionId, key);
 			const fullKey = this.getKey(extensionId, key);
 			this.logService.trace('[mainThreadSecretState] Setting old password to new location for: ', extensionId, key);
 			await this.secretStorageService.set(fullKey, password);
 			this.logService.trace('[mainThreadSecretState] Old Password set to new location for: ', extensionId, key);
+			if (this.secretStorageService.type === 'persisted') {
+				this.logService.trace('[mainThreadSecretState] Deleting old password for since it was persisted in the new location: ', extensionId, key);
+				await this.deleteOldPassword(extensionId, key);
+			}
 		}
 		return password;
 	}
