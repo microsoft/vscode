@@ -113,6 +113,7 @@ function __vsc_update_cwd --on-event fish_prompt
 			set func1 (functions -a __vsc_fish_prompt_og)
 			set func2 (functions -a fish_prompt)
 			if test "$func1" != "$func2"
+				// if fish prompt is defined and is not equal to the one we've set, then init the user's one
 				init_vscode_shell_integration
 			end
 		end
