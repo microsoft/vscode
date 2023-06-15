@@ -1058,7 +1058,7 @@ class StandaloneAudioService implements IAudioCueService {
 	playAudioCueLoop(cue: AudioCue): IDisposable {
 		return toDisposable(() => { });
 	}
-	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean | undefined): void | IDisposable {
+	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean | undefined): void {
 	}
 }
 

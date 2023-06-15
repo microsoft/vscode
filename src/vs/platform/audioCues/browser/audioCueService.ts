@@ -27,7 +27,7 @@ export interface IAudioCueService {
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
 	playAudioCueLoop(cue: AudioCue): IDisposable;
-	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): IDisposable | void;
+	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -57,7 +57,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 	}
 
-	public playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void | IDisposable {
+	public playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void {
 		const cues = AudioCue.allAudioCues.filter(cue => cue.groupId === groupId);
 		const index = Math.floor(Math.random() * cues.length);
 		this.playAudioCue(cues[index], allowManyInParallel);
