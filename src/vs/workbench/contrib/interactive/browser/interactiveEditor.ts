@@ -457,7 +457,9 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
-		const editorModel = await input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID);
+		const languageId = this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? input.language ?? PLAINTEXT_LANGUAGE_ID;
+		const editorModel = await input.resolveInput(languageId);
+		editorModel.setLanguage(languageId);
 		this.#codeEditorWidget.setModel(editorModel);
 		if (viewState?.input) {
 			this.#codeEditorWidget.restoreViewState(viewState.input);

@@ -8,6 +8,7 @@ import { IReference } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,8 +21,8 @@ import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class InteractiveEditorInput extends EditorInput implements ICompositeNotebookEditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string) {
-		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource, title);
+	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string, language?: string) {
+		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource, title, language);
 	}
 
 	static readonly ID: string = 'workbench.input.interactive';
@@ -35,6 +36,11 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 
 	private _initTitle?: string;
+
+	get language() {
+		return this._inputModelRef?.object.textEditorModel.getLanguageId() ?? this._initLanguage;
+	}
+	private _initLanguage?: string;
 
 	private _notebookEditorInput: NotebookEditorInput;
 	get notebookEditorInput() {
@@ -73,6 +79,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		resource: URI,
 		inputResource: URI,
 		title: string | undefined,
+		languageId: string | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService,
@@ -85,6 +92,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
 		this._initTitle = title;
+		this._initLanguage = languageId;
 		this._resource = resource;
 		this._inputResource = inputResource;
 		this._inputResolver = null;
@@ -141,12 +149,13 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		return this._inputResolver;
 	}
 
-	async resolveInput(language: string) {
+	async resolveInput(language?: string) {
 		if (this._inputModelRef) {
 			return this._inputModelRef.object.textEditorModel;
 		}
 
-		this._interactiveDocumentService.willCreateInteractiveDocument(this.resource!, this.inputResource, language);
+		const resolvedLanguage = language ?? this._initLanguage ?? PLAINTEXT_LANGUAGE_ID;
+		this._interactiveDocumentService.willCreateInteractiveDocument(this.resource!, this.inputResource, resolvedLanguage);
 		this._inputModelRef = await this._textModelService.createModelReference(this.inputResource);
 
 		return this._inputModelRef.object.textEditorModel;

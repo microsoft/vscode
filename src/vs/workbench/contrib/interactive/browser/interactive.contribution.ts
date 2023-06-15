@@ -255,14 +255,14 @@ workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocument
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveInputContentProvider, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveWindowWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
+type interactiveEditorInputData = { resource: URI; inputResource: URI; name: string; language: string };
+
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	public static readonly ID = InteractiveEditorInput.ID;
 
-	constructor(@IConfigurationService private configurationService: IConfigurationService) {
-	}
-
-	canSerialize(): boolean {
-		return this.configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowRestore);
+	canSerialize(editor: EditorInput): boolean {
+		const interactiveEditorInput = editor as InteractiveEditorInput;
+		return URI.isUri(interactiveEditorInput?.primary?.resource) && URI.isUri(interactiveEditorInput?.inputResource);
 	}
 
 	serialize(input: EditorInput): string {
@@ -270,25 +270,22 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 		return JSON.stringify({
 			resource: input.primary.resource,
 			inputResource: input.inputResource,
-			name: input.getName()
+			name: input.getName(),
+			language: input.language
 		});
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		if (!this.canSerialize()) {
-			return undefined;
-		}
-		type Data = { resource: URI; inputResource: URI; data: any };
-		const data = <Data>parse(raw);
+		const data = <interactiveEditorInputData>parse(raw);
 		if (!data) {
 			return undefined;
 		}
-		const { resource, inputResource } = data;
-		if (!data || !URI.isUri(resource) || !URI.isUri(inputResource)) {
+		const { resource, inputResource, name, language } = data;
+		if (!URI.isUri(resource) || !URI.isUri(inputResource)) {
 			return undefined;
 		}
 
-		const input = InteractiveEditorInput.create(instantiationService, resource, inputResource);
+		const input = InteractiveEditorInput.create(instantiationService, resource, inputResource, name, language);
 		return input;
 	}
 }
