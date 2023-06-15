@@ -53,6 +53,8 @@ export interface IChatWidgetStyles {
 	resultEditorBackground: string;
 }
 
+const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 7000;
+
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): any }[] = [];
 
@@ -391,13 +393,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 			this.audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
+			const responsePendingAudioCue = this.audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
 			const input = query ?? editorValue;
-			const cue = this.audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, 7000);
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
+
 			if (result) {
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(async () => {
-					cue?.dispose();
+					responsePendingAudioCue?.dispose();
 					this.audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
