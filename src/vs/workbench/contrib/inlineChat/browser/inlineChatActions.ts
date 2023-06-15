@@ -169,7 +169,7 @@ export class ReRunRequestAction extends AbstractInlineChatAction {
 			icon: Codicon.refresh,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EMPTY.negate(), CTX_INLINE_CHAT_LAST_RESPONSE_TYPE),
 			menu: {
-				id: MENU_INLINE_CHAT_WIDGET_FEEDBACK,
+				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '2_feedback',
 				order: 3,
 			}

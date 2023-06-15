@@ -199,6 +199,14 @@
 	padding: 0 4px;
 }
 
+.monaco-editor .inline-chat .status .actions > .monaco-button.codicon {
+	display: flex;
+}
+
+.monaco-editor .inline-chat .status .actions > .monaco-button.codicon::before {
+	align-self: center;
+}
+
 .monaco-editor .inline-chat .status .actions .monaco-text-button {
 	padding: 2px 4px
 }
