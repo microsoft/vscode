@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { execFile, exec } from 'child_process';
-import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue } from 'vs/base/common/async';
+import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue, timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
@@ -63,13 +63,18 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty<any> }>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
+	private _traceCalls: boolean = false;
+
 	constructor(
 		private _lastPtyId: number,
 		private readonly _logService: ILogService,
 		private readonly _productService: IProductService,
-		private readonly _reconnectConstants: IReconnectConstants
+		private readonly _reconnectConstants: IReconnectConstants,
+		private readonly _simulatedLatency: number
 	) {
 		super();
+
+		Event.runAndSubscribe(this._logService.onDidChangeLogLevel, e => this._traceCalls = (e ?? this._logService.getLevel()) === LogLevel.Trace);
 
 		this._register(toDisposable(() => {
 			for (const pty of this._ptys.values()) {
@@ -83,6 +88,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async refreshIgnoreProcessNames(names: string[]): Promise<void> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		ignoreProcessNames.length = 0;
 		ignoreProcessNames.push(...names);
 	}
@@ -94,10 +100,12 @@ export class PtyService extends Disposable implements IPtyService {
 	onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent> | undefined;
 
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
-		return this._detachInstanceRequestStore.createRequest({ workspaceId, instanceId });
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._detachInstanceRequestStore.createRequest({ workspaceId, instanceId }));
 	}
 
 	async acceptDetachInstanceReply(requestId: number, persistentProcessId: number): Promise<void> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		let processDetails: IProcessDetails | undefined = undefined;
 		const pty = this._ptys.get(persistentProcessId);
 		if (pty) {
@@ -107,6 +115,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		const stdout = await new Promise<string>((resolve, reject) => {
 			exec(isWindows ? `netstat -ano | findstr "${port}"` : `lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
 				if (err) {
@@ -126,12 +135,13 @@ export class PtyService extends Disposable implements IPtyService {
 			} else {
 				throw new Error(`Processes for port ${port} were not found`);
 			}
-			return { port, processId };
+			return this._traceOutgoingRpc({ port, processId });
 		}
 		throw new Error(`Could not kill process with port ${port}`);
 	}
 
 	async serializeTerminalState(ids: number[]): Promise<string> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		const promises: Promise<ISerializedTerminalState>[] = [];
 		for (const [persistentProcessId, persistentProcess] of this._ptys.entries()) {
 			// Only serialize persistent processes that have had data written or performed a replay
@@ -153,10 +163,11 @@ export class PtyService extends Disposable implements IPtyService {
 			version: 1,
 			state: await Promise.all(promises)
 		};
-		return JSON.stringify(serialized);
+		return this._traceOutgoingRpc(JSON.stringify(serialized));
 	}
 
 	async reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocale: string) {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		for (const terminal of state) {
 			const restoreMessage = localize('terminal-history-restored', "History restored");
 			// TODO: We may at some point want to show date information in a hover via a custom sequence:
@@ -190,6 +201,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async shutdownAll(): Promise<void> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		this.dispose();
 	}
 
@@ -208,6 +220,8 @@ export class PtyService extends Disposable implements IPtyService {
 		isReviving?: boolean,
 		rawReviveBuffer?: string
 	): Promise<number> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+
 		if (shellLaunchConfig.attachPersistentProcess) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
@@ -236,10 +250,12 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 		});
 		this._ptys.set(id, persistentProcess);
-		return id;
+
+		return this._traceOutgoingRpc(id);
 	}
 
 	async attachToProcess(id: number): Promise<void> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		try {
 			await this._throwIfNoPty(id).attach();
 			this._logService.info(`Persistent process reconnection "${id}"`);
@@ -250,84 +266,102 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		this._throwIfNoPty(id).setTitle(title, titleSource);
 	}
 
 	async updateIcon(id: number, userInitiated: boolean, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		this._throwIfNoPty(id).setIcon(userInitiated, icon, color);
 	}
 
 	async clearBuffer(id: number): Promise<void> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		this._throwIfNoPty(id).clearBuffer();
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(id: number, type: T): Promise<IProcessPropertyMap[T]> {
-		return this._throwIfNoPty(id).refreshProperty(type);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).refreshProperty(type));
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(id: number, type: T, value: IProcessPropertyMap[T]): Promise<void> {
-		return this._throwIfNoPty(id).updateProperty(type, value);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).updateProperty(type, value));
 	}
 
 	async detachFromProcess(id: number, forcePersist?: boolean): Promise<void> {
-		return this._throwIfNoPty(id).detach(forcePersist);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).detach(forcePersist));
 	}
 
 	async reduceConnectionGraceTime(): Promise<void> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		for (const pty of this._ptys.values()) {
 			pty.reduceGraceTime();
 		}
 	}
 
 	async listProcesses(): Promise<IProcessDetails[]> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		const persistentProcesses = Array.from(this._ptys.entries()).filter(([_, pty]) => pty.shouldPersistTerminal);
 
 		this._logService.info(`Listing ${persistentProcesses.length} persistent terminals, ${this._ptys.size} total terminals`);
 		const promises = persistentProcesses.map(async ([id, terminalProcessData]) => this._buildProcessDetails(id, terminalProcessData));
 		const allTerminals = await Promise.all(promises);
-		return allTerminals.filter(entry => entry.isOrphan);
+		return this._traceOutgoingRpc(allTerminals.filter(entry => entry.isOrphan));
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
-		this._logService.trace('ptyService#start', id);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		const pty = this._ptys.get(id);
-		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
+		return this._traceOutgoingRpc(pty ? pty.start() : { message: `Could not find pty with id "${id}"` });
 	}
 
 	async shutdown(id: number, immediate: boolean): Promise<void> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		// Don't throw if the pty is already shutdown
-		this._logService.trace('ptyService#shutDown', id, immediate);
-		return this._ptys.get(id)?.shutdown(immediate);
+		return this._traceOutgoingRpc(this._ptys.get(id)?.shutdown(immediate));
 	}
 	async input(id: number, data: string): Promise<void> {
-		return this._throwIfNoPty(id).input(data);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).input(data));
 	}
 	async processBinary(id: number, data: string): Promise<void> {
-		return this._throwIfNoPty(id).writeBinary(data);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).writeBinary(data));
 	}
 	async resize(id: number, cols: number, rows: number): Promise<void> {
-		return this._throwIfNoPty(id).resize(cols, rows);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).resize(cols, rows));
 	}
 	async getInitialCwd(id: number): Promise<string> {
-		return this._throwIfNoPty(id).getInitialCwd();
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).getInitialCwd());
 	}
 	async getCwd(id: number): Promise<string> {
-		return this._throwIfNoPty(id).getCwd();
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).getCwd());
 	}
 	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
-		return this._throwIfNoPty(id).acknowledgeDataEvent(charCount);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).acknowledgeDataEvent(charCount));
 	}
 	async setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
-		return this._throwIfNoPty(id).setUnicodeVersion(version);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).setUnicodeVersion(version));
 	}
 	async getLatency(id: number): Promise<number> {
-		return 0;
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(0);
 	}
 	async orphanQuestionReply(id: number): Promise<void> {
-		return this._throwIfNoPty(id).orphanQuestionReply();
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(this._throwIfNoPty(id).orphanQuestionReply());
 	}
 
 	async installAutoReply(match: string, reply: string) {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		this._autoReplies.set(match, reply);
 		// If the auto reply exists on any existing terminals it will be overridden
 		for (const p of this._ptys.values()) {
@@ -335,6 +369,7 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 	async uninstallAllAutoReplies() {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		for (const match of this._autoReplies.keys()) {
 			for (const p of this._ptys.values()) {
 				p.uninstallAutoReply(match);
@@ -342,59 +377,63 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 	async uninstallAutoReply(match: string) {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		for (const p of this._ptys.values()) {
 			p.uninstallAutoReply(match);
 		}
 	}
 
 	async getDefaultSystemShell(osOverride: OperatingSystem = OS): Promise<string> {
-		return getSystemShell(osOverride, process.env);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc(getSystemShell(osOverride, process.env));
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {
-		return { ...process.env };
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
+		return this._traceOutgoingRpc({ ...process.env });
 	}
 
 	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix' | unknown): Promise<string> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		if (direction === 'win-to-unix') {
 			if (!isWindows) {
-				return original;
+				return this._traceOutgoingRpc(original);
 			}
 			if (getWindowsBuildNumber() < 17063) {
-				return original.replace(/\\/g, '/');
+				return this._traceOutgoingRpc(original.replace(/\\/g, '/'));
 			}
 			const wslExecutable = this._getWSLExecutablePath();
 			if (!wslExecutable) {
-				return original;
+				return this._traceOutgoingRpc(original);
 			}
-			return new Promise<string>(c => {
+			return this._traceOutgoingRpc(await new Promise<string>(c => {
 				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
 					c(error ? original : escapeNonWindowsPath(stdout.trim()));
 				});
 				proc.stdin!.end();
-			});
+			}));
 		}
 		if (direction === 'unix-to-win') {
 			// The backend is Windows, for example a local Windows workspace with a wsl session in
 			// the terminal.
 			if (isWindows) {
 				if (getWindowsBuildNumber() < 17063) {
-					return original;
+					return this._traceOutgoingRpc(original);
 				}
 				const wslExecutable = this._getWSLExecutablePath();
 				if (!wslExecutable) {
-					return original;
+					return this._traceOutgoingRpc(original);
 				}
-				return new Promise<string>(c => {
+				return this._traceOutgoingRpc(await new Promise<string>(c => {
 					const proc = execFile(wslExecutable, ['-e', 'wslpath', '-w', original], {}, (error, stdout, stderr) => {
 						c(error ? original : stdout.trim());
 					});
 					proc.stdin!.end();
-				});
+				}));
 			}
 		}
 		// Fallback just in case
-		return original;
+		return this._traceOutgoingRpc(original);
 	}
 
 	private _getWSLExecutablePath(): string | undefined {
@@ -402,45 +441,46 @@ export class PtyService extends Disposable implements IPtyService {
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 		const systemRoot = process.env['SystemRoot'];
 		if (systemRoot) {
-			return join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', useWSLexe ? 'wsl.exe' : 'bash.exe');
+			return this._traceOutgoingRpc(join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', useWSLexe ? 'wsl.exe' : 'bash.exe'));
 		}
-		return undefined;
+		return this._traceOutgoingRpc(undefined);
 	}
 
 	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		try {
-			return this._revivedPtyIdMap.get(id)?.newId;
+			return this._traceOutgoingRpc(this._revivedPtyIdMap.get(id)?.newId);
 		} catch (e) {
 			this._logService.warn(`Couldn't find terminal ID ${id}`, e.message);
 		}
-		return undefined;
+		return this._traceOutgoingRpc(undefined);
 	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
-		this._logService.trace('ptyService#setLayoutInfo', args.tabs);
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
 
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		await this._traceIncomingRpc(...(this._traceCalls ? arguments : []));
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
-		this._logService.trace('ptyService#getLayoutInfo', args);
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
 			const tabs = expandedTabs.filter(t => t.terminals.length > 0);
-			this._logService.trace('ptyService#returnLayoutInfo', tabs);
-			return { tabs };
+			this._logService.trace('PtyService.getTerminalLayoutInfo result', tabs);
+			return this._traceOutgoingRpc({ tabs });
 		}
-		return undefined;
+		return this._traceOutgoingRpc(undefined);
 	}
 
 	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
 		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
 		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IProcessDetails>[];
-		return {
+		return this._traceOutgoingRpc({
 			isActive: tab.isActive,
 			activePersistentProcessId: tab.activePersistentProcessId,
 			terminals: filtered
-		};
+		});
 	}
 
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
@@ -450,17 +490,17 @@ export class PtyService extends Disposable implements IPtyService {
 			const persistentProcessId = revivedPtyId ?? t.terminal;
 			const persistentProcess = this._throwIfNoPty(persistentProcessId);
 			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess, revivedPtyId !== undefined);
-			return {
+			return this._traceOutgoingRpc({
 				terminal: { ...processDetails, id: persistentProcessId },
 				relativeSize: t.relativeSize
-			};
+			});
 		} catch (e) {
 			this._logService.warn(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
 			// this will be filtered out and not reconnected
-			return {
+			return this._traceOutgoingRpc({
 				terminal: null,
 				relativeSize: t.relativeSize
-			};
+			});
 		}
 	}
 
@@ -468,7 +508,7 @@ export class PtyService extends Disposable implements IPtyService {
 		// If the process was just revived, don't do the orphan check as it will
 		// take some time
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), wasRevived ? true : persistentProcess.isOrphaned()]);
-		return {
+		return this._traceOutgoingRpc({
 			id,
 			title: persistentProcess.title,
 			titleSource: persistentProcess.titleSource,
@@ -488,7 +528,7 @@ export class PtyService extends Disposable implements IPtyService {
 			type: persistentProcess.shellLaunchConfig.type,
 			hasChildProcesses: persistentProcess.hasChildProcesses,
 			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce
-		};
+		});
 	}
 
 	private _throwIfNoPty(id: number): PersistentTerminalProcess {
@@ -497,6 +537,30 @@ export class PtyService extends Disposable implements IPtyService {
 			throw new ErrorNoTelemetry(`Could not find pty on pty host`);
 		}
 		return pty;
+	}
+
+	private async _traceIncomingRpc(...args: string[]): Promise<void> {
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			const method = this._getCallingMethod(new Error().stack);
+			this._logService.trace(`[RPC Incoming] PtyService#${method}(${args.map(e => JSON.stringify(e)).join(', ')})`);
+		}
+		if (this._simulatedLatency) {
+			await timeout(this._simulatedLatency);
+		}
+	}
+
+	private _traceOutgoingRpc<T>(result: T): T {
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			const method = this._getCallingMethod(new Error().stack);
+			this._logService.trace(`[RPC Outgoing] PtyService#${method} result=${JSON.stringify(result)}`);
+		}
+		return result;
+	}
+
+	private _getCallingMethod(stack: string | undefined): string {
+		const match = stack?.split('\n')[2]?.match(/PtyService\.(?<method>[^ ]+)/);
+		const method = match?.groups?.method ?? '(unknown)';
+		return method;
 	}
 }
 
@@ -605,7 +669,6 @@ class PersistentTerminalProcess extends Disposable {
 		fixedDimensions?: IFixedTerminalDimensions
 	) {
 		super();
-		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
 		this._interactionState = new MutationLogger(`Persistent process "${this._persistentProcessId}" interaction state`, InteractionState.None, this._logService);
 		this._wasRevived = reviveBuffer !== undefined;
 		this._serializer = new XtermSerializer(
@@ -659,7 +722,6 @@ class PersistentTerminalProcess extends Disposable {
 	}
 
 	async attach(): Promise<void> {
-		this._logService.trace('persistentTerminalProcess#attach', this._persistentProcessId);
 		// Something wrong happened if the disconnect runner is not canceled, this likely means
 		// multiple windows attempted to attach.
 		if (!await this._isOrphaned()) {
@@ -673,7 +735,6 @@ class PersistentTerminalProcess extends Disposable {
 	}
 
 	async detach(forcePersist?: boolean): Promise<void> {
-		this._logService.trace('persistentTerminalProcess#detach', this._persistentProcessId, forcePersist);
 		// Keep the process around if it was indicated to persist and it has had some iteraction or
 		// was replayed
 		if (this.shouldPersistTerminal && (this._interactionState.value !== InteractionState.None || forcePersist)) {
@@ -698,7 +759,6 @@ class PersistentTerminalProcess extends Disposable {
 	}
 
 	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
-		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
 			if (result && 'message' in result) {
