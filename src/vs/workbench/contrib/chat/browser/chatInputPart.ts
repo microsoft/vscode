@@ -157,6 +157,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!domNode) {
 			return;
 		}
+		// Remove the input editor from the DOM temporarily to avoid the screen reader
+		// from reading the cleared text (the request) to the user. On Windows, we don't need to do this
+		// and it could cause issues.
 		const handleDom = this.accessibilityService.isScreenReaderOptimized() && !isWindows;
 		if (handleDom) {
 			this._inputEditorElement.removeChild(domNode);
