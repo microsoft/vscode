@@ -107,7 +107,14 @@ export const enum TerminalSettingId {
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	EnableImages = 'terminal.integrated.enableImages',
-	SmoothScrolling = 'terminal.integrated.smoothScrolling'
+	SmoothScrolling = 'terminal.integrated.smoothScrolling',
+
+	// Debug settings that are hidden from user
+
+	/** Simulated latency applied to all calls made to the pty host */
+	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
+	/** Simulated startup delay of the pty host process */
+	DeveloperPtyHostStartupDelay = 'terminal.integrated.developer.ptyHost.startupDelay',
 }
 
 export const enum PosixShellType {
