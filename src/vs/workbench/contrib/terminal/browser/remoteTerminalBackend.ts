@@ -10,7 +10,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -28,6 +27,7 @@ import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 export class RemoteTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -60,14 +60,14 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		@ILogService logService: ILogService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStatusbarService statusBarService: IStatusbarService,
 	) {
-		super(_remoteTerminalChannel, logService, notificationService, _historyService, configurationResolverService, workspaceContextService);
+		super(_remoteTerminalChannel, logService, _historyService, configurationResolverService, statusBarService, workspaceContextService);
 
 		this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
 		this._remoteTerminalChannel.onProcessReplay(e => {
