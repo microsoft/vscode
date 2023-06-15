@@ -108,6 +108,7 @@ end
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
 	if type -q init_vscode_shell_integration
+		// TODO: this assumes our og one is set first, maybe add an else case for when that's not true?
 		if functions -q __vsc_fish_prompt_og fish_prompt
 			set func1 (functions -a __vsc_fish_prompt_og)
 			set func2 (functions -a fish_prompt)
