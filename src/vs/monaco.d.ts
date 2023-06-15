@@ -3312,7 +3312,7 @@ declare namespace monaco.editor {
 		/**
 		 * The message to display when the editor is readonly.
 		 */
-		readOnlyMessage?: string;
+		readOnlyMessage?: IMarkdownString;
 		/**
 		 * Should the textarea used for input use the DOM `readonly` attribute.
 		 * Defaults to false.
@@ -5087,7 +5087,7 @@ declare namespace monaco.editor {
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, InternalQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
-		readOnlyMessage: IEditorOption<EditorOption.readOnlyMessage, string>;
+		readOnlyMessage: IEditorOption<EditorOption.readOnlyMessage, any>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
 		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, 'on' | 'off' | 'dimmed'>;

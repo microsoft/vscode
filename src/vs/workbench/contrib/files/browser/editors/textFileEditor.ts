@@ -147,7 +147,10 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			// was already asked for being readonly or not. The rationale is that
 			// a resolved model might have more specific information about being
 			// readonly or not that the input did not have.
-			control.updateOptions({ readOnly: textFileModel.isReadonly() });
+			const readonlyValue = textFileModel.isReadonly();
+			const readOnly = !!readonlyValue;
+			const readOnlyMessage = typeof readonlyValue !== 'boolean' ? readonlyValue : undefined;
+			control.updateOptions({ readOnly, readOnlyMessage });
 		} catch (error) {
 			await this.handleSetInputError(error, input, options);
 		}

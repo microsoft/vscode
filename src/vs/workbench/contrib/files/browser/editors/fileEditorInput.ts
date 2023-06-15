@@ -25,6 +25,7 @@ import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { isConfigured } from 'vs/platform/configuration/common/configuration';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 const enum ForceOpenAs {
 	None,
@@ -190,6 +191,11 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	getPreferredName(): string | undefined {
 		return this.preferredName;
+	}
+
+	override getReadonlyMessage(): IMarkdownString | undefined {
+		const readonly = this.model?.isReadonly();
+		return typeof readonly !== 'boolean' ? readonly : undefined;
 	}
 
 	override getDescription(verbosity?: Verbosity): string | undefined {

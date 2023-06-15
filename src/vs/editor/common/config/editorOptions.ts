@@ -16,6 +16,7 @@ import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 //#region typed options
 
@@ -154,7 +155,7 @@ export interface IEditorOptions {
 	/**
 	 * The message to display when the editor is readonly.
 	 */
-	readOnlyMessage?: string;
+	readOnlyMessage?: IMarkdownString;
 	/**
 	 * Should the textarea used for input use the DOM `readonly` attribute.
 	 * Defaults to false.
@@ -3463,6 +3464,43 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, (number | IRule
 
 //#endregion
 
+//#region readonly
+
+/**
+ * Configuration options for readonly message
+ */
+class ReadonlyMessage extends BaseEditorOption<EditorOption.readOnlyMessage, IMarkdownString | undefined, IMarkdownString | undefined> {
+	constructor() {
+		const defaults = undefined;
+
+		super(
+			EditorOption.readOnlyMessage, 'readOnlyMessage', defaults,
+			{
+				'editor.readOnlyMessage': {
+					type: 'boolean',
+					default: defaults,
+					description: nls.localize('readOnlyMessage.value', "The value of the readonly message.")
+				}
+			}
+		);
+	}
+
+	public validate(_input: any): IMarkdownString | undefined {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IMarkdownString;
+		return {
+			value: input.value,
+			isTrusted: typeof input.isTrusted === 'boolean' ? boolean(input.isTrusted, false) : input.isTrusted,
+			supportThemeIcons: input.supportThemeIcons,
+			supportHtml: input.supportHtml
+		};
+	}
+}
+
+//#endregion
+
 //#region scrollbar
 
 /**
@@ -5527,9 +5565,7 @@ export const EditorOptions = {
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
 	)),
-	readOnlyMessage: register(new EditorStringOption(
-		EditorOption.readOnlyMessage, 'readOnlyMessage', '',
-	)),
+	readOnlyMessage: register(new ReadonlyMessage()),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
 		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }

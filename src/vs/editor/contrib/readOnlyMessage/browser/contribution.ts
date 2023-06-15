@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -28,9 +29,9 @@ export class ReadOnlyMessageController extends Disposable implements IEditorCont
 			let message = this.editor.getOptions().get(EditorOption.readOnlyMessage);
 			if (!message) {
 				if (this.editor.isSimpleWidget) {
-					message = nls.localize('editor.simple.readonly', "Cannot edit in read-only input");
+					message = new MarkdownString(nls.localize('editor.simple.readonly', "Cannot edit in read-only input"));
 				} else {
-					message = nls.localize('editor.readonly', "Cannot edit in read-only editor");
+					message = new MarkdownString(nls.localize('editor.readonly', "Cannot edit in read-only editor"));
 				}
 			}
 
