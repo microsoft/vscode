@@ -32,6 +32,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
@@ -61,7 +62,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 		const diffContributions = EditorExtensionsRegistry
 			.getEditorContributions()
-			.filter(c => c.id !== INLINE_CHAT_ID);
+			.filter(c => c.id !== INLINE_CHAT_ID && c.id !== FoldingController.ID);
 
 		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
 			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
