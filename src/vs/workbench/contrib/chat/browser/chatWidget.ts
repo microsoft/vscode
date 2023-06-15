@@ -24,7 +24,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
 import { clearChatSession } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
@@ -108,8 +108,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private lastSlashCommands: ISlashCommand[] | undefined;
 	private slashCommandsPromise: Promise<ISlashCommand[] | undefined> | undefined;
 
-	private _chatAccessibilityService: ChatAccessibilityService;
-
 	constructor(
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly styles: IChatWidgetStyles,
@@ -118,15 +116,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IAudioCueService audioCueService: IAudioCueService
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((chatWidgetService as ChatWidgetService).register(this));
-		this._chatAccessibilityService = new ChatAccessibilityService(audioCueService);
-		this._register(this._chatAccessibilityService);
 	}
 
 	get providerId(): string {
@@ -511,9 +507,14 @@ export class ChatWidgetService implements IChatWidgetService {
 	}
 }
 
+
 const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 7000;
-class ChatAccessibilityService extends Disposable {
+export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
+
+	declare readonly _serviceBrand: undefined;
+
 	private _responsePendingAudioCue: IDisposable | undefined;
+
 	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 	}
@@ -523,10 +524,10 @@ class ChatAccessibilityService extends Disposable {
 	}
 	acceptResponse(response?: IChatResponseViewModel): void {
 		this._responsePendingAudioCue?.dispose();
+		this._audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
 		if (!response) {
 			return;
 		}
-		this._audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
 		const errorDetails = response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		alert(response.response.value + errorDetails);
 	}
