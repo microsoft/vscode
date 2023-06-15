@@ -825,6 +825,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		if (this._indentationWidth === indentationWidth) {
 			return;
 		}
+		this._indentationWidth = indentationWidth;
 		const info = this.editor.getLayoutInfo();
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		const marginWithIndentation = marginWithoutIndentation + this._indentationWidth;

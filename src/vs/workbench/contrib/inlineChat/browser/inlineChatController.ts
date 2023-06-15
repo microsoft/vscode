@@ -201,7 +201,7 @@ export class InlineChatController implements IEditorContribution {
 
 		let widgetPosition: Position | undefined;
 		if (initialRender) {
-			widgetPosition = this._editor.getPosition();
+			widgetPosition = this._editor.getSelection().getEndPosition();
 			this._zone.value.setMargins(widgetPosition);
 		} else {
 			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getEndPosition();
