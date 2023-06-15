@@ -128,6 +128,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly versionProvider: ITypeScriptVersionProvider;
 	private readonly processFactory: TsServerProcessFactory;
 
+	private readonly watches = new Map<number, vscode.FileSystemWatcher>();
+
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		onCaseInsenitiveFileSystem: boolean,
@@ -973,6 +975,45 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case EventName.projectLoadingFinish:
 				this.loadingIndicator.finishedLoadingProject((event as Proto.ProjectLoadingFinishEvent).body.projectName);
 				break;
+
+			case EventName.createDirectoryWatcher:
+				this.createFileSystemWatcher(event.body.id, new vscode.RelativePattern(vscode.Uri.file(event.body.path), event.body.recursive ? '**' : '*'));
+				break;
+
+			case EventName.createFileWatcher:
+				this.createFileSystemWatcher(event.body.id, event.body.path);
+				break;
+
+			case EventName.closeFileWatcher:
+				this.closeFileSystemWatcher(event.body.id);
+				break;
+		}
+	}
+
+	private createFileSystemWatcher(
+		id: number,
+		pattern: vscode.GlobPattern,
+	) {
+		const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+		watcher.onDidChange(changeFile =>
+			this.executeWithoutWaitingForResponse('watchChange', { id, path: changeFile.fsPath, eventType: 'update' })
+		);
+		watcher.onDidCreate(createFile =>
+			this.executeWithoutWaitingForResponse('watchChange', { id, path: createFile.fsPath, eventType: 'create' })
+		);
+		watcher.onDidDelete(deletedFile =>
+			this.executeWithoutWaitingForResponse('watchChange', { id, path: deletedFile.fsPath, eventType: 'delete' })
+		);
+		this.watches.set(id, watcher);
+	}
+
+	private closeFileSystemWatcher(
+		id: number,
+	) {
+		const existing = this.watches.get(id);
+		if (existing) {
+			existing.dispose();
+			this.watches.delete(id);
 		}
 	}
 
