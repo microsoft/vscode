@@ -57,10 +57,13 @@ suite('InteractiveChatontroller', function () {
 			});
 		}
 
-		protected override _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
-			this._onDidChangeState.fire(state);
-			(<State[]>this.states).push(state);
-			return super._nextState(state, options);
+		protected override async _nextState(state: State, options: InlineChatRunOptions): Promise<void> {
+			let nextState: State | void = state;
+			while (nextState) {
+				this._onDidChangeState.fire(nextState);
+				(<State[]>this.states).push(nextState);
+				nextState = await this[nextState](options);
+			}
 		}
 
 		override dispose() {

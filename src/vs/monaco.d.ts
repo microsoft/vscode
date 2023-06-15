@@ -2501,6 +2501,7 @@ declare namespace monaco.editor {
 		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
 		toString(): string;
 		get changedLineCount(): any;
+		flip(): LineRangeMapping;
 	}
 
 	/**
@@ -2517,6 +2518,7 @@ declare namespace monaco.editor {
 		readonly modifiedRange: Range;
 		constructor(originalRange: Range, modifiedRange: Range);
 		toString(): string;
+		flip(): RangeMapping;
 	}
 
 	export class MovedText {
@@ -2528,6 +2530,7 @@ declare namespace monaco.editor {
 		 */
 		readonly changes: readonly LineRangeMapping[];
 		constructor(lineRangeMapping: SimpleLineRangeMapping, changes: readonly LineRangeMapping[]);
+		flip(): MovedText;
 	}
 
 	export class SimpleLineRangeMapping {
@@ -2535,6 +2538,7 @@ declare namespace monaco.editor {
 		readonly modifiedRange: LineRange;
 		constructor(originalRange: LineRange, modifiedRange: LineRange);
 		toString(): string;
+		flip(): SimpleLineRangeMapping;
 	}
 	export interface IDimension {
 		width: number;
@@ -2619,6 +2623,11 @@ declare namespace monaco.editor {
 		modified: ITextModel;
 	}
 
+	export interface IDiffEditorViewModel {
+		readonly model: IDiffEditorModel;
+		waitForDiff(): Promise<void>;
+	}
+
 	/**
 	 * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
 	 */
@@ -2653,7 +2662,7 @@ declare namespace monaco.editor {
 		run(args?: unknown): Promise<void>;
 	}
 
-	export type IEditorModel = ITextModel | IDiffEditorModel;
+	export type IEditorModel = ITextModel | IDiffEditorModel | IDiffEditorViewModel;
 
 	/**
 	 * A (serializable) state of the cursors.
@@ -6022,6 +6031,7 @@ declare namespace monaco.editor {
 		 * Type the getModel() of IEditor.
 		 */
 		getModel(): IDiffEditorModel | null;
+		createViewModel(model: IDiffEditorModel): IDiffEditorViewModel;
 		/**
 		 * Sets the current model attached to this editor.
 		 * If the previous model was created by the editor via the value key in the options
@@ -6030,7 +6040,7 @@ declare namespace monaco.editor {
 		 * will not be destroyed.
 		 * It is safe to call setModel(null) to simply detach the current model from the editor.
 		 */
-		setModel(model: IDiffEditorModel | null): void;
+		setModel(model: IDiffEditorModel | IDiffEditorViewModel | null): void;
 		/**
 		 * Get the `original` editor.
 		 */

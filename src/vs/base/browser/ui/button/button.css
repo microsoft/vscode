@@ -25,6 +25,25 @@
 	text-decoration: none !important;
 }
 
+.monaco-button {
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+}
+
+.monaco-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.monaco-button.secondary {
+	color: var(--vscode-button-secondaryForeground);
+	background-color: var(--vscode-button-secondaryBackground);
+}
+
+.monaco-button.secondary:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+
 .monaco-button.disabled:focus,
 .monaco-button.disabled {
 	opacity: 0.4 !important;
@@ -90,11 +109,19 @@
 .monaco-button-dropdown .monaco-button-dropdown-separator {
 	padding: 4px 0;
 	cursor: default;
+	background-color: var(--vscode-button-background);
+	border-top: 1px solid var(--vscode-button-border);
+	border-bottom: 1px solid var(--vscode-button-border);
+}
+
+.monaco-button.secondary + .monaco-button-dropdown-separator {
+	background-color: var(--vscode-button-secondaryBackground);
 }
 
 .monaco-button-dropdown .monaco-button-dropdown-separator > div {
 	height: 100%;
 	width: 1px;
+	background-color: var(--vscode-button-separator);
 }
 
 .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {

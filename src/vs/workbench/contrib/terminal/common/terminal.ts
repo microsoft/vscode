@@ -197,15 +197,6 @@ export type ConfirmOnKill = 'never' | 'always' | 'editor' | 'panel';
 export type ConfirmOnExit = 'never' | 'always' | 'hasChildProcesses';
 
 export interface ICompleteTerminalConfiguration {
-	'terminal.integrated.automationShell.windows': string;
-	'terminal.integrated.automationShell.osx': string;
-	'terminal.integrated.automationShell.linux': string;
-	'terminal.integrated.shell.windows': string;
-	'terminal.integrated.shell.osx': string;
-	'terminal.integrated.shell.linux': string;
-	'terminal.integrated.shellArgs.windows': string | string[];
-	'terminal.integrated.shellArgs.osx': string | string[];
-	'terminal.integrated.shellArgs.linux': string | string[];
 	'terminal.integrated.env.windows': ITerminalEnvironment;
 	'terminal.integrated.env.osx': ITerminalEnvironment;
 	'terminal.integrated.env.linux': ITerminalEnvironment;

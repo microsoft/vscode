@@ -28,8 +28,8 @@ export class UnchangedRangesFeature extends Disposable {
 			const m = this._diffModel.get();
 			transaction(tx => {
 				for (const s of this._originalEditor.getSelections() || []) {
-					m?.revealOriginalLine(s.getStartPosition().lineNumber, tx);
-					m?.revealOriginalLine(s.getEndPosition().lineNumber, tx);
+					m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, tx);
+					m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, tx);
 				}
 			});
 		}));
@@ -38,8 +38,8 @@ export class UnchangedRangesFeature extends Disposable {
 			const m = this._diffModel.get();
 			transaction(tx => {
 				for (const s of this._modifiedEditor.getSelections() || []) {
-					m?.revealModifiedLine(s.getStartPosition().lineNumber, tx);
-					m?.revealModifiedLine(s.getEndPosition().lineNumber, tx);
+					m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, tx);
+					m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, tx);
 				}
 			});
 		}));
@@ -74,26 +74,38 @@ export class UnchangedRangesFeature extends Disposable {
 						if (hiddenOriginalRange.isEmpty) {
 							continue;
 						}
+						const marginDomNode1 = h('div.diff-hidden-lines', { className: [true ? 'showTop' : '', true ? 'showBottom' : ''].join(' ') }, [
+							h('div.top'),
+							h('div.center@content'),
+							h('div.bottom'),
+						]).root;
 
 						store.add(new CollapsedCodeActionsContentWidget(this._originalEditor, aOrig, hiddenOriginalRange.startLineNumber - 1, 30, constObservable<IContentWidgetAction[]>([
 							{
 								text: `${hiddenOriginalRange.length} Lines Hidden`
 							},
 							{
-								text: '$(chevron-up) Show More',
+								text: '$(chevron-up) Show More Above',
 								async action() { r.showMoreAbove(undefined); },
 							},
 							{
-								text: '$(chevron-down) Show More',
+								text: '$(chevron-down) Show More Below',
 								async action() { r.showMoreBelow(undefined); },
 							},
 							{
 								text: '$(close) Show All',
 								async action() { r.showAll(undefined); },
 							}
-						]), unchangedRegionViewZoneIdsOrig, atTop, atBottom));
+						]), unchangedRegionViewZoneIdsOrig, atTop, atBottom, marginDomNode1));
+
+						const marginDomNode = h('div.diff-hidden-lines', { className: [true ? 'showTop' : '', true ? 'showBottom' : ''].join(' ') }, [
+							h('div.top'),
+							h('div.center@content'),
+							h('div.bottom'),
+						]).root;
 
 						store.add(new CollapsedCodeActionsContentWidget(this._modifiedEditor, aMod, hiddenModifiedRange.startLineNumber - 1, 30, constObservable<IContentWidgetAction[]>([
+							/* Dont show buttons for modified, but maybe revisit that
 							{
 								text: '$(chevron-up) Show More',
 								async action() { r.showMoreAbove(undefined); },
@@ -106,7 +118,8 @@ export class UnchangedRangesFeature extends Disposable {
 								text: '$(close) Show All',
 								async action() { r.showAll(undefined); },
 							}
-						]), unchangedRegionViewZoneIdsMod, atTop, atBottom));
+							*/
+						]), unchangedRegionViewZoneIdsMod, atTop, atBottom, marginDomNode));
 					}
 				});
 			});
@@ -114,7 +127,6 @@ export class UnchangedRangesFeature extends Disposable {
 			this._originalEditor.setHiddenAreas(unchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
 			this._modifiedEditor.setHiddenAreas(unchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
 		}));
-
 	}
 }
 
@@ -137,6 +149,7 @@ abstract class FixedZoneWidget extends Disposable {
 		afterLineNumber: number,
 		height: number,
 		viewZoneIdsToCleanUp: string[],
+		marginDomNode: HTMLElement | undefined,
 	) {
 		super();
 
@@ -151,6 +164,7 @@ abstract class FixedZoneWidget extends Disposable {
 				this.widgetDomNode.style.top = `${top}px`;
 			},
 			showInHiddenAreas: true,
+			marginDomNode,
 		});
 		viewZoneIdsToCleanUp.push(this.viewZoneId);
 
@@ -183,8 +197,9 @@ class CollapsedCodeActionsContentWidget extends FixedZoneWidget {
 		viewZoneIdsToCleanUp: string[],
 		public readonly showTopZigZag: boolean,
 		public readonly showBottomZigZag: boolean,
+		marginDomNode: HTMLElement | undefined,
 	) {
-		super(editor, viewZoneAccessor, afterLineNumber, height, viewZoneIdsToCleanUp);
+		super(editor, viewZoneAccessor, afterLineNumber, height, viewZoneIdsToCleanUp, marginDomNode);
 
 		this.widgetDomNode.appendChild(this._domNode.root);
 
