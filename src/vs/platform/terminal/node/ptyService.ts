@@ -30,54 +30,51 @@ import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalSt
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { join } from 'path';
+import { memoize } from 'vs/base/common/decorators';
 
-type WorkspaceId = string;
-
-let SerializeAddon: typeof XtermSerializeAddon;
-let Unicode11Addon: typeof XtermUnicode11Addon;
-
-let traceLogService: ILogService | undefined;
-let simulatedLatency: number = 0;
 export function traceRpc(): Function {
-	return createDecorator((fn, key) => {
-		return async function (this: any, ...args: any[]) {
+	function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
+		return (target: any, key: string, descriptor: any) => {
+			let fnKey: string | null = null;
+			let fn: Function | null = null;
 
-			if (traceLogService?.getLevel() === LogLevel.Trace) {
-				traceLogService?.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
+			if (typeof descriptor.value === 'function') {
+				fnKey = 'value';
+				fn = descriptor.value;
+			} else if (typeof descriptor.get === 'function') {
+				fnKey = 'get';
+				fn = descriptor.get;
 			}
-			// TODO: Use PtyService as this?
-			if (simulatedLatency) {
-				await timeout(simulatedLatency);
+
+			if (!fn) {
+				throw new Error('not supported');
+			}
+
+			descriptor[fnKey!] = mapFn(fn, key);
+		};
+	}
+	return createDecorator((fn, key) => {
+		// The PtyService type is unsafe, this decorator should only be used on PtyService
+		return async function (this: PtyService, ...args: any[]) {
+			if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
+				this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
+			}
+			if (this.traceRpcArgs.simulatedLatency) {
+				await timeout(this.traceRpcArgs.simulatedLatency);
 			}
 			const result = await fn.apply(this, args);
-			if (traceLogService?.getLevel() === LogLevel.Trace) {
-				traceLogService?.trace(`[RPC Response] PtyService#${fn.name}`, result);
+			if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
+				this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fn.name}`, result);
 			}
 			return result;
 		};
 	});
 }
 
-function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
-	return (target: any, key: string, descriptor: any) => {
-		let fnKey: string | null = null;
-		let fn: Function | null = null;
+type WorkspaceId = string;
 
-		if (typeof descriptor.value === 'function') {
-			fnKey = 'value';
-			fn = descriptor.value;
-		} else if (typeof descriptor.get === 'function') {
-			fnKey = 'get';
-			fn = descriptor.get;
-		}
-
-		if (!fn) {
-			throw new Error('not supported');
-		}
-
-		descriptor[fnKey!] = mapFn(fn, key);
-	};
-}
+let SerializeAddon: typeof XtermSerializeAddon;
+let Unicode11Addon: typeof XtermUnicode11Addon;
 
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
@@ -106,6 +103,14 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty<any> }>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
+	@memoize
+	get traceRpcArgs(): { logService: ILogService; simulatedLatency: number } {
+		return {
+			logService: this._logService,
+			simulatedLatency: this._simulatedLatency
+		};
+	}
+
 	constructor(
 		private _lastPtyId: number,
 		private readonly _logService: ILogService,
@@ -114,9 +119,6 @@ export class PtyService extends Disposable implements IPtyService {
 		private readonly _simulatedLatency: number
 	) {
 		super();
-
-		traceLogService = this._logService;
-		simulatedLatency = this._simulatedLatency;
 
 		this._register(toDisposable(() => {
 			for (const pty of this._ptys.values()) {
