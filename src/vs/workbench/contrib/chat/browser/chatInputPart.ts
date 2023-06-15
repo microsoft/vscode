@@ -31,6 +31,8 @@ import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = dom.$;
 
@@ -80,7 +82,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -150,10 +153,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.history.add(editorValue);
 		}
 
+		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
+			this._acceptInputForVoiceover();
+		} else {
+			this._inputEditor.focus();
+			this._inputEditor.setValue('');
+		}
+	}
+
+	private _acceptInputForVoiceover(): void {
 		const domNode = this._inputEditor.getDomNode();
 		if (!domNode) {
 			return;
 		}
+		// Remove the input editor from the DOM temporarily to prevent VoiceOver
+		// from reading the cleared text (the request) to the user.
 		this._inputEditorElement.removeChild(domNode);
 		this._inputEditor.setValue('');
 		this._inputEditorElement.appendChild(domNode);

@@ -171,7 +171,7 @@ export class InlineChatController implements IEditorContribution {
 		return this._zone.value.position;
 	}
 
-	async run(options: InlineChatRunOptions | undefined): Promise<void> {
+	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
 		this._log('session starting');
 		await this._finishExistingSession();
 		this._stashedSession.clear();
@@ -195,15 +195,15 @@ export class InlineChatController implements IEditorContribution {
 	// ---- state machine
 
 	private _showWidget(initialRender: boolean = false) {
-		assertType(this._activeSession);
-		assertType(this._strategy);
 		assertType(this._editor.hasModel());
 
-		let widgetPosition: Position | undefined;
+		let widgetPosition: Position;
 		if (initialRender) {
-			widgetPosition = this._editor.getPosition();
+			widgetPosition = this._editor.getSelection().getEndPosition();
 			this._zone.value.setMargins(widgetPosition);
 		} else {
+			assertType(this._activeSession);
+			assertType(this._strategy);
 			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getEndPosition();
 			const needsMargin = this._strategy.needsMargin();
 			if (!needsMargin) {
@@ -213,30 +213,41 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.show(widgetPosition);
 	}
 
-	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
-		this._log('setState to ', state);
-		const nextState = await this[state](options);
-		if (nextState) {
-			await this._nextState(nextState, options);
+	protected async _nextState(state: State, options: InlineChatRunOptions): Promise<void> {
+		let nextState: State | void = state;
+		while (nextState) {
+			this._log('setState to ', nextState);
+			nextState = await this[nextState](options);
 		}
 	}
 
-	private async [State.CREATE_SESSION](options: InlineChatRunOptions | undefined): Promise<State.CANCEL | State.INIT_UI> {
+	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI> {
 		assertType(this._activeSession === undefined);
 		assertType(this._editor.hasModel());
 
-		let session: Session | undefined = options?.existingSession;
+		let session: Session | undefined = options.existingSession;
+
+		this._showWidget(true);
+		this._zone.value.widget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
+		this._zone.value.widget.placeholder = this._getPlaceholderText();
 
 		if (!session) {
 			const createSessionCts = new CancellationTokenSource();
 			const msgListener = Event.once(this._messages.event)(m => {
 				this._log('state=_createSession) message received', m);
-				createSessionCts.cancel();
+				if (m === Message.ACCEPT_INPUT) {
+					// user accepted the input before having a session
+					options.autoSend = true;
+					this._zone.value.widget.updateProgress(true);
+					this._zone.value.widget.updateInfo(localize('welcome.2', "Getting ready..."));
+				} else {
+					createSessionCts.cancel();
+				}
 			});
 
 			session = await this._inlineChatSessionService.createSession(
 				this._editor,
-				{ editMode: this._getMode(), wholeRange: options?.initialRange },
+				{ editMode: this._getMode(), wholeRange: options.initialRange },
 				createSessionCts.token
 			);
 
@@ -244,8 +255,8 @@ export class InlineChatController implements IEditorContribution {
 			msgListener.dispose();
 		}
 
-		delete options?.initialRange;
-		delete options?.existingSession;
+		delete options.initialRange;
+		delete options.existingSession;
 
 		if (!session) {
 			this._dialogService.info(localize('create.fail', "Failed to start editor chat"), localize('create.fail.detail', "Please consult the error log and try again later."));
@@ -269,7 +280,7 @@ export class InlineChatController implements IEditorContribution {
 		return State.INIT_UI;
 	}
 
-	private async [State.INIT_UI](options: InlineChatRunOptions | undefined): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
+	private async [State.INIT_UI](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT | State.SHOW_RESPONSE | State.APPLY_RESPONSE> {
 		assertType(this._activeSession);
 
 		// hide/cancel inline completions when invoking IE
@@ -287,10 +298,9 @@ export class InlineChatController implements IEditorContribution {
 
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
-		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? '';
+		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
-		this._showWidget(true);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -321,7 +331,7 @@ export class InlineChatController implements IEditorContribution {
 
 		if (!this._activeSession.lastExchange) {
 			return State.WAIT_FOR_INPUT;
-		} else if (options?.isUnstashed) {
+		} else if (options.isUnstashed) {
 			delete options.isUnstashed;
 			return State.APPLY_RESPONSE;
 		} else {
@@ -330,10 +340,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _getPlaceholderText(): string {
-		if (!this._activeSession) {
-			return '';
-		}
-		let result = this._activeSession.session.placeholder ?? localize('default.placeholder', "Ask a question");
+		let result = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
 		if (InlineChatController._promptHistory.length > 0) {
 			const kb1 = this._keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getLabel();
 			const kb2 = this._keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getLabel();
@@ -375,22 +382,22 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.WAIT_FOR_INPUT](options: InlineChatRunOptions | undefined): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
+	private async [State.WAIT_FOR_INPUT](options: InlineChatRunOptions): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 
-		if (options?.message) {
-			this._zone.value.widget.value = options?.message;
+		if (options.message) {
+			this._zone.value.widget.value = options.message;
 			this._zone.value.widget.selectAll();
-			delete options?.message;
+			delete options.message;
 		}
 
 		let message = Message.NONE;
-		if (options?.autoSend) {
+		if (options.autoSend) {
 			message = Message.ACCEPT_INPUT;
-			delete options?.autoSend;
+			delete options.autoSend;
 
 		} else {
 			const barrier = new Barrier();
