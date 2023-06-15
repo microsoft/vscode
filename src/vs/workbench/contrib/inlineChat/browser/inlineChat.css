@@ -206,7 +206,7 @@
 	font-size: 14px;
 }
 
-.monaco-editor .inline-chat .status .monaco-toolbar .action-item.button-item .action-label:hover {
+.monaco-editor .inline-chat .status .monaco-toolbar .action-item.button-item .action-label:is(:hover, :focus) {
 	background-color: var(--vscode-button-hoverBackground);
 }
 
