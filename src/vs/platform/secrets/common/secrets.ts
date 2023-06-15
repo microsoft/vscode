@@ -13,6 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
 
 export interface ISecretStorageProvider {
+	type: 'in-memory' | 'persisted' | 'unknown';
 	get(key: string): Promise<string | undefined>;
 	set(key: string, value: string): Promise<void>;
 	delete(key: string): Promise<void>;
@@ -34,12 +35,18 @@ export class SecretStorageService implements ISecretStorageService {
 	private readonly _sequencer = new SequencerByKey<string>();
 	private initialized = this.init();
 
+	private _type: 'in-memory' | 'persisted' | 'unknown' = 'unknown';
+
 	constructor(
 		@IStorageService private _storageService: IStorageService,
 		@IEncryptionService private _encryptionService: IEncryptionService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._storageService.onDidChangeValue(e => this.onDidChangeValue(e.key));
+	}
+
+	get type() {
+		return this._type;
 	}
 
 	private onDidChangeValue(key: string): void {
@@ -109,11 +116,13 @@ export class SecretStorageService implements ISecretStorageService {
 
 	private async init(): Promise<void> {
 		if (await this._encryptionService.isEncryptionAvailable()) {
+			this._type = 'persisted';
 			return;
 		}
 
 		this._logService.trace('[SecretStorageService] Encryption is not available, falling back to in-memory storage');
 
+		this._type = 'in-memory';
 		this._storageService = new InMemoryStorageService();
 	}
 
