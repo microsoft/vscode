@@ -42,15 +42,10 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 		this.utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
 
 		const inspectParams = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
-		let execArgv: string[] | undefined = undefined;
-		if (inspectParams) {
-			execArgv = ['--nolazy'];
-			if (inspectParams.break) {
-				execArgv.push(`--inspect-brk=${inspectParams.port}`);
-			} else if (!inspectParams.break) {
-				execArgv.push(`--inspect=${inspectParams.port}`);
-			}
-		}
+		const execArgv = inspectParams.port ? [
+			'--nolazy',
+			`--inspect${inspectParams.break ? '-brk' : ''}=${inspectParams.port}`
+		] : undefined;
 
 		this.utilityProcess.start({
 			type: 'ptyHost',

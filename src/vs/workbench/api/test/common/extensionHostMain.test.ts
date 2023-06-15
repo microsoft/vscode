@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { SerializedError, errorHandler, onUnexpectedError } from 'vs/base/common/errors';
+import { isFirefox, isSafari } from 'vs/base/common/platform';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
@@ -22,6 +23,10 @@ import { ProxyIdentifier, Proxied } from 'vs/workbench/services/extensions/commo
 
 
 suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slowdown and eventual stack overflow #184926 ', function () {
+
+	if (isFirefox || isSafari) {
+		return;
+	}
 
 	const extensionsIndex = TernarySearchTree.forUris<IExtensionDescription>();
 	const mainThreadExtensionsService = new class extends mock<MainThreadExtensionServiceShape>() {
