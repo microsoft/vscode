@@ -85,11 +85,11 @@ export class UnchangedRangesFeature extends Disposable {
 								text: `${hiddenOriginalRange.length} Lines Hidden`
 							},
 							{
-								text: '$(chevron-up) Show More',
+								text: '$(chevron-up) Show More Above',
 								async action() { r.showMoreAbove(undefined); },
 							},
 							{
-								text: '$(chevron-down) Show More',
+								text: '$(chevron-down) Show More Below',
 								async action() { r.showMoreBelow(undefined); },
 							},
 							{
