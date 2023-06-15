@@ -194,7 +194,7 @@ export function registerActiveXtermAction(
 	return registerTerminalAction({
 		...options,
 		run: (c, accessor, args) => {
-			const activeDetached = Iterable.find(c.service.detachedInstances, d => d.isFocused);
+			const activeDetached = Iterable.find(c.service.detachedXterms, d => d.isFocused);
 			if (activeDetached) {
 				return originalRun(activeDetached as XtermTerminal, accessor, undefined, args);
 			}

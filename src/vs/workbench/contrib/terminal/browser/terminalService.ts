@@ -57,7 +57,7 @@ export class TerminalService implements ITerminalService {
 
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
-	private _detachedInstances = new Set<IXtermTerminal>();
+	private _detachedXterms = new Set<IXtermTerminal>();
 	private _terminalEditorActive: IContextKey<boolean>;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
@@ -85,8 +85,8 @@ export class TerminalService implements ITerminalService {
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
-	get detachedInstances(): Iterable<IXtermTerminal> {
-		return this._detachedInstances;
+	get detachedXterms(): Iterable<IXtermTerminal> {
+		return this._detachedXterms;
 	}
 
 	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
@@ -999,8 +999,8 @@ export class TerminalService implements ITerminalService {
 			instance.raw.attachCustomKeyEventHandler(() => false);
 		}
 
-		this._detachedInstances.add(instance);
-		instance.onDidDispose(() => this._detachedInstances.delete(instance));
+		this._detachedXterms.add(instance);
+		instance.onDidDispose(() => this._detachedXterms.delete(instance));
 
 		return instance;
 	}

@@ -153,7 +153,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/** Gets all terminal instances, including editor and terminal view (group) instances. */
 	readonly instances: readonly ITerminalInstance[];
 	/** Gets detached terminal instances created via {@link createDetachedXterm}. */
-	readonly detachedInstances: Iterable<IXtermTerminal>;
+	readonly detachedXterms: Iterable<IXtermTerminal>;
 	configHelper: ITerminalConfigHelper;
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
@@ -1029,7 +1029,6 @@ export interface IXtermTerminal extends IDisposable {
 	 * Gets the font metrics of this xterm.js instance.
 	 */
 	getFont(): ITerminalFont;
-
 
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;

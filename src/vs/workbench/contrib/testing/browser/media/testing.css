@@ -191,10 +191,6 @@
 	height: 100%;
 }
 
-.test-output-peek-message-container > .terminal {
-	margin: 4px;
-}
-
 .monaco-editor .zone-widget.test-output-peek .preview-text {
 	padding: 8px 12px 8px 20px;
 	height: calc(100% - 16px);

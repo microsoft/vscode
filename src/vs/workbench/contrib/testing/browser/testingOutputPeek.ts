@@ -1290,7 +1290,7 @@ class PlainTextMessagePeek extends Disposable implements IPeekOutputRenderer {
 		width = this.dimensions?.width ?? this.container.clientWidth,
 		height = this.dimensions?.height ?? this.container.clientHeight
 	) {
-		width -= 10 + 8; // scrollbar width + margin
+		width -= 10 + 20; // scrollbar width + margin
 		const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
 		if (scaled) {
 			xterm.resize(scaled.cols, scaled.rows);
@@ -2138,28 +2138,6 @@ export class ToggleTestingPeekHistory extends Action2 {
 		opener.historyVisible.value = !opener.historyVisible.value;
 	}
 }
-
-// export class CopyTestOutputSelection extends Action2 {
-// 	public static readonly ID = 'testing.copyTestOutputSelection';
-
-// 	constructor() {
-// 		super({
-// 			id: ToggleTestingPeekHistory.ID,
-// 			title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
-// 			keybinding: [{
-// 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-// 				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
-// 				weight: KeybindingWeight.WorkbenchContrib,
-// 				when: ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus)
-// 			}],
-// 		});
-// 	}
-
-// 	public override run(accessor: ServicesAccessor) {
-// 		const opener = accessor.get(ITestingPeekOpener);
-// 		opener.historyVisible.value = !opener.historyVisible.value;
-// 	}
-// }
 
 class CreationCache<T> {
 	private readonly v = new WeakMap<object, T>();
