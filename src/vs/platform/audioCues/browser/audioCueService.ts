@@ -12,10 +12,6 @@ import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { observableFromEvent, derived } from 'vs/base/common/observable';
 
-export const enum AudioCueGroupId {
-	chatResponseReceived = 'chatResponseReceived'
-}
-
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
 export interface IAudioCueService {
@@ -112,9 +108,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			}
 		};
 		playSound();
-		return toDisposable(() => {
-			playing = false;
-		});
+		return toDisposable(() => playing = false);
 	}
 
 	private readonly obsoleteAudioCuesEnabled = observableFromEvent(
@@ -229,6 +223,10 @@ export class Sound {
 	public static readonly chatResponseReceived5 = Sound.register({ fileName: 'chatResponseReceived5.mp3' });
 
 	private constructor(public readonly fileName: string) { }
+}
+
+export const enum AudioCueGroupId {
+	chatResponseReceived = 'chatResponseReceived'
 }
 
 export class AudioCue {
