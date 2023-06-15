@@ -53,8 +53,6 @@ export interface IChatWidgetStyles {
 	resultEditorBackground: string;
 }
 
-const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 7000;
-
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): any }[] = [];
 
@@ -110,6 +108,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private lastSlashCommands: ISlashCommand[] | undefined;
 	private slashCommandsPromise: Promise<ISlashCommand[] | undefined> | undefined;
 
+	private _chatAccessibilityService: ChatAccessibilityService;
+
 	constructor(
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly styles: IChatWidgetStyles,
@@ -118,13 +118,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService
+		@IAudioCueService audioCueService: IAudioCueService
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((chatWidgetService as ChatWidgetService).register(this));
+		this._chatAccessibilityService = new ChatAccessibilityService(audioCueService);
 	}
 
 	get providerId(): string {
@@ -392,22 +393,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.instantiationService.invokeFunction(clearChatSession, this);
 				return;
 			}
-			this.audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
-			const responsePendingAudioCue = this.audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
 
 			if (result) {
 				this.inputPart.acceptInput(query);
 				result.responseCompletePromise.then(async () => {
-					responsePendingAudioCue?.dispose();
-					this.audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
+
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
-					if (lastResponse) {
-						const errorDetails = lastResponse.errorDetails ? ` ${lastResponse.errorDetails.message}` : '';
-						alert(lastResponse.response.value + errorDetails);
-					}
+					this._chatAccessibilityService.acceptResponse(lastResponse);
 				});
 			}
 		}
@@ -513,3 +509,25 @@ export class ChatWidgetService implements IChatWidgetService {
 		);
 	}
 }
+
+const CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS = 7000;
+class ChatAccessibilityService extends Disposable {
+	private _responsePendingAudioCue: IDisposable | undefined;
+	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
+		super();
+	}
+	acceptRequest(): void {
+		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
+		this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
+	}
+	acceptResponse(response?: IChatResponseViewModel): void {
+		this._responsePendingAudioCue?.dispose();
+		if (!response) {
+			return;
+		}
+		this._audioCueService.playRandomAudioCue(AudioCueGroupId.chatResponseReceived, true);
+		const errorDetails = response.errorDetails ? ` ${response.errorDetails.message}` : '';
+		alert(response.response.value + errorDetails);
+	}
+}
+
