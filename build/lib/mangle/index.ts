@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
 import { argv } from 'process';
 import { Mapping, SourceMapGenerator } from 'source-map';
+import * as ts from 'typescript';
 import { pathToFileURL } from 'url';
+import * as workerpool from 'workerpool';
+import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
+const buildfile = require('../../../src/buildfile');
 
 class ShortIdent {
 
@@ -17,21 +20,20 @@ class ShortIdent {
 		'import', 'in', 'instanceof', 'let', 'new', 'null', 'return', 'static', 'super', 'switch', 'this', 'throw',
 		'true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'yield']);
 
-	private static _alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+	private static _alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890$_'.split('');
 
 	private _value = 0;
-	private readonly _isNameTaken: (name: string) => boolean;
 
-	constructor(isNameTaken: (name: string) => boolean) {
-		this._isNameTaken = name => ShortIdent._keywords.has(name) || isNameTaken(name);
-	}
+	constructor(
+		private readonly prefix: string
+	) { }
 
-	next(): string {
-		const candidate = ShortIdent.convert(this._value);
+	next(isNameTaken?: (name: string) => boolean): string {
+		const candidate = this.prefix + ShortIdent.convert(this._value);
 		this._value++;
-		if (this._isNameTaken(candidate)) {
+		if (ShortIdent._keywords.has(candidate) || /^[_0-9]/.test(candidate) || isNameTaken?.(candidate)) {
 			// try again
-			return this.next();
+			return this.next(isNameTaken);
 		}
 		return candidate;
 	}
@@ -181,8 +183,7 @@ class ClassData {
 
 		data.replacements = new Map();
 
-		const identPool = new ShortIdent(name => {
-
+		const isNameTaken = (name: string) => {
 			// locally taken
 			if (data._isNameTaken(name)) {
 				return true;
@@ -212,11 +213,12 @@ class ClassData {
 			}
 
 			return false;
-		});
+		};
+		const identPool = new ShortIdent('');
 
 		for (const [name, info] of data.fields) {
 			if (ClassData._shouldMangle(info.type)) {
-				const shortName = identPool.next();
+				const shortName = identPool.next(isNameTaken);
 				data.replacements.set(name, shortName);
 			}
 		}
@@ -237,12 +239,11 @@ class ClassData {
 				}
 			}
 		}
-		if ((<any>this.node.getSourceFile()).identifiers instanceof Map) {
-			// taken by any other usage
-			if ((<any>this.node.getSourceFile()).identifiers.has(name)) {
-				return true;
-			}
+
+		if (isNameTakenInFile(this.node, name)) {
+			return true;
 		}
+
 		return false;
 	}
 
@@ -267,59 +268,122 @@ class ClassData {
 	}
 }
 
-class StaticLanguageServiceHost implements ts.LanguageServiceHost {
-
-	private readonly _cmdLine: ts.ParsedCommandLine;
-	private readonly _scriptSnapshots: Map<string, ts.IScriptSnapshot> = new Map();
-
-	constructor(readonly projectPath: string) {
-		const existingOptions: Partial<ts.CompilerOptions> = {};
-		const parsed = ts.readConfigFile(projectPath, ts.sys.readFile);
-		if (parsed.error) {
-			throw parsed.error;
-		}
-		this._cmdLine = ts.parseJsonConfigFileContent(parsed.config, ts.sys, path.dirname(projectPath), existingOptions);
-		if (this._cmdLine.errors.length > 0) {
-			throw parsed.error;
+function isNameTakenInFile(node: ts.Node, name: string): boolean {
+	const identifiers = (<any>node.getSourceFile()).identifiers;
+	if (identifiers instanceof Map) {
+		if (identifiers.has(name)) {
+			return true;
 		}
 	}
-	getCompilationSettings(): ts.CompilerOptions {
-		return this._cmdLine.options;
+	return false;
+}
+
+const fileIdents = new class {
+	private readonly idents = new ShortIdent('$');
+
+	next() {
+		return this.idents.next();
 	}
-	getScriptFileNames(): string[] {
-		return this._cmdLine.fileNames;
+};
+
+const skippedExportMangledFiles = [
+	// Build
+	'css.build',
+	'nls.build',
+
+	// Monaco
+	'editorCommon',
+	'editorOptions',
+	'editorZoom',
+	'standaloneEditor',
+	'standaloneEnums',
+	'standaloneLanguages',
+
+	// Generated
+	'extensionsApiProposals',
+
+	// Module passed around as type
+	'pfs',
+
+	// entry points
+	...[
+		buildfile.entrypoint('vs/server/node/server.main', []),
+		buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
+		buildfile.base,
+		buildfile.workerExtensionHost,
+		buildfile.workerNotebook,
+		buildfile.workerLanguageDetection,
+		buildfile.workerLocalFileSearch,
+		buildfile.workerProfileAnalysis,
+		buildfile.workbenchDesktop,
+		buildfile.workbenchWeb,
+		buildfile.code
+	].flat().map(x => x.name),
+];
+
+const skippedExportMangledProjects = [
+	// Test projects
+	'vscode-api-tests',
+
+	// These projects use webpack to dynamically rewrite imports, which messes up our mangling
+	'configuration-editing',
+	'microsoft-authentication',
+	'github-authentication',
+	'html-language-features/server',
+];
+
+const skippedExportMangledSymbols = [
+	// Don't mangle extension entry points
+	'activate',
+	'deactivate',
+];
+
+class DeclarationData {
+
+	readonly replacementName: string;
+
+	constructor(
+		readonly fileName: string,
+		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.VariableDeclaration,
+		private readonly service: ts.LanguageService,
+	) {
+		// Todo: generate replacement names based on usage count, with more used names getting shorter identifiers
+		this.replacementName = fileIdents.next();
 	}
-	getScriptVersion(_fileName: string): string {
-		return '1';
-	}
-	getProjectVersion(): string {
-		return '1';
-	}
-	getScriptSnapshot(fileName: string): ts.IScriptSnapshot | undefined {
-		let result: ts.IScriptSnapshot | undefined = this._scriptSnapshots.get(fileName);
-		if (result === undefined) {
-			const content = ts.sys.readFile(fileName);
-			if (content === undefined) {
-				return undefined;
+
+	get locations(): Iterable<{ fileName: string; offset: number }> {
+		if (ts.isVariableDeclaration(this.node)) {
+			// If the const aliases any types, we need to rename those too
+			const definitionResult = this.service.getDefinitionAndBoundSpan(this.fileName, this.node.name.getStart());
+			if (definitionResult?.definitions && definitionResult.definitions.length > 1) {
+				return definitionResult.definitions.map(x => ({ fileName: x.fileName, offset: x.textSpan.start }));
 			}
-			result = ts.ScriptSnapshot.fromString(content);
-			this._scriptSnapshots.set(fileName, result);
 		}
-		return result;
+
+		return [{
+			fileName: this.fileName,
+			offset: this.node.name!.getStart()
+		}];
 	}
-	getCurrentDirectory(): string {
-		return path.dirname(this.projectPath);
+
+	shouldMangle(newName: string): boolean {
+		const currentName = this.node.name!.getText();
+		if (currentName.startsWith('$') || skippedExportMangledSymbols.includes(currentName)) {
+			return false;
+		}
+
+		// New name is longer the existing one :'(
+		if (newName.length >= currentName.length) {
+			return false;
+		}
+
+		// Don't mangle functions we've explicitly opted out
+		if (this.node.getFullText().includes('@skipMangle')) {
+			return false;
+		}
+
+		return true;
 	}
-	getDefaultLibFileName(options: ts.CompilerOptions): string {
-		return ts.getDefaultLibFilePath(options);
-	}
-	directoryExists = ts.sys.directoryExists;
-	getDirectories = ts.sys.getDirectories;
-	fileExists = ts.sys.fileExists;
-	readFile = ts.sys.readFile;
-	readDirectory = ts.sys.readDirectory;
-	// this is necessary to make source references work.
-	realpath = ts.sys.realpath;
 }
 
 export interface MangleOutput {
@@ -339,26 +403,82 @@ export interface MangleOutput {
 export class Mangler {
 
 	private readonly allClassDataByKey = new Map<string, ClassData>();
+	private readonly allExportedSymbols = new Set<DeclarationData>();
 
 	private readonly service: ts.LanguageService;
+	private readonly renameWorkerPool: workerpool.WorkerPool;
 
-	constructor(readonly projectPath: string, readonly log: typeof console.log = () => { }) {
+	constructor(
+		private readonly projectPath: string,
+		private readonly log: typeof console.log = () => { },
+		private readonly config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean },
+	) {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
+
+		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
+			maxWorkers: 1,
+			minWorkers: 'max'
+		});
 	}
 
-	computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Map<string, MangleOutput> {
+	async computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Promise<Map<string, MangleOutput>> {
 
-		// STEP: find all classes and their field info
+		// STEP:
+		// - Find all classes and their field info.
+		// - Find exported symbols.
 
 		const visit = (node: ts.Node): void => {
-			if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
-				const anchor = node.name ?? node;
-				const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
-				if (this.allClassDataByKey.has(key)) {
-					throw new Error('DUPE?');
+			if (this.config.manglePrivateFields) {
+				if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+					const anchor = node.name ?? node;
+					const key = `${node.getSourceFile().fileName}|${anchor.getStart()}`;
+					if (this.allClassDataByKey.has(key)) {
+						throw new Error('DUPE?');
+					}
+					this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 				}
-				this.allClassDataByKey.set(key, new ClassData(node.getSourceFile().fileName, node));
 			}
+
+			if (this.config.mangleExports) {
+				// Find exported classes, functions, and vars
+				if (
+					(
+						// Exported class
+						ts.isClassDeclaration(node)
+						&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+						&& node.name
+					) || (
+						// Exported function
+						ts.isFunctionDeclaration(node)
+						&& ts.isSourceFile(node.parent)
+						&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+						&& node.name && node.body // On named function and not on the overload
+					) || (
+						// Exported variable
+						ts.isVariableDeclaration(node)
+						&& hasModifier(node.parent.parent, ts.SyntaxKind.ExportKeyword) // Variable statement is exported
+						&& ts.isSourceFile(node.parent.parent.parent)
+					)
+
+					// Disabled for now because we need to figure out how to handle
+					// enums that are used in monaco or extHost interfaces.
+					/* || (
+						// Exported enum
+						ts.isEnumDeclaration(node)
+						&& ts.isSourceFile(node.parent)
+						&& hasModifier(node, ts.SyntaxKind.ExportKeyword)
+						&& !hasModifier(node, ts.SyntaxKind.ConstKeyword) // Don't bother mangling const enums because these are inlined
+						&& node.name
+					*/
+				) {
+					if (isInAmbientContext(node)) {
+						return;
+					}
+
+					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, this.service));
+				}
+			}
+
 			ts.forEachChild(node, visit);
 		};
 
@@ -367,7 +487,7 @@ export class Mangler {
 				ts.forEachChild(file, visit);
 			}
 		}
-		this.log(`Done collecting classes: ${this.allClassDataByKey.size}`);
+		this.log(`Done collecting. Classes: ${this.allClassDataByKey.size}. Exported symbols: ${this.allExportedSymbols.size}`);
 
 
 		//  STEP: connect sub and super-types
@@ -433,9 +553,11 @@ export class Mangler {
 		for (const data of this.allClassDataByKey.values()) {
 			ClassData.fillInReplacement(data);
 		}
-		this.log(`Done creating replacements`);
+		this.log(`Done creating class replacements`);
 
 		// STEP: prepare rename edits
+		this.log(`Starting prepare rename edits`);
+
 		type Edit = { newText: string; offset: number; length: number };
 		const editsByFile = new Map<string, Edit[]>();
 
@@ -447,9 +569,24 @@ export class Mangler {
 				edits.push(edit);
 			}
 		};
+		const appendRename = (newText: string, loc: ts.RenameLocation) => {
+			appendEdit(loc.fileName, {
+				newText: (loc.prefixText || '') + newText + (loc.suffixText || ''),
+				offset: loc.textSpan.start,
+				length: loc.textSpan.length
+			});
+		};
+
+		type RenameFn = (projectName: string, fileName: string, pos: number) => ts.RenameLocation[];
+
+		const renameResults: Array<Promise<{ readonly newName: string; readonly locations: readonly ts.RenameLocation[] }>> = [];
+
+		const queueRename = (fileName: string, pos: number, newName: string) => {
+			renameResults.push(Promise.resolve(this.renameWorkerPool.exec<RenameFn>('findRenameLocations', [this.projectPath, fileName, pos]))
+				.then((locations) => ({ newName, locations })));
+		};
 
 		for (const data of this.allClassDataByKey.values()) {
-
 			if (hasModifier(data.node, ts.SyntaxKind.DeclareKeyword)) {
 				continue;
 			}
@@ -469,17 +606,38 @@ export class Mangler {
 					parent = parent.parent;
 				}
 
-				const newText = data.lookupShortName(name);
-				const locations = this.service.findRenameLocations(data.fileName, info.pos, false, false, true) ?? [];
-				for (const loc of locations) {
-					appendEdit(loc.fileName, {
-						newText: (loc.prefixText || '') + newText + (loc.suffixText || ''),
-						offset: loc.textSpan.start,
-						length: loc.textSpan.length
-					});
-				}
+				const newName = data.lookupShortName(name);
+				queueRename(data.fileName, info.pos, newName);
 			}
 		}
+
+		for (const data of this.allExportedSymbols.values()) {
+			if (data.fileName.endsWith('.d.ts')
+				|| skippedExportMangledProjects.some(proj => data.fileName.includes(proj))
+				|| skippedExportMangledFiles.some(file => data.fileName.endsWith(file + '.ts'))
+			) {
+				continue;
+			}
+
+			if (!data.shouldMangle(data.replacementName)) {
+				continue;
+			}
+
+			const newText = data.replacementName;
+			for (const { fileName, offset } of data.locations) {
+				queueRename(fileName, offset, newText);
+			}
+		}
+
+		await Promise.all(renameResults).then((result) => {
+			for (const { newName, locations } of result) {
+				for (const loc of locations) {
+					appendRename(newName, loc);
+				}
+			}
+		});
+
+		await this.renameWorkerPool.terminate();
 
 		this.log(`Done preparing edits: ${editsByFile.size} files`);
 
@@ -579,17 +737,32 @@ function hasModifier(node: ts.Node, kind: ts.SyntaxKind) {
 	return Boolean(modifiers?.find(mode => mode.kind === kind));
 }
 
+function isInAmbientContext(node: ts.Node): boolean {
+	for (let p = node.parent; p; p = p.parent) {
+		if (ts.isModuleDeclaration(p)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 function normalize(path: string): string {
 	return path.replace(/\\/g, '/');
 }
 
 async function _run() {
-
-	const projectPath = path.join(__dirname, '../../src/tsconfig.json');
-	const projectBase = path.dirname(projectPath);
+	const root = path.join(__dirname, '..', '..', '..');
+	const projectBase = path.join(root, 'src');
+	const projectPath = path.join(projectBase, 'tsconfig.json');
 	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '2');
 
-	for await (const [fileName, contents] of new Mangler(projectPath, console.log).computeNewFileContents(new Set(['saveState']))) {
+	fs.cpSync(projectBase, newProjectBase, { recursive: true });
+
+	const mangler = new Mangler(projectPath, console.log, {
+		mangleExports: true,
+		manglePrivateFields: true,
+	});
+	for (const [fileName, contents] of await mangler.computeNewFileContents(new Set(['saveState']))) {
 		const newFilePath = path.join(newProjectBase, path.relative(projectBase, fileName));
 		await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });
 		await fs.promises.writeFile(newFilePath, contents.out);

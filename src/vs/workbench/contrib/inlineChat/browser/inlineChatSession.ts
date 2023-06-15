@@ -5,7 +5,7 @@
 
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -108,7 +108,7 @@ class SessionWholeRange {
 
 export class Session {
 
-	private _lastInput: string | undefined;
+	private _lastInput: SessionPrompt | undefined;
 	private _lastExpansionState: ExpansionState | undefined;
 	private _lastTextModelChanges: readonly LineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
@@ -139,8 +139,12 @@ export class Session {
 		};
 	}
 
-	addInput(input: string): void {
+	addInput(input: SessionPrompt): void {
 		this._lastInput = input;
+	}
+
+	get lastInput() {
+		return this._lastInput;
 	}
 
 	get isUnstashed(): boolean {
@@ -149,10 +153,6 @@ export class Session {
 
 	markUnstashed() {
 		this._isUnstashed = true;
-	}
-
-	get lastInput() {
-		return this._lastInput;
 	}
 
 	get lastExpansionState(): ExpansionState | undefined {
@@ -229,7 +229,7 @@ export class Session {
 		for (const exchange of this._exchange) {
 			const response = exchange.response;
 			if (response instanceof MarkdownResponse || response instanceof EditResponse) {
-				result.exchanges.push({ prompt: exchange.prompt, res: response.raw });
+				result.exchanges.push({ prompt: exchange.prompt.value, res: response.raw });
 			}
 		}
 		return result;
@@ -237,9 +237,29 @@ export class Session {
 }
 
 
-export class SessionExchange {
+export class SessionPrompt {
+
+	private _attempt: number = 0;
+
 	constructor(
-		readonly prompt: string,
+		readonly value: string,
+	) { }
+
+	get attempt() {
+		return this._attempt;
+	}
+
+	retry() {
+		const result = new SessionPrompt(this.value);
+		result._attempt = this._attempt + 1;
+		return result;
+	}
+}
+
+export class SessionExchange {
+
+	constructor(
+		readonly prompt: SessionPrompt,
 		readonly response: MarkdownResponse | EditResponse | EmptyResponse | ErrorResponse
 	) { }
 }
@@ -275,7 +295,11 @@ export class EditResponse {
 	readonly workspaceEdits: ResourceEdit[] | undefined;
 	readonly workspaceEditsIncludeLocalEdits: boolean = false;
 
-	constructor(localUri: URI, readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse) {
+	constructor(
+		localUri: URI,
+		readonly modelAltVersionId: number,
+		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse
+	) {
 		if (raw.type === 'editorEdit') {
 			//
 			this.localEdits = raw.edits;
@@ -333,6 +357,8 @@ export const IInlineChatSessionService = createDecorator<IInlineChatSessionServi
 export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
+	onWillStartSession: Event<URI>;
+
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
@@ -355,6 +381,9 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
 
+	private readonly _onWillStartSession = new Emitter<URI>();
+	readonly onWillStartSession: Event<URI> = this._onWillStartSession.event;
+
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 	private _recordings: Recording[] = [];
@@ -367,6 +396,12 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
+	dispose() {
+		this._onWillStartSession.dispose();
+		this._sessions.forEach(x => x.store.dispose());
+		this._sessions.clear();
+	}
+
 
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 
@@ -375,6 +410,8 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 			this._logService.trace('[IE] NO provider found');
 			return undefined;
 		}
+
+		this._onWillStartSession.fire(editor.getModel().uri);
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();

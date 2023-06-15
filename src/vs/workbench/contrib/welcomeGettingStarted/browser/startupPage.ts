@@ -55,8 +55,6 @@ export class StartupPageContribution implements IWorkbenchContribution {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
-		this.run().then(undefined, onUnexpectedError);
-
 		editorResolverService.registerEditor(
 			`${GettingStartedInput.RESOURCE.scheme}:/**`,
 			{
@@ -80,6 +78,8 @@ export class StartupPageContribution implements IWorkbenchContribution {
 				}
 			}
 		);
+
+		this.run().then(undefined, onUnexpectedError);
 	}
 
 	private async run() {

@@ -6,14 +6,14 @@
 import 'vs/css!./media/welcomeWidget';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { $, append, hide } from 'vs/base/browser/dom'; import { RunOnceScheduler } from 'vs/base/common/async';
+import { $, append, hide } from 'vs/base/browser/dom';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { defaultButtonStyles, defaultDialogStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Action, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -25,15 +25,11 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { generateUuid } from 'vs/base/common/uuid';
-import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
-import { FileAccess } from 'vs/base/common/network';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
+import { contrastBorder, editorWidgetBackground, editorWidgetForeground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 
 export class WelcomeWidget extends Disposable implements IOverlayWidget {
-
-	private static readonly WIDGET_TIMEOUT: number = 15000;
-	private static readonly WELCOME_MEDIA_PATH = 'vs/workbench/contrib/welcomeGettingStarted/common/media/';
 
 	private readonly _rootDomNode: HTMLElement;
 	private readonly element: HTMLElement;
@@ -45,9 +41,7 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		private readonly instantiationService: IInstantiationService,
 		private readonly commandService: ICommandService,
 		private readonly telemetryService: ITelemetryService,
-		private readonly openerService: IOpenerService,
-		private readonly webviewService: IWebviewService,
-		private readonly detailsRenderer: GettingStartedDetailsRenderer
+		private readonly openerService: IOpenerService
 	) {
 		super();
 		this._rootDomNode = document.createElement('div');
@@ -64,7 +58,6 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 	async executeCommand(commandId: string, ...args: string[]) {
 		try {
 			await this.commandService.executeCommand(commandId, ...args);
-			this._hide(false);
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 				id: commandId,
 				from: 'welcomeWidget'
@@ -74,41 +67,38 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	public async render(title: string, message: string, buttonText: string, buttonAction: string, media: { altText: string; path: string }) {
+	public async render(title: string, message: string, buttonText: string, buttonAction: string) {
 		if (!this._editor._getViewModel()) {
 			return;
 		}
 
-		await this.buildWidgetContent(title, message, buttonText, buttonAction, media);
+		await this.buildWidgetContent(title, message, buttonText, buttonAction);
 		this._editor.addOverlayWidget(this);
-		this._revealTemporarily();
+		this._show();
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 			id: 'welcomeWidgetRendered',
 			from: 'welcomeWidget'
 		});
 	}
 
-	private async buildWidgetContent(title: string, message: string, buttonText: string, buttonAction: string, media: { altText: string; path: string }) {
+	private async buildWidgetContent(title: string, message: string, buttonText: string, buttonAction: string) {
 
 		const actionBar = this._register(new ActionBar(this.element, {}));
 
 		const action = this._register(new Action('dialog.close', localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {
-			this._hide(true);
+			this._hide();
 		}));
 		actionBar.push(action, { icon: true, label: false });
 
-		if (media) {
-			await this.buildSVGMediaComponent(media.path);
-		}
-
-		const renderBody = (message: string): MarkdownString => {
-			const mds = new MarkdownString(undefined, { supportHtml: true });
+		const renderBody = (message: string, icon: string): MarkdownString => {
+			const mds = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: true });
+			mds.appendMarkdown(`<a class="copilot">$(${icon})</a>`);
 			mds.appendMarkdown(message);
 			return mds;
 		};
 
 		const titleElement = this.messageContainer.appendChild($('#monaco-dialog-message-detail.dialog-message-detail-title'));
-		const titleElementMdt = this.markdownRenderer.render(renderBody(title));
+		const titleElementMdt = this.markdownRenderer.render(renderBody(title, 'zap'));
 		titleElement.appendChild(titleElementMdt.element);
 
 		this.buildStepMarkdownDescription(this.messageContainer, message.split('\n').filter(x => x).map(text => parseLinkedText(text)));
@@ -125,7 +115,6 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		}));
 
 		buttonBar.buttons[0].focus();
-		this.applyStyles();
 	}
 
 	private buildStepMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
@@ -158,18 +147,6 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		return container;
 	}
 
-	private async buildSVGMediaComponent(path: string) {
-
-		const mediaContainer = this.messageContainer.appendChild($('.dialog-image-container'));
-		mediaContainer.id = generateUuid();
-
-		const webview = this._register(this.webviewService.createWebviewElement({ title: undefined, options: {}, contentOptions: {}, extension: undefined }));
-		webview.mountTo(mediaContainer);
-
-		const body = await this.detailsRenderer.renderSVG(FileAccess.asFileUri(`${WelcomeWidget.WELCOME_MEDIA_PATH}${path}`));
-		webview.setHtml(body);
-	}
-
 	getId(): string {
 		return 'editor.contrib.welcomeWidget';
 	}
@@ -184,13 +161,7 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		};
 	}
 
-	private _hideSoon = this._register(new RunOnceScheduler(() => this._hide(false), WelcomeWidget.WIDGET_TIMEOUT));
 	private _isVisible: boolean = false;
-
-	private _revealTemporarily(): void {
-		this._show();
-		this._hideSoon.schedule();
-	}
 
 	private _show(): void {
 		if (this._isVisible) {
@@ -200,32 +171,48 @@ export class WelcomeWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.style.display = 'block';
 	}
 
-	private _hide(isUserDismissed: boolean): void {
+	private _hide(): void {
 		if (!this._isVisible) {
 			return;
 		}
 
-		this._isVisible = false;
+		this._isVisible = true;
 		this._rootDomNode.style.display = 'none';
 		this._editor.removeOverlayWidget(this);
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-			id: isUserDismissed ? 'welcomeWidgetDismissed' : 'welcomeWidgetHidden',
+			id: 'welcomeWidgetDismissed',
 			from: 'welcomeWidget'
 		});
 	}
-
-	private applyStyles(): void {
-		const style = defaultDialogStyles;
-
-		const fgColor = style.dialogForeground;
-		const bgColor = style.dialogBackground;
-		const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
-		const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
-
-		this._rootDomNode.style.boxShadow = shadowColor;
-
-		this._rootDomNode.style.color = fgColor ?? '';
-		this._rootDomNode.style.backgroundColor = bgColor ?? '';
-		this._rootDomNode.style.border = border;
-	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
+		if (color) {
+			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
+		}
+	};
+
+	const widgetBackground = theme.getColor(editorWidgetBackground);
+	addBackgroundColorRule('.welcome-widget', widgetBackground);
+
+	const widgetShadowColor = theme.getColor(widgetShadow);
+	if (widgetShadowColor) {
+		collector.addRule(`.welcome-widget { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
+	}
+
+	const widgetBorderColor = theme.getColor(widgetBorder);
+	if (widgetBorderColor) {
+		collector.addRule(`.welcome-widget { border-left: 1px solid ${widgetBorderColor}; border-right: 1px solid ${widgetBorderColor}; border-bottom: 1px solid ${widgetBorderColor}; }`);
+	}
+
+	const hcBorder = theme.getColor(contrastBorder);
+	if (hcBorder) {
+		collector.addRule(`.welcome-widget { border: 1px solid ${hcBorder}; }`);
+	}
+
+	const foreground = theme.getColor(editorWidgetForeground);
+	if (foreground) {
+		collector.addRule(`.welcome-widget { color: ${foreground}; }`);
+	}
+});

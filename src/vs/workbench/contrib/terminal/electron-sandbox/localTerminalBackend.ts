@@ -11,7 +11,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ILocalPtyService, IProcessPropertyMap, IPtyService, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
@@ -36,6 +35,7 @@ import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { mark } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { DeferredPromise } from 'vs/base/common/async';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -74,11 +74,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
-		@INotificationService notificationService: INotificationService,
 		@IHistoryService historyService: IHistoryService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@IStatusbarService statusBarService: IStatusbarService,
 	) {
-		super(_localPtyService, logService, notificationService, historyService, _configurationResolverService, workspaceContextService);
+		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
 		this._proxy = ProxyChannel.toService<IPtyService>(getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(TerminalIpcChannels.PtyHostWindow))));
 
@@ -183,6 +183,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
+		// TODO: Using _proxy here bypasses the lastPtyId tracking on the main process
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 		this._ptys.set(id, pty);

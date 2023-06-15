@@ -130,7 +130,6 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
 		const sortedIndexes: number[] = [];
-		let firstSortedIndex: number | undefined = undefined;
 		let i = 0;
 
 		while (i < this.sortedIndexes.length && this.sortedIndexes[i] < start) {
@@ -140,19 +139,18 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 		for (let j = 0; j < elements.length; j++) {
 			if (elements[j]) {
 				sortedIndexes.push(j + start);
-				firstSortedIndex = firstSortedIndex ?? sortedIndexes[sortedIndexes.length - 1];
 			}
 		}
 
 		while (i < this.sortedIndexes.length && this.sortedIndexes[i] >= end) {
 			sortedIndexes.push(this.sortedIndexes[i++] + diff);
-			firstSortedIndex = firstSortedIndex ?? sortedIndexes[sortedIndexes.length - 1];
 		}
 
 		const length = this.length + diff;
 
 		if (this.sortedIndexes.length > 0 && sortedIndexes.length === 0 && length > 0) {
-			sortedIndexes.push(Math.min(firstSortedIndex ?? length - 1, length - 1));
+			const first = this.sortedIndexes.find(index => index >= start) ?? length - 1;
+			sortedIndexes.push(Math.min(first, length - 1));
 		}
 
 		this.renderer.splice(start, deleteCount, elements.length);
