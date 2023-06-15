@@ -720,7 +720,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
 	private _dimension?: Dimension;
-	private _indentationWidth: number = 0;
+	private _indentationWidth: number | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -776,7 +776,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	private _availableSpaceGivenIndentation(): number {
 		const info = this.editor.getLayoutInfo();
-		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + this._indentationWidth);
+		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + (this._indentationWidth ?? 0));
 	}
 
 	private _computeHeightInLines(): number {
