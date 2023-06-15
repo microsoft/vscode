@@ -213,11 +213,11 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.show(widgetPosition);
 	}
 
-	protected async _nextState(state: State, options: InlineChatRunOptions | undefined): Promise<void> {
-		this._log('setState to ', state);
-		const nextState = await this[state](options);
-		if (nextState) {
-			await this._nextState(nextState, options);
+	protected async _nextState(state: State, options: InlineChatRunOptions): Promise<void> {
+		let nextState: State | void = state;
+		while (nextState) {
+			this._log('setState to ', nextState);
+			nextState = await this[nextState](options);
 		}
 	}
 
