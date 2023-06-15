@@ -274,7 +274,7 @@ export class PreviousFromHistory extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'inlineCat.previousFromHistory',
+			id: 'inlineChat.previousFromHistory',
 			title: localize('previousFromHistory', 'Previous From History'),
 			precondition: CTX_INLINE_CHAT_FOCUSED,
 			keybinding: {
