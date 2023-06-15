@@ -75,11 +75,9 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	private readonly playingSounds = new Set<Sound>();
 
 	public async playSound(sound: Sound, allowManyInParallel = false): Promise<void> {
-		console.log(sound.fileName, allowManyInParallel);
 		if (!allowManyInParallel && this.playingSounds.has(sound)) {
 			return;
 		}
-		console.log('playing', sound.fileName);
 		this.playingSounds.add(sound);
 		const url = FileAccess.asBrowserUri(`vs/platform/audioCues/browser/media/${sound.fileName}`).toString(true);
 
