@@ -40,7 +40,7 @@ impl SystemdService {
 	async fn connect() -> Result<Connection, AnyError> {
 		let connection = Connection::session()
 			.await
-			.map_err(|e| wrap(e, "error creating dbus session"))?;
+			.map_err(|e| wrap(e, "Error creating dbus session. This command uses systemd for managing services, you should check that systemd is installed and running as a user. If it's already installed, you may need to:\n\n- Install the `dbus-user-session` package and reboot\n- Start the user dbus session with `systemctl --user enable dbus --now`. \n\nThe error encountered was"))?;
 		Ok(connection)
 	}
 
@@ -111,6 +111,20 @@ impl ServiceManager for SystemdService {
 		info!(self.log, "Tunnel service successfully started");
 
 		Ok(())
+	}
+
+	async fn is_installed(&self) -> Result<bool, AnyError> {
+		let connection = SystemdService::connect().await?;
+		let proxy = SystemdService::proxy(&connection).await?;
+		let state = proxy
+			.get_unit_file_state(SystemdService::service_name_string())
+			.await;
+
+		if let Ok(s) = state {
+			Ok(s == "enabled")
+		} else {
+			Ok(false)
+		}
 	}
 
 	async fn run(
@@ -218,6 +232,8 @@ trait SystemdManagerDbus {
 		runtime: bool,
 		force: bool,
 	) -> zbus::Result<(bool, Vec<(String, String, String)>)>;
+
+	fn get_unit_file_state(&self, file: String) -> zbus::Result<String>;
 
 	fn link_unit_files(
 		&self,

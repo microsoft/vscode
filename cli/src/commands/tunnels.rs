@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 use async_trait::async_trait;
-use base64::{Engine as _, engine::general_purpose as b64};
+use base64::{engine::general_purpose as b64, Engine as _};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{str::FromStr, time::Duration};
 use sysinfo::Pid;
@@ -247,8 +248,14 @@ pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 	.map_err(|e| e.into())
 }
 
+#[derive(Serialize)]
+pub struct StatusOutput {
+	pub tunnel: Option<protocol::singleton::TunnelState>,
+	pub service_installed: bool,
+}
+
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
-	let status = do_single_rpc_call::<_, protocol::singleton::Status>(
+	let tunnel_status = do_single_rpc_call::<_, protocol::singleton::Status>(
 		&ctx.paths.tunnel_lockfile(),
 		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
@@ -256,17 +263,24 @@ pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 	)
 	.await;
 
-	match status {
-		Err(CodeError::NoRunningTunnel) => {
-			ctx.log.result(CodeError::NoRunningTunnel.to_string());
-			Ok(1)
-		}
-		Err(e) => Err(e.into()),
-		Ok(s) => {
-			ctx.log.result(serde_json::to_string(&s).unwrap());
-			Ok(0)
-		}
-	}
+	let service_installed = create_service_manager(ctx.log.clone(), &ctx.paths)
+		.is_installed()
+		.await
+		.unwrap_or(false);
+
+	ctx.log.result(
+		serde_json::to_string(&StatusOutput {
+			service_installed,
+			tunnel: match tunnel_status {
+				Ok(s) => Some(s.tunnel),
+				Err(CodeError::NoRunningTunnel) => None,
+				Err(e) => return Err(e.into()),
+			},
+		})
+		.unwrap(),
+	);
+
+	Ok(0)
 }
 
 /// Removes unused servers.
