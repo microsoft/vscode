@@ -99,12 +99,12 @@ function createPatchedModules(params: ProxyAgentParams, configProvider: ExtHostC
 
 function certSettingV1(configProvider: ExtHostConfigProvider) {
 	const http = configProvider.getConfiguration('http');
-	return !http.get<boolean>('experimental.systemCertificatesV2') && !!http.get<boolean>('systemCertificates');
+	return !http.get<boolean>('experimental.systemCertificatesV2', true) && !!http.get<boolean>('systemCertificates');
 }
 
 function certSettingV2(configProvider: ExtHostConfigProvider) {
 	const http = configProvider.getConfiguration('http');
-	return !!http.get<boolean>('experimental.systemCertificatesV2') && !!http.get<boolean>('systemCertificates');
+	return !!http.get<boolean>('experimental.systemCertificatesV2', true) && !!http.get<boolean>('systemCertificates');
 }
 
 const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https }>();
