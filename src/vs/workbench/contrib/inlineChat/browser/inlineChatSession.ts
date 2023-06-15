@@ -5,7 +5,7 @@
 
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -357,6 +357,8 @@ export const IInlineChatSessionService = createDecorator<IInlineChatSessionServi
 export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
+	onWillStartSession: Event<URI>;
+
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
@@ -379,6 +381,9 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
 
+	private readonly _onWillStartSession = new Emitter<URI>();
+	readonly onWillStartSession: Event<URI> = this._onWillStartSession.event;
+
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 	private _recordings: Recording[] = [];
@@ -391,6 +396,12 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
+	dispose() {
+		this._onWillStartSession.dispose();
+		this._sessions.forEach(x => x.store.dispose());
+		this._sessions.clear();
+	}
+
 
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 
@@ -399,6 +410,8 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 			this._logService.trace('[IE] NO provider found');
 			return undefined;
 		}
+
+		this._onWillStartSession.fire(editor.getModel().uri);
 
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
