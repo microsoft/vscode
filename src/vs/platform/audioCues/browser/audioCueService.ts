@@ -103,7 +103,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		let playing = true;
 		const playSound = () => {
 			if (playing) {
-				this.playSound(cue.sound, true).finally(() => {
+				this.playAudioCue(cue, true).finally(() => {
 					if (playing) {
 						playSound();
 					}
