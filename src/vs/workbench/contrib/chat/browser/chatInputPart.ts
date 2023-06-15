@@ -32,7 +32,7 @@ import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { isWindows } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = dom.$;
 
@@ -153,21 +153,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.history.add(editorValue);
 		}
 
+		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
+			this._acceptInputForVoiceover();
+		} else {
+			this._inputEditor.focus();
+			this._inputEditor.setValue('');
+		}
+	}
+
+	private _acceptInputForVoiceover(): void {
 		const domNode = this._inputEditor.getDomNode();
 		if (!domNode) {
 			return;
 		}
-		// Remove the input editor from the DOM temporarily to avoid the screen reader
-		// from reading the cleared text (the request) to the user. On Windows, we don't need to do this
-		// and it could cause issues.
-		const handleDom = this.accessibilityService.isScreenReaderOptimized() && !isWindows;
-		if (handleDom) {
-			this._inputEditorElement.removeChild(domNode);
-		}
+		// Remove the input editor from the DOM temporarily to prevent VoiceOver
+		// from reading the cleared text (the request) to the user.
+		this._inputEditorElement.removeChild(domNode);
 		this._inputEditor.setValue('');
-		if (handleDom) {
-			this._inputEditorElement.appendChild(domNode);
-		}
+		this._inputEditorElement.appendChild(domNode);
 		this._inputEditor.focus();
 	}
 
