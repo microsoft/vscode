@@ -77,6 +77,7 @@ export interface ITerminalInstanceService {
 	 */
 	getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined>;
 
+	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
 	didRegisterBackend(remoteAuthority?: string): void;
 }
 
