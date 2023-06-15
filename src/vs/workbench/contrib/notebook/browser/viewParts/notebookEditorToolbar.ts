@@ -1044,8 +1044,12 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 export function workbenchCalculateActions(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] } {
 	let currentSize = 0;
 	const renderActions: IActionModel[] = [];
-	const overflow: IActionModel[] = [];
+	const overflow: IAction[] = [];
 	let containerFull = false;
+
+	if (initialPrimaryActions.length === 0) {
+		return { primaryActions: [], secondaryActions: initialSecondaryActions };
+	}
 
 	for (let i = 0; i < initialPrimaryActions.length; i++) {
 		const actionModel = initialPrimaryActions[i];
@@ -1061,13 +1065,13 @@ export function workbenchCalculateActions(initialPrimaryActions: IActionModel[],
 			renderActions.push(actionModel);
 		} else {
 			containerFull = true;
-			if (currentSize === 0) { // size 0 implies a hidden item, keep in primary to allow for Workbench to handle visibility
+			if (itemSize === 0) { // size 0 implies a hidden item, keep in primary to allow for Workbench to handle visibility
 				renderActions.push(actionModel);
 			} else {
 				if (actionModel.action instanceof Separator) { // never push a separator to overflow
 					continue;
 				}
-				overflow.push(actionModel);
+				overflow.push(actionModel.action);
 			}
 		}
 	}
@@ -1090,7 +1094,7 @@ export function workbenchCalculateActions(initialPrimaryActions: IActionModel[],
 
 	return {
 		primaryActions: renderActions.map(action => action.action),
-		secondaryActions: [...initialPrimaryActions.slice(renderActions.length).map(action => action.action), ...initialSecondaryActions]
+		secondaryActions: [...overflow, ...initialSecondaryActions]
 	};
 }
 
