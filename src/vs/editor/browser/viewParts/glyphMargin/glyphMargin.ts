@@ -449,7 +449,8 @@ export class GlyphMarginWidgets extends ViewPart {
 		renderedWidget.domNode.setWidth(renderedWidget.width);
 		renderedWidget.domNode.setHeight(this._lineHeight);
 
-		renderedWidget.domNode.setTop(ctx.getVerticalOffsetForLineNumber(renderedWidget.lineNumber, true));
+		const top = ctx.viewportData.relativeVerticalOffset[renderedWidget.lineNumber - ctx.viewportData.startLineNumber];
+		renderedWidget.domNode.setTop(top);
 		renderedWidget.domNode.setVisibility('inherit');
 		renderedWidget.domNode.setDisplay('block');
 		this.domNode.appendChild(renderedWidget.domNode);
