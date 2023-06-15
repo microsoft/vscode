@@ -100,17 +100,20 @@ end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
 function init_vscode_shell_integration
-	echo "$fish_prompt"
 	functions --copy fish_prompt __vsc_fish_prompt
+	functions --erase init_vscode_shell_integration
 end
 
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
 	if type -q init_vscode_shell_integration
-		if set -q fish_prompt
-			init_vscode_shell_integration
-			functions --erase init_vscode_shell_integration
+		if functions -q __vsc_fish_prompt_og fish_prompt
+			set func1 (functions -a __vsc_fish_prompt_og)
+			set func2 (functions -a fish_prompt)
+			if test "$func1" != "$func2"
+				init_vscode_shell_integration
+			end
 		end
 	end
 
@@ -158,6 +161,7 @@ if __vsc_fish_has_mode_prompt
 		end
 		__vsc_fish_cmd_start
 	end
+	functions --copy fish_prompt __vsc_fish_prompt_og
 else
 	# No fish_mode_prompt, so put everything in fish_prompt.
 	function fish_prompt
@@ -167,4 +171,5 @@ else
 		end
 		__vsc_fish_cmd_start
 	end
+	functions --copy fish_prompt __vsc_fish_prompt_og
 end
