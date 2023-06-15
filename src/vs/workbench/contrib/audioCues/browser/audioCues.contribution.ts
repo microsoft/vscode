@@ -119,15 +119,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'audioCues.chatRequestSent': {
 			'description': localize('audioCues.chatRequestSent', "Plays a sound when a chat request is made."),
-			...audioCueFeatureBase
+			...audioCueFeatureBase,
+			default: 'off'
 		},
 		'audioCues.chatResponsePending': {
 			'description': localize('audioCues.chatResponsePending', "Plays a sound on loop while the response is pending."),
-			...audioCueFeatureBase
+			...audioCueFeatureBase,
+			default: 'off'
 		},
 		'audioCues.chatResponseReceived': {
 			'description': localize('audioCues.chatResponseReceived', "Plays a sound on loop while the response has been received."),
-			...audioCueFeatureBase
+			...audioCueFeatureBase,
+			default: 'off'
 		}
 	}
 });
