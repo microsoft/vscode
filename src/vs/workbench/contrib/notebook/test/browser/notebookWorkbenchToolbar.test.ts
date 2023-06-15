@@ -65,7 +65,7 @@ suite('workbenchCalculateActions', () => {
 		assert.deepEqual(result.secondaryActions, []);
 	});
 
-	test('should ignore separators when they are at the end of the primary actions', () => {
+	test('should ignore separators when they are at the end of the resulting primary actions', () => {
 		const actions: IActionModel[] = [
 			{ action: new Action('action0', 'Action 0'), size: 50, visible: true, renderLabel: true },
 			{ action: new Separator(), size: 1, visible: true, renderLabel: true },
@@ -87,5 +87,17 @@ suite('workbenchCalculateActions', () => {
 		const result = workbenchCalculateActions(actions, [], 116);
 		assert.deepEqual(result.primaryActions, [actions[0], actions[1], actions[3]].map(action => action.action));
 		assert.deepEqual(result.secondaryActions, [actions[2]].map(action => action.action));
+	});
+
+	test('should not render separator if preceeded by size 0 action(s).', () => {
+		const actions: IActionModel[] = [
+			{ action: new Action('action0', 'Action 0'), size: 0, visible: true, renderLabel: true },
+			{ action: new Separator(), size: 1, visible: true, renderLabel: true },
+			{ action: new Action('action1', 'Action 1'), size: 50, visible: true, renderLabel: true },
+			{ action: new Separator(), size: 1, visible: true, renderLabel: true },
+		];
+		const result = workbenchCalculateActions(actions, [], 116);
+		assert.deepEqual(result.primaryActions, [actions[0], actions[2]].map(action => action.action));
+		assert.deepEqual(result.secondaryActions, []);
 	});
 });

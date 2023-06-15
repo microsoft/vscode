@@ -1046,6 +1046,7 @@ export function workbenchCalculateActions(initialPrimaryActions: IActionModel[],
 	const renderActions: IActionModel[] = [];
 	const overflow: IAction[] = [];
 	let containerFull = false;
+	let nonZeroAction = false;
 
 	if (initialPrimaryActions.length === 0) {
 		return { primaryActions: [], secondaryActions: initialSecondaryActions };
@@ -1060,9 +1061,17 @@ export function workbenchCalculateActions(initialPrimaryActions: IActionModel[],
 			continue;
 		}
 
+		// if a separator is the first nonZero action, ignore it
+		if (actionModel.action instanceof Separator && !nonZeroAction) {
+			continue;
+		}
+
 		if (currentSize + itemSize <= leftToolbarContainerMaxWidth && !containerFull) { // if next item fits within left container width, push to rendered actions
 			currentSize += ACTION_PADDING + itemSize;
 			renderActions.push(actionModel);
+			if (itemSize !== 0) {
+				nonZeroAction = true;
+			}
 		} else {
 			containerFull = true;
 			if (itemSize === 0) { // size 0 implies a hidden item, keep in primary to allow for Workbench to handle visibility
