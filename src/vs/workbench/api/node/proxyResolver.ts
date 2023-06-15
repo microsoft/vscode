@@ -15,7 +15,7 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting } from '@vscode/proxy-agent';
+import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams } from '@vscode/proxy-agent';
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
@@ -27,7 +27,7 @@ export function connectProxyResolver(
 ) {
 	const useHostProxy = initData.environment.useHostProxy;
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
-	const resolveProxy = createProxyResolver({
+	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
 		getHttpProxySetting: () => configProvider.getConfiguration('http').get('proxy'),
 		log: (level, message, ...args) => {
@@ -50,13 +50,19 @@ export function connectProxyResolver(
 		// TODO @chrmarti Remove this from proxy agent
 		proxyResolveTelemetry: () => { },
 		useHostProxy: doUseHostProxy,
+		useSystemCertificatesV2: certSettingV2(configProvider),
+		addCertificates: [],
 		env: process.env,
+	};
+	configProvider.onDidChangeConfiguration(e => {
+		params.useSystemCertificatesV2 = certSettingV2(configProvider);
 	});
-	const lookup = createPatchedModules(configProvider, resolveProxy);
+	const resolveProxy = createProxyResolver(params);
+	const lookup = createPatchedModules(params, configProvider, resolveProxy);
 	return configureModuleLoading(extensionService, lookup);
 }
 
-function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProxy: ReturnType<typeof createProxyResolver>) {
+function createPatchedModules(params: ProxyAgentParams, configProvider: ExtHostConfigProvider, resolveProxy: ReturnType<typeof createProxyResolver>) {
 	const proxySetting = {
 		config: configProvider.getConfiguration('http')
 			.get<ProxySupportSetting>('proxySupport') || 'off'
@@ -66,12 +72,10 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProx
 			.get<ProxySupportSetting>('proxySupport') || 'off';
 	});
 	const certSetting = {
-		config: !!configProvider.getConfiguration('http')
-			.get<boolean>('systemCertificates')
+		config: certSettingV1(configProvider)
 	};
 	configProvider.onDidChangeConfiguration(e => {
-		certSetting.config = !!configProvider.getConfiguration('http')
-			.get<boolean>('systemCertificates');
+		certSetting.config = certSettingV1(configProvider);
 	});
 
 	return {
@@ -89,8 +93,18 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProx
 			onRequest: Object.assign({}, https, createHttpPatch(https, resolveProxy, proxySetting, certSetting, true)),
 			default: Object.assign(https, createHttpPatch(https, resolveProxy, proxySetting, certSetting, false)) // run last
 		} as Record<string, typeof https>,
-		tls: Object.assign(tls, createTlsPatch(tls))
+		tls: Object.assign(tls, createTlsPatch(params, tls))
 	};
+}
+
+function certSettingV1(configProvider: ExtHostConfigProvider) {
+	const http = configProvider.getConfiguration('http');
+	return !http.get<boolean>('experimental.systemCertificatesV2') && !!http.get<boolean>('systemCertificates');
+}
+
+function certSettingV2(configProvider: ExtHostConfigProvider) {
+	const http = configProvider.getConfiguration('http');
+	return !!http.get<boolean>('experimental.systemCertificatesV2') && !!http.get<boolean>('systemCertificates');
 }
 
 const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https }>();
