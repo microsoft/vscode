@@ -774,7 +774,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override _getWidth(info: EditorLayoutInfo): number {
-		return info.width - info.minimap.minimapWidth - 0;
+		return info.width - info.minimap.minimapWidth;
 	}
 
 	public updateBackgroundColor(position: Position, selection: IRange) {
