@@ -49,7 +49,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		disposables.add(this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
 			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
-				const sw = new StopWatch(true);
+				const sw = new StopWatch();
 				const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
 				const result = NotebookDto.fromNotebookDataDto(dto.value);
 				this._logService.trace(`[NotebookSerializer] dataToNotebook DONE after ${sw.elapsed()}ms`, {
@@ -59,7 +59,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				return result;
 			},
 			notebookToData: (data: NotebookData): Promise<VSBuffer> => {
-				const sw = new StopWatch(true);
+				const sw = new StopWatch();
 				const result = this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), CancellationToken.None);
 				this._logService.trace(`[NotebookSerializer] notebookToData DONE after ${sw.elapsed()}`, {
 					viewType,
