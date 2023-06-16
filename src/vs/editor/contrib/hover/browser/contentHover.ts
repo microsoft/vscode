@@ -772,10 +772,10 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	}
 
 	private _setPersistedHoverDimensionsOrRenderNormally(): void {
-		const persistedSize = this.findPersistedSize();
-		// Suppose a persisted size is defined
 		let width: number | string;
 		let height: number | string;
+		const persistedSize = this.findPersistedSize();
+		// Suppose a persisted size is defined
 		if (persistedSize) {
 			width = Math.min(this._findAvailableSpaceHorizontally() ?? Infinity, persistedSize.width - 2 * SASH_WIDTH_MINUS_BORDER);
 			height = Math.min(this._findAvailableSpaceVertically() ?? Infinity, persistedSize.height - 2 * SASH_WIDTH_MINUS_BORDER);
