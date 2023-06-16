@@ -14,22 +14,8 @@ import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/commo
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
-	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
-	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
-	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
-	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit = this._onProcessExit.event;
-	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommandDetectionCapability>());
-	readonly onRestoreCommands = this._onRestoreCommands.event;
-
-	private _startBarrier: Barrier;
-
-	private _inReplay = false;
-
-	private _properties: IProcessPropertyMap = {
+	private readonly _startBarrier: Barrier;
+	private readonly _properties: IProcessPropertyMap = {
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
@@ -41,6 +27,20 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		failedShellIntegrationActivation: false,
 		usedShellIntegrationInjection: undefined
 	};
+	private readonly _lastDimensions: { cols: number; rows: number } = { cols: -1, rows: -1 };
+
+	private _inReplay = false;
+
+	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
+	readonly onProcessData = this._onProcessData.event;
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	readonly onProcessReady = this._onProcessReady.event;
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit = this._onProcessExit.event;
+	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommandDetectionCapability>());
+	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	get id(): number { return this._id; }
 
@@ -98,11 +98,12 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	}
 
 	resize(cols: number, rows: number): void {
-		if (this._inReplay) {
+		if (this._inReplay || this._lastDimensions.cols === cols && this._lastDimensions.rows === rows) {
 			return;
 		}
 		this._startBarrier.wait().then(_ => {
-
+			this._lastDimensions.cols = cols;
+			this._lastDimensions.rows = rows;
 			this._remoteTerminalChannel.resize(this._id, cols, rows);
 		});
 	}
