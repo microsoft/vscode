@@ -175,11 +175,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
 		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
-		// HACK: When RemoteLoggerChannelClient is not delayed, the Pty Host log file won't show up
-		// in the Output view of the first window?
-		Event.once(Event.any(proxy.onProcessReady, proxy.onProcessReplay))(() => {
-			this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
-		});
+		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 
 		this.__connection = connection;
 		this.__proxy = proxy;
