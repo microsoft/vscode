@@ -312,6 +312,7 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
+		this._showWidget(false);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
