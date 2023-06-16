@@ -448,7 +448,6 @@ class ContentHoverData {
 
 const HORIZONTAL_SCROLLING_BY = 30;
 const SCROLLBAR_WIDTH = 10;
-const DELTA_SASH_LENGTH = 4;
 const SASH_WIDTH_MINUS_BORDER = 3;
 const BORDER_WIDTH = 1;
 
@@ -571,25 +570,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		}
 	}
 
-	private _setSashDimensions(horizontalSashLength: number, horizontalSashLeft: number, verticalSashLength: number, verticalSashTop: number) {// size: dom.Dimension): void {
-		const northSashElement = this._resizableNode.northSash.el;
-		const soushSashElement = this._resizableNode.southSash.el;
-		const horizontalSashLengthInPx = horizontalSashLength + 'px';
-		northSashElement.style.width = horizontalSashLengthInPx;
-		soushSashElement.style.width = horizontalSashLengthInPx;
-		const horizontalSashLeftInPx = horizontalSashLeft + 'px';
-		northSashElement.style.left = horizontalSashLeftInPx;
-		soushSashElement.style.left = horizontalSashLeftInPx;
-		const eashSashElement = this._resizableNode.eastSash.el;
-		const westSashElement = this._resizableNode.westSash.el;
-		const verticalSashLengthInPx = verticalSashLength + 'px';
-		eashSashElement.style.height = verticalSashLengthInPx;
-		westSashElement.style.height = verticalSashLengthInPx;
-		const verticalSashTopInPx = verticalSashTop + 'px';
-		eashSashElement.style.top = verticalSashTopInPx;
-		westSashElement.style.top = verticalSashTopInPx;
-	}
-
 	private _setResizableNodeMaxDimensions() {
 		const maxRenderingWidth = this._findMaximumRenderingWidth();
 		const maxRenderingHeight = this._findMaximumRenderingHeight();
@@ -599,7 +579,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	override _resize(size: dom.Dimension) {
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._setResizableNodeMaxDimensions();
-		this._setSashDimensions(size.width - DELTA_SASH_LENGTH, 2 * BORDER_WIDTH, size.height - DELTA_SASH_LENGTH, 2 * BORDER_WIDTH);
 		this._hoverWidget.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
 	}
@@ -848,7 +827,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			this._adjustContentsBottomPadding();
 			this._adjustHoverHeightForScrollbar(clientHeight);
 		}
-		this._setSashDimensions(containerDomNode.clientWidth + 2 * BORDER_WIDTH, SASH_WIDTH_MINUS_BORDER - 1, containerDomNode.clientHeight + 2 * BORDER_WIDTH, SASH_WIDTH_MINUS_BORDER - 1);
 		this._layoutContentWidget();
 	}
 
