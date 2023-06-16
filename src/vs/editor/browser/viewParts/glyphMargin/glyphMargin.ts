@@ -3,53 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./glyphMargin';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { Range } from 'vs/editor/common/core/range';
+import { ArrayQueue } from 'vs/base/common/arrays';
+import 'vs/css!./glyphMargin';
 import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as viewEvents from 'vs/editor/common/viewEvents';
+import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 
-export class LineRenderedWidgets {
-
-	private readonly lines: GlyphMarginWidget[][] = [];
-
-	public add(line: number, decoration: GlyphMarginWidget) {
-		while (line >= this.lines.length) {
-			this.lines.push([]);
-		}
-		this.lines[line].push(decoration);
-	}
-
-	public getLineDecorations(lineIndex: number): GlyphMarginWidget[] {
-		if (lineIndex < this.lines.length) {
-			return this.lines[lineIndex];
-		}
-		return [];
-	}
-}
-
-export class GlyphMarginWidget {
-
-	constructor(
-		public domNode: FastDomNode<HTMLElement>,
-		public className: string,
-		public lineNumber: number,
-		public left: number,
-		public width: number,
-		public isManaged: boolean,
-	) {
-		this.domNode.setPosition('absolute');
-		this.domNode.setDisplay('none');
-		this.domNode.setVisibility('hidden');
-		this.domNode.setMaxWidth(width);
-	}
-}
-
+/**
+ * Represents a decoration that should be shown along the lines from `startLineNumber` to `endLineNumber`.
+ * This can end up producing multiple `LineDecorationToRender`.
+ */
 export class DecorationToRender {
 	_decorationToRenderBrand: void = undefined;
 
@@ -57,69 +26,59 @@ export class DecorationToRender {
 	public endLineNumber: number;
 	public className: string;
 	public readonly zIndex: number;
-	public readonly decorationLane: number;
-	public readonly domNode: FastDomNode<HTMLElement> | undefined;
 
-	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex?: number, decorationLane?: number, domNode?: FastDomNode<HTMLElement>) {
+	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex: number | undefined) {
 		this.startLineNumber = +startLineNumber;
 		this.endLineNumber = +endLineNumber;
 		this.className = String(className);
 		this.zIndex = zIndex ?? 0;
-		this.decorationLane = decorationLane ?? 1;
-		this.domNode = domNode;
 	}
 }
 
-export class RenderedDecoration {
+/**
+ * A decoration that should be shown along a line.
+ */
+export class LineDecorationToRender {
 	constructor(
 		public readonly className: string,
 		public readonly zIndex: number,
-		public readonly domNode?: FastDomNode<HTMLElement>,
 	) { }
 }
 
-export class LineRenderedDecorations {
+/**
+ * Decorations to render on a visible line.
+ */
+export class VisibleLineDecorationsToRender {
 
-	private readonly lanes: RenderedDecoration[][] = [];
+	private readonly decorations: LineDecorationToRender[] = [];
 
-	public add(lane: number, decoration: RenderedDecoration) {
-		while (lane >= this.lanes.length) {
-			this.lanes.push([]);
-		}
-		this.lanes[lane].push(decoration);
+	public add(decoration: LineDecorationToRender) {
+		this.decorations.push(decoration);
 	}
 
-	public getLaneDecorations(laneIndex: number): RenderedDecoration[] {
-		if (laneIndex < this.lanes.length) {
-			return this.lanes[laneIndex];
-		}
-		return [];
-	}
-
-	public isEmpty(): boolean {
-		for (const lane of this.lanes) {
-			if (lane.length > 0) {
-				return false;
-			}
-		}
-		return true;
+	public getDecorations(): LineDecorationToRender[] {
+		return this.decorations;
 	}
 }
 
 export abstract class DedupOverlay extends DynamicViewOverlay {
 
-	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[], decorationLaneCount: number): LineRenderedDecorations[] {
+	/**
+	 * Returns an array with an element for each visible line number.
+	 */
+	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[]): VisibleLineDecorationsToRender[] {
 
-		const output: LineRenderedDecorations[] = [];
+		const output: VisibleLineDecorationsToRender[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			output[lineIndex] = new LineRenderedDecorations();
+			output[lineIndex] = new VisibleLineDecorationsToRender();
 		}
 
 		if (decorations.length === 0) {
 			return output;
 		}
 
+		// Sort decorations by className, then by startLineNumber and then by endLineNumber
 		decorations.sort((a, b) => {
 			if (a.className === b.className) {
 				if (a.startLineNumber === b.startLineNumber) {
@@ -138,9 +97,9 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			const zIndex = d.zIndex;
 			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
 			const endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
-			const lane = Math.min(d.decorationLane, decorationLaneCount);
 
 			if (prevClassName === className) {
+				// Here we avoid rendering the same className multiple times on the same line
 				startLineIndex = Math.max(prevEndLineIndex + 1, startLineIndex);
 				prevEndLineIndex = Math.max(prevEndLineIndex, endLineIndex);
 			} else {
@@ -149,18 +108,12 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			}
 
 			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].add(lane, new RenderedDecoration(className, zIndex, d.domNode));
+				output[i].add(new LineDecorationToRender(className, zIndex));
 			}
 		}
 
 		return output;
 	}
-}
-
-export interface IWidgetData {
-	widget: IGlyphMarginWidget;
-	preference: IGlyphMarginWidgetPosition;
-	domNode: FastDomNode<HTMLElement>;
 }
 
 export class GlyphMarginWidgets extends ViewPart {
@@ -173,8 +126,8 @@ export class GlyphMarginWidgets extends ViewPart {
 	private _glyphMarginWidth: number;
 	private _glyphMarginDecorationLaneCount: number;
 
-	private _previousRenderResult: LineRenderedWidgets | null;
-	private _renderResult: LineRenderedWidgets | null;
+	private _managedDomNodes: FastDomNode<HTMLElement>[];
+	private _decorationGlyphsToRender: DecorationBasedGlyph[];
 
 	private _widgets: { [key: string]: IWidgetData } = {};
 
@@ -195,12 +148,13 @@ export class GlyphMarginWidgets extends ViewPart {
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		this._glyphMarginDecorationLaneCount = layoutInfo.glyphMarginDecorationLaneCount;
-		this._previousRenderResult = null;
-		this._renderResult = null;
+		this._managedDomNodes = [];
+		this._decorationGlyphsToRender = [];
 	}
 
 	public override dispose(): void {
-		this._renderResult = null;
+		this._managedDomNodes = [];
+		this._decorationGlyphsToRender = [];
 		this._widgets = {};
 		super.dispose();
 	}
@@ -244,17 +198,21 @@ export class GlyphMarginWidgets extends ViewPart {
 	}
 
 	// --- end event handlers
+
 	// --- begin widget management
+
 	public addWidget(widget: IGlyphMarginWidget): void {
 		const domNode = createFastDomNode(widget.getDomNode());
 
 		this._widgets[widget.getId()] = {
 			widget: widget,
 			preference: widget.getPosition(),
-			domNode: domNode
+			domNode: domNode,
+			renderInfo: null
 		};
 
 		domNode.setPosition('absolute');
+		domNode.setDisplay('none');
 		domNode.setAttribute('widgetId', widget.getId());
 		this.domNode.appendChild(domNode);
 
@@ -288,171 +246,255 @@ export class GlyphMarginWidgets extends ViewPart {
 	}
 
 	// --- end widget management
-	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
+
+	private _collectDecorationBasedGlyphRenderRequest(ctx: RenderingContext, requests: GlyphRenderRequest[]): void {
+		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		const decorations = ctx.getDecorationsInViewport();
-		const r: DecorationToRender[] = [];
-		let rLen = 0;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const d = decorations[i];
+
+		for (const d of decorations) {
 			const glyphMarginClassName = d.options.glyphMarginClassName;
-			const zIndex = d.options.zIndex;
-			const lane = d.options.glyphMargin?.position;
-			if (glyphMarginClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName, zIndex, lane);
+			if (!glyphMarginClassName) {
+				continue;
+			}
+
+			const startLineNumber = Math.max(d.range.startLineNumber, visibleStartLineNumber);
+			const endLineNumber = Math.min(d.range.endLineNumber, visibleEndLineNumber);
+			const lane = Math.min(d.options.glyphMargin?.position ?? 1, this._glyphMarginDecorationLaneCount);
+			const zIndex = d.options.zIndex ?? 0;
+
+			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+				requests.push(new DecorationBasedGlyphRenderRequest(lineNumber, lane, zIndex, glyphMarginClassName));
 			}
 		}
-		const widgets = Object.values(this._widgets);
-		for (let i = 0, len = widgets.length; i < len; i++) {
-			const w = widgets[i];
-			const glyphMarginClassName = w.widget.getDomNode().className;
-			if (glyphMarginClassName) {
-				r[rLen++] = new DecorationToRender(w.preference.range.startLineNumber, w.preference.range.endLineNumber, glyphMarginClassName, w.preference.zIndex, w.preference.lane, w.domNode);
-			}
-		}
-		return r;
 	}
 
-	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[], decorationLaneCount: number): LineRenderedDecorations[] {
+	private _collectWidgetBasedGlyphRenderRequest(ctx: RenderingContext, requests: GlyphRenderRequest[]): void {
+		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 
-		const output: LineRenderedDecorations[] = [];
-		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - visibleStartLineNumber;
-			output[lineIndex] = new LineRenderedDecorations();
-		}
-
-		if (decorations.length === 0) {
-			return output;
-		}
-
-		decorations.sort((a, b) => {
-			if (a.className === b.className) {
-				if (a.startLineNumber === b.startLineNumber) {
-					return a.endLineNumber - b.endLineNumber;
-				}
-				return a.startLineNumber - b.startLineNumber;
+		for (const widget of Object.values(this._widgets)) {
+			const range = widget.preference.range;
+			if (range.endLineNumber < visibleStartLineNumber || range.startLineNumber > visibleEndLineNumber) {
+				// The widget is not in the viewport
+				continue;
 			}
-			return (a.className < b.className ? -1 : 1);
+
+			// The widget is in the viewport, find a good line for it
+			const widgetLineNumber = Math.max(range.startLineNumber, visibleStartLineNumber);
+			const lane = Math.min(widget.preference.lane, this._glyphMarginDecorationLaneCount);
+			requests.push(new WidgetBasedGlyphRenderRequest(widgetLineNumber, lane, widget.preference.zIndex, widget));
+		}
+	}
+
+	private _collectSortedGlyphRenderRequests(ctx: RenderingContext): GlyphRenderRequest[] {
+
+		const requests: GlyphRenderRequest[] = [];
+
+		this._collectDecorationBasedGlyphRenderRequest(ctx, requests);
+		this._collectWidgetBasedGlyphRenderRequest(ctx, requests);
+
+		// sort requests by lineNumber ASC, lane  ASC, zIndex DESC, type DESC (widgets first), className ASC
+		// don't change this sort unless you understand `prepareRender` below.
+		requests.sort((a, b) => {
+			if (a.lineNumber === b.lineNumber) {
+				if (a.lane === b.lane) {
+					if (a.zIndex === b.zIndex) {
+						if (b.type === a.type) {
+							if (a.type === GlyphRenderRequestType.Decoration && b.type === GlyphRenderRequestType.Decoration) {
+								return (a.className < b.className ? -1 : 1);
+							}
+							return 0;
+						}
+						return b.type - a.type;
+					}
+					return b.zIndex - a.zIndex;
+				}
+				return a.lane - b.lane;
+			}
+			return a.lineNumber - b.lineNumber;
 		});
 
-		let prevClassName: string | null = null;
-		let prevEndLineIndex = 0;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const d = decorations[i];
-			const className = d.className;
-			const zIndex = d.zIndex;
-			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
-			const endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
-			const lane = Math.min(d.decorationLane, decorationLaneCount);
-
-			if (prevClassName === className) {
-				startLineIndex = Math.max(prevEndLineIndex + 1, startLineIndex);
-				prevEndLineIndex = Math.max(prevEndLineIndex, endLineIndex);
-			} else {
-				prevClassName = className;
-				prevEndLineIndex = endLineIndex;
-			}
-
-			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].add(lane, new RenderedDecoration(className, zIndex, d.domNode));
-			}
-		}
-
-		return output;
+		return requests;
 	}
 
+	/**
+	 * Will store render information in each widget's renderInfo and in `_decorationGlyphsToRender`.
+	 */
 	public prepareRender(ctx: RenderingContext): void {
 		if (!this._glyphMargin) {
-			this._renderResult = null;
+			this._decorationGlyphsToRender = [];
 			return;
 		}
 
-		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const decorationsToRender = this._getDecorations(ctx);
-		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, decorationsToRender, this._glyphMarginDecorationLaneCount);
+		for (const widget of Object.values(this._widgets)) {
+			widget.renderInfo = null;
+		}
 
-		const width = (Math.round(this._glyphMarginWidth / this._glyphMarginDecorationLaneCount));
+		const requests = new ArrayQueue<GlyphRenderRequest>(this._collectSortedGlyphRenderRequests(ctx));
+		const decorationGlyphsToRender: DecorationBasedGlyph[] = [];
+		while (requests.length > 0) {
+			const first = requests.peek();
+			if (!first) {
+				// not possible
+				break;
+			}
 
-		const output = new LineRenderedWidgets();
-		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - visibleStartLineNumber;
-			const renderInfo = toRender[lineIndex];
+			// Requests are sorted by lineNumber and lane, so we read all requests for this particular location
+			const requestsAtLocation = requests.takeWhile((el) => el.lineNumber === first.lineNumber && el.lane === first.lane);
+			if (!requestsAtLocation || requestsAtLocation.length === 0) {
+				// not possible
+				break;
+			}
 
-			if (renderInfo.isEmpty()) {
-				continue;
-			} else {
-				for (let lane = 1; lane <= this._glyphMarginDecorationLaneCount; lane += 1) {
-					const decorations = renderInfo.getLaneDecorations(lane);
-					if (decorations.length === 0) {
-						continue;
+			const winner = requestsAtLocation[0];
+			if (winner.type === GlyphRenderRequestType.Decoration) {
+				// combine all decorations with the same z-index
+
+				const classNames: string[] = [];
+				// requests are sorted by zIndex, type, and className so we can dedup className by looking at the previous one
+				for (const request of requestsAtLocation) {
+					if (request.zIndex !== winner.zIndex || request.type !== winner.type) {
+						break;
 					}
-					decorations.sort((a, b) => b.zIndex - a.zIndex);
-					// Render winning decorations with the same zIndex together
-					const winningDecoration: RenderedDecoration = decorations[0];
-					const winningDecorationClassNames = [winningDecoration.className];
-					for (let i = 1; i < decorations.length; i += 1) {
-						const decoration = decorations[i];
-						if (decoration.zIndex !== winningDecoration.zIndex) {
-							break;
-						}
-						winningDecorationClassNames.push(decoration.className);
+					if (classNames.length === 0 || classNames[classNames.length - 1] !== request.className) {
+						classNames.push(request.className);
 					}
-					const left = this._glyphMarginLeft + (lane - 1) * this._lineHeight;
-					output.add(lineNumber, new GlyphMarginWidget(winningDecoration.domNode ?? createFastDomNode(document.createElement('div')), winningDecorationClassNames.join(' '), lineNumber, left, width, winningDecoration.domNode !== undefined));
 				}
+
+				decorationGlyphsToRender.push(winner.accept(classNames.join(' '))); // TODO@joyceerhl Implement overflow for remaining decorations
+			} else {
+				// widgets cannot be combined
+				winner.widget.renderInfo = {
+					lineNumber: winner.lineNumber,
+					lane: winner.lane,
+				};
 			}
 		}
-		this._previousRenderResult = this._renderResult;
-		this._renderResult = output;
+		this._decorationGlyphsToRender = decorationGlyphsToRender;
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		const { startLineNumber, endLineNumber } = ctx.viewportData;
-
-		// Clean up any existing render results
-		if (this._previousRenderResult) {
-			for (let lineNumber = startLineNumber; lineNumber < endLineNumber; lineNumber += 1) {
-				const decorations = this._previousRenderResult.getLineDecorations(lineNumber);
-				if (lineNumber < 0 || decorations.length === 0) {
-					continue;
-				}
-				decorations.forEach((widget) => {
-					widget.domNode.setDisplay('none');
-					if (!widget.isManaged) {
-						widget.domNode.domNode.parentNode?.removeChild(widget.domNode.domNode);
-					}
-				});
+		if (!this._glyphMargin) {
+			for (const widget of Object.values(this._widgets)) {
+				widget.domNode.setDisplay('none');
 			}
-		}
-
-		if (!this._renderResult) {
+			while (this._managedDomNodes.length > 0) {
+				const domNode = this._managedDomNodes.pop();
+				domNode?.domNode.remove();
+			}
 			return;
 		}
 
-		// Render new render results
-		for (let lineNumber = startLineNumber; lineNumber < endLineNumber; lineNumber += 1) {
-			const decorations = this._renderResult.getLineDecorations(lineNumber);
-			if (lineNumber < 0 || decorations.length === 0) {
-				continue;
+		const width = (Math.round(this._glyphMarginWidth / this._glyphMarginDecorationLaneCount));
+
+		// Render widgets
+		for (const widget of Object.values(this._widgets)) {
+			if (!widget.renderInfo) {
+				// this widget is not visible
+				widget.domNode.setDisplay('none');
+			} else {
+				const top = ctx.viewportData.relativeVerticalOffset[widget.renderInfo.lineNumber - ctx.viewportData.startLineNumber];
+				const left = this._glyphMarginLeft + (widget.renderInfo.lane - 1) * this._lineHeight;
+
+				widget.domNode.setDisplay('block');
+				widget.domNode.setTop(top);
+				widget.domNode.setLeft(left);
+				widget.domNode.setWidth(width);
+				widget.domNode.setHeight(this._lineHeight);
 			}
-			decorations.forEach((widget) => this._renderWidget(ctx, widget));
 		}
-		return;
-	}
 
-	private _renderWidget(ctx: RestrictedRenderingContext, renderedWidget: GlyphMarginWidget): void {
-		const className = renderedWidget.className.includes('cgmr codicon ')
-			? renderedWidget.className
-			: `cgmr codicon ${renderedWidget.className}`;
-		renderedWidget.domNode.setClassName(className);
-		renderedWidget.domNode.setLeft(renderedWidget.left);
-		renderedWidget.domNode.setWidth(renderedWidget.width);
-		renderedWidget.domNode.setHeight(this._lineHeight);
+		// Render decorations, reusing previous dom nodes as possible
+		for (let i = 0; i < this._decorationGlyphsToRender.length; i++) {
+			const dec = this._decorationGlyphsToRender[i];
+			const top = ctx.viewportData.relativeVerticalOffset[dec.lineNumber - ctx.viewportData.startLineNumber];
+			const left = this._glyphMarginLeft + (dec.lane - 1) * this._lineHeight;
 
-		const top = ctx.viewportData.relativeVerticalOffset[renderedWidget.lineNumber - ctx.viewportData.startLineNumber];
-		renderedWidget.domNode.setTop(top);
-		renderedWidget.domNode.setVisibility('inherit');
-		renderedWidget.domNode.setDisplay('block');
-		this.domNode.appendChild(renderedWidget.domNode);
+			let domNode: FastDomNode<HTMLElement>;
+			if (i < this._managedDomNodes.length) {
+				domNode = this._managedDomNodes[i];
+			} else {
+				domNode = createFastDomNode(document.createElement('div'));
+				this._managedDomNodes.push(domNode);
+				this.domNode.appendChild(domNode);
+			}
+
+			domNode.setClassName(`cgmr codicon ` + dec.combinedClassName);
+			domNode.setPosition(`absolute`);
+			domNode.setTop(top);
+			domNode.setLeft(left);
+			domNode.setWidth(width);
+			domNode.setHeight(this._lineHeight);
+		}
+
+		// remove extra dom nodes
+		while (this._managedDomNodes.length > this._decorationGlyphsToRender.length) {
+			const domNode = this._managedDomNodes.pop();
+			domNode?.domNode.remove();
+		}
 	}
+}
+
+export interface IWidgetData {
+	widget: IGlyphMarginWidget;
+	preference: IGlyphMarginWidgetPosition;
+	domNode: FastDomNode<HTMLElement>;
+	/**
+	 * it will contain the location where to render the widget
+	 * or null if the widget is not visible
+	 */
+	renderInfo: IRenderInfo | null;
+}
+
+export interface IRenderInfo {
+	lineNumber: number;
+	lane: number;
+}
+
+const enum GlyphRenderRequestType {
+	Decoration = 0,
+	Widget = 1
+}
+
+/**
+ * A request to render a decoration in the glyph margin at a certain location.
+ */
+class DecorationBasedGlyphRenderRequest {
+	public readonly type = GlyphRenderRequestType.Decoration;
+
+	constructor(
+		public readonly lineNumber: number,
+		public readonly lane: number,
+		public readonly zIndex: number,
+		public readonly className: string,
+	) { }
+
+	accept(combinedClassName: string): DecorationBasedGlyph {
+		return new DecorationBasedGlyph(this.lineNumber, this.lane, combinedClassName);
+	}
+}
+
+/**
+ * A request to render a widget in the glyph margin at a certain location.
+ */
+class WidgetBasedGlyphRenderRequest {
+	public readonly type = GlyphRenderRequestType.Widget;
+
+	constructor(
+		public readonly lineNumber: number,
+		public readonly lane: number,
+		public readonly zIndex: number,
+		public readonly widget: IWidgetData,
+	) { }
+}
+
+type GlyphRenderRequest = DecorationBasedGlyphRenderRequest | WidgetBasedGlyphRenderRequest;
+
+class DecorationBasedGlyph {
+	constructor(
+		public readonly lineNumber: number,
+		public readonly lane: number,
+		public readonly combinedClassName: string
+	) { }
 }
