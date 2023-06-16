@@ -461,6 +461,7 @@ class WordHighlighter {
 		// update decorators of friends
 		for (const other of this.linkedHighlighters()) {
 			if (other?.editor.getModel() === this.editor.getModel()) {
+				other._stopAll();
 				other.decorations.set(decorations);
 				other._hasWordHighlights.set(other.hasDecorations());
 			}
