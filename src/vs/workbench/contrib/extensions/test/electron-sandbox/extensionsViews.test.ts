@@ -499,14 +499,16 @@ suite('ExtensionsViews Tests', () => {
 		];
 
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...actual));
-		const experimentTarget = <SinonStub>instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', [{
-			query: 'search-me',
-			preferredResults: [
-				workspaceRecommendationA.identifier.id,
-				'something-that-wasnt-in-first-page',
-				workspaceRecommendationB.identifier.id
-			]
-		}]);
+		const experimentTarget = <SinonStub>instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
+			search: [{
+				query: 'search-me',
+				preferredResults: [
+					workspaceRecommendationA.identifier.id,
+					'something-that-wasnt-in-first-page',
+					workspaceRecommendationB.identifier.id
+				]
+			}]
+		});
 
 		testableView.dispose();
 		testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' });
