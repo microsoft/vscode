@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITheme, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from 'xterm';
 import type { CanvasAddon as CanvasAddonType } from 'xterm-addon-canvas';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
@@ -20,7 +20,7 @@ import { IShellIntegration, TerminalSettingId } from 'vs/platform/terminal/commo
 import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
@@ -114,16 +114,6 @@ function getFullBufferLineAsString(lineIndex: number, buffer: IBuffer): { lineDa
 export class XtermTerminal extends DisposableStore implements IXtermTerminal, IDetachedXtermTerminal, IInternalXtermTerminal {
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
-
-	*getBufferReverseIterator(): IterableIterator<string> {
-		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
-			const { lineData, lineIndex } = getFullBufferLineAsString(i, this.raw.buffer.active);
-			if (lineData) {
-				i = lineIndex;
-				yield lineData;
-			}
-		}
-	}
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
@@ -131,23 +121,25 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
-
 	private _decorationAddon: DecorationAddon;
-	private _suggestAddon?: SuggestAddon;
 
 	// Optional addons
+	private _suggestAddon?: SuggestAddon;
 	private _canvasAddon?: CanvasAddonType;
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
+
+	private readonly _logger: ILogger;
 	private readonly _attachedDisposables = this.add(new DisposableStore());
 	private readonly _anyTerminalFocusContextKey: IContextKey<boolean>;
 	private readonly _anyFocusedTerminalHasSelection: IContextKey<boolean>;
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
+
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 
 	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
@@ -199,7 +191,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		disableShellIntegrationReporting: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -212,6 +204,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
+		this._logger = this._loggerService.createLogger('terminal', { name: localize('terminalLoggerName', 'Terminal') });
 		this.raw = this.add(new xtermCtor({
 			allowProposedApi: true,
 			cols,
@@ -226,6 +219,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			fontSize: font.fontSize,
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
+			logLevel: vscodeToXtermLogLevel(this._logger.getLevel()),
+			logger: this._logger,
 			minimumContrastRatio: config.minimumContrastRatio,
 			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
@@ -256,6 +251,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		}));
 
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this.add(this._logger.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
 
 		// Refire events
 		this.add(this.raw.onSelectionChange(() => {
@@ -288,6 +284,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 				this._onDidRequestFocus.fire();
 				this._onDidRequestSendText.fire(text);
 			});
+		}
+	}
+
+	*getBufferReverseIterator(): IterableIterator<string> {
+		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
+			const { lineData, lineIndex } = getFullBufferLineAsString(i, this.raw.buffer.active);
+			if (lineData) {
+				i = lineIndex;
+				yield lineData;
+			}
 		}
 	}
 
@@ -630,9 +636,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this._disposeOfCanvasRenderer();
 		try {
 			this.raw.loadAddon(this._webglAddon);
-			this._logService.trace('Webgl was loaded');
+			this._logger.trace('Webgl was loaded');
 			this._webglAddon.onContextLoss(() => {
-				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
+				this._logger.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
 			});
 			// Uncomment to add the texture atlas to the DOM
@@ -642,7 +648,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			// 	}
 			// }, 5000);
 		} catch (e) {
-			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
+			this._logger.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
@@ -663,9 +669,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this._disposeOfWebglRenderer();
 		try {
 			this.raw.loadAddon(this._canvasAddon);
-			this._logService.trace('Canvas renderer was loaded');
+			this._logger.trace('Canvas renderer was loaded');
 		} catch (e) {
-			this._logService.warn(`Canvas renderer could not be loaded, falling back to dom renderer`, e);
+			this._logger.warn(`Canvas renderer could not be loaded, falling back to dom renderer`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
@@ -899,4 +905,15 @@ export function getXtermScaledDimensions(font: ITerminalFont, width: number, hei
 	const rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
 
 	return { rows, cols };
+}
+
+function vscodeToXtermLogLevel(logLevel: LogLevel): XtermLogLevel {
+	switch (logLevel) {
+		case LogLevel.Trace:
+		case LogLevel.Debug: return 'debug';
+		case LogLevel.Info: return 'info';
+		case LogLevel.Warning: return 'warn';
+		case LogLevel.Error: return 'error';
+		default: return 'off';
+	}
 }

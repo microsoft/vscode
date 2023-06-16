@@ -1702,11 +1702,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 	}
 
-	async setEscapeSequenceLogging(enable: boolean): Promise<void> {
-		const xterm = await this._xtermReadyPromise;
-		xterm.raw.options.logLevel = enable ? 'debug' : 'info';
-	}
-
 	@debounce(1000)
 	relaunch(): void {
 		this.reuseTerminal(this._shellLaunchConfig, true);
@@ -2108,12 +2103,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Re-create statuses
 		const workspaceFolder = getWorkspaceForTerminal(this.shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
 		this.statusList.add(info.getStatus({ workspaceFolder }));
-	}
-
-	async toggleEscapeSequenceLogging(): Promise<boolean> {
-		const xterm = await this._xtermReadyPromise;
-		xterm.raw.options.logLevel = xterm.raw.options.logLevel === 'debug' ? 'info' : 'debug';
-		return xterm.raw.options.logLevel === 'debug';
 	}
 
 	async getInitialCwd(): Promise<string> {

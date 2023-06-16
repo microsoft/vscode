@@ -230,7 +230,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
-	toggleEscapeSequenceLogging(): Promise<void>;
 
 	getEditingTerminal(): ITerminalInstance | undefined;
 	setEditingTerminal(instance: ITerminalInstance | undefined): void;
@@ -240,8 +239,6 @@ export class TerminalLinkQuickPickEvent extends MouseEvent {
 }
 export interface ITerminalServiceNativeDelegate {
 	getWindowCount(): Promise<number>;
-	openDevTools(): Promise<void>;
-	toggleDevTools(): Promise<void>;
 }
 
 /**
@@ -856,16 +853,6 @@ export interface ITerminalInstance {
 	 * Toggles terminal line wrapping.
 	 */
 	toggleSizeToContentWidth(): Promise<void>;
-
-	/**
-	 * Toggles escape sequence logging in the devtools console.
-	 */
-	toggleEscapeSequenceLogging(): Promise<boolean>;
-
-	/**
-	 * Sets whether escape seqeunce logging is enabled in the devtools console.
-	 */
-	setEscapeSequenceLogging(enable: boolean): void;
 
 	/**
 	 * Gets the initial current working directory, fetching it from the backend if required.
