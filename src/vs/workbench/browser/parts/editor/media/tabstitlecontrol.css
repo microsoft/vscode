@@ -472,12 +472,8 @@
 	height: 35px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item:not(:last-child) {
 	margin-right: 4px;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item:last-child {
-	margin-right: 0;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-actions {
