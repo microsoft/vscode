@@ -855,11 +855,6 @@ export interface ITerminalInstance {
 	toggleSizeToContentWidth(): Promise<void>;
 
 	/**
-	 * Sets whether escape seqeunce logging is enabled in the devtools console.
-	 */
-	setEscapeSequenceLogging(enable: boolean): void;
-
-	/**
 	 * Gets the initial current working directory, fetching it from the backend if required.
 	 */
 	getInitialCwd(): Promise<string>;
