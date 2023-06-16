@@ -496,7 +496,10 @@ export class SuggestController implements IEditorContribution {
 			return;
 		}
 
-		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number; resolveInfo: number };
+		type AcceptedSuggestion = {
+			providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number;
+			resolveInfo: number; resolveDuration: number;
+		};
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
 			comment: 'Information accepting completion items';
@@ -506,6 +509,7 @@ export class SuggestController implements IEditorContribution {
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Language type of the file into which the completion was inserted' };
 			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The completion item kind' };
 			resolveInfo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the item was inserted before resolving was done' };
+			resolveDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long resolving took to finish' };
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
@@ -514,7 +518,8 @@ export class SuggestController implements IEditorContribution {
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),
 			fileExtension: extname(model.uri),
-			resolveInfo: !item.provider.resolveCompletionItem ? -1 : itemResolved ? 1 : 0
+			resolveInfo: !item.provider.resolveCompletionItem ? -1 : itemResolved ? 1 : 0,
+			resolveDuration: item.resolveDuration
 		});
 	}
 
