@@ -42,7 +42,7 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -133,8 +133,9 @@ class ChatAccessibileViewContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-			const editorUri = editor?.getModel()?.uri;
 			const widgetService = accessor.get(IChatWidgetService);
+			const commandService = accessor.get(ICommandService);
+			const editorUri = editor?.getModel()?.uri;
 			const widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
 			const focused = widget?.getFocus();
 			if (!widget || !focused) {
@@ -159,12 +160,11 @@ class ChatAccessibileViewContribution extends Disposable {
 				id: 'chat',
 				provideContent,
 				onClose() {
-					widget.reveal(focused, true);
+					widget.reveal(focused);
+					commandService.executeCommand('chat.action.focus');
 				},
 				onKeyDown(e: IKeyboardEvent) {
-					if (e.keyCode === KeyCode.Escape) {
-						widget.reveal(focused, true);
-					}
+
 				},
 				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View") }
 			});

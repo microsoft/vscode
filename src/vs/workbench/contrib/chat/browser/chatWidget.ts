@@ -376,16 +376,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return withNullAsUndefined(this.tree.getFocus()[0]);
 	}
 
-	reveal(item: ChatTreeItem, focus?: boolean): void {
-		if (focus) {
-			const itemToFocus = this.tree.getNode(null).children.find(i => i.element?.id === item.id);
-			if (!itemToFocus) {
-				return;
-			}
-			this.tree.setFocus([itemToFocus.element]);
-		} else {
-			this.tree.reveal(item);
-		}
+	reveal(item: ChatTreeItem): void {
+		this.tree.reveal(item);
 	}
 
 	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
