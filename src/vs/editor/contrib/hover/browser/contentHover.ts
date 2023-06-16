@@ -9,7 +9,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -689,14 +689,9 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 
 	private _updateContentsDomNodeMaxDimensions() {
 		const persistedSize = this.findPersistedSize();
-		if (!persistedSize) {
-			this._setContentsDomNodeMaxDimensions(
-				Math.max(this._editor.getLayoutInfo().width * 0.66, 500),
-				Math.max(this._editor.getLayoutInfo().height / 4, 250));
-		}
-		else {
-			this._setContentsDomNodeMaxDimensions('none', 'none');
-		}
+		const width = persistedSize ? 'none' : Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
+		const height = persistedSize ? 'none' : Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		this._setContentsDomNodeMaxDimensions(width, height);
 	}
 
 	private _render(node: DocumentFragment, visibleData: ContentHoverData) {
@@ -716,13 +711,12 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	}
 
 	private _setContentPosition(visibleData: ContentHoverData, preference?: ContentWidgetPositionPreference) {
-		const widgetPosition: IContentWidgetPosition = {
+		this._contentPosition = {
 			position: visibleData.showAtPosition,
 			secondaryPosition: visibleData.showAtSecondaryPosition,
 			positionAffinity: visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined,
 			preference: [preference ?? ContentWidgetPositionPreference.ABOVE]
 		};
-		this._contentPosition = widgetPosition;
 	}
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverData): void {
