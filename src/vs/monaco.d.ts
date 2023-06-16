@@ -5390,6 +5390,43 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * A glyph margin widget renders in the editor glyph margin.
+	 */
+	export interface IGlyphMarginWidget {
+		/**
+		 * Get a unique identifier of the glyph widget.
+		 */
+		getId(): string;
+		/**
+		 * Get the dom node of the glyph widget.
+		 */
+		getDomNode(): HTMLElement;
+		/**
+		 * Get the placement of the glyph widget.
+		 */
+		getPosition(): IGlyphMarginWidgetPosition;
+	}
+
+	/**
+	 * A position for rendering glyph margin widgets.
+	 */
+	export interface IGlyphMarginWidgetPosition {
+		/**
+		 * The glyph margin lane where the widget should be shown.
+		 */
+		lane: GlyphMarginLane;
+		/**
+		 * The priority order of the widget, used for determining which widget
+		 * to render when there are multiple.
+		 */
+		zIndex: number;
+		/**
+		 * The editor range that this widget applies to.
+		 */
+		range: IRange;
+	}
+
+	/**
 	 * Type of hit element with the mouse in the editor.
 	 */
 	export enum MouseTargetType {
@@ -5961,6 +5998,19 @@ declare namespace monaco.editor {
 		 * Remove an overlay widget.
 		 */
 		removeOverlayWidget(widget: IOverlayWidget): void;
+		/**
+		 * Add a glyph margin widget. Widgets must have unique ids, otherwise they will be overwritten.
+		 */
+		addGlyphMarginWidget(widget: IGlyphMarginWidget): void;
+		/**
+		 * Layout/Reposition a glyph margin widget. This is a ping to the editor to call widget.getPosition()
+		 * and update appropriately.
+		 */
+		layoutGlyphMarginWidget(widget: IGlyphMarginWidget): void;
+		/**
+		 * Remove a glyph margin widget.
+		 */
+		removeGlyphMarginWidget(widget: IGlyphMarginWidget): void;
 		/**
 		 * Change the view zones. View zones are lost when a new model is attached to the editor.
 		 */
