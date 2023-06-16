@@ -570,7 +570,6 @@ export class InteractiveEditor extends EditorPane {
 		}
 	}
 
-
 	#syncWithKernel() {
 		const notebook = this.#notebookWidget.value?.textModel;
 		const textModel = this.#codeEditorWidget.getModel();
@@ -583,8 +582,11 @@ export class InteractiveEditor extends EditorPane {
 
 			if (selectedOrSuggested) {
 				const language = selectedOrSuggested.supportedLanguages[0];
-				const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_LANGUAGE_ID;
-				textModel.setLanguage(newMode);
+				// All kernels will initially list plaintext as the supported language before they properly initialized.
+				if (language && language !== 'plaintext') {
+					const newMode = this.#languageService.createById(language).languageId;
+					textModel.setLanguage(newMode);
+				}
 
 				NOTEBOOK_KERNEL.bindTo(this.#contextKeyService).set(selectedOrSuggested.id);
 			}
