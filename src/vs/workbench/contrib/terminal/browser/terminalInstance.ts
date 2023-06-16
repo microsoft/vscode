@@ -2110,12 +2110,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.statusList.add(info.getStatus({ workspaceFolder }));
 	}
 
-	async toggleEscapeSequenceLogging(): Promise<boolean> {
-		const xterm = await this._xtermReadyPromise;
-		xterm.raw.options.logLevel = xterm.raw.options.logLevel === 'debug' ? 'info' : 'debug';
-		return xterm.raw.options.logLevel === 'debug';
-	}
-
 	async getInitialCwd(): Promise<string> {
 		if (!this._initialCwd) {
 			this._initialCwd = this._processManager.initialCwd;

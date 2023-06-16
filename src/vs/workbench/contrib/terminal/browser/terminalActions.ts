@@ -929,13 +929,6 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.ToggleEscapeSequenceLogging,
-		title: { value: localize('workbench.action.terminal.toggleEscapeSequenceLogging', "Toggle Escape Sequence Logging"), original: 'Toggle Escape Sequence Logging' },
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c) => c.service.toggleEscapeSequenceLogging()
-	});
-
-	registerTerminalAction({
 		id: TerminalCommandId.SendSequence,
 		title: terminalStrings.sendSequence,
 		f1: false,
