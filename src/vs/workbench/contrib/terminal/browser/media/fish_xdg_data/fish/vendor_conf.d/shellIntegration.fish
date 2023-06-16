@@ -102,18 +102,20 @@ end
 function init_vscode_shell_integration --on-event fish_prompt
     if functions --query fish_prompt
         if functions --query __vsc_fish_prompt
+            # Erase the fallback so it can be set to the user's prompt
             functions --erase __vsc_fish_prompt
         end
-        echo "setting __vsc_fish_prompt to actual fish prompt"
 	    functions --copy fish_prompt __vsc_fish_prompt
 	    functions --erase init_vscode_shell_integration
-        _mode_prompt
+        # Now __vsc_fish_prompt is guaranteed to be defined
+        __set_shell_integration_fish_prompt
     else
         if functions --query __vsc_fish_prompt
+            # There is no fish_prompt set, so stick with the default
             functions --erase init_vscode_shell_integration
-            _mode_prompt
+            # Now __vsc_fish_prompt is guaranteed to be defined
+            __set_shell_integration_fish_prompt
         else
-            echo "setting __vsc_fish_prompt to fallback fish prompt"
             function __vsc_fish_prompt
 		        echo -n (whoami)@(prompt_hostname) (prompt_pwd) '~> '
 	        end
@@ -155,7 +157,7 @@ end
 # Preserve and wrap fish_mode_prompt (which appears to the left of the regular
 # prompt), but only if it's not defined as an empty function (which is the
 # officially documented way to disable that feature).
-function _mode_prompt
+function __set_shell_integration_fish_prompt
     if __vsc_fish_has_mode_prompt
 	    functions --copy fish_mode_prompt __vsc_fish_mode_prompt
 
@@ -168,8 +170,6 @@ function _mode_prompt
 		    __vsc_fish_prompt
 		    __vsc_fish_cmd_start
 	    end
-        set func2 (functions -a fish_prompt)
-        echo "set fish prompt to $func2"
     else
 	# No fish_mode_prompt, so put everything in fish_prompt.
 	    function fish_prompt
@@ -177,7 +177,5 @@ function _mode_prompt
 		    __vsc_fish_prompt
 		    __vsc_fish_cmd_start
 	    end
-	    set func2 (functions -a fish_prompt)
-        echo "set fish prompt to $func2"
     end
 end
