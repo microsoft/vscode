@@ -6,7 +6,7 @@
 import 'vs/css!./inlineChat';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -701,7 +701,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 + 3, allowBehindVerticalScrollbar: true });
+		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 + 3 });
 
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
@@ -769,6 +769,10 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);
+	}
+
+	override _getWidth(info: EditorLayoutInfo): number {
+		return info.width - info.minimap.minimapWidth - 0;
 	}
 
 	public updateBackgroundColor(position: Position, selection: IRange) {

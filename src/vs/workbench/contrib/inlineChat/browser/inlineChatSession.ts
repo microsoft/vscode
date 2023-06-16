@@ -126,8 +126,7 @@ export class Session {
 		readonly textModelN: ITextModel,
 		readonly provider: IInlineChatSessionProvider,
 		readonly session: IInlineChatSession,
-		readonly wholeRange: SessionWholeRange,
-		readonly selection: IRange
+		readonly wholeRange: SessionWholeRange
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
@@ -444,7 +443,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 		const wholeRangeMgr = new SessionWholeRange(textModel, wholeRange);
 		store.add(wholeRangeMgr);
 
-		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeMgr, editor.getSelection());
+		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeMgr);
 
 		// store: key -> session
 		const key = this._key(editor, textModel.uri);

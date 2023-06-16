@@ -31,7 +31,6 @@ export interface IOptions {
 	allowUnlimitedHeight?: boolean;
 	ordinal?: number;
 	showInHiddenAreas?: boolean;
-	allowBehindVerticalScrollbar?: boolean;
 }
 
 export interface IStyles {
@@ -272,7 +271,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	protected _getWidth(info: EditorLayoutInfo): number {
-		return info.width - info.minimap.minimapWidth - (this.options.allowBehindVerticalScrollbar ? 0 : info.verticalScrollbarWidth);
+		return info.width - info.minimap.minimapWidth - info.verticalScrollbarWidth;
 	}
 
 	private _getLeft(info: EditorLayoutInfo): number {
