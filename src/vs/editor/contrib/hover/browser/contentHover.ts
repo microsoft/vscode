@@ -732,9 +732,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
-		if (!this.findPersistedSize()) {
-			this.onContentsChanged();
-		}
+		this.onContentsChanged();
 		if (visibleData.stoleFocus) {
 			this._hoverWidget.containerDomNode.focus();
 		}
