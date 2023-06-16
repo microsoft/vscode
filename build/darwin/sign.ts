@@ -6,15 +6,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as codesign from 'electron-osx-sign';
+import * as util from '../lib/util';
 import { spawn } from '@malept/cross-spawn-promise';
 
 const root = path.dirname(path.dirname(__dirname));
-
-function getElectronVersion(): string {
-	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
-	return target;
-}
 
 async function main(buildDir?: string): Promise<void> {
 	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
@@ -49,7 +44,7 @@ async function main(buildDir?: string): Promise<void> {
 		'pre-auto-entitlements': false,
 		'pre-embed-provisioning-profile': false,
 		keychain: path.join(tempDir, 'buildagent.keychain'),
-		version: getElectronVersion(),
+		version: util.getElectronVersion().electronVersion,
 		identity,
 		'gatekeeper-assess': false
 	};

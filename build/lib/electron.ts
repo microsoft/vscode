@@ -90,9 +90,11 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 	});
 }
 
+const { electronVersion, msBuildId } = util.getElectronVersion();
+
 export const config = {
-	version: util.getElectronVersion(),
-	tag: product.electronRepository ? `v${util.getElectronVersion()}-${util.getMSBuildId()}` : undefined,
+	version: electronVersion,
+	tag: product.electronRepository ? `v${electronVersion}-${msBuildId}` : undefined,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2023 Microsoft. All rights reserved',
@@ -213,7 +215,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 }
 
 async function main(arch = process.arch): Promise<void> {
-	const version = util.getElectronVersion();
+	const version = electronVersion;
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');
 	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
