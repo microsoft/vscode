@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// fake definition so that the valid layers check won't trip on this
+declare const globalThis: { performance?: { now(): number } };
+
 const hasPerformanceNow = (globalThis.performance && typeof globalThis.performance.now === 'function');
 
 export class StopWatch {
@@ -17,7 +20,7 @@ export class StopWatch {
 	}
 
 	constructor(highResolution?: boolean) {
-		this._now = hasPerformanceNow && highResolution === false ? Date.now : globalThis.performance.now.bind(globalThis.performance);
+		this._now = hasPerformanceNow && highResolution === false ? Date.now : globalThis.performance!.now.bind(globalThis.performance);
 		this._startTime = this._now();
 		this._stopTime = -1;
 	}
