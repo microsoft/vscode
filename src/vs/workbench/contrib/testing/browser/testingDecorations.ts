@@ -318,7 +318,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				}
 			}
 
-			const messageLines = new Map</* line number */ number, /* last test message */ ITestMessage>();
+			const messageLines = new Set<number>();
 			if (getTestingConfiguration(this.configurationService, TestingConfigKeys.ShowAllMessages)) {
 				this.results.results.forEach(lastResult => this.applyDecorationsFromResult(lastResult, messageLines, uriStr, lastDecorations, model, newDecorations));
 			} else {
@@ -352,7 +352,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		return newDecorations || lastDecorations;
 	}
 
-	private applyDecorationsFromResult(lastResult: ITestResult, messageLines: Map<Number, ITestMessage>, uriStr: string, lastDecorations: CachedDecorations, model: ITextModel, newDecorations: CachedDecorations) {
+	private applyDecorationsFromResult(lastResult: ITestResult, messageLines: Set<Number>, uriStr: string, lastDecorations: CachedDecorations, model: ITextModel, newDecorations: CachedDecorations) {
 		if (this.testService.showInlineOutput.value && lastResult instanceof LiveTestResult) {
 			for (const task of lastResult.tasks) {
 				for (const m of task.otherMessages) {
@@ -385,7 +385,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 							}), model);
 
 							newDecorations.addMessage(decoration);
-							messageLines.set(line, decoration.testMessage);
+							messageLines.add(line);
 						}
 					}
 				}
