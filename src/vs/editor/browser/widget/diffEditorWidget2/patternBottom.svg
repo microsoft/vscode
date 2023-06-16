@@ -1,3 +1,5 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='20' height='7' viewBox='0 0 10 10' preserveAspectRatio='none'>
-	<polygon points='0,0 5,10 10,0' style='fill:white' />
+<svg xmlns='http://www.w3.org/2000/svg' width='30' height='8' preserveAspectRatio='none'>
+	<g transform='translate(0, -2), scale(1.5, 1)'>
+		<path d='M 0 0 L 0 5 Q 5 10 10 5 Q 15 0 20 5 L 20 0' style='fill:white' />
+	</g>
 </svg>

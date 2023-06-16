@@ -717,6 +717,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.create();
 
 
+		this._disposables.add(addDisposableListener(this.domNode, 'click', e => this.widget.focus()));
+
 		// todo@jrieken listen ONLY when showing
 		const updateCursorIsAboveContextKey = () => {
 			if (!this.position || !this.editor.hasModel()) {

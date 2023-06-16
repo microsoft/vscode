@@ -143,17 +143,19 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		});
 		this._register(keepAlive(this._sash, true));
 
-		this._register(new UnchangedRangesFeature(this._originalEditor, this._modifiedEditor, this._diffModel));
-		this._register(
-			this._instantiationService.createInstance(
-				ViewZoneManager,
-				this._originalEditor,
-				this._modifiedEditor,
-				this._diffModel,
-				this._options.map((o) => o.renderSideBySide),
-				this
-			)
-		);
+		this._register(new UnchangedRangesFeature(
+			this._originalEditor,
+			this._modifiedEditor,
+			this._diffModel
+		));
+		this._register(this._instantiationService.createInstance(
+			ViewZoneManager,
+			this._originalEditor,
+			this._modifiedEditor,
+			this._diffModel,
+			this._options.map((o) => o.renderSideBySide),
+			this,
+		));
 
 		this._register(this._instantiationService.createInstance(OverviewRulerPart,
 			this._originalEditor,

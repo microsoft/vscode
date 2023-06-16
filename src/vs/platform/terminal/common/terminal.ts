@@ -107,7 +107,14 @@ export const enum TerminalSettingId {
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	EnableImages = 'terminal.integrated.enableImages',
-	SmoothScrolling = 'terminal.integrated.smoothScrolling'
+	SmoothScrolling = 'terminal.integrated.smoothScrolling',
+
+	// Debug settings that are hidden from user
+
+	/** Simulated latency applied to all calls made to the pty host */
+	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
+	/** Simulated startup delay of the pty host process */
+	DeveloperPtyHostStartupDelay = 'terminal.integrated.developer.ptyHost.startupDelay',
 }
 
 export const enum PosixShellType {
@@ -385,6 +392,12 @@ export enum HeartbeatConstants {
 	 * The duration between heartbeats
 	 */
 	BeatInterval = 5000,
+	/**
+	 * The duration of the first heartbeat while the pty host is starting up. This is much larger
+	 * than the regular BeatInterval to accomodate slow machines, we still want to warn about the
+	 * pty host's unresponsiveness eventually though.
+	 */
+	ConnectingBeatInterval = 20000,
 	/**
 	 * Defines a multiplier for BeatInterval for how long to wait before starting the second wait
 	 * timer.
