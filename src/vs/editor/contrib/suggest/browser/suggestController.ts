@@ -349,7 +349,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else if (!isResolved) {
 			// async additional edits
-			const sw = new StopWatch(true);
+			const sw = new StopWatch();
 			let position: IPosition | undefined;
 
 			const docListener = model.onDidChangeContent(e => {

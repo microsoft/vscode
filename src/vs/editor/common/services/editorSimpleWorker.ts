@@ -685,7 +685,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[]; duration: number } | null> {
 
-		const sw = new StopWatch(true);
+		const sw = new StopWatch();
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
 		const seen = new Set<string>();
 

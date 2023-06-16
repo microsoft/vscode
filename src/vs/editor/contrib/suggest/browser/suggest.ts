@@ -213,7 +213,7 @@ export async function provideSuggestionItems(
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItemModel> {
 
-	const sw = new StopWatch(true);
+	const sw = new StopWatch();
 	position = position.clone();
 
 	const word = model.getWordAtPosition(position);
@@ -275,7 +275,7 @@ export async function provideSuggestionItems(
 		if (options.providerFilter.size > 0 && !options.providerFilter.has(_snippetSuggestSupport)) {
 			return;
 		}
-		const sw = new StopWatch(true);
+		const sw = new StopWatch();
 		const list = await _snippetSuggestSupport.provideCompletionItems(model, position, context, token);
 		onCompletionList(_snippetSuggestSupport, list, sw);
 	})();
@@ -300,7 +300,7 @@ export async function provideSuggestionItems(
 				return;
 			}
 			try {
-				const sw = new StopWatch(true);
+				const sw = new StopWatch();
 				const list = await provider.provideCompletionItems(model, position, context, token);
 				didAddResult = onCompletionList(provider, list, sw) || didAddResult;
 			} catch (err) {
