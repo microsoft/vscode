@@ -1132,6 +1132,9 @@ export function workbenchCalculateActions(initialPrimaryActions: IActionModel[],
 			if (itemSize !== 0) {
 				nonZeroAction = true;
 			}
+			if (actionModel.action instanceof Separator) {
+				nonZeroAction = false;
+			}
 		} else {
 			containerFull = true;
 			if (itemSize === 0) { // size 0 implies a hidden item, keep in primary to allow for Workbench to handle visibility
