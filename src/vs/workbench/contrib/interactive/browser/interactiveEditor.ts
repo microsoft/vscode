@@ -276,7 +276,7 @@ export class InteractiveEditor extends EditorPane {
 			overrideIdentifier = this.#codeEditorWidget.getModel()?.getLanguageId();
 		}
 		const editorOptions = deepClone(this.#configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier }));
-		const editorOptionsOverride = getSimpleEditorOptions();
+		const editorOptionsOverride = getSimpleEditorOptions(this.#configurationService);
 		const computed = Object.freeze({
 			...editorOptions,
 			...editorOptionsOverride,
@@ -387,18 +387,6 @@ export class InteractiveEditor extends EditorPane {
 		});
 
 		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, this.#editorOptions, {
-			...getSimpleEditorOptions(this.configurationService),
-			...{
-				glyphMargin: true,
-				padding: {
-					top: INPUT_EDITOR_PADDING,
-					bottom: INPUT_EDITOR_PADDING
-				},
-				hover: {
-					enabled: true
-				}
-			}
-		}, {
 			...{
 				isSimpleWidget: false,
 				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
