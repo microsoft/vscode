@@ -80,7 +80,6 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 			quickSuggestions: false,
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true },
-			cursorBlinking: this._configurationService.getValue('terminal.integrated.cursorBlinking'),
 			readOnly: true
 		};
 		this._editorWidget = this.add(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
