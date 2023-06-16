@@ -773,7 +773,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._ctxVisible.set(true);
 	}
 
-	override _getWidth(info: EditorLayoutInfo): number {
+	protected override _getWidth(info: EditorLayoutInfo): number {
 		return info.width - info.minimap.minimapWidth;
 	}
 
