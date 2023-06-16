@@ -99,22 +99,22 @@ function __vsc_cmd_clear --on-event fish_cancel
 end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
-function init_vscode_shell_integration --on-event fish_prompt
+function __preserve_fish_prompt --on-event fish_prompt
     if functions --query fish_prompt
         if functions --query __vsc_fish_prompt
             # Erase the fallback so it can be set to the user's prompt
             functions --erase __vsc_fish_prompt
         end
 	    functions --copy fish_prompt __vsc_fish_prompt
-	    functions --erase init_vscode_shell_integration
+	    functions --erase __preserve_fish_prompt
         # Now __vsc_fish_prompt is guaranteed to be defined
-        __set_shell_integration_fish_prompt
+        __init_vscode_shell_integration
     else
         if functions --query __vsc_fish_prompt
             # There is no fish_prompt set, so stick with the default
-            functions --erase init_vscode_shell_integration
+            functions --erase __preserve_fish_prompt
             # Now __vsc_fish_prompt is guaranteed to be defined
-            __set_shell_integration_fish_prompt
+            __init_vscode_shell_integration
         else
             function __vsc_fish_prompt
 		        echo -n (whoami)@(prompt_hostname) (prompt_pwd) '~> '
@@ -122,7 +122,7 @@ function init_vscode_shell_integration --on-event fish_prompt
         end
     end
 end
-init_vscode_shell_integration
+__preserve_fish_prompt
 
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
@@ -157,7 +157,7 @@ end
 # Preserve and wrap fish_mode_prompt (which appears to the left of the regular
 # prompt), but only if it's not defined as an empty function (which is the
 # officially documented way to disable that feature).
-function __set_shell_integration_fish_prompt
+function __init_vscode_shell_integration
     if __vsc_fish_has_mode_prompt
 	    functions --copy fish_mode_prompt __vsc_fish_mode_prompt
 
