@@ -87,6 +87,9 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		}, editor);
 		this._disposables.add(this._diffEditor);
 		this._diffEditor.setModel({ original: this._session.textModel0, modified: editor.getModel() });
+		this._diffEditor.updateOptions({
+			lineDecorationsWidth: editor.getLayoutInfo().decorationsWidth
+		});
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
