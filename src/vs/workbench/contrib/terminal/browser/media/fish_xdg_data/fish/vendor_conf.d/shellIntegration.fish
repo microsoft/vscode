@@ -100,27 +100,27 @@ end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
 function __preserve_fish_prompt --on-event fish_prompt
-    if functions --query fish_prompt
-        if functions --query __vsc_fish_prompt
-            # Erase the fallback so it can be set to the user's prompt
-            functions --erase __vsc_fish_prompt
-        end
-	    functions --copy fish_prompt __vsc_fish_prompt
-	    functions --erase __preserve_fish_prompt
-        # Now __vsc_fish_prompt is guaranteed to be defined
-        __init_vscode_shell_integration
-    else
-        if functions --query __vsc_fish_prompt
-            # There is no fish_prompt set, so stick with the default
-            functions --erase __preserve_fish_prompt
-            # Now __vsc_fish_prompt is guaranteed to be defined
-            __init_vscode_shell_integration
-        else
-            function __vsc_fish_prompt
-		        echo -n (whoami)@(prompt_hostname) (prompt_pwd) '~> '
-	        end
-        end
-    end
+	if functions --query fish_prompt
+		if functions --query __vsc_fish_prompt
+			# Erase the fallback so it can be set to the user's prompt
+			functions --erase __vsc_fish_prompt
+		end
+		functions --copy fish_prompt __vsc_fish_prompt
+		functions --erase __preserve_fish_prompt
+		# Now __vsc_fish_prompt is guaranteed to be defined
+		__init_vscode_shell_integration
+	else
+		if functions --query __vsc_fish_prompt
+			# There is no fish_prompt set, so stick with the default
+			functions --erase __preserve_fish_prompt
+			# Now __vsc_fish_prompt is guaranteed to be defined
+			__init_vscode_shell_integration
+		else
+			function __vsc_fish_prompt
+				echo -n (whoami)@(prompt_hostname) (prompt_pwd) '~> '
+			end
+		end
+	end
 end
 __preserve_fish_prompt
 
@@ -158,24 +158,24 @@ end
 # prompt), but only if it's not defined as an empty function (which is the
 # officially documented way to disable that feature).
 function __init_vscode_shell_integration
-    if __vsc_fish_has_mode_prompt
-	    functions --copy fish_mode_prompt __vsc_fish_mode_prompt
+	if __vsc_fish_has_mode_prompt
+		functions --copy fish_mode_prompt __vsc_fish_mode_prompt
 
-	    function fish_mode_prompt
-		    __vsc_fish_prompt_start
-		    __vsc_fish_mode_prompt
-	    end
+		function fish_mode_prompt
+			__vsc_fish_prompt_start
+			__vsc_fish_mode_prompt
+		end
 
-	    function fish_prompt
-		    __vsc_fish_prompt
-		    __vsc_fish_cmd_start
-	    end
-    else
-	# No fish_mode_prompt, so put everything in fish_prompt.
-	    function fish_prompt
-		    __vsc_fish_prompt_start
-		    __vsc_fish_prompt
-		    __vsc_fish_cmd_start
-	    end
-    end
+		function fish_prompt
+			__vsc_fish_prompt
+			__vsc_fish_cmd_start
+		end
+	else
+		# No fish_mode_prompt, so put everything in fish_prompt.
+		function fish_prompt
+			__vsc_fish_prompt_start
+			__vsc_fish_prompt
+			__vsc_fish_cmd_start
+		end
+	end
 end
