@@ -66,20 +66,20 @@ class SessionWholeRange {
 
 	private static readonly _options = { description: 'inlineChat/session/wholeRange' };
 
-	private readonly _store = new DisposableStore();
+	private readonly _onDidChange = new Emitter<this>();
+	readonly onDidChange: Event<this> = this._onDidChange.event;
+
 	private readonly _decorationIds: string[] = [];
 
 	constructor(private readonly _textModel: ITextModel, wholeRange: IRange) {
 		this._decorationIds = _textModel.deltaDecorations([], [{ range: wholeRange, options: SessionWholeRange._options }]);
-		this._store.add(toDisposable(() => {
-			if (!_textModel.isDisposed()) {
-				_textModel.deltaDecorations(this._decorationIds, []);
-			}
-		}));
 	}
 
 	dispose() {
-		this._store.dispose();
+		this._onDidChange.dispose();
+		if (!this._textModel.isDisposed()) {
+			this._textModel.deltaDecorations(this._decorationIds, []);
+		}
 	}
 
 	trackEdits(edits: ISingleEditOperation[]): void {
@@ -88,6 +88,7 @@ class SessionWholeRange {
 			newDeco.push({ range: edit.range, options: SessionWholeRange._options });
 		}
 		this._decorationIds.push(...this._textModel.deltaDecorations([], newDeco));
+		this._onDidChange.fire(this);
 	}
 
 	get value(): Range {

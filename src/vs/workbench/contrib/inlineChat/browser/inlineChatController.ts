@@ -292,11 +292,16 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.clear();
 
-		const wholeRangeDecoration = this._editor.createDecorationsCollection([{
-			range: this._activeSession.wholeRange.value,
-			options: InlineChatController._decoBlock
-		}]);
+		const wholeRangeDecoration = this._editor.createDecorationsCollection();
+		const updateWholeRangeDecoration = () => {
+			wholeRangeDecoration.set([{
+				range: this._activeSession!.wholeRange.value,
+				options: InlineChatController._decoBlock
+			}]);
+		};
 		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
+		this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
+		updateWholeRangeDecoration();
 
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
