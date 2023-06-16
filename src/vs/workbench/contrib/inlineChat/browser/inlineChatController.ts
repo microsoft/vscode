@@ -223,7 +223,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI> {
+	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI | State.PAUSE> {
 		assertType(this._activeSession === undefined);
 		assertType(this._editor.hasModel());
 
@@ -255,6 +255,10 @@ export class InlineChatController implements IEditorContribution {
 
 			createSessionCts.dispose();
 			msgListener.dispose();
+
+			if (createSessionCts.token.isCancellationRequested) {
+				return State.PAUSE;
+			}
 		}
 
 		delete options.initialRange;
@@ -308,6 +312,7 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
+		this._showWidget(false);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
@@ -622,7 +627,6 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async [State.PAUSE]() {
-		assertType(this._activeSession);
 
 		this._ctxDidEdit.reset();
 		this._ctxLastResponseType.reset();
@@ -763,17 +767,17 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	cancelSession() {
-		if (!this._strategy || !this._activeSession) {
-			return undefined;
-		}
+		let result: string | undefined;
+		if (this._strategy && this._activeSession) {
+			const changedText = this._activeSession.asChangedText();
+			if (changedText && this._activeSession?.lastExchange?.response instanceof EditResponse) {
+				this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Undone);
 
-		const changedText = this._activeSession.asChangedText();
-		if (changedText && this._activeSession?.lastExchange?.response instanceof EditResponse) {
-			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, InlineChatResponseFeedbackKind.Undone);
-
+			}
+			result = changedText;
 		}
 		this._messages.fire(Message.CANCEL_SESSION);
-		return changedText;
+		return result;
 	}
 
 	unstashLastSession(): Session | undefined {

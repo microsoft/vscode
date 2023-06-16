@@ -25,6 +25,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { raceCancellation } from 'vs/base/common/async';
 
 export type Recording = {
 	when: Date;
@@ -403,7 +404,6 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 		this._sessions.clear();
 	}
 
-
 	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
 
 		const provider = Iterable.first(this._inlineChatService.getAllProvider());
@@ -418,7 +418,10 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 		const selection = editor.getSelection();
 		let raw: IInlineChatSession | undefined | null;
 		try {
-			raw = await provider.prepareInlineChatSession(textModel, selection, token);
+			raw = await raceCancellation(
+				Promise.resolve(provider.prepareInlineChatSession(textModel, selection, token)),
+				token
+			);
 		} catch (error) {
 			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
 			this._logService.error(error);
