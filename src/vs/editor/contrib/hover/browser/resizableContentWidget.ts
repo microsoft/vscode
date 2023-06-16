@@ -21,39 +21,32 @@ abstract class ResizableContentWidget extends Disposable implements IContentWidg
 	readonly allowEditorOverflow: boolean = true;
 	readonly suppressMouseDown: boolean = false;
 
-	protected readonly _contentNode: HTMLDivElement;
 	protected readonly _resizableNode = this._register(new ResizableHTMLElement());
 	protected _contentPosition: IContentWidgetPosition | null = null;
 
-	private _resizing: boolean = false;
+	private _isResizing: boolean = false;
 
 	constructor(
 		protected readonly _editor: ICodeEditor,
 		_initialSize: dom.IDimension = new dom.Dimension(10, 10)
 	) {
 		super();
-		this._contentNode = document.createElement('div');
-		this._contentNode.style.width = `${_initialSize.width}px`;
-		this._contentNode.style.height = `${_initialSize.height}px`;
 		this._resizableNode.domNode.style.position = 'absolute';
-		this._resizableNode.domNode.appendChild(this._contentNode);
 		this._resizableNode.minSize = new dom.Dimension(10, 10);
 		this._resizableNode.enableSashes(true, true, true, true);
 		this._resizableNode.layout(_initialSize.height, _initialSize.width);
 		this._register(this._resizableNode.onDidResize(e => {
-			this._contentNode.style.width = `${e.dimension.width}px`;
-			this._contentNode.style.height = `${e.dimension.height}px`;
 			if (e.done) {
-				this._resizing = false;
+				this._isResizing = false;
 			}
 		}));
 		this._register(this._resizableNode.onDidWillResize(() => {
-			this._resizing = true;
+			this._isResizing = true;
 		}));
 	}
 
-	get resizing() {
-		return this._resizing;
+	get isResizing() {
+		return this._isResizing;
 	}
 
 	abstract getId(): string;
@@ -68,11 +61,8 @@ abstract class ResizableContentWidget extends Disposable implements IContentWidg
 
 	protected _availableVerticalSpaceAbove(position: IPosition): number | undefined {
 		const editorDomNode = this._editor.getDomNode();
-		if (!editorDomNode) {
-			return;
-		}
 		const mouseBox = this._editor.getScrolledVisiblePosition(position);
-		if (!mouseBox) {
+		if (!editorDomNode || !mouseBox) {
 			return;
 		}
 		const editorBox = dom.getDomNodePagePosition(editorDomNode);
@@ -81,11 +71,8 @@ abstract class ResizableContentWidget extends Disposable implements IContentWidg
 
 	protected _availableVerticalSpaceBelow(position: IPosition): number | undefined {
 		const editorDomNode = this._editor.getDomNode();
-		if (!editorDomNode) {
-			return;
-		}
 		const mouseBox = this._editor.getScrolledVisiblePosition(position);
-		if (!mouseBox) {
+		if (!editorDomNode || !mouseBox) {
 			return;
 		}
 		const editorBox = dom.getDomNodePagePosition(editorDomNode);
@@ -94,7 +81,7 @@ abstract class ResizableContentWidget extends Disposable implements IContentWidg
 		return bodyBox.height - mouseBottom;
 	}
 
-	protected _findRenderingPreference(widgetHeight: number, showAtPosition: IPosition): ContentWidgetPositionPreference | undefined {
+	protected _findPositionPreference(widgetHeight: number, showAtPosition: IPosition): ContentWidgetPositionPreference | undefined {
 		const maxHeightBelow = Math.min(this._availableVerticalSpaceBelow(showAtPosition) ?? Infinity, widgetHeight);
 		const maxHeightAbove = Math.min(this._availableVerticalSpaceAbove(showAtPosition) ?? Infinity, widgetHeight);
 		const maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), widgetHeight);

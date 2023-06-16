@@ -80,7 +80,7 @@ export class ContentHoverController extends Disposable {
 	 * Returns true if the hover shows now or will show.
 	 */
 	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
-		if (this._widget.resizing) {
+		if (this._widget.isResizing) {
 			return true;
 		}
 		const anchorCandidates: HoverAnchor[] = [];
@@ -725,7 +725,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		this._render(node, hoverData);
 		const widgetHeight = this._getWidgetHeight();
 		const widgetPosition = hoverData.showAtPosition;
-		this._positionPreference = this._findRenderingPreference(widgetHeight, widgetPosition) ?? ContentWidgetPositionPreference.ABOVE;
+		this._positionPreference = this._findPositionPreference(widgetHeight, widgetPosition) ?? ContentWidgetPositionPreference.ABOVE;
 		this._setContentPosition(hoverData, this._positionPreference);
 
 		// See https://github.com/microsoft/vscode/issues/140339
