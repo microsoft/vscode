@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -56,6 +57,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		capabilities = new TerminalCapabilityStore();
 		if (!isWindows) {

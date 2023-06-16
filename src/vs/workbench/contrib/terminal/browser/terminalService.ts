@@ -30,7 +30,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IDetachedXTermOptions, IDetachedXtermTerminal, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, IXtermTerminal, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -47,12 +47,17 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService, ShutdownReason, StartupKind, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
 
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
+	private _detachedXterms = new Set<IXtermTerminal>();
 	private _terminalEditorActive: IContextKey<boolean>;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
@@ -79,6 +84,9 @@ export class TerminalService implements ITerminalService {
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
+	}
+	get detachedXterms(): Iterable<IXtermTerminal> {
+		return this._detachedXterms;
 	}
 
 	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
@@ -163,7 +171,8 @@ export class TerminalService implements ITerminalService {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		// the below avoids having to poll routinely.
@@ -969,6 +978,31 @@ export class TerminalService implements ITerminalService {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}
 		return this._createTerminal(shellLaunchConfig, location, options);
+	}
+
+	async createDetachedXterm(options: IDetachedXTermOptions): Promise<IDetachedXtermTerminal> {
+		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
+		const instance = this._instantiationService.createInstance(
+			XtermTerminal,
+			ctor,
+			this._configHelper,
+			options.cols,
+			options.rows,
+			options.colorProvider,
+			options.capabilities || new TerminalCapabilityStore(),
+			'',
+			undefined,
+			false,
+		);
+
+		if (options.readonly) {
+			instance.raw.attachCustomKeyEventHandler(() => false);
+		}
+
+		this._detachedXterms.add(instance);
+		instance.onDidDispose(() => this._detachedXterms.delete(instance));
+
+		return instance;
 	}
 
 	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {

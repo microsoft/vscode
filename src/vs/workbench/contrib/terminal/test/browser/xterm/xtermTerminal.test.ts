@@ -30,6 +30,7 @@ import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestSer
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { Color, RGBA } from 'vs/base/common/color';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
@@ -117,6 +118,7 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, new TerminalCapabilityStore(), '', new MockContextKeyService().createKey('', true)!, true);
@@ -251,7 +253,7 @@ suite('XtermTerminal', () => {
 
 			// Open xterm as otherwise the webgl addon won't activate
 			const container = document.createElement('div');
-			xterm.raw.open(container);
+			xterm.attachToElement(container);
 
 			// Auto should activate the webgl addon
 			await configurationService.setUserConfiguration('terminal', { integrated: { ...defaultTerminalConfig, gpuAcceleration: 'auto' } });
