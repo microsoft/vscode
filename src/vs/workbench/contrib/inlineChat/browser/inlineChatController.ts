@@ -200,15 +200,17 @@ export class InlineChatController implements IEditorContribution {
 		let widgetPosition: Position;
 		if (initialRender) {
 			widgetPosition = this._editor.getSelection().getEndPosition();
-			this._zone.value.setMargins(widgetPosition);
+			this._zone.value.setContainerMargins();
+			this._zone.value.setWidgetMargins(widgetPosition);
 		} else {
 			assertType(this._activeSession);
 			assertType(this._strategy);
 			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getEndPosition();
 			const needsMargin = this._strategy.needsMargin();
 			if (!needsMargin) {
-				this._zone.value.setMargins(widgetPosition, 0);
+				this._zone.value.setWidgetMargins(widgetPosition, 0);
 			}
+			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 		}
 		this._zone.value.show(widgetPosition);
 	}
