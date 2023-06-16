@@ -99,26 +99,32 @@ function __vsc_cmd_clear --on-event fish_cancel
 end
 
 # Preserve the user's existing prompt, to wrap in our escape sequences.
-function init_vscode_shell_integration
-	functions --copy fish_prompt __vsc_fish_prompt
-	functions --erase init_vscode_shell_integration
+function init_vscode_shell_integration --on-event fish_prompt
+    if functions --query fish_prompt
+        if functions --query __vsc_fish_prompt
+            functions --erase __vsc_fish_prompt
+        end
+        echo "setting __vsc_fish_prompt to actual fish prompt"
+	    functions --copy fish_prompt __vsc_fish_prompt
+	    functions --erase init_vscode_shell_integration
+        _mode_prompt
+    else
+        if functions --query __vsc_fish_prompt
+            functions --erase init_vscode_shell_integration
+            _mode_prompt
+        else
+            echo "setting __vsc_fish_prompt to fallback fish prompt"
+            function __vsc_fish_prompt
+		        echo -n (whoami)@(prompt_hostname) (prompt_pwd) '~> '
+	        end
+        end
+    end
 end
+init_vscode_shell_integration
 
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
-	if type -q init_vscode_shell_integration
-		// TODO: this assumes our og one is set first, maybe add an else case for when that's not true?
-		if functions -q __vsc_fish_prompt_og fish_prompt
-			set func1 (functions -a __vsc_fish_prompt_og)
-			set func2 (functions -a fish_prompt)
-			if test "$func1" != "$func2"
-				// if fish prompt is defined and is not equal to the one we've set, then init the user's one
-				init_vscode_shell_integration
-			end
-		end
-	end
-
 	__vsc_esc P Cwd=(__vsc_escape_value "$PWD")
 
 	# If a command marker exists, remove it.
@@ -149,29 +155,29 @@ end
 # Preserve and wrap fish_mode_prompt (which appears to the left of the regular
 # prompt), but only if it's not defined as an empty function (which is the
 # officially documented way to disable that feature).
-if __vsc_fish_has_mode_prompt
-	functions --copy fish_mode_prompt __vsc_fish_mode_prompt
+function _mode_prompt
+    if __vsc_fish_has_mode_prompt
+	    functions --copy fish_mode_prompt __vsc_fish_mode_prompt
 
-	function fish_mode_prompt
-		__vsc_fish_prompt_start
-		__vsc_fish_mode_prompt
-	end
+	    function fish_mode_prompt
+		    __vsc_fish_prompt_start
+		    __vsc_fish_mode_prompt
+	    end
 
-	function fish_prompt
-		if set -q __vsc_fish_prompt
-			__vsc_fish_prompt
-		end
-		__vsc_fish_cmd_start
-	end
-	functions --copy fish_prompt __vsc_fish_prompt_og
-else
+	    function fish_prompt
+		    __vsc_fish_prompt
+		    __vsc_fish_cmd_start
+	    end
+        set func2 (functions -a fish_prompt)
+        echo "set fish prompt to $func2"
+    else
 	# No fish_mode_prompt, so put everything in fish_prompt.
-	function fish_prompt
-		__vsc_fish_prompt_start
-		if set -q __vsc_fish_prompt
-			__vsc_fish_prompt
-		end
-		__vsc_fish_cmd_start
-	end
-	functions --copy fish_prompt __vsc_fish_prompt_og
+	    function fish_prompt
+		    __vsc_fish_prompt_start
+		    __vsc_fish_prompt
+		    __vsc_fish_cmd_start
+	    end
+	    set func2 (functions -a fish_prompt)
+        echo "set fish prompt to $func2"
+    end
 end
