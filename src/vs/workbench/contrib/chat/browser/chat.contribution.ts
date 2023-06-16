@@ -22,7 +22,7 @@ import { registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/ac
 import { registerChatQuickQuestionActions } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { registerChatTitleActions } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
 import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/actions/chatImportExport';
-import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatContributionService } from 'vs/workbench/contrib/chat/browser/chatContributionServiceImpl';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
@@ -37,6 +37,12 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import '../common/chatColors';
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
+import { AccessibilityViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -119,8 +125,58 @@ class ChatResolverContribution extends Disposable {
 	}
 }
 
+class ChatAccessibileViewContribution extends Disposable {
+	static ID: 'chatAccessibleViewContribution';
+	constructor() {
+		super();
+		this._register(AccessibilityViewAction.addImplementation(100, 'chat', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+			const editorUri = editor?.getModel()?.uri;
+			const widgetService = accessor.get(IChatWidgetService);
+			const widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
+			const focused = widget?.getFocus();
+			if (!widget || !focused) {
+				return false;
+			}
+			function provideContent(): string {
+				if (!widget) {
+					return 'No response data';
+				}
+				const curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
+
+				const currentResponse = curCodeBlockInfo ?
+					curCodeBlockInfo.element :
+					(focused ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
+				if (!currentResponse) {
+					return 'No response data';
+				}
+				// TODO: allow this for requests
+				return isResponseVM(currentResponse) ? currentResponse.response.value : 'No response data';
+			}
+			accessibleViewService.registerProvider({
+				id: 'chat',
+				provideContent,
+				onClose() {
+					widget.reveal(focused, true);
+				},
+				onKeyDown(e: IKeyboardEvent) {
+					if (e.keyCode === KeyCode.Escape) {
+						widget.reveal(focused, true);
+					}
+				},
+				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View") }
+			});
+			accessibleViewService.show('chat');
+			return true;
+		}));
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatResolverContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(ChatAccessibileViewContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 
 registerChatActions();

@@ -79,3 +79,17 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 		}
 	}
 }));
+
+
+export const AccessibilityViewAction = registerCommand(new MultiCommand({
+	id: 'editor.action.accessibilityView',
+	precondition: undefined,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.F2,
+		weight: KeybindingWeight.WorkbenchContrib,
+		linux: {
+			primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+			secondary: [KeyMod.Alt | KeyCode.F1]
+		}
+	}
+}));
