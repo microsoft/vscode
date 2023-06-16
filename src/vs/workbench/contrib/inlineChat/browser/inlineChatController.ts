@@ -196,7 +196,6 @@ export class InlineChatController implements IEditorContribution {
 
 	private _showWidget(initialRender: boolean = false) {
 		assertType(this._editor.hasModel());
-		assertType(this._activeSession);
 
 		let widgetPosition: Position;
 		if (initialRender) {
@@ -204,15 +203,16 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.setContainerMargins();
 			this._zone.value.setWidgetMargins(widgetPosition);
 		} else {
+			assertType(this._activeSession);
 			assertType(this._strategy);
 			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getEndPosition();
 			const needsMargin = this._strategy.needsMargin();
 			if (!needsMargin) {
 				this._zone.value.setWidgetMargins(widgetPosition, 0);
 			}
+			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 		}
 		this._zone.value.show(widgetPosition);
-		this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 	}
 
 	protected async _nextState(state: State, options: InlineChatRunOptions): Promise<void> {
