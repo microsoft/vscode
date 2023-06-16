@@ -57,6 +57,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		readonly remoteAuthority: string | undefined,
 		private readonly _remoteTerminalChannel: RemoteTerminalChannelClient,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -215,7 +216,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			rows,
 			unicodeVersion
 		);
-		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
+		const pty = this._instantiationService.createInstance(RemotePty, result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel);
 		this._ptys.set(result.persistentTerminalId, pty);
 		return pty;
 	}
@@ -227,7 +228,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		try {
 			await this._remoteTerminalChannel.attachToProcess(id);
-			const pty = new RemotePty(id, true, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
+			const pty = this._instantiationService.createInstance(RemotePty, id, true, this._remoteTerminalChannel);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
