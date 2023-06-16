@@ -56,8 +56,6 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	/**
 	 * Gaming and other apps often play a sound variant when the same event happens again
 	 * for an improved experience. This function plays a random sound from the given group to accomplish that.
-	 * @param groupId
-	 * @param allowManyInParallel
 	 */
 	public playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void {
 		const cues = AudioCue.allAudioCues.filter(cue => cue.groupId === groupId);
