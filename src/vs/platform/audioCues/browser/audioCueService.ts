@@ -53,6 +53,10 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 	}
 
+	/**
+	 * Gaming and other apps often play a sound variant when the same event happens again
+	 * for an improved experience. This function plays a random sound from the given group to accomplish that.
+	 */
 	public playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void {
 		const cues = AudioCue.allAudioCues.filter(cue => cue.groupId === groupId);
 		const index = Math.floor(Math.random() * cues.length);
@@ -350,7 +354,7 @@ export class AudioCue {
 		settingsKey: 'audioCues.chatRequestSent'
 	});
 
-	public static readonly chatResponseReceived = {
+	private static readonly chatResponseReceived = {
 		name: localize('audioCues.chatResponseReceived', 'Chat Response Received'),
 		settingsKey: 'audioCues.chatResponseReceived',
 		groupId: AudioCueGroupId.chatResponseReceived
