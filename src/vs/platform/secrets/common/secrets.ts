@@ -5,10 +5,15 @@
 
 import { SequencerByKey } from 'vs/base/common/async';
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Event, PauseableEmitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
+import { isNative } from 'vs/base/common/platform';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { localize } from 'vs/nls';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { once } from 'vs/base/common/functional';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
 
@@ -40,7 +45,9 @@ export class SecretStorageService implements ISecretStorageService {
 	constructor(
 		@IStorageService private _storageService: IStorageService,
 		@IEncryptionService private _encryptionService: IEncryptionService,
-		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		this._storageService.onDidChangeValue(e => this.onDidChangeValue(e.key));
 	}
@@ -89,6 +96,10 @@ export class SecretStorageService implements ISecretStorageService {
 		return this._sequencer.queue(key, async () => {
 			await this.initialized;
 
+			if (isNative && this.type !== 'persisted') {
+				this.notifyNativeUserOnce();
+			}
+
 			const encrypted = await this._encryptionService.encrypt(value);
 			const fullKey = this.getKey(key);
 			try {
@@ -128,5 +139,21 @@ export class SecretStorageService implements ISecretStorageService {
 
 	private getKey(key: string): string {
 		return `${this._storagePrefix}${key}`;
+	}
+
+	private notifyNativeUserOnce = once(() => this.notifyNativeUser());
+	private notifyNativeUser(): void {
+		this._notificationService.prompt(
+			Severity.Warning,
+			localize('notEncrypted', 'Secrets are not being stored on disk because encryption is not available in this environment.'),
+			[{
+				label: localize('openTroubleshooting', "Open Troubleshooting"),
+				run: () => this._instantiationService.invokeFunction(accessor => {
+					const openerService = accessor.get(IOpenerService);
+					// Open troubleshooting docs page
+					return openerService.open('https://go.microsoft.com/fwlink/?linkid=2239490');
+				})
+			}]
+		);
 	}
 }
