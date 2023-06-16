@@ -449,7 +449,6 @@ class ContentHoverData {
 const HORIZONTAL_SCROLLING_BY = 30;
 const SCROLLBAR_WIDTH = 10;
 const SASH_WIDTH_MINUS_BORDER = 3;
-const BORDER_WIDTH = 1;
 
 export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentWidget {
 
@@ -775,19 +774,19 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	private _setPersistedHoverDimensionsOrRenderNormally(): void {
 		const persistedSize = this.findPersistedSize();
 		// Suppose a persisted size is defined
+		let width: number | string;
+		let height: number | string;
 		if (persistedSize) {
-			const width = Math.min(this._findAvailableSpaceHorizontally() ?? Infinity, persistedSize.width - 2 * SASH_WIDTH_MINUS_BORDER);
-			const height = Math.min(this._findAvailableSpaceVertically() ?? Infinity, persistedSize.height - 2 * SASH_WIDTH_MINUS_BORDER);
-			this._setHoverWidgetDimensions(width, height);
+			width = Math.min(this._findAvailableSpaceHorizontally() ?? Infinity, persistedSize.width - 2 * SASH_WIDTH_MINUS_BORDER);
+			height = Math.min(this._findAvailableSpaceVertically() ?? Infinity, persistedSize.height - 2 * SASH_WIDTH_MINUS_BORDER);
 		} else {
 			// Added because otherwise the initial size of the hover content is smaller than should be
 			const layoutInfo = this._editor.getLayoutInfo();
 			this._resizableNode.layout(layoutInfo.height, layoutInfo.width);
-			this._setHoverWidgetDimensions('auto', 'auto');
-			// Added otherwise rendered too small horizontally
-			const containerDomNode = this._hoverWidget.containerDomNode;
-			this._setContainerDomNodeDimensions(containerDomNode.clientWidth + 2 * BORDER_WIDTH, containerDomNode.clientHeight);
+			width = 'auto';
+			height = 'auto';
 		}
+		this._setHoverWidgetDimensions(width, height);
 	}
 
 	private _setContainerAbsolutePosition(top: number, left: number): void {
