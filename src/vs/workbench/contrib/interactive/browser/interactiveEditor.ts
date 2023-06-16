@@ -670,6 +670,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	override focus() {
+		this.#notebookWidget.value?.onShow();
 		this.#codeEditorWidget.focus();
 	}
 
