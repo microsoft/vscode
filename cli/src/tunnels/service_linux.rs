@@ -17,7 +17,7 @@ use crate::{
 	constants::{APPLICATION_NAME, PRODUCT_NAME_LONG},
 	log,
 	state::LauncherPaths,
-	util::errors::{wrap, AnyError},
+	util::errors::{wrap, AnyError, DbusConnectFailedError},
 };
 
 use super::ServiceManager;
@@ -40,7 +40,7 @@ impl SystemdService {
 	async fn connect() -> Result<Connection, AnyError> {
 		let connection = Connection::session()
 			.await
-			.map_err(|e| wrap(e, "Error creating dbus session. This command uses systemd for managing services, you should check that systemd is installed and running as a user. If it's already installed, you may need to:\n\n- Install the `dbus-user-session` package and reboot\n- Start the user dbus session with `systemctl --user enable dbus --now`. \n\nThe error encountered was"))?;
+			.map_err(|e| DbusConnectFailedError(e.to_string()))?;
 		Ok(connection)
 	}
 
@@ -109,6 +109,10 @@ impl ServiceManager for SystemdService {
 			.map_err(|e| wrap(e, "error starting service"))?;
 
 		info!(self.log, "Tunnel service successfully started");
+
+		if std::env::var("SSH_CLIENT").is_ok() || std::env::var("SSH_TTY").is_ok() {
+			info!(self.log, "Tip: run `sudo loginctl enable-linger $USER` to ensure the service stays running after you disconnect.");
+		}
 
 		Ok(())
 	}
