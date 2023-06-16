@@ -125,8 +125,8 @@ export abstract class EditorInput extends AbstractEditorInput {
 		return (this.capabilities & capability) !== 0;
 	}
 
-	getReadonlyMessage(): IMarkdownString | undefined {
-		return undefined;
+	isReadonly(): boolean | IMarkdownString | undefined {
+		return this.hasCapability(EditorInputCapabilities.Readonly);
 	}
 
 	/**

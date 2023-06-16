@@ -104,9 +104,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	isReadonly(): boolean | IMarkdownString {
 		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
 			return this._workingCopy?.isReadonly();
-		} else if (this._filesConfigurationService.isReadonly(this.resource)) {
-			return true;
 		} else {
+			const readonly = this._filesConfigurationService.isReadonly(this.resource);
+			if (readonly) {
+				return readonly;
+			}
 			return false;
 		}
 	}
