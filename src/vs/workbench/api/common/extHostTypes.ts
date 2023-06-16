@@ -17,7 +17,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
@@ -775,7 +775,7 @@ export interface IFileSnippetTextEdit {
 export interface IFileCellEdit {
 	readonly _type: FileEditType.Cell;
 	readonly uri: URI;
-	readonly edit?: ICellPartialMetadataEdit | IDocumentMetadataEdit;
+	readonly edit?: ICellMetadataEdit | IDocumentMetadataEdit;
 	readonly notebookMetadata?: Record<string, any>;
 	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
@@ -832,7 +832,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	private replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
 	}
 
 	// --- text

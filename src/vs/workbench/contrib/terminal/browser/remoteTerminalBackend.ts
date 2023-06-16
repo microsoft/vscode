@@ -10,7 +10,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -28,6 +27,7 @@ import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 export class RemoteTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -60,14 +60,14 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		@ILogService logService: ILogService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStatusbarService statusBarService: IStatusbarService,
 	) {
-		super(_remoteTerminalChannel, logService, notificationService, _historyService, configurationResolverService, workspaceContextService);
+		super(_remoteTerminalChannel, logService, _historyService, configurationResolverService, statusBarService, workspaceContextService);
 
 		this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
 		this._remoteTerminalChannel.onProcessReplay(e => {
@@ -185,15 +185,6 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		const terminalConfig = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 		const configuration: ICompleteTerminalConfiguration = {
-			'terminal.integrated.automationShell.windows': this._configurationService.getValue(TerminalSettingId.AutomationShellWindows) as string,
-			'terminal.integrated.automationShell.osx': this._configurationService.getValue(TerminalSettingId.AutomationShellMacOs) as string,
-			'terminal.integrated.automationShell.linux': this._configurationService.getValue(TerminalSettingId.AutomationShellLinux) as string,
-			'terminal.integrated.shell.windows': this._configurationService.getValue(TerminalSettingId.ShellWindows) as string,
-			'terminal.integrated.shell.osx': this._configurationService.getValue(TerminalSettingId.ShellMacOs) as string,
-			'terminal.integrated.shell.linux': this._configurationService.getValue(TerminalSettingId.ShellLinux) as string,
-			'terminal.integrated.shellArgs.windows': this._configurationService.getValue(TerminalSettingId.ShellArgsWindows) as string | string[],
-			'terminal.integrated.shellArgs.osx': this._configurationService.getValue(TerminalSettingId.ShellArgsMacOs) as string | string[],
-			'terminal.integrated.shellArgs.linux': this._configurationService.getValue(TerminalSettingId.ShellArgsLinux) as string | string[],
 			'terminal.integrated.env.windows': this._configurationService.getValue(TerminalSettingId.EnvWindows) as ITerminalEnvironment,
 			'terminal.integrated.env.osx': this._configurationService.getValue(TerminalSettingId.EnvMacOs) as ITerminalEnvironment,
 			'terminal.integrated.env.linux': this._configurationService.getValue(TerminalSettingId.EnvLinux) as ITerminalEnvironment,

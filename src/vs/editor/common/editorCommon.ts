@@ -104,6 +104,12 @@ export interface IDiffEditorModel {
 	modified: ITextModel;
 }
 
+export interface IDiffEditorViewModel {
+	readonly model: IDiffEditorModel;
+
+	waitForDiff(): Promise<void>;
+}
+
 /**
  * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
  */
@@ -153,7 +159,7 @@ export interface IEditorAction {
 	run(args?: unknown): Promise<void>;
 }
 
-export type IEditorModel = ITextModel | IDiffEditorModel;
+export type IEditorModel = ITextModel | IDiffEditorModel | IDiffEditorViewModel;
 
 /**
  * A (serializable) state of the cursors.

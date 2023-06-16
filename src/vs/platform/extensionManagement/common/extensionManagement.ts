@@ -377,6 +377,7 @@ export interface InstallExtensionResult {
 	readonly operation: InstallOperation;
 	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
+	readonly error?: Error;
 	readonly context?: IStringDictionary<any>;
 	readonly profileLocation?: URI;
 	readonly applicationScoped?: boolean;
@@ -450,6 +451,8 @@ export interface IExtensionManagementParticipant {
 	postUninstall(local: ILocalExtension, options: UninstallOptions, token: CancellationToken): Promise<void>;
 }
 
+export type InstallExtensionInfo = { readonly extension: IGalleryExtension; readonly options: InstallOptions };
+
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
@@ -466,6 +469,7 @@ export interface IExtensionManagementService {
 	install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
+	installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]>;
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
