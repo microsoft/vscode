@@ -396,7 +396,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const slashCommands = this.delegate.getSlashCommands();
 		const usedSlashCommand = slashCommands.find(s => markdown.value.startsWith(`/${s.command} `));
 		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
-		markdown = new MarkdownString(toRender);
+		markdown = new MarkdownString(toRender, {
+			isTrusted: {
+				enabledCommands: ['vscode.open']
+			},
+		});
 
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		const result = this.renderer.render(markdown, {
