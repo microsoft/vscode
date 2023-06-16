@@ -772,13 +772,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		}
 	}
 
-	private _setResizableDomNodeDimensions(width: number, height: number): void {
-		this._resizableNode.layout(height, width);
-		const resizableDomNode = this._resizableNode.domNode;
-		resizableDomNode.style.width = `${width}px`;
-		resizableDomNode.style.height = `${height}px`;
-	}
-
 	private _setPersistedHoverDimensionsOrRenderNormally(): void {
 		const persistedSize = this.findPersistedSize();
 		// Suppose a persisted size is defined
@@ -789,7 +782,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		} else {
 			// Added because otherwise the initial size of the hover content is smaller than should be
 			const layoutInfo = this._editor.getLayoutInfo();
-			this._setResizableDomNodeDimensions(layoutInfo.width, layoutInfo.height);
+			this._resizableNode.layout(layoutInfo.height, layoutInfo.width);
 			this._setHoverWidgetDimensions('auto', 'auto');
 			// Added otherwise rendered too small horizontally
 			const containerDomNode = this._hoverWidget.containerDomNode;
@@ -821,7 +814,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		const containerDomNode = this._hoverWidget.containerDomNode;
 		const clientHeight = containerDomNode.clientHeight;
 		const clientWidth = containerDomNode.clientWidth;
-		this._setResizableDomNodeDimensions(clientWidth + 2 * SASH_WIDTH_MINUS_BORDER, clientHeight + 2 * SASH_WIDTH_MINUS_BORDER);
+		this._resizableNode.layout(clientHeight + 2 * SASH_WIDTH_MINUS_BORDER, clientWidth + 2 * SASH_WIDTH_MINUS_BORDER);
 		this._setContainerAbsolutePosition(SASH_WIDTH_MINUS_BORDER - 1, SASH_WIDTH_MINUS_BORDER - 1);
 		if (this._hasHorizontalScrollbar()) {
 			this._adjustContentsBottomPadding();
