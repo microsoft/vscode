@@ -563,6 +563,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		const width = size.width - 2 * SASH_WIDTH_MINUS_BORDER;
 		const height = size.height - 2 * SASH_WIDTH_MINUS_BORDER;
 		this._setHoverWidgetDimensions(width, height);
+		// measure if has horizontal scorllbar after setting the dimensions
 		if (this._hasHorizontalScrollbar()) {
 			this._adjustContentsBottomPadding();
 			this._setContentsDomNodeDimensions(width, height - SCROLLBAR_WIDTH);
@@ -587,13 +588,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			return;
 		}
 		const position = this._visibleData.showAtPosition;
-		let availableVerticalSpace: number | undefined;
-		if (this._renderingAbove === ContentWidgetPositionPreference.ABOVE) {
-			availableVerticalSpace = this._availableVerticalSpaceAbove(position);
-		} else {
-			availableVerticalSpace = this._availableVerticalSpaceBelow(position);
-		}
-		return availableVerticalSpace;
+		return this._renderingAbove === ContentWidgetPositionPreference.ABOVE ? this._availableVerticalSpaceAbove(position) : this._availableVerticalSpaceBelow(position);
 	}
 
 	private _findAvailableSpaceHorizontally(): number | undefined {
