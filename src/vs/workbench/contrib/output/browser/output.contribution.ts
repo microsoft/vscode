@@ -368,9 +368,24 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					menu: {
 						id: MenuId.CommandPalette,
 					},
+					description: {
+						description: 'workbench.action.openLogFile',
+						args: [{
+							name: 'args',
+							schema: {
+								type: 'object',
+								properties: {
+									logFile: {
+										description: nls.localize('logFile', "The name of the log file to open, for example \"Extension Host\""),
+										type: 'string'
+									}
+								}
+							}
+						}]
+					},
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
+			async run(accessor: ServicesAccessor, args?: unknown): Promise<void> {
 				const outputService = accessor.get(IOutputService);
 				const quickInputService = accessor.get(IQuickInputService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -379,7 +394,14 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				const entries: IOutputChannelQuickPickItem[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
 					.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
 
-				const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") });
+				const argName = args && typeof args === 'object' && 'logFile' in args && typeof args.logFile === 'string' ? args.logFile : undefined;
+				let entry: IOutputChannelQuickPickItem | undefined;
+				if (argName) {
+					entry = entries.find(e => e.label === argName);
+				}
+				if (!entry) {
+					entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log File") });
+				}
 				if (entry) {
 					assertIsDefined(entry.channel.file);
 					await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)), { pinned: true });
