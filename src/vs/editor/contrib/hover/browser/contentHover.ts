@@ -799,13 +799,8 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		const containerDomNode = this._hoverWidget.containerDomNode;
 		const contentsDomNode = this._hoverWidget.contentsDomNode;
 		const maxRenderingHeight = this._findMaximumRenderingHeight() ?? Infinity;
-		let hoverHeight: number = height;
-		const persistedSize = this.findPersistedSize();
-		if (persistedSize) {
-			hoverHeight = persistedSize.height - 2 * SASH_WIDTH_MINUS_BORDER;
-		}
-		this._setContainerDomNodeDimensions(containerDomNode.clientWidth, Math.min(maxRenderingHeight, hoverHeight));
-		this._setContentsDomNodeDimensions(contentsDomNode.clientWidth, Math.min(maxRenderingHeight, hoverHeight - SCROLLBAR_WIDTH));
+		this._setContainerDomNodeDimensions(containerDomNode.clientWidth, Math.min(maxRenderingHeight, height));
+		this._setContentsDomNodeDimensions(contentsDomNode.clientWidth, Math.min(maxRenderingHeight, height - SCROLLBAR_WIDTH));
 	}
 
 	public onContentsChanged(): void {
