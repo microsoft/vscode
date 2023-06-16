@@ -601,9 +601,9 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			return;
 		}
 		let maximumHeight = 3 * SASH_WIDTH_MINUS_BORDER;
-		for (const hoverPart of this._hoverWidget.contentsDomNode.children) {
+		Array.from(this._hoverWidget.contentsDomNode.children).forEach((hoverPart) => {
 			maximumHeight += hoverPart.clientHeight;
-		}
+		});
 		if (this._hasHorizontalScrollbar()) {
 			maximumHeight += SCROLLBAR_WIDTH;
 		}
@@ -615,11 +615,9 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 			return;
 		}
 		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
-		const widthOfEditor = editorBox.width;
-		const leftOfEditor = editorBox.left;
 		const glyphMarginWidth = this._editor.getLayoutInfo().glyphMarginWidth;
 		const leftOfContainer = this._hoverWidget.containerDomNode.offsetLeft;
-		return widthOfEditor + leftOfEditor - leftOfContainer - glyphMarginWidth;
+		return editorBox.width + editorBox.left - leftOfContainer - glyphMarginWidth;
 	}
 
 	public isMouseGettingCloser(posx: number, posy: number): boolean {
@@ -645,18 +643,21 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		return true;
 	}
 
+	private _setWidgetPosition(position: Position | undefined) {
+		this._position = position;
+	}
+
 	private _setVisibleData(visibleData: ContentHoverData | undefined): void {
-		this._position = visibleData?.showAtPosition;
+		this._setWidgetPosition(visibleData?.showAtPosition);
 		this._visibleData?.disposables.dispose();
 		this._visibleData = visibleData;
-		this._hoverVisibleKey.set(!!this._visibleData);
-		this._hoverWidget.containerDomNode.classList.toggle('hidden', !this._visibleData);
+		this._hoverVisibleKey.set(!!visibleData);
+		this._hoverWidget.containerDomNode.classList.toggle('hidden', !visibleData);
 	}
 
 	private _layout(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
-
 		const contentsDomNode = this._hoverWidget.contentsDomNode;
 		contentsDomNode.style.fontSize = `${fontSize}px`;
 		contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
@@ -678,12 +679,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	private _getWidgetHeight(): number {
 		const containerDomNode = this._hoverWidget.containerDomNode;
 		const persistedSize = this.findPersistedSize();
-		if (!persistedSize) {
-			return containerDomNode.clientHeight + 2 * SASH_WIDTH_MINUS_BORDER;
-		}
-		else {
-			return persistedSize.height;
-		}
+		return persistedSize ? persistedSize.height : containerDomNode.clientHeight + 2 * SASH_WIDTH_MINUS_BORDER;
 	}
 
 	private _layoutContentWidget(): void {
