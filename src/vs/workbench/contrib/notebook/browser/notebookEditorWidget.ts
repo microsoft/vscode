@@ -1913,7 +1913,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
-	show() {
+	onShow() {
 		this._isVisible = true;
 	}
 
