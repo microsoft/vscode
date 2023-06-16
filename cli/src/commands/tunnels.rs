@@ -345,6 +345,13 @@ async fn serve_with_csa(
 	log = log.tee(log_broadcast.clone());
 	log::install_global_logger(log.clone()); // re-install so that library logs are captured
 
+	debug!(
+		log,
+		"Starting tunnel with `{} {}`",
+		APPLICATION_NAME,
+		std::env::args().collect::<Vec<_>>().join(" ")
+	);
+
 	// Intentionally read before starting the server. If the server updated and
 	// respawn is requested, the old binary will get renamed, and then
 	// current_exe will point to the wrong path.
@@ -435,7 +442,10 @@ async fn serve_with_csa(
 
 				return Ok(exit.code().unwrap_or(1));
 			}
-			Next::Exit => return Ok(0),
+			Next::Exit => {
+				debug!(log, "Tunnel shut down");
+				return Ok(0);
+			}
 			Next::Restart => continue,
 		}
 	}
