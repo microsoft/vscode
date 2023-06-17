@@ -75,7 +75,6 @@ import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -945,6 +944,18 @@ export class TestResultsView extends ViewPane {
 		return this.content.current;
 	}
 
+	public showLatestRun(preserveFocus = false) {
+		const result = this.resultService.results.find(r => r.tasks.length);
+		if (!result) {
+			return;
+		}
+
+		this.content.reveal({
+			preserveFocus,
+			subject: new TaskSubject(result.id, 0),
+		});
+	}
+
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.content.fillBody(container);
@@ -1517,7 +1528,7 @@ class OutputPeekTree extends Disposable {
 	) {
 		super();
 
-		this.treeActions = instantiationService.createInstance(TreeActionsProvider, options.showRevealLocationOnMessages);
+		this.treeActions = instantiationService.createInstance(TreeActionsProvider, options.showRevealLocationOnMessages, this.requestReveal,);
 		const diffIdentityProvider: IIdentityProvider<TreeElement> = {
 			getId(e: TreeElement) {
 				return e.id;
@@ -1718,9 +1729,7 @@ class OutputPeekTree extends Disposable {
 		}));
 
 		this._register(this.tree.onDidOpen(async e => {
-			if (e.element instanceof TaskElement) {
-				this.requestReveal.fire(new TaskSubject(e.element.results.id, e.element.index));
-			} else if (e.element instanceof TestMessageElement) {
+			if (e.element instanceof TestMessageElement) {
 				this.requestReveal.fire(new MessageSubject(e.element.result.id, e.element.test, e.element.taskIndex, e.element.messageIndex));
 			}
 		}));
@@ -1852,8 +1861,8 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 class TreeActionsProvider {
 	constructor(
 		private readonly showRevealLocationOnMessages: boolean,
+		private readonly requestReveal: Emitter<InspectSubject>,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ITestingOutputTerminalService private readonly testTerminalService: ITestingOutputTerminalService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
@@ -1880,7 +1889,7 @@ class TreeActionsProvider {
 					localize('testing.showResultOutput', "Show Result Output"),
 					ThemeIcon.asClassName(Codicon.terminal),
 					undefined,
-					() => this.testTerminalService.open(element.results, element.index)
+					() => this.requestReveal.fire(new TaskSubject(element.results.id, element.index)),
 				));
 			}
 
@@ -1892,7 +1901,7 @@ class TreeActionsProvider {
 						localize('testing.showResultOutput', "Show Result Output"),
 						ThemeIcon.asClassName(Codicon.terminal),
 						undefined,
-						() => this.testTerminalService.open(element.value, 0)
+						() => this.requestReveal.fire(new TaskSubject(element.value.id, 0)),
 					));
 				}
 
@@ -1968,15 +1977,6 @@ class TreeActionsProvider {
 								preserveFocus: true,
 							}
 						}),
-					));
-				}
-				if (element.marker !== undefined) {
-					primary.push(new Action(
-						'testing.outputPeek.showMessageInTerminal',
-						localize('testing.showMessageInTerminal', "Show Output in Terminal"),
-						ThemeIcon.asClassName(Codicon.terminal),
-						undefined,
-						() => this.testTerminalService.open(element.result, element.taskIndex, element.marker),
 					));
 				}
 			}
