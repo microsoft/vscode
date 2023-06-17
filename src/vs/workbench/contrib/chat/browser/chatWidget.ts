@@ -430,7 +430,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	layout(height: number, width: number): void {
-		width = Math.min(width, 600);
+		width = Math.min(width, 850);
 		this.bodyDimension = new dom.Dimension(width, height);
 
 		const inputPartHeight = this.inputPart.layout(height, width);
