@@ -478,6 +478,39 @@ suite('TerminalLinkParsing', () => {
 			}
 		});
 
+		suite('query strings', () => {
+			for (const os of operatingSystems) {
+				test(`should exclude query strings from link paths ${osLabel[os]}`, () => {
+					deepStrictEqual(
+						detectLinks(`${osTestPath[os]}?a=b`, os),
+						[
+							{
+								path: {
+									index: 0,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+					deepStrictEqual(
+						detectLinks(`${osTestPath[os]}?a=b&c=d`, os),
+						[
+							{
+								path: {
+									index: 0,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+				});
+			}
+		});
+
 		suite('should detect file names in git diffs', () => {
 			test('--- a/foo/bar', () => {
 				deepStrictEqual(

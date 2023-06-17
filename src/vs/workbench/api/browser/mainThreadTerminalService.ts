@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessProperty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
@@ -375,8 +375,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalProcessProxies.get(terminalId)?.emitData(data);
 	}
 
-	public $sendProcessReady(terminalId: number, pid: number, cwd: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitReady(pid, cwd);
+	public $sendProcessReady(terminalId: number, pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void {
+		this._terminalProcessProxies.get(terminalId)?.emitReady(pid, cwd, windowsPty);
 	}
 
 	public $sendProcessProperty(terminalId: number, property: IProcessProperty<any>): void {
@@ -391,7 +391,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const COUNT = 2;
 		let sum = 0;
 		for (let i = 0; i < COUNT; i++) {
-			const sw = StopWatch.create(true);
+			const sw = StopWatch.create();
 			await this._proxy.$acceptProcessRequestLatency(terminalId);
 			sw.stop();
 			sum += sw.elapsed();

@@ -16,7 +16,8 @@ import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/co
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -98,7 +99,8 @@ export interface IInlineChatService {
 	getAllProvider(): Iterable<IInlineChatSessionProvider>;
 }
 
-export const INLINE_CHAT_ID = 'interactiveEDitor';
+export const INLINE_CHAT_ID = 'interactiveEditor';
+export const INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID = 'interactiveEditorAccessiblityHelp';
 
 export const CTX_INLINE_CHAT_HAS_PROVIDER = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_VISIBLE = new RawContextKey<boolean>('inlineChatVisible', false, localize('inlineChatVisible', "Whether the interactive editor input is visible"));
@@ -120,6 +122,7 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 // --- (select) action identifier
 
 export const ACTION_ACCEPT_CHANGES = 'interactive.acceptChanges';
+export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 
 // --- menus
 
@@ -131,6 +134,8 @@ export const MENU_INLINE_CHAT_WIDGET_DISCARD = MenuId.for('inlineChatWidget.undo
 
 // --- colors
 
+
+export const inlineChatBackground = registerColor('inlineChat.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground }, localize('inlineChat.background', "Background color of the interactive editor widget"));
 export const inlineChatBorder = registerColor('inlineChat.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hcDark: editorWidgetBorder, hcLight: editorWidgetBorder }, localize('inlineChat.border', "Border color of the interactive editor widget"));
 export const inlineChatShadow = registerColor('inlineChat.shadow', { dark: widgetShadow, light: widgetShadow, hcDark: widgetShadow, hcLight: widgetShadow }, localize('inlineChat.shadow', "Shadow color of the interactive editor widget"));
 export const inlineChatRegionHighlight = registerColor('inlineChat.regionHighlight', { dark: editorHoverHighlight, light: editorHoverHighlight, hcDark: editorHoverHighlight, hcLight: editorHoverHighlight }, localize('inlineChat.regionHighlight', "Background highlighting of the current interactive region. Must be transparent."), true);
@@ -150,18 +155,26 @@ export const enum EditMode {
 	Preview = 'preview'
 }
 
+Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
+	[{
+		key: 'interactiveEditor.editMode', migrateFn: (value: any) => {
+			return [['inlineChat.mode', { value: value }]];
+		}
+	}]
+);
+
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'editor',
 	properties: {
-		'interactiveEditor.editMode': {
-			description: localize('editMode', "Configure if changes crafted in the interactive editor are applied directly to the document or are previewed first."),
+		'inlineChat.mode': {
+			description: localize('mode', "Configure if changes crafted in the interactive editor are applied directly to the document or are previewed first."),
 			default: EditMode.LivePreview,
 			type: 'string',
 			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live],
 			markdownEnumDescriptions: [
-				localize('editMode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
-				localize('editMode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
-				localize('editMode.live', "Changes are applied directly to the document but can be highlighted via inline diffs. Ending a session will keep the changes."),
+				localize('mode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
+				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
+				localize('mode.live', "Changes are applied directly to the document but can be highlighted via inline diffs. Ending a session will keep the changes."),
 			]
 		}
 	}

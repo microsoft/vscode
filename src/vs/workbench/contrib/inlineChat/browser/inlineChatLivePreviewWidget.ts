@@ -31,18 +31,22 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
+import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 	private static readonly _hideId = 'overlayDiff';
 
-	private readonly _elements = h('div.interactive-editor-diff-widget@domNode');
+	private readonly _elements = h('div.inline-chat-diff-widget@domNode');
 
 	private readonly _sessionStore = this._disposables.add(new DisposableStore());
 	private readonly _diffEditor: IDiffEditor;
 	private readonly _inlineDiffDecorations: IEditorDecorationsCollection;
 	private _dim: Dimension | undefined;
 	private _isVisible: boolean = false;
+	private _isDiffLocked: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -59,7 +63,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 		const diffContributions = EditorExtensionsRegistry
 			.getEditorContributions()
-			.filter(c => c.id !== INLINE_CHAT_ID);
+			.filter(c => c.id !== INLINE_CHAT_ID && c.id !== FoldingController.ID);
 
 		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
 			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
@@ -82,8 +86,17 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			originalEditor: { contributions: diffContributions },
 			modifiedEditor: { contributions: diffContributions }
 		}, editor);
+
 		this._disposables.add(this._diffEditor);
 		this._diffEditor.setModel({ original: this._session.textModel0, modified: editor.getModel() });
+		this._diffEditor.updateOptions({
+			lineDecorationsWidth: editor.getLayoutInfo().decorationsWidth
+		});
+
+		const highlighter = WordHighlighterContribution.get(editor);
+		if (highlighter) {
+			this._disposables.add(highlighter.linkWordHighlighters(this._diffEditor.getModifiedEditor()));
+		}
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
@@ -133,6 +146,8 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	override show(): void {
 		assertType(this.editor.hasModel());
 		this._sessionStore.clear();
+		this._isDiffLocked = false;
+		this._isVisible = true;
 
 		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
 			const result = this._diffEditor.getDiffComputationResult();
@@ -147,11 +162,18 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			}
 		}));
 		this._updateFromChanges(this._session.wholeRange.value, this._session.lastTextModelChanges);
-		this._isVisible = true;
+	}
+
+	lockToDiff(): void {
+		this._isDiffLocked = true;
 	}
 
 	private _updateFromChanges(range: Range, changes: readonly LineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
+
+		if (this._isDiffLocked) {
+			return;
+		}
 
 		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
 			// no change or changes to an empty file
@@ -191,7 +213,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 				};
 
 				if (!modifiedRange.isEmpty()) {
-					options.className = 'interactive-editor-lines-inserted-range';
+					options.className = 'inline-chat-lines-inserted-range';
 				}
 
 				if (!originalRange.isEmpty()) {
@@ -201,7 +223,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 					}
 					options.before = {
 						content,
-						inlineClassName: 'interactive-editor-lines-deleted-range-inline'
+						inlineClassName: 'inline-chat-lines-deleted-range-inline'
 					};
 				}
 
@@ -336,7 +358,7 @@ function isInlineDiffFriendly(mapping: LineRangeMapping): boolean {
 
 export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 
-	private readonly _elements = h('div.interactive-editor-newfile-widget@domNode', [
+	private readonly _elements = h('div.inline-chat-newfile-widget@domNode', [
 		h('div.title.show-file-icons@title'),
 		h('div.editor@editor'),
 	]);
@@ -349,6 +371,7 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 	constructor(
 		parentEditor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@IThemeService themeService: IThemeService,
 
@@ -357,13 +380,18 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 		super.create();
 
 		this._title = instaService.createInstance(ResourceLabel, this._elements.title, { supportIcons: true });
+
+		const contributions = EditorExtensionsRegistry
+			.getEditorContributions()
+			.filter(c => c.id !== INLINE_CHAT_ID);
+
 		this._previewEditor = instaService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, {
 			scrollBeyondLastLine: false,
 			stickyScroll: { enabled: false },
 			readOnly: true,
 			minimap: { enabled: false },
-			scrollbar: { alwaysConsumeMouseWheel: false },
-		}, { isSimpleWidget: true, contributions: [] }, parentEditor);
+			scrollbar: { alwaysConsumeMouseWheel: false, useShadows: true },
+		}, { isSimpleWidget: true, contributions }, parentEditor);
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
@@ -401,8 +429,8 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 	showCreation(where: Range, uri: URI, edits: TextEdit[]): void {
 
 		this._title.element.setFile(uri, { fileKind: FileKind.FILE });
-
-		const model = this._modelService.createModel('', null, undefined, true);
+		const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
+		const model = this._modelService.createModel('', langSelection, undefined, true);
 		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		this._previewModel.value = model;
 		this._previewEditor.setModel(model);

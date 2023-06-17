@@ -528,7 +528,7 @@ export class Thread implements IThread {
 		const firstAvailableStackFrame = callStack.find(sf => !!(sf &&
 			((this.stoppedDetails?.reason === 'instruction breakpoint' || (this.stoppedDetails?.reason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
 			(sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize')));
-		return firstAvailableStackFrame || (callStack.length > 0 ? callStack[0] : undefined);
+		return firstAvailableStackFrame;
 	}
 
 	get stateLabel(): string {

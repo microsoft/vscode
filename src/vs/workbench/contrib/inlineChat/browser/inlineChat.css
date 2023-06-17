@@ -3,36 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .zone-widget.interactive-editor-widget {
+.monaco-editor .zone-widget.inline-chat-widget {
 	z-index: 3;
 }
 
-.monaco-editor .interactive-editor {
+.monaco-editor .zone-widget-container.inside-selection {
+	background-color: var(--vscode-inlineChat-regionHighlight);
+}
+
+.monaco-editor .inline-chat {
 	color: inherit;
 	padding: 6px;
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
+	background: var(--vscode-inlineChat-background);
 }
 
 /* body */
 
-.monaco-editor .interactive-editor .body {
+.monaco-editor .inline-chat .body {
 	display: flex;
 }
 
-.monaco-editor .interactive-editor .body .content {
+.monaco-editor .inline-chat .body .content {
 	display: flex;
 	box-sizing: border-box;
 	border-radius: 2px;
 	border: 1px solid var(--vscode-inlineChatInput-border);
 }
 
-.monaco-editor .interactive-editor .body .content.synthetic-focus {
+.monaco-editor .inline-chat .body .content.synthetic-focus {
 	outline: 1px solid var(--vscode-inlineChatInput-focusBorder);
 }
 
-.monaco-editor .interactive-editor .body .content .input {
+.monaco-editor .inline-chat .body .content .input {
 	padding: 2px 2px 2px 4px;
 	border-top-left-radius: 2px;
 	border-bottom-left-radius: 2px;
@@ -40,11 +45,11 @@
 	cursor: text;
 }
 
-.monaco-editor .interactive-editor .body .content .input .monaco-editor-background {
+.monaco-editor .inline-chat .body .content .input .monaco-editor-background {
 	background-color: var(--vscode-inlineChatInput-background);
 }
 
-.monaco-editor .interactive-editor .body .content .input .editor-placeholder {
+.monaco-editor .inline-chat .body .content .input .editor-placeholder {
 	position: absolute;
 	z-index: 1;
 	padding: 3px 0 0 0;
@@ -54,14 +59,14 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-editor .interactive-editor .body .content .input .editor-placeholder.hidden {
+.monaco-editor .inline-chat .body .content .input .editor-placeholder.hidden {
 	display: none;
 }
 
-.monaco-editor .interactive-editor .body .content .input .editor-container {
+.monaco-editor .inline-chat .body .content .input .editor-container {
 	vertical-align: middle;
 }
-.monaco-editor .interactive-editor .body .toolbar {
+.monaco-editor .inline-chat .body .toolbar {
 	display: flex;
 	flex-direction: column;
 	align-self: stretch;
@@ -71,7 +76,7 @@
 	background: var(--vscode-inlineChatInput-background);
 }
 
-.monaco-editor .interactive-editor .body .toolbar .actions-container {
+.monaco-editor .inline-chat .body .toolbar .actions-container {
 	display: flex;
 	flex-direction: row;
 	gap: 4px;
@@ -79,35 +84,35 @@
 
 /* progress bit */
 
-.monaco-editor .interactive-editor .progress {
+.monaco-editor .inline-chat .progress {
 	position: relative;
 	width: calc(100% - 18px);
 	left: 19px;
 }
 
 /* UGLY - fighting against workbench styles */
-.monaco-workbench .part.editor>.content .monaco-editor .interactive-editor .progress .monaco-progress-container {
+.monaco-workbench .part.editor>.content .monaco-editor .inline-chat .progress .monaco-progress-container {
 	top: 0;
 }
 
 /* status */
 
-.monaco-editor .interactive-editor .status {
+.monaco-editor .inline-chat .status {
 	margin-top: 3px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 }
 
-.monaco-editor .interactive-editor .status.actions {
+.monaco-editor .inline-chat .status.actions {
 	margin-top: 6px;
 }
 
-.monaco-editor .interactive-editor .status .actions.hidden {
+.monaco-editor .inline-chat .status .actions.hidden {
 	display: none;
 }
 
-.monaco-editor .interactive-editor .status .label {
+.monaco-editor .inline-chat .status .label {
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
@@ -115,40 +120,41 @@
 	display: flex;
 }
 
-.monaco-editor .interactive-editor .status .label.hidden {
+.monaco-editor .inline-chat .status .label.hidden {
 	display: none;
 }
 
-.monaco-editor .interactive-editor .status .label.info {
+.monaco-editor .inline-chat .status .label.info {
 	margin-right: auto;
 	padding-left: 2px;
 }
 
-.monaco-editor .interactive-editor .status .label.info > .codicon {
+.monaco-editor .inline-chat .status .label.info > .codicon {
 	padding: 0 5px;
 	font-size: 12px;
 	line-height: 18px;
 }
 
-.monaco-editor .interactive-editor .status .label.status {
+.monaco-editor .inline-chat .status .label.status {
 	padding-left: 10px;
 	padding-right: 4px;
 	margin-left: auto;
+	align-self: center;
 }
 
-.monaco-editor .interactive-editor .markdownMessage {
+.monaco-editor .inline-chat .markdownMessage {
 	padding-top: 10px;
 }
 
-.monaco-editor .interactive-editor .markdownMessage.hidden {
+.monaco-editor .inline-chat .markdownMessage.hidden {
 	display: none;
 }
 
-.monaco-editor .interactive-editor .markdownMessage .message * {
+.monaco-editor .inline-chat .markdownMessage .message * {
 	margin: unset;
 }
 
-.monaco-editor .interactive-editor .markdownMessage .message {
+.monaco-editor .inline-chat .markdownMessage .message {
 	margin-left: 5px;
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
@@ -158,61 +164,81 @@
 	user-select: text;
 }
 
-.monaco-editor .interactive-editor .markdownMessage .message[state="cropped"] {
-	-webkit-line-clamp: var(--vscode-interactive-editor-cropped, 3);
+.monaco-editor .inline-chat .markdownMessage .message[state="cropped"] {
+	-webkit-line-clamp: var(--vscode-inline-chat-cropped, 3);
 }
 
-.monaco-editor .interactive-editor .markdownMessage .message[state="expanded"] {
-	-webkit-line-clamp: var(--vscode-interactive-editor-expanded, 10);
+.monaco-editor .inline-chat .markdownMessage .message[state="expanded"] {
+	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
 }
 
-.monaco-editor .interactive-editor .markdownMessage .messageActions {
+.monaco-editor .inline-chat .markdownMessage .messageActions {
 	direction: rtl;
 }
 
-.monaco-editor .interactive-editor .status .label A {
+.monaco-editor .inline-chat .status .label A {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 }
 
-.monaco-editor .interactive-editor .status .label.error {
+.monaco-editor .inline-chat .status .label.error {
 	color: var(--vscode-errorForeground);
 }
 
-.monaco-editor .interactive-editor .status .label.warn {
+.monaco-editor .inline-chat .status .label.warn {
 	color: var(--vscode-editorWarning-foreground);
 }
 
-.monaco-editor .interactive-editor .status .monaco-toolbar .action-item {
+.monaco-editor .inline-chat .status .actions  {
+	display: flex;
+}
+
+.monaco-editor .inline-chat .status .actions > .monaco-button,
+.monaco-editor .inline-chat .status .actions > .monaco-button-dropdown {
+	margin-right: 6px;
+}
+
+.monaco-editor .inline-chat .status .actions > .monaco-button-dropdown > .monaco-dropdown-button {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
+.monaco-editor .inline-chat .status .actions > .monaco-button.codicon {
+	display: flex;
+}
+
+.monaco-editor .inline-chat .status .actions > .monaco-button.codicon::before {
+	align-self: center;
+}
+
+.monaco-editor .inline-chat .status .actions .monaco-text-button {
+	padding: 2px 4px
+}
+
+.monaco-editor .inline-chat .status .monaco-toolbar .action-item {
 	padding: 0 2px;
 }
 
-.monaco-editor .interactive-editor .status .monaco-toolbar .action-label.checked {
+/* TODO@jrieken not needed? */
+.monaco-editor .inline-chat .status .monaco-toolbar .action-label.checked {
 	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
 	outline: 1px solid var(--vscode-inputOption-activeBorder);
 }
 
-.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.button-item .action-label {
-	color: var(--vscode-button-foreground);
-	background-color: var(--vscode-button-background);
-	border-radius: 2px;
-	padding: 4px 6px;
-	line-height: 18px;
-}
 
-.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.button-item .action-label>.codicon {
-	color: unset;
-	font-size: 14px;
+.monaco-editor .inline-chat .status .monaco-toolbar .action-item.button-item .action-label:is(:hover, :focus) {
+	background-color: var(--vscode-button-hoverBackground);
 }
 
 /* preview */
 
-.monaco-editor .interactive-editor .preview {
+.monaco-editor .inline-chat .preview {
 	display: none;
 }
 
-.monaco-editor .interactive-editor .previewDiff {
+.monaco-editor .inline-chat .previewDiff {
 	display: inherit;
 	padding: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
@@ -222,11 +248,11 @@
 	margin: 0 2px 6px 2px;
 }
 
-.monaco-editor .interactive-editor .previewCreateTitle {
+.monaco-editor .inline-chat .previewCreateTitle {
 	padding-top: 6px;
 }
 
-.monaco-editor .interactive-editor .previewCreate {
+.monaco-editor .inline-chat .previewCreate {
 	display: inherit;
 	padding: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
@@ -234,53 +260,53 @@
 	margin: 0 2px 6px 2px;
 }
 
-.monaco-editor .interactive-editor .previewDiff.hidden,
-.monaco-editor .interactive-editor .previewCreate.hidden,
-.monaco-editor .interactive-editor .previewCreateTitle.hidden {
+.monaco-editor .inline-chat .previewDiff.hidden,
+.monaco-editor .inline-chat .previewCreate.hidden,
+.monaco-editor .inline-chat .previewCreateTitle.hidden {
 	display: none;
 }
 
 /* decoration styles */
 
-.monaco-editor .interactive-editor-lines-deleted-range-inline {
+.monaco-editor .inline-chat-lines-deleted-range-inline {
 	text-decoration: line-through;
 	background-color: var(--vscode-diffEditor-removedTextBackground);
 	opacity: 0.6;
 }
-.monaco-editor .interactive-editor-lines-inserted-range {
+.monaco-editor .inline-chat-lines-inserted-range {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
 
-.monaco-editor .interactive-editor-block-selection {
+.monaco-editor .inline-chat-block-selection {
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
-.monaco-editor .interactive-editor-slash-command {
+.monaco-editor .inline-chat-slash-command {
 	color: var(--vscode-textLink-foreground)
 }
 
-.monaco-editor .interactive-editor-slash-command-detail {
+.monaco-editor .inline-chat-slash-command-detail {
 	opacity: 0.5;
 }
 
 /* diff zone */
 
-.monaco-editor .interactive-editor-diff-widget {
+.monaco-editor .inline-chat-diff-widget {
 	padding: 6px 0;
 }
 
-.monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor-background,
-.monaco-editor .interactive-editor-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
+.monaco-editor .inline-chat-diff-widget .monaco-diff-editor .monaco-editor-background,
+.monaco-editor .inline-chat-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
 /* create zone */
 
-.monaco-editor .interactive-editor-newfile-widget {
+.monaco-editor .inline-chat-newfile-widget {
 	padding: 3px 0 6px 0;
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
-.monaco-editor .interactive-editor-newfile-widget .title {
+.monaco-editor .inline-chat-newfile-widget .title {
 	padding: 3px 0;
 }

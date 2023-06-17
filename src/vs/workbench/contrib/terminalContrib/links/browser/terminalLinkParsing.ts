@@ -293,7 +293,7 @@ enum RegexPathConstants {
 	PathSeparatorClause = '\\/',
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
-	ExcludedPathCharactersClause = '[^\\0<>\\s!`&*()\'":;\\\\]',
+	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\]',
 	ExcludedStartPathCharactersClause = '[^\\0<>\\s!`&*()\\[\\]\'":;\\\\]',
 
 	WinOtherPathPrefix = '\\.\\.?|\\~',

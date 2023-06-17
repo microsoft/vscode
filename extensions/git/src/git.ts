@@ -73,7 +73,7 @@ function findSpecificGit(path: string, onValidate: (path: string) => boolean): P
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
 		child.on('error', cpErrorHandler(e));
-		child.on('exit', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
+		child.on('close', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
 	});
 }
 
@@ -129,9 +129,9 @@ function findSystemGitWin32(base: string, onValidate: (path: string) => boolean)
 	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onValidate);
 }
 
-function findGitWin32InPath(onValidate: (path: string) => boolean): Promise<IGit> {
-	const whichPromise = new Promise<string>((c, e) => which('git.exe', (err, path) => err ? e(err) : c(path)));
-	return whichPromise.then(path => findSpecificGit(path, onValidate));
+async function findGitWin32InPath(onValidate: (path: string) => boolean): Promise<IGit> {
+	const path = await which('git.exe');
+	return findSpecificGit(path, onValidate);
 }
 
 function findGitWin32(onValidate: (path: string) => boolean): Promise<IGit> {
@@ -2021,7 +2021,7 @@ export class Repository {
 		}
 
 		// --find-renames option is only available starting with git 2.18.0
-		if (opts?.similarityThreshold && this._git.compareGitVersionTo('2.18.0') !== -1) {
+		if (opts?.similarityThreshold && opts.similarityThreshold !== 50 && this._git.compareGitVersionTo('2.18.0') !== -1) {
 			args.push(`--find-renames=${opts.similarityThreshold}%`);
 		}
 

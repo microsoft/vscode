@@ -1110,10 +1110,13 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			primaryActions.push(toAction({
 				id: 'fileWorkingCopy.saveAs',
 				label: localize('saveAs', "Save As..."),
-				run: () => {
+				run: async () => {
 					const editor = this.workingCopyEditorService.findEditor(this);
 					if (editor) {
-						this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						const result = await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						if (!result.success) {
+							this.doHandleSaveError(error); // show error again given the operation failed
+						}
 					}
 				}
 			}));

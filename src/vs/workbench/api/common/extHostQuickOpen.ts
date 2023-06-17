@@ -86,6 +86,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				}
 
 				const allowedTooltips = isProposedApiEnabled(extension, 'quickPickItemTooltip');
+				const allowedIcons = isProposedApiEnabled(extension, 'quickPickItemIcon');
 
 				return itemsPromise.then(items => {
 
@@ -100,8 +101,14 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 							if (item.tooltip && !allowedTooltips) {
 								console.warn(`Extension '${extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 							}
+							if (item.iconPath && !allowedIcons) {
+								console.warn(`Extension '${extension.identifier.value}' uses an icon which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+							}
+							const icon = (item.iconPath && allowedIcons) ? getIconPathOrClass(item.iconPath) : undefined;
 							pickItems.push({
 								label: item.label,
+								iconPath: icon?.iconPath,
+								iconClass: icon?.iconClass,
 								description: item.description,
 								detail: item.detail,
 								picked: item.picked,
@@ -390,7 +397,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this.update({
 				buttons: buttons.map<TransferQuickInputButton>((button, i) => {
 					return {
-						...getIconPathOrClass(button),
+						...getIconPathOrClass(button.iconPath),
 						tooltip: button.tooltip,
 						handle: button === QuickInputButtons.Back ? -1 : i,
 					};
@@ -510,8 +517,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
 	}
 
-	function getIconPathOrClass(button: QuickInputButton) {
-		const iconPathOrIconClass = getIconUris(button.iconPath);
+	function getIconPathOrClass(icon: QuickInputButton['iconPath']) {
+		const iconPathOrIconClass = getIconUris(icon);
 		let iconPath: { dark: URI; light?: URI | undefined } | undefined;
 		let iconClass: string | undefined;
 		if ('id' in iconPathOrIconClass) {
@@ -566,6 +573,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			});
 
 			const allowedTooltips = isProposedApiEnabled(this.extension, 'quickPickItemTooltip');
+			const allowedIcons = isProposedApiEnabled(this.extension, 'quickPickItemIcon');
+
 			const pickItems: TransferQuickPickItemOrSeparator[] = [];
 			for (let handle = 0; handle < items.length; handle++) {
 				const item = items[handle];
@@ -575,9 +584,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 					if (item.tooltip && !allowedTooltips) {
 						console.warn(`Extension '${this.extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this.extension.identifier.value}`);
 					}
+					if (item.iconPath && !allowedIcons) {
+						console.warn(`Extension '${this.extension.identifier.value}' uses an icon which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this.extension.identifier.value}`);
+					}
+					const icon = (item.iconPath && allowedIcons) ? getIconPathOrClass(item.iconPath) : undefined;
 					pickItems.push({
 						handle,
 						label: item.label,
+						iconPath: icon?.iconPath,
+						iconClass: icon?.iconClass,
 						description: item.description,
 						detail: item.detail,
 						picked: item.picked,
@@ -585,7 +600,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						tooltip: allowedTooltips ? MarkdownString.fromStrict(item.tooltip) : undefined,
 						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
 							return {
-								...getIconPathOrClass(button),
+								...getIconPathOrClass(button.iconPath),
 								tooltip: button.tooltip,
 								handle: i
 							};
