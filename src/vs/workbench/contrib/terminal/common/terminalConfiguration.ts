@@ -503,16 +503,13 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.LocalEchoStyle]: {
 			description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
 			default: 'dim',
-			oneOf: [
+			anyOf: [
 				{
-					type: 'string',
-					default: 'dim',
-					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted'],
+					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted', '#ff0000'],
 				},
 				{
 					type: 'string',
 					format: 'color-hex',
-					default: '#ff0000',
 				}
 			]
 		},
