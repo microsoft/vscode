@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.80.0",
-  "distro": "94a4bd29af2fe03e39c7867fdca1b2e27fed3a39",
+  "distro": "cbc1aeab0c196a6c6314cf4df21228d9016c70d1",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -132,7 +132,7 @@
     "@typescript-eslint/eslint-plugin": "^5.57.0",
     "@typescript-eslint/experimental-utils": "^5.57.0",
     "@typescript-eslint/parser": "^5.57.0",
-    "@vscode/gulp-electron": "^1.34.0",
+    "@vscode/gulp-electron": "^1.35.0",
     "@vscode/l10n-dev": "0.0.21",
     "@vscode/telemetry-extractor": "^1.9.9",
     "@vscode/test-web": "^0.0.41",
@@ -147,7 +147,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "22.3.10",
+    "electron": "22.3.11",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^39.3.2",

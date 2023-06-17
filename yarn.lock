@@ -1240,10 +1240,10 @@
   resolved "https://registry.yarnpkg.com/@ungap/promise-all-settled/-/promise-all-settled-1.1.2.tgz#aa58042711d6e3275dd37dc597e5d31e8c290a44"
   integrity sha512-sL/cEvJWAnClXw0wHk85/2L0G6Sj8UB0Ctc1TEMbKSsmpRosqhwj9gWgFRZSrBr2f9tiXISwNhCPmlfqUqyb9Q==
 
-"@vscode/gulp-electron@^1.34.0":
-  version "1.34.0"
-  resolved "https://registry.yarnpkg.com/@vscode/gulp-electron/-/gulp-electron-1.34.0.tgz#59e00502e0a9703d1a0b7184dbd98ffe5125d2f4"
-  integrity sha512-zqLmueXYIqwgv0QhDdiDJOQYBYlCKE6Vu9KovMJ1ONZDrgb2CxUdaqxJRnROY18n6XO9RmNWodnplvSWkM+RVQ==
+"@vscode/gulp-electron@^1.35.0":
+  version "1.35.0"
+  resolved "https://registry.yarnpkg.com/@vscode/gulp-electron/-/gulp-electron-1.35.0.tgz#b66aa307b1edefb0b37988faf29b82ab9974c466"
+  integrity sha512-FjRdAlfJBflFs28RYBaJ3gK/LHFZ4T34nP/FnKZrwNjWq5ojDC9WiwOMDHaG7wP7AKBcxh267Gz2epghMeO1ng==
   dependencies:
     "@electron/get" "^2.0.2"
     "@octokit/rest" "^18.0.14"
@@ -3526,10 +3526,10 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@22.3.10:
-  version "22.3.10"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.10.tgz#bf2b98fbb452f41b057ffcd4e57678e363f9735c"
-  integrity sha512-gh7PtSh+rfxHfM4dzPiEO+k1NRo07FvaK/jXG3HzuODrpTTEhC9rsE+AJGrTKQU6Nz7GorseMvnvs8PnUQPPTw==
+electron@22.3.11:
+  version "22.3.11"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.11.tgz#db68c3f820eab9868ccf65bd4604c2805c4c93b9"
+  integrity sha512-4PW1rJRUckJUCxTXRJkzJ7qlGTZ8Qfwoke5aFlaGccmn/zViuE9iSCg9zqIx00rzsbF9R5j8j9V4tAqyqjjJRA==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^16.11.26"
