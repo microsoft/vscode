@@ -42,7 +42,6 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -134,7 +133,6 @@ class ChatAccessibileViewContribution extends Disposable {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 			const widgetService = accessor.get(IChatWidgetService);
-			const commandService = accessor.get(ICommandService);
 			const editorUri = editor?.getModel()?.uri;
 			const widget: IChatWidget | undefined = widgetService.lastFocusedWidget;
 			const focused = widget?.getFocus();
@@ -160,8 +158,7 @@ class ChatAccessibileViewContribution extends Disposable {
 				id: 'chat',
 				provideContent,
 				onClose() {
-					widget.reveal(focused);
-					commandService.executeCommand('chat.action.focus');
+					widget.reveal(focused, true);
 				},
 				onKeyDown(e: IKeyboardEvent) {
 
