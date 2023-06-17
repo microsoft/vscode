@@ -1,5 +1,10 @@
 [
   {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$milestone=milestone:\"June 2023\""
+  },
+  {
     "kind": 1,
     "language": "markdown",
     "value": "# vscode.dev repo"
@@ -7,7 +12,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-dev milestone:\"May 2022\" is:open"
+    "value": "repo:microsoft/vscode-dev $milestone is:open"
   },
   {
     "kind": 2,
@@ -32,11 +37,11 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-remote-repositories-github milestone:\"May 2022\" is:open"
+    "value": "repo:microsoft/vscode-remote-repositories-github $milestone is:open"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-remotehub milestone:\"May 2022\" is:open"
+    "value": "repo:microsoft/vscode-remotehub $milestone is:open"
   }
 ]

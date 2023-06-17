@@ -85,7 +85,7 @@ export interface ExtensionsListViewOptions {
 }
 
 interface IQueryResult {
-	readonly model: IPagedModel<IExtension>;
+	model: IPagedModel<IExtension>;
 	readonly onDidChangeModel?: Event<IPagedModel<IExtension>>;
 	readonly disposables: DisposableStore;
 }
@@ -264,7 +264,12 @@ export class ExtensionsListView extends ViewPane {
 				const model = this.queryResult.model;
 				this.setModel(model);
 				if (this.queryResult.onDidChangeModel) {
-					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => this.updateModel(model)));
+					this.queryResult.disposables.add(this.queryResult.onDidChangeModel(model => {
+						if (this.queryResult) {
+							this.queryResult.model = model;
+							this.updateModel(model);
+						}
+					}));
 				}
 				return model;
 			} catch (e) {
@@ -1442,7 +1447,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 	async installWorkspaceRecommendations(): Promise<void> {
 		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
 		if (installableRecommendations.length) {
-			await this.extensionManagementService.installExtensions(installableRecommendations.map(i => i.gallery!));
+			await this.extensionManagementService.installGalleryExtensions(installableRecommendations.map(i => ({ extension: i.gallery!, options: {} })));
 		} else {
 			this.notificationService.notify({
 				severity: Severity.Info,

@@ -5,9 +5,11 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorAction2, EditorContributionInstantiation, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -15,6 +17,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
@@ -95,23 +98,20 @@ export function registerChatActions() {
 		}
 	});
 
-	registerEditorAction(class AccessibilityHelpChatAction extends EditorAction {
+	class ChatAccessibilityHelpContribution extends Disposable {
+		static ID: 'chatAccessibilityHelpContribution';
 		constructor() {
-			super({
-				id: 'chat.action.accessibilityHelp',
-				label: localize('chat.action.accessibiltyHelp', "Chat View Accessibility Help"),
-				alias: 'Chat View Accessibility Help',
-				precondition: CONTEXT_IN_CHAT_INPUT,
-				kbOpts: {
-					primary: KeyMod.Alt | KeyCode.F1,
-					weight: KeybindingWeight.EditorContrib + 10
+			super();
+			this._register(AccessibilityHelpAction.addImplementation(105, 'chat', async accessor => {
+				const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
+				if (!codeEditor) {
+					return;
 				}
-			});
+				runAccessibilityHelpAction(accessor, codeEditor, 'chat');
+			}, CONTEXT_IN_CHAT_INPUT));
 		}
-		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-			runAccessibilityHelpAction(accessor, editor, 'chat');
-		}
-	});
+	}
+	registerEditorContribution(ChatAccessibilityHelpContribution.ID, ChatAccessibilityHelpContribution, EditorContributionInstantiation.AfterFirstRender);
 
 	registerAction2(class FocusChatInputAction extends Action2 {
 		constructor() {

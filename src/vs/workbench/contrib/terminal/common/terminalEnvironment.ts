@@ -13,8 +13,8 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IProcessEnvironment, isWindows, language, OperatingSystem, platform, Platform } from 'vs/base/common/platform';
+import { IShellLaunchConfig, ITerminalEnvironment, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessEnvironment, isWindows, language, OperatingSystem } from 'vs/base/common/platform';
 import { escapeNonWindowsPath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 import { isString, withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -232,21 +232,6 @@ async function _resolveCwd(cwd: string, variableResolver: VariableResolver | und
 	return cwd;
 }
 
-export type TerminalShellSetting = (
-	TerminalSettingId.AutomationShellWindows
-	| TerminalSettingId.AutomationShellMacOs
-	| TerminalSettingId.AutomationShellLinux
-	| TerminalSettingId.ShellWindows
-	| TerminalSettingId.ShellMacOs
-	| TerminalSettingId.ShellLinux
-);
-
-export type TerminalShellArgsSetting = (
-	TerminalSettingId.ShellArgsWindows
-	| TerminalSettingId.ShellArgsMacOs
-	| TerminalSettingId.ShellArgsLinux
-);
-
 export type VariableResolver = (str: string) => Promise<string>;
 
 export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | undefined, env: IProcessEnvironment, configurationResolverService: IConfigurationResolverService | undefined): VariableResolver | undefined {
@@ -254,103 +239,6 @@ export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | u
 		return undefined;
 	}
 	return (str) => configurationResolverService.resolveWithEnvironment(env, lastActiveWorkspace, str);
-}
-
-/**
- * @deprecated Use ITerminalProfileResolverService
- */
-export async function getDefaultShell(
-	fetchSetting: (key: TerminalShellSetting) => string | undefined,
-	defaultShell: string,
-	isWoW64: boolean,
-	windir: string | undefined,
-	variableResolver: VariableResolver | undefined,
-	logService: ILogService,
-	useAutomationShell: boolean,
-	platformOverride: Platform = platform
-): Promise<string> {
-	let maybeExecutable: string | undefined;
-	if (useAutomationShell) {
-		// If automationShell is specified, this should override the normal setting
-		maybeExecutable = getShellSetting(fetchSetting, 'automationShell', platformOverride) as string | undefined;
-	}
-	if (!maybeExecutable) {
-		maybeExecutable = getShellSetting(fetchSetting, 'shell', platformOverride) as string | undefined;
-	}
-	let executable: string = maybeExecutable || defaultShell;
-
-	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
-	// safe to assume that this was used by accident as Sysnative does not
-	// exist and will break the terminal in non-WoW64 environments.
-	if ((platformOverride === Platform.Windows) && !isWoW64 && windir) {
-		const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
-		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
-			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length + 1));
-		}
-	}
-
-	// Convert / to \ on Windows for convenience
-	if (executable && platformOverride === Platform.Windows) {
-		executable = executable.replace(/\//g, '\\');
-	}
-
-	if (variableResolver) {
-		try {
-			executable = await variableResolver(executable);
-		} catch (e) {
-			logService.error(`Could not resolve shell`, e);
-		}
-	}
-
-	return executable;
-}
-
-/**
- * @deprecated Use ITerminalProfileResolverService
- */
-export async function getDefaultShellArgs(
-	fetchSetting: (key: TerminalShellSetting | TerminalShellArgsSetting) => string | string[] | undefined,
-	useAutomationShell: boolean,
-	variableResolver: VariableResolver | undefined,
-	logService: ILogService,
-	platformOverride: Platform = platform,
-): Promise<string | string[]> {
-	if (useAutomationShell) {
-		if (!!getShellSetting(fetchSetting, 'automationShell', platformOverride)) {
-			return [];
-		}
-	}
-
-	const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
-	let args = fetchSetting(<TerminalShellArgsSetting>`${TerminalSettingPrefix.ShellArgs}${platformKey}`);
-	if (!args) {
-		return [];
-	}
-	if (typeof args === 'string' && platformOverride === Platform.Windows) {
-		return variableResolver ? await variableResolver(args) : args;
-	}
-	if (variableResolver) {
-		const resolvedArgs: string[] = [];
-		for (const arg of args) {
-			try {
-				resolvedArgs.push(await variableResolver(arg));
-			} catch (e) {
-				logService.error(`Could not resolve ${TerminalSettingPrefix.ShellArgs}${platformKey}`, e);
-				resolvedArgs.push(arg);
-			}
-		}
-		args = resolvedArgs;
-	}
-	return args;
-}
-
-function getShellSetting(
-	fetchSetting: (key: TerminalShellSetting) => string | string[] | undefined,
-	type: 'automationShell' | 'shell',
-	platformOverride: Platform = platform,
-): string | string[] | undefined {
-	const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
-	return fetchSetting(<TerminalShellSetting>`terminal.integrated.${type}.${platformKey}`);
 }
 
 export async function createTerminalEnvironment(

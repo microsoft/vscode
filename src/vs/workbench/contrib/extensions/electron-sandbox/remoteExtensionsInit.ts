@@ -17,7 +17,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractExtensionsInitializer } from 'vs/platform/userDataSync/common/extensionsSync';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { IRemoteUserData, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IRemoteUserData, IUserDataSyncEnablementService, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
@@ -35,6 +35,7 @@ export class RemoteExtensionsInitializerContribution implements IWorkbenchContri
 		@ILogService private readonly logService: ILogService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		this.initializeRemoteExtensions();
 	}
@@ -65,6 +66,10 @@ export class RemoteExtensionsInitializerContribution implements IWorkbenchContri
 		// Skip: Not a new workspace
 		if (!this.storageService.isNew(StorageScope.WORKSPACE)) {
 			this.logService.trace(`Skipping initializing remote extensions because this workspace was opened before.`);
+			return;
+		}
+		// Skip: Settings Sync is disabled
+		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return;
 		}
 		// Skip: No account is provided to initialize

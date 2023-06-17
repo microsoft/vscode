@@ -73,6 +73,7 @@ import { IFeaturedExtensionsService } from 'vs/workbench/contrib/welcomeGettingS
 import { IFeaturedExtension } from 'vs/base/common/product';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -130,9 +131,9 @@ export class GettingStartedPage extends EditorPane {
 
 	// Ensure that the these are initialized before use.
 	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
-	private recentlyOpened!: IRecentlyOpened;
+	private recentlyOpened!: Promise<IRecentlyOpened>;
 	private gettingStartedCategories!: IResolvedWalkthrough[];
-	private featuredExtensions!: IFeaturedExtension[];
+	private featuredExtensions!: Promise<IFeaturedExtension[]>;
 
 	private currentWalkthrough: IResolvedWalkthrough | undefined;
 
@@ -209,10 +210,16 @@ export class GettingStartedPage extends EditorPane {
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inWelcomeContext.bindTo(this.contextService).set(true);
 
+		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+		this.featuredExtensions = this.featuredExtensionService.getExtensions();
+
 		this._register(this.dispatchListeners);
 		this.buildSlideThrottle = new Throttler();
 
 		const rerender = () => {
+			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+			this.featuredExtensions = this.featuredExtensionService.getExtensions();
+
 			this.buildSlideThrottle.queue(async () => await this.buildCategoriesSlide());
 		};
 
@@ -227,7 +234,12 @@ export class GettingStartedPage extends EditorPane {
 
 		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
 		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
-		this._register(workspacesService.onDidChangeRecentlyOpened(rerender));
+
+		this.recentlyOpened = this.workspacesService.getRecentlyOpened();
+		this._register(workspacesService.onDidChangeRecentlyOpened(() => {
+			this.recentlyOpened = workspacesService.getRecentlyOpened();
+			rerender();
+		}));
 
 		this._register(this.gettingStartedService.onDidChangeWalkthrough(category => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
@@ -725,13 +737,6 @@ export class GettingStartedPage extends EditorPane {
 
 	private async buildCategoriesSlide() {
 
-		// Delay fetching welcome page content on startup until all extensions are ready.
-		await this.extensionService.whenInstalledExtensionsRegistered();
-
-		this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
-		this.gettingStartedCategories = await this.gettingStartedService.getWalkthroughs();
-		this.featuredExtensions = await this.featuredExtensionService.getExtensions();
-
 		this.categoriesSlideDisposables.clear();
 		const showOnStartupCheckbox = new Toggle({
 			icon: Codicon.check,
@@ -831,6 +836,7 @@ export class GettingStartedPage extends EditorPane {
 			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 
 			if (!this.currentWalkthrough) {
+				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			}
 
@@ -935,11 +941,19 @@ export class GettingStartedPage extends EditorPane {
 			});
 
 		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
+		this.recentlyOpened.then(({ workspaces }) => {
+			// Filter out the current workspace
+			const workspacesWithID = workspaces
+				.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
+				.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
 
-		const entries = this.recentlyOpened.workspaces.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
-			.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
+			const updateEntries = () => {
+				recentlyOpenedList.setEntries(workspacesWithID);
+			};
 
-		recentlyOpenedList.setEntries(entries);
+			updateEntries();
+			recentlyOpenedList.register(this.labelService.onDidChangeFormatters(() => updateEntries()));
+		}).catch(onUnexpectedError);
 
 		return recentlyOpenedList;
 	}
@@ -1103,7 +1117,9 @@ export class GettingStartedPage extends EditorPane {
 				contextService: this.contextService,
 			});
 
-		featuredExtensionsList.setEntries(this.featuredExtensions);
+		this.featuredExtensions?.then(extensions => {
+			featuredExtensionsList.setEntries(extensions);
+		});
 
 		this.featuredExtensionsList?.onDidChange(() => {
 			this.registerDispatchListeners();
@@ -1159,7 +1175,7 @@ export class GettingStartedPage extends EditorPane {
 	private async scrollToCategory(categoryID: string, stepId?: string) {
 
 		if (!this.gettingStartedCategories.some(c => c.id === categoryID)) {
-			this.gettingStartedCategories = await this.gettingStartedService.getWalkthroughs();
+			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 		}
 
 		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);

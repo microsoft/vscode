@@ -37,7 +37,7 @@ import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics'
 import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
-import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
+import { EncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
@@ -935,7 +935,7 @@ export class CodeApplication extends Disposable {
 			graceTime: LocalReconnectConstants.GraceTime,
 			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 			scrollback: this.configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		}, this.environmentMainService, this.lifecycleMainService, this.logService);
+		}, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 		const ptyHostService = new PtyHostService(
 			ptyHostStarter,
 			this.configurationService,

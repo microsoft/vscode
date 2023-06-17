@@ -6,7 +6,7 @@
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 export const IEmbedderTerminalService = createDecorator<IEmbedderTerminalService>('embedderTerminalService');
@@ -77,7 +77,7 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	readonly shouldPersist = false;
 
 	readonly onProcessData: Event<IProcessDataEvent | string>;
-	readonly #onProcessReady = this._register(new Emitter<{ pid: number; cwd: string }>());
+	readonly #onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this.#onProcessReady.event;
 	readonly #onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this.#onDidChangeProperty.event;
@@ -104,7 +104,7 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
-		this.#onProcessReady.fire({ pid: -1, cwd: '' });
+		this.#onProcessReady.fire({ pid: -1, cwd: '', windowsPty: undefined });
 		this.#pty.open();
 		return undefined;
 	}
@@ -122,6 +122,9 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 		// not supported
 	}
 	resize(): void {
+		// no-op
+	}
+	clearBuffer(): void | Promise<void> {
 		// no-op
 	}
 	acknowledgeDataEvent(): void {
