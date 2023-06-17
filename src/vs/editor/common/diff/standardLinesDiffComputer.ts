@@ -40,7 +40,7 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const sequence2 = new LineSequence(tgtDocLines, modifiedLines);
 
 		const lineAlignmentResult = (() => {
-			if (sequence1.length + sequence2.length < 1500) {
+			if (this.shouldDynamicProgrammingDiff(sequence1.length, sequence2.length)) {
 				// Use the improved algorithm for small files
 				return this.dynamicProgrammingDiffing.compute(
 					sequence1,
@@ -153,11 +153,18 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		return new LinesDiff(changes, moves, hitTimeout);
 	}
 
+	private shouldDynamicProgrammingDiff(m: number, n: number) {
+		const [a, b] = m > n ? [n, m] : [m, n];
+
+		// Myers D should greater than (or equal to) `b - a`, when `D > a` we choose DP diff.
+		return b - a > a;
+	}
+
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { mappings: RangeMapping[]; hitTimeout: boolean } {
 		const sourceSlice = new Slice(originalLines, diff.seq1Range, considerWhitespaceChanges);
 		const targetSlice = new Slice(modifiedLines, diff.seq2Range, considerWhitespaceChanges);
 
-		const diffResult = sourceSlice.length + targetSlice.length < 500
+		const diffResult = this.shouldDynamicProgrammingDiff(sourceSlice.length, targetSlice.length)
 			? this.dynamicProgrammingDiffing.compute(sourceSlice, targetSlice, timeout)
 			: this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice, timeout);
 
