@@ -11,6 +11,7 @@ import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 export class TerminalLogService extends Disposable implements ITerminalLogService {
 	declare _serviceBrand: undefined;
+	declare _logBrand: undefined;
 
 	private readonly _logger: ILogger;
 
@@ -23,10 +24,10 @@ export class TerminalLogService extends Disposable implements ITerminalLogServic
 
 	getLevel(): LogLevel { return this._logger.getLevel(); }
 	setLevel(level: LogLevel): void { this._logger.setLevel(level); }
-	trace(message: string, ...args: any[]): void { this.trace(message, args); }
-	debug(message: string, ...args: any[]): void { this.debug(message, args); }
-	info(message: string, ...args: any[]): void { this.info(message, args); }
-	warn(message: string, ...args: any[]): void { this.warn(message, args); }
-	error(message: string | Error, ...args: any[]): void { this.error(message, args); }
+	trace(message: string, ...args: any[]): void { this._logger.trace(message, args); }
+	debug(message: string, ...args: any[]): void { this._logger.debug(message, args); }
+	info(message: string, ...args: any[]): void { this._logger.info(message, args); }
+	warn(message: string, ...args: any[]): void { this._logger.warn(message, args); }
+	error(message: string | Error, ...args: any[]): void { this._logger.error(message, args); }
 	flush(): void { this._logger.flush(); }
 }

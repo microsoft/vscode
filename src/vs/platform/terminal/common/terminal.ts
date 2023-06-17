@@ -13,7 +13,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILogger } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
@@ -955,4 +955,11 @@ export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyServi
 export interface ILocalPtyService extends IPtyService { }
 
 export const ITerminalLogService = createDecorator<ITerminalLogService>('terminalLogService');
-export interface ITerminalLogService extends ILogger { }
+export interface ITerminalLogService extends ILogService {
+	/**
+	 * Similar to _serviceBrand but used to differentiate this service at compile time from
+	 * ILogService; ITerminalLogService is an ILogService, but ILogService is not an
+	 * ITerminalLogService.
+	 */
+	readonly _logBrand: undefined;
+}
