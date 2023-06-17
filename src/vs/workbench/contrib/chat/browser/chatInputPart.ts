@@ -190,7 +190,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			historyNavigationForwardsEnablement.set(enabled);
 		};
 
-		const options = getSimpleEditorOptions();
+		const options = getSimpleEditorOptions(this.configurationService);
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;

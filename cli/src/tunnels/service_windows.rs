@@ -114,6 +114,11 @@ impl CliServiceManager for WindowsService {
 		Ok(())
 	}
 
+	async fn is_installed(&self) -> Result<bool, AnyError> {
+		let key = WindowsService::open_key()?;
+		Ok(key.get_raw_value(TUNNEL_ACTIVITY_NAME).is_ok())
+	}
+
 	async fn unregister(&self) -> Result<(), AnyError> {
 		let key = WindowsService::open_key()?;
 		key.delete_value(TUNNEL_ACTIVITY_NAME)

@@ -31,7 +31,7 @@ import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } fro
 import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
+import { TestResultsView } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
@@ -840,30 +840,9 @@ export class ShowMostRecentOutputAction extends Action2 {
 	}
 
 	public async run(accessor: ServicesAccessor) {
-		const quickInputService = accessor.get(IQuickInputService);
-		const terminalOutputService = accessor.get(ITestingOutputTerminalService);
-		const result = accessor.get(ITestResultService).results[0];
-
-		if (!result.tasks.length) {
-			return;
-		}
-
-		let index = 0;
-		if (result.tasks.length > 1) {
-			const picked = await quickInputService.pick(
-				result.tasks.map((t, i) => ({ label: t.name || localize('testing.pickTaskUnnamed', "Run #{0}", i), index: i })),
-				{ placeHolder: localize('testing.pickTask', "Pick a run to show output for") }
-			);
-
-			if (!picked) {
-				return;
-			}
-
-			index = picked.index;
-		}
-
-
-		terminalOutputService.open(result, index);
+		const viewService = accessor.get(IViewsService);
+		const testView = await viewService.openView<TestResultsView>(Testing.ResultsViewId, true);
+		testView?.showLatestRun();
 	}
 }
 

@@ -60,7 +60,7 @@ class AccessibleView extends Disposable {
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
 		};
 		const editorOptions: IEditorConstructionOptions = {
-			...getSimpleEditorOptions(),
+			...getSimpleEditorOptions(this._configurationService),
 			lineDecorationsWidth: 6,
 			dragAndDrop: true,
 			cursorWidth: 1,
@@ -70,8 +70,6 @@ class AccessibleView extends Disposable {
 			quickSuggestions: false,
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true },
-			accessibilitySupport: this._configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
-			cursorBlinking: this._configurationService.getValue('terminal.integrated.cursorBlinking'),
 			readOnly: true
 		};
 		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));

@@ -312,6 +312,7 @@
 		"--vscode-inputValidation-warningBackground",
 		"--vscode-inputValidation-warningBorder",
 		"--vscode-inputValidation-warningForeground",
+		"--vscode-inlineChat-background",
 		"--vscode-inlineChat-border",
 		"--vscode-inlineChat-regionHighlight",
 		"--vscode-inlineChat-shadow",
