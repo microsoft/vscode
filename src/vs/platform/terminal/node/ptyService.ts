@@ -51,14 +51,14 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 
 	descriptor[fnKey!] = async function (...args: any[]) {
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
-			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fnKey}(${args.map(e => JSON.stringify(e)).join(', ')})`);
+			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn!.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
 		}
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
 		const result = await fn!.apply(this, args);
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
-			this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fnKey}`, result);
+			this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fn!.name}`, result);
 		}
 		return result;
 	};

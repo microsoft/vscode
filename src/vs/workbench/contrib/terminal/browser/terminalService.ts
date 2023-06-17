@@ -61,8 +61,6 @@ export class TerminalService implements ITerminalService {
 	private _terminalEditorActive: IContextKey<boolean>;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
-	private _escapeSequenceLoggingEnabled: boolean = false;
-
 	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
@@ -183,7 +181,6 @@ export class TerminalService implements ITerminalService {
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
 		this._terminalInstanceService.onDidCreateInstance(instance => {
-			instance.setEscapeSequenceLogging(this._escapeSequenceLoggingEnabled);
 			this._initInstanceListeners(instance);
 			this._onDidCreateInstance.fire(instance);
 		});
@@ -477,17 +474,6 @@ export class TerminalService implements ITerminalService {
 		return reconnectCounter;
 	}
 
-	async toggleEscapeSequenceLogging(): Promise<void> {
-		if (this.instances.length === 0) {
-			return;
-		}
-		this._escapeSequenceLoggingEnabled = await this.instances[0].toggleEscapeSequenceLogging();
-		for (let i = 1; i < this.instances.length; i++) {
-			this.instances[i].setEscapeSequenceLogging(this._escapeSequenceLoggingEnabled);
-		}
-		await this._toggleDevTools(this._escapeSequenceLoggingEnabled);
-	}
-
 	private _attachProcessLayoutListeners(): void {
 		this.onDidChangeActiveGroup(() => this._saveState());
 		this.onDidChangeActiveInstance(() => this._saveState());
@@ -619,14 +605,6 @@ export class TerminalService implements ITerminalService {
 
 	setNativeDelegate(nativeDelegate: ITerminalServiceNativeDelegate): void {
 		this._nativeDelegate = nativeDelegate;
-	}
-
-	private async _toggleDevTools(open?: boolean): Promise<void> {
-		if (open) {
-			this._nativeDelegate?.openDevTools();
-		} else {
-			this._nativeDelegate?.toggleDevTools();
-		}
 	}
 
 	private _shouldReviveProcesses(reason: ShutdownReason): boolean {

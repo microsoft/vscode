@@ -114,7 +114,7 @@
 				return;
 			}
 
-			process.enableUNCAccessChecks = false;
+			process.restrictUNCAccess = false;
 		}
 
 		function isUNCAccessRestrictionsDisabled() {
@@ -122,7 +122,7 @@
 				return true;
 			}
 
-			return process.enableUNCAccessChecks === false;
+			return process.restrictUNCAccess === false;
 		}
 
 		return {

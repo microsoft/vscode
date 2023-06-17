@@ -773,11 +773,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._ctxVisible.set(true);
 	}
 
-	override _getWidth(info: EditorLayoutInfo): number {
+	protected override _getWidth(info: EditorLayoutInfo): number {
 		return info.width - info.minimap.minimapWidth;
 	}
 
-	public updateBackgroundColor(position: Position, selection: IRange) {
+	updateBackgroundColor(position: Position, selection: IRange) {
 		if (!this.container) {
 			return;
 		}
@@ -828,6 +828,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override hide(): void {
+		this.container!.classList.remove('inside-selection');
 		this._ctxVisible.reset();
 		this._ctxCursorPosition.reset();
 		this.widget.reset();

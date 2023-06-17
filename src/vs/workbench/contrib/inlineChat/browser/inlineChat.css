@@ -17,6 +17,7 @@
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
+	background: var(--vscode-inlineChat-background);
 }
 
 /* body */

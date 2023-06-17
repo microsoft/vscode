@@ -276,7 +276,7 @@ export class InteractiveEditor extends EditorPane {
 			overrideIdentifier = this.#codeEditorWidget.getModel()?.getLanguageId();
 		}
 		const editorOptions = deepClone(this.#configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier }));
-		const editorOptionsOverride = getSimpleEditorOptions();
+		const editorOptionsOverride = getSimpleEditorOptions(this.#configurationService);
 		const computed = Object.freeze({
 			...editorOptions,
 			...editorOptionsOverride,
@@ -670,6 +670,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	override focus() {
+		this.#notebookWidget.value?.onShow();
 		this.#codeEditorWidget.focus();
 	}
 
