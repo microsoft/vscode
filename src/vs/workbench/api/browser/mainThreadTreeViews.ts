@@ -177,14 +177,18 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	private registerListeners(treeViewId: string, treeView: ITreeView): void {
 		this._register(treeView.onDidExpandItem(item => this._proxy.$setExpanded(treeViewId, item.handle, true)));
 		this._register(treeView.onDidCollapseItem(item => this._proxy.$setExpanded(treeViewId, item.handle, false)));
-		this._register(treeView.onDidChangeSelection(items => this._proxy.$setSelection(treeViewId, items.map(({ handle }) => handle))));
-		this._register(treeView.onDidChangeFocus(item => this._proxy.$setFocus(treeViewId, item.handle)));
+		this._register(treeView.onDidChangeSelection(items => this._proxy.$setSelectionAndFocus(treeViewId, this.getHandles(items), treeView.getFocus()?.handle)));
+		this._register(treeView.onDidChangeFocus(item => this._proxy.$setSelectionAndFocus(treeViewId, this.getHandles(treeView.getSelection()), item.handle)));
 		this._register(treeView.onDidChangeVisibility(isVisible => this._proxy.$setVisible(treeViewId, isVisible)));
 		this._register(treeView.onDidChangeCheckboxState(items => {
 			this._proxy.$changeCheckboxState(treeViewId, <CheckboxUpdate[]>items.map(item => {
 				return { treeItemHandle: item.handle, newState: item.checkbox?.isChecked ?? false };
 			}));
 		}));
+	}
+
+	private getHandles(treeItems: readonly ITreeItem[]): string[] {
+		return treeItems.map(({ handle }) => handle);
 	}
 
 	private getTreeView(treeViewId: string): ITreeView | null {

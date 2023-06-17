@@ -232,20 +232,12 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setExpanded(treeItemHandle, expanded);
 	}
 
-	$setSelection(treeViewId: string, treeItemHandles: string[]): void {
+	$setSelectionAndFocus(treeViewId: string, selectedHandles: string[], focusedHandle: string | undefined) {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			throw new NoTreeViewError(treeViewId);
 		}
-		treeView.setSelection(treeItemHandles);
-	}
-
-	$setFocus(treeViewId: string, treeItemHandles: string) {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			throw new NoTreeViewError(treeViewId);
-		}
-		treeView.setFocus(treeItemHandles);
+		treeView.setSelectionAndFocus(selectedHandles, focusedHandle);
 	}
 
 	$setVisible(treeViewId: string, isVisible: boolean): void {
@@ -492,16 +484,18 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	setSelection(treeItemHandles: TreeItemHandle[]): void {
-		if (!equals(this._selectedHandles, treeItemHandles)) {
-			this._selectedHandles = treeItemHandles;
+	setSelectionAndFocus(selectedHandles: TreeItemHandle[], focusedHandle: string | undefined): void {
+		const changedSelection = !equals(this._selectedHandles, selectedHandles);
+		this._selectedHandles = selectedHandles;
+
+		const changedFocus = this._focusedHandle !== focusedHandle;
+		this._focusedHandle = focusedHandle;
+
+		if (changedSelection) {
 			this._onDidChangeSelection.fire(Object.freeze({ selection: this.selectedElements }));
 		}
-	}
 
-	setFocus(treeItemHandle: TreeItemHandle) {
-		if (this._focusedHandle !== treeItemHandle) {
-			this._focusedHandle = treeItemHandle;
+		if (changedFocus) {
 			this._onDidChangeActiveItem.fire(Object.freeze({ activeItem: this.focusedElement }));
 		}
 	}

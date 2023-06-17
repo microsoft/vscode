@@ -988,6 +988,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}
 	}
 
+	getFocus(): ITreeItem | undefined {
+		return this.tree?.getFocus()[0];
+	}
+
 	async reveal(item: ITreeItem): Promise<void> {
 		if (this.tree) {
 			return this.tree.reveal(item);
