@@ -70,12 +70,6 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
-		},
-		'chat.experimental.quickQuestion.enable': {
-			type: 'boolean',
-			description: nls.localize('interactiveSession.experimental.quickQuestion.enable', "Controls whether the quick question feature is enabled."),
-			default: false,
-			tags: ['experimental']
 		}
 	}
 });
