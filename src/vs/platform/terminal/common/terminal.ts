@@ -13,6 +13,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ILogger } from 'vs/platform/log/common/log';
 
 export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
@@ -952,3 +953,6 @@ export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyServi
  * **This service should only be used within the terminal component.**
  */
 export interface ILocalPtyService extends IPtyService { }
+
+export const ITerminalLogService = createDecorator<ITerminalLogService>('terminalLogService');
+export interface ITerminalLogService extends ILogger { }

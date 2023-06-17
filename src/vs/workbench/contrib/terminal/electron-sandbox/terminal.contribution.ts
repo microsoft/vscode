@@ -6,16 +6,18 @@
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ILocalPtyService, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { ILocalPtyService, ITerminalLogService, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalNativeContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalNativeContribution';
 import { ElectronTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalProfileResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { LocalTerminalBackendContribution } from 'vs/workbench/contrib/terminal/electron-sandbox/localTerminalBackend';
+import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
 
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
+registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
 registerSingleton(ITerminalProfileResolverService, ElectronTerminalProfileResolverService, InstantiationType.Delayed);
 
 // Register workbench contributions
