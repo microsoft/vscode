@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { once } from 'vs/base/common/functional';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { format } from 'vs/base/common/strings';
-import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalAccessibleWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleWidget';
-import type { Terminal } from 'xterm';
+import { Terminal } from 'xterm';
 
 export const enum ClassName {
 	AccessibleBuffer = 'terminal-accessibility-help',
@@ -24,36 +21,26 @@ export const enum ClassName {
 	EditorTextArea = 'textarea'
 }
 
-export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
+export class TerminalAccessibleContentProvider extends Disposable implements IAccessibleContentProvider {
 
-	private readonly _hasShellIntegration: boolean;
+	private readonly _hasShellIntegration: boolean = false;
+
+	onClose() {
+		this._instance.focus();
+		this.dispose();
+	}
+	options: IAccessibleViewOptions = { ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
+	id: string = 'terminal';
 
 	constructor(
-		_instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
+		private readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'focus'>,
 		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService _instantiationService: IInstantiationService,
-		@IModelService _modelService: IModelService,
-		@IConfigurationService _configurationService: IConfigurationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ITerminalService _terminalService: ITerminalService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		super(ClassName.AccessibleBuffer, _instance, _xterm, undefined, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
+		super();
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
-		this.element.ariaRoleDescription = localize('terminal.integrated.accessiblityHelp', 'Terminal accessibility help');
-	}
-
-	override registerListeners(): void {
-		super.registerListeners();
-		this.add(once(this.editorWidget.onDidFocusEditorText)(() => {
-			// prevents tabbing into the editor
-			const editorTextArea = this.element.querySelector(ClassName.EditorTextArea) as HTMLElement;
-			if (editorTextArea) {
-				editorTextArea.tabIndex = -1;
-			}
-		}));
-		this.add(this.editorWidget.onDidBlurEditorText(() => this.hide()));
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
@@ -69,7 +56,7 @@ export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
 		return this._accessibilityService.isScreenReaderOptimized() ? format(msg, kb[1].getAriaLabel()) : format(msg, kb[0].getAriaLabel());
 	}
 
-	async updateEditor(): Promise<void> {
+	provideContent(): string {
 		const content = [];
 		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.'), localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
@@ -89,10 +76,6 @@ export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
 		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.'), localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.')));
 		content.push(localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.'));
 		content.push(localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)'));
-		content.push(localize('dismiss', "You can dismiss this dialog by pressing Escape, tab, or focusing elsewhere."));
-		const model = this.editorWidget.getModel() || await this.getTextModel(this._instance.resource);
-		model?.setValue(content.join('\n'));
-		this.editorWidget.setModel(model);
-		this.element.setAttribute('aria-label', localize('introMsg', "Welcome to Terminal Accessibility Help"));
+		return content.join('\n');
 	}
 }

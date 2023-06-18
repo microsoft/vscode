@@ -5,10 +5,12 @@
 
 use async_trait::async_trait;
 use shell_escape::windows::escape as shell_escape;
+use std::os::windows::process::CommandExt;
 use std::{
 	path::PathBuf,
 	process::{Command, Stdio},
 };
+use winapi::um::winbase::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS};
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
 use crate::{
@@ -20,6 +22,8 @@ use crate::{
 };
 
 use super::service::{tail_log_file, ServiceContainer, ServiceManager as CliServiceManager};
+
+const DID_LAUNCH_AS_HIDDEN_PROCESS: &str = "VSCODE_CLI_DID_LAUNCH_AS_HIDDEN_PROCESS";
 
 pub struct WindowsService {
 	log: log::Logger,
@@ -90,7 +94,29 @@ impl CliServiceManager for WindowsService {
 		launcher_paths: LauncherPaths,
 		mut handle: impl 'static + ServiceContainer,
 	) -> Result<(), AnyError> {
-		handle.run_service(self.log, launcher_paths).await
+		if std::env::var(DID_LAUNCH_AS_HIDDEN_PROCESS).is_ok() {
+			return handle.run_service(self.log, launcher_paths).await;
+		}
+
+		// Start as a hidden subprocess to avoid showing cmd.exe on startup.
+		// Fixes https://github.com/microsoft/vscode/issues/184058
+		// I also tried the winapi ShowWindow, but that didn't yield fruit.
+		Command::new(std::env::current_exe().unwrap())
+			.args(std::env::args().skip(1))
+			.env(DID_LAUNCH_AS_HIDDEN_PROCESS, "1")
+			.stderr(Stdio::null())
+			.stdout(Stdio::null())
+			.stdin(Stdio::null())
+			.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS)
+			.spawn()
+			.map_err(|e| wrap(e, "error starting nested process"))?;
+
+		Ok(())
+	}
+
+	async fn is_installed(&self) -> Result<bool, AnyError> {
+		let key = WindowsService::open_key()?;
+		Ok(key.get_raw_value(TUNNEL_ACTIVITY_NAME).is_ok())
 	}
 
 	async fn unregister(&self) -> Result<(), AnyError> {

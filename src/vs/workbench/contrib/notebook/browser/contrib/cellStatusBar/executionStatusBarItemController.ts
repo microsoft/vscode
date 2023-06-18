@@ -321,7 +321,7 @@ class TimerCellStatusBarItem extends Disposable {
 		return <INotebookCellStatusBarItem>{
 			text: formatCellDuration(duration, false),
 			alignment: CellStatusbarAlignment.Left,
-			priority: Number.MAX_SAFE_INTEGER - 1,
+			priority: Number.MAX_SAFE_INTEGER - 5,
 			tooltip
 		};
 	}

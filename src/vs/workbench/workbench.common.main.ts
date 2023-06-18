@@ -109,6 +109,7 @@ import 'vs/editor/common/services/treeViewsDndService';
 import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contribution';
 import 'vs/workbench/services/userActivity/common/userActivityService';
 import 'vs/workbench/services/userActivity/browser/userActivityBrowser';
+import 'vs/workbench/services/issue/browser/issueTroubleshoot';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';

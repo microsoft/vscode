@@ -894,13 +894,14 @@ export class TunnelModel extends Disposable {
 		const matchingCandidates: Map<number, CandidatePort> = new Map();
 		const pidToPortsMapping: Map<number | undefined, number[]> = new Map();
 		forwardedPorts.forEach(forwardedPort => {
-			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], forwardedPort.port);
+			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], forwardedPort.port) ?? forwardedPort;
 			if (matchingCandidate) {
 				matchingCandidates.set(forwardedPort.port, matchingCandidate);
-				if (!pidToPortsMapping.has(matchingCandidate.pid)) {
-					pidToPortsMapping.set(matchingCandidate.pid, []);
+				const pid = isCandidatePort(matchingCandidate) ? matchingCandidate.pid : undefined;
+				if (!pidToPortsMapping.has(pid)) {
+					pidToPortsMapping.set(pid, []);
 				}
-				pidToPortsMapping.get(matchingCandidate.pid)?.push(forwardedPort.port);
+				pidToPortsMapping.get(pid)?.push(forwardedPort.port);
 			}
 		});
 
@@ -962,6 +963,13 @@ export interface CandidatePort {
 	port: number;
 	detail?: string;
 	pid?: number;
+}
+
+export function isCandidatePort(candidate: any): candidate is CandidatePort {
+	return candidate && 'host' in candidate && typeof candidate.host === 'string'
+		&& 'port' in candidate && typeof candidate.port === 'number'
+		&& (!('detail' in candidate) || typeof candidate.detail === 'string')
+		&& (!('pid' in candidate) || typeof candidate.pid === 'string');
 }
 
 export interface IRemoteExplorerService {

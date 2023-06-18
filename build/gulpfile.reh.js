@@ -17,7 +17,6 @@ const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
-const { assetFromGithub } = require('./lib/github');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -43,7 +42,6 @@ const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'darwin', arch: 'x64' },
 	{ platform: 'darwin', arch: 'arm64' },
-	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },
@@ -127,11 +125,39 @@ const serverWithWebEntryPoints = [
 
 function getNodeVersion() {
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)[1];
-	return target;
+	const nodeVersion = /^target "(.*)"$/m.exec(yarnrc)[1];
+	const internalNodeVersion = /^ms_build_id "(.*)"$/m.exec(yarnrc)[1];
+	return { nodeVersion, internalNodeVersion };
 }
 
-const nodeVersion = getNodeVersion();
+function getNodeChecksum(nodeVersion, platform, arch) {
+	let expectedName;
+	switch (platform) {
+		case 'win32':
+			expectedName = `win-${arch}/node.exe`;
+			break;
+
+		case 'darwin':
+		case 'linux':
+			expectedName = `node-v${nodeVersion}-${platform}-${arch}.tar.gz`;
+			break;
+
+		case 'alpine':
+			expectedName = `${platform}-${arch}/node`;
+			break;
+	}
+
+	const nodeJsChecksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'nodejs.txt'), 'utf8');
+	for (const line of nodeJsChecksums.split('\n')) {
+		const [checksum, name] = line.split(/\s+/);
+		if (name === expectedName) {
+			return checksum;
+		}
+	}
+	return undefined;
+}
+
+const { nodeVersion, internalNodeVersion } = getNodeVersion();
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
 	gulp.task(task.define(`node-${platform}-${arch}`, () => {
@@ -155,40 +181,57 @@ if (defaultNodeTask) {
 }
 
 function nodejs(platform, arch) {
-	const { remote } = require('./lib/gulpRemoteSource');
+	const { fetchUrls, fetchGithub } = require('./lib/fetch');
 	const untar = require('gulp-untar');
+	const crypto = require('crypto');
 
 	if (arch === 'ia32') {
 		arch = 'x86';
-	}
-
-	if (platform === 'win32') {
-		if (product.nodejsRepository) {
-			log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
-			return assetFromGithub(product.nodejsRepository, nodeVersion, name => name === `win-${arch}-node.exe`)
-				.pipe(rename('node.exe'));
-		}
-		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', verbose: true })
-			.pipe(rename('node.exe'));
-	}
-
-	if (arch === 'alpine' || platform === 'alpine') {
-		const imageName = arch === 'arm64' ? 'arm64v8/node' : 'node';
-		log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from docker image ${imageName}`);
-		const contents = cp.execSync(`docker run --rm ${imageName}:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
-		return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
-	}
-
-	if (arch === 'armhf') {
+	} else if (arch === 'armhf') {
 		arch = 'armv7l';
+	} else if (arch === 'alpine') {
+		platform = 'alpine';
+		arch = 'x64';
 	}
-	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from https://nodejs.org`);
-	return remote(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', verbose: true })
-		.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
-		.pipe(filter('**/node'))
-		.pipe(util.setExecutableBit('**'))
-		.pipe(rename('node'));
+
+	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
+
+	const checksumSha256 = getNodeChecksum(nodeVersion, platform, arch);
+
+	if (checksumSha256) {
+		log(`Using SHA256 checksum for checking integrity: ${checksumSha256}`);
+	} else {
+		log.warn(`Unable to verify integrity of downloaded node.js binary because no SHA256 checksum was found!`);
+	}
+
+	switch (platform) {
+		case 'win32':
+			return (product.nodejsRepository !== 'https://nodejs.org' ?
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `win-${arch}-node.exe`, checksumSha256 }) :
+				fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 }))
+				.pipe(rename('node.exe'));
+		case 'darwin':
+		case 'linux':
+			return (product.nodejsRepository !== 'https://nodejs.org' ?
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 }) :
+				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
+			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+				.pipe(filter('**/node'))
+				.pipe(util.setExecutableBit('**'))
+				.pipe(rename('node'));
+		case 'alpine': {
+			const imageName = arch === 'arm64' ? 'arm64v8/node' : 'node';
+			log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from docker image ${imageName}`);
+			const contents = cp.execSync(`docker run --rm ${imageName}:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
+			if (checksumSha256) {
+				const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');
+				if (actualSHA256Checksum !== checksumSha256) {
+					throw new Error(`Checksum mismatch for node.js from docker image (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
+				}
+			}
+			return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
+		}
+	}
 }
 
 function packageTask(type, platform, arch, sourceFolderName, destinationFolderName) {
@@ -269,6 +312,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
+			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.stripSourceMappingURL())
 			.pipe(jsFilter.restore);
