@@ -25,7 +25,7 @@ import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/line
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
 import { UnchangedRangesFeature } from 'vs/editor/browser/widget/diffEditorWidget2/unchangedRanges';
-import { ObservableElementSizeObserver, applyObservableDecorations } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { ObservableElementSizeObserver, applyObservableDecorations, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 import { EditorOptions, IDiffEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
@@ -42,6 +42,7 @@ import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffMapping, DiffModel } from './diffModel';
 import { Range } from 'vs/editor/common/core/range';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 
 const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 	enableSplitViewResizing: true,
@@ -85,6 +86,8 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
 	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>('boundarySashes', undefined);
 	private readonly _renderOverviewRuler: IObservable<boolean>;
+
+	private unchangedRangesFeature!: UnchangedRangesFeature;
 
 	constructor(
 		private readonly _domElement: HTMLElement,
@@ -143,11 +146,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		});
 		this._register(keepAlive(this._sash, true));
 
-		this._register(new UnchangedRangesFeature(
-			this._originalEditor,
-			this._modifiedEditor,
-			this._diffModel
-		));
+		this._register(autorunWithStore2('unchangedRangesFeature', (reader, store) => {
+			this.unchangedRangesFeature = store.add(new (readHotReloadableExport(UnchangedRangesFeature, reader))(
+				this._originalEditor, this._modifiedEditor, this._diffModel, this._options.map(o => o.renderSideBySide)
+			));
+		}));
+
 		this._register(this._instantiationService.createInstance(
 			ViewZoneManager,
 			this._originalEditor,
@@ -155,6 +159,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._diffModel,
 			this._options.map((o) => o.renderSideBySide),
 			this,
+			() => this.unchangedRangesFeature.isUpdatingViewZones,
 		));
 
 		this._register(this._instantiationService.createInstance(OverviewRulerPart,
