@@ -91,11 +91,9 @@
 				case 'darwin':
 					appDataPath = path.join(os.homedir(), 'Library', 'Application Support');
 					break;
-				case 'linux':
+				default:
 					appDataPath = process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
 					break;
-				default:
-					throw new Error('Platform not supported');
 			}
 
 			return path.join(appDataPath, productName);
