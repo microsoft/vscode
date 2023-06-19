@@ -104,6 +104,11 @@ class CellStatusBarHelper extends Disposable {
 		this._register(disposableTimeout(() => {
 			this._updateThrottler.queue(async () => {
 				if (this._isDisposed) {
+					// This order of events can happen
+					// - Start one update
+					// - Start a second update, its queued
+					// - This class is disposed, cancelling the first update
+					// - The second update runs, and we're disposed. So bail at this point.
 					return;
 				}
 
