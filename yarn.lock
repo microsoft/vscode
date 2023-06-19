@@ -1327,10 +1327,10 @@
     mkdirp "^0.5.5"
     nan "^2.17.0"
 
-"@vscode/sqlite3@5.1.5-vscode":
-  version "5.1.5-vscode"
-  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.1.5-vscode.tgz#5de2fd3373c3b8daea8ef3589545f69e0fd87ebb"
-  integrity sha512-7nk6gkOXSBsuQ3zsdSdnB47mGyvRO2/w/miX5ri3xv6PfWKLNOabdydCb+4JuEwTnY5YOZ9ltGzexV3qsSX0Yg==
+"@vscode/sqlite3@5.1.6-vscode":
+  version "5.1.6-vscode"
+  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.1.6-vscode.tgz#2f20e80fe2af59f3e81bf777f5fe2da5a6ec8329"
+  integrity sha512-SzNUiijrRyJr1ly6eHIs5UcCqH/V8aaoz9mHNm5SdnJCJOX5T9RcHqO1AJ9VreHcPcRPKuG2paUpMkTeyynmYQ==
   dependencies:
     node-addon-api "^4.2.0"
     tar "^6.1.11"

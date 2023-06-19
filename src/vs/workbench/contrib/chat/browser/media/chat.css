@@ -107,7 +107,8 @@
 	padding: 4px 6px;
 }
 
-.interactive-item-container .value a {
+.interactive-item-container .value a,
+.interactive-item-container .value a code {
 	color: var(--vscode-textLink-foreground);
 }
 
