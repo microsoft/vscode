@@ -31,8 +31,19 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 		'unchangedRegion',
 		{ regions: [], originalDecorationIds: [], modifiedDecorationIds: [] }
 	);
-	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived('unchangedRegions', r =>
-		this._hideUnchangedRegions.read(r) ? this._unchangedRegions.read(r).regions : []
+	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived('unchangedRegions', r => {
+		if (this._hideUnchangedRegions.read(r)) {
+			return this._unchangedRegions.read(r).regions;
+		} else {
+			// Reset state
+			transaction(tx => {
+				for (const r of this._unchangedRegions.get().regions) {
+					r.setState(0, 0, tx);
+				}
+			});
+			return [];
+		}
+	}
 	);
 
 	public readonly syncedMovedTexts = observableValue<MovedText | undefined>('syncedMovedText', undefined);
