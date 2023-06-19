@@ -166,8 +166,8 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
-			// mouse moved on top of overlay margin hover widget
+		if (this._isHoverSticky && target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
+			// mouse moved on top of overlay hover widget
 			return;
 		}
 
