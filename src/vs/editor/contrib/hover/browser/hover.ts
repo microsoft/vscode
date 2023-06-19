@@ -286,10 +286,6 @@ export class ModesHoverController implements IEditorContribution {
 		return this._contentWidget?.isVisible();
 	}
 
-	public clearPersistedSizes(): void {
-		this._contentWidget?.clearPersistedSizes();
-	}
-
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
@@ -675,31 +671,6 @@ class EscapeFocusHoverAction extends EditorAction {
 	}
 }
 
-class ClearPersistedHoverSizes extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.clearPersistedHoverSizes',
-			label: nls.localize({
-				key: 'clearPersistedHoverSizes',
-				comment: [
-					'Action that allows to clear the persisted hover sizes.'
-				]
-			}, "Clear Persisted Hover Sizes"),
-			alias: 'Clear Persisted Hover Sizes',
-			precondition: undefined
-		});
-	}
-
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = ModesHoverController.get(editor);
-		if (!controller) {
-			return;
-		}
-		controller.clearPersistedSizes();
-	}
-}
-
 registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
@@ -712,7 +683,6 @@ registerEditorAction(PageDownHoverAction);
 registerEditorAction(GoToTopHoverAction);
 registerEditorAction(GoToBottomHoverAction);
 registerEditorAction(EscapeFocusHoverAction);
-registerEditorAction(ClearPersistedHoverSizes);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 

@@ -23,7 +23,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MultiplePersistedSizeResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
+import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
@@ -389,10 +389,6 @@ export class ContentHoverController extends Disposable {
 	public escape(): void {
 		this._widget.escape();
 	}
-
-	public clearPersistedSizes(): void {
-		this._widget?.clearPersistedSizes();
-	}
 }
 
 class HoverResult {
@@ -450,7 +446,7 @@ const HORIZONTAL_SCROLLING_BY = 30;
 const SCROLLBAR_WIDTH = 10;
 const SASH_WIDTH_MINUS_BORDER = 3;
 
-export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentWidget {
+export class ResizableHoverWidget extends ResizableContentWidget {
 
 	public static ID = 'editor.contrib.resizableContentHoverWidget';
 
@@ -591,10 +587,6 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 		return this._positionPreference === ContentWidgetPositionPreference.ABOVE ? this._availableVerticalSpaceAbove(position) : this._availableVerticalSpaceBelow(position);
 	}
 
-	private _findAvailableSpaceHorizontally(): number | undefined {
-		return this._findMaximumRenderingWidth();
-	}
-
 	private _findMaximumRenderingHeight(): number | undefined {
 		const availableSpace = this._findAvailableSpaceVertically();
 		if (!availableSpace) {
@@ -677,9 +669,7 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	}
 
 	private _getWidgetHeight(): number {
-		const containerDomNode = this._hoverWidget.containerDomNode;
-		const persistedSize = this.findPersistedSize();
-		return persistedSize ? persistedSize.height : containerDomNode.clientHeight + 2 * SASH_WIDTH_MINUS_BORDER;
+		return this._hoverWidget.containerDomNode.clientHeight + 2 * SASH_WIDTH_MINUS_BORDER;
 	}
 
 	private _layoutContentWidget(): void {
@@ -688,9 +678,8 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	}
 
 	private _updateContentsDomNodeMaxDimensions() {
-		const persistedSize = this.findPersistedSize();
-		const width = persistedSize ? 'none' : Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
-		const height = persistedSize ? 'none' : Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 		this._setContentsDomNodeMaxDimensions(width, height);
 	}
 
@@ -753,22 +742,10 @@ export class ResizableHoverWidget extends MultiplePersistedSizeResizableContentW
 	}
 
 	private _setPersistedHoverDimensionsOrRenderNormally(): void {
-		let width: number | string;
-		let height: number | string;
-		const persistedSize = this.findPersistedSize();
-		// Suppose a persisted size is defined
-		if (persistedSize) {
-			const totalBorderWidth = 2 * SASH_WIDTH_MINUS_BORDER;
-			width = Math.min(this._findAvailableSpaceHorizontally() ?? Infinity, persistedSize.width - totalBorderWidth);
-			height = Math.min(this._findAvailableSpaceVertically() ?? Infinity, persistedSize.height - totalBorderWidth);
-		} else {
-			// Added because otherwise the initial size of the hover content is smaller than should be
-			const layoutInfo = this._editor.getLayoutInfo();
-			this._resizableNode.layout(layoutInfo.height, layoutInfo.width);
-			width = 'auto';
-			height = 'auto';
-		}
-		this._setHoverWidgetDimensions(width, height);
+		// Added because otherwise the initial size of the hover content is smaller than should be
+		const layoutInfo = this._editor.getLayoutInfo();
+		this._resizableNode.layout(layoutInfo.height, layoutInfo.width);
+		this._setHoverWidgetDimensions('auto', 'auto');
 	}
 
 	private _setContainerAbsolutePosition(top: number, left: number): void {
