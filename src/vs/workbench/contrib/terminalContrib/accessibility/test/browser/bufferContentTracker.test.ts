@@ -7,11 +7,12 @@ import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService, NullLogService } from 'vs/platform/log/common/log';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -23,6 +24,7 @@ import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/ter
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
 import { Terminal } from 'xterm';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
@@ -54,8 +56,10 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILoggerService, new TestLoggerService());
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		capabilities = new TerminalCapabilityStore();
 		if (!isWindows) {

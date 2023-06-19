@@ -55,9 +55,11 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 			if (!diff) {
 				return;
 			}
-			if (!this._showMoves.get()) {
-				const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
-				this._lastDiff = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
+
+			const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
+			const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
+			if (result) {
+				this._lastDiff = result;
 				this._diff.set(DiffState.fromDiffResult(this._lastDiff), undefined);
 				const currentSyncedMovedText = this.syncedMovedTexts.get();
 				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, undefined);
@@ -70,13 +72,16 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 			if (!diff) {
 				return;
 			}
-			if (!this._showMoves.get()) {
-				const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
-				this._lastDiff = applyOriginalEdits(this._lastDiff!, textEdits, model.original, model.modified);
+
+			const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
+			const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
+			if (result) {
+				this._lastDiff = result;
 				this._diff.set(DiffState.fromDiffResult(this._lastDiff), undefined);
 				const currentSyncedMovedText = this.syncedMovedTexts.get();
 				this.syncedMovedTexts.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modifiedRange.intersect(currentSyncedMovedText.lineRangeMapping.modifiedRange)) : undefined, undefined);
 			}
+
 			debouncer.schedule();
 		}));
 
@@ -107,8 +112,8 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 				computeMoves: this._showMoves.read(reader),
 			});
 
-			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified);
-			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified);
+			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;
+			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
 
 			const newUnchangedRegions = UnchangedRegion.fromDiffs(result.changes, model.original.getLineCount(), model.modified.getLineCount());
 
@@ -327,13 +332,16 @@ export class UnchangedRegion {
 	}
 }
 
-function applyOriginalEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff {
+function applyOriginalEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff | undefined {
 	if (textEdits.length === 0) {
 		return diff;
 	}
 
 	const diff2 = flip(diff);
 	const diff3 = applyModifiedEdits(diff2, textEdits, modifiedTextModel, originalTextModel);
+	if (!diff3) {
+		return undefined;
+	}
 	return flip(diff3);
 }
 
@@ -346,9 +354,13 @@ function flip(diff: IDocumentDiff): IDocumentDiff {
 	};
 }
 
-function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff {
+function applyModifiedEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff | undefined {
 	if (textEdits.length === 0) {
 		return diff;
+	}
+	if (diff.changes.some(c => !c.innerChanges) || diff.moves.length > 0) {
+		// TODO support these cases
+		return undefined;
 	}
 
 	const changes = applyModifiedEditsToLineRangeMappings(diff.changes, textEdits, originalTextModel, modifiedTextModel);

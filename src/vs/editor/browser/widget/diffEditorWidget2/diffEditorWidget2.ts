@@ -25,9 +25,9 @@ import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/line
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
 import { UnchangedRangesFeature } from 'vs/editor/browser/widget/diffEditorWidget2/unchangedRanges';
-import { ObservableElementSizeObserver, applyObservableDecorations } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { ObservableElementSizeObserver, applyObservableDecorations, deepMerge } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
-import { EditorOptions, IDiffEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -42,6 +42,7 @@ import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffMapping, DiffModel } from './diffModel';
 import { Range } from 'vs/editor/common/core/range';
 import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { deepClone } from 'vs/base/common/objects';
 
 const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 	enableSplitViewResizing: true,
@@ -82,6 +83,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	);
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 	private readonly _options: ISettableObservable<ValidDiffEditorBaseOptions>;
+	private _editorOptions: IEditorOptions;
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
 	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>('boundarySashes', undefined);
 	private readonly _renderOverviewRuler: IObservable<boolean>;
@@ -105,6 +107,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		);
 
 		this._options = observableValue<ValidDiffEditorBaseOptions>('options', validateDiffEditorOptions(options || {}, diffEditorDefaultOptions));
+		this._editorOptions = deepClone(options);
 
 		this._domElement.appendChild(this.elements.root);
 
@@ -431,6 +434,12 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		// Clone minimap options before changing them
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
+
+		if (this._options.get().experimental?.collapseUnchangedRegions) {
+			clonedOptions.stickyScroll = { enabled: false };
+		} else {
+			clonedOptions.stickyScroll = this._editorOptions.stickyScroll;
+		}
 		return clonedOptions;
 	}
 
@@ -510,6 +519,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	override updateOptions(_newOptions: IDiffEditorOptions): void {
 		const newOptions = validateDiffEditorOptions(_newOptions, this._options.get());
 		this._options.set(newOptions, undefined);
+		deepMerge(this._editorOptions, deepClone(_newOptions));
 
 		this._modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(_newOptions));
 		this._originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(_newOptions));
