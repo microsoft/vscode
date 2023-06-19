@@ -58,6 +58,7 @@ interface EmitterLike<T> {
 interface PreloadStyles {
 	readonly outputNodePadding: number;
 	readonly outputNodeLeftPadding: number;
+	readonly tokenizationCss: string;
 }
 
 export interface PreloadOptions {
@@ -98,7 +99,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
 
-	const tokenizationStyleElement = document.querySelector('style#vscode-tokenization-styles');
+	const tokenizationStyle = new CSSStyleSheet();
+	tokenizationStyle.replaceSync(ctx.style.tokenizationCss);
+
 	const runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable = (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function')
 		? (runner) => {
 			setTimeout(() => {
@@ -1441,9 +1444,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'tokenizedStylesChanged': {
-				if (tokenizationStyleElement) {
-					tokenizationStyleElement.textContent = event.data.css;
-				}
+				tokenizationStyle.replaceSync(event.data.css);
 				break;
 			}
 			case 'find': {
@@ -2059,8 +2060,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			const trustedHtml = ttPolicy?.createHTML(html) ?? html;
 			el.innerHTML = trustedHtml as string;
-			if (tokenizationStyleElement) {
-				el.insertAdjacentElement('beforebegin', tokenizationStyleElement.cloneNode(true) as HTMLElement);
+			const root = el.getRootNode();
+			if (root instanceof ShadowRoot) {
+				if (!root.adoptedStyleSheets.includes(tokenizationStyle)) {
+					root.adoptedStyleSheets.push(tokenizationStyle);
+				}
 			}
 		}
 
