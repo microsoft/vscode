@@ -235,10 +235,10 @@ function handleGetFileChangesRequest(watcher: DirWatcher, fileServer: FileServer
 function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): string {
 	loaderJsCode = loaderJsCode.replace(
 		/constructor\(env, scriptLoader, defineFunc, requireFunc, loaderAvailableTimestamp = 0\) {/,
-		'$&globalThis.$$globalModuleManager = this;'
+		'$&globalThis.___globalModuleManager = this;'
 	);
 
-	const $$globalModuleManager: any = undefined;
+	const ___globalModuleManager: any = undefined;
 
 	// This code will be appended to loader.js
 	function $watchChanges(fileChangesUrl: string) {
@@ -266,24 +266,26 @@ function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): s
 						const data = JSON.parse(line);
 						let handled = false;
 						if (data.changedPath.endsWith('.css')) {
-							console.log('css changed', data.changedPath);
-							const styleSheet = [...document.querySelectorAll(`link[rel='stylesheet']`)].find((l: any) => new URL(l.href, document.location.href).pathname.endsWith(data.changedPath)) as any;
-							if (styleSheet) {
-								styleSheet.href = styleSheet.href.replace(/\?.*/, '') + '?' + Date.now();
+							if (typeof document !== 'undefined') {
+								console.log('css changed', data.changedPath);
+								const styleSheet = [...document.querySelectorAll(`link[rel='stylesheet']`)].find((l: any) => new URL(l.href, document.location.href).pathname.endsWith(data.changedPath)) as any;
+								if (styleSheet) {
+									styleSheet.href = styleSheet.href.replace(/\?.*/, '') + '?' + Date.now();
+								}
 							}
 							handled = true;
 						} else if (data.changedPath.endsWith('.js') && data.moduleId) {
 							console.log('js changed', data.changedPath);
-							const moduleId = $$globalModuleManager._moduleIdProvider.getModuleId(data.moduleId);
-							if ($$globalModuleManager._modules2[moduleId]) {
-								const srcUrl = $$globalModuleManager._config.moduleIdToPaths(data.moduleId);
+							const moduleId = ___globalModuleManager._moduleIdProvider.getModuleId(data.moduleId);
+							if (___globalModuleManager._modules2[moduleId]) {
+								const srcUrl = ___globalModuleManager._config.moduleIdToPaths(data.moduleId);
 								const newSrc = await (await fetch(srcUrl)).text();
 								(new Function('define', newSrc))(function (deps, callback) {
-									const oldModule = $$globalModuleManager._modules2[moduleId];
-									delete $$globalModuleManager._modules2[moduleId];
+									const oldModule = ___globalModuleManager._modules2[moduleId];
+									delete ___globalModuleManager._modules2[moduleId];
 
-									$$globalModuleManager.defineModule(data.moduleId, deps, callback);
-									const newModule = $$globalModuleManager._modules2[moduleId];
+									___globalModuleManager.defineModule(data.moduleId, deps, callback);
+									const newModule = ___globalModuleManager._modules2[moduleId];
 									const oldExports = { ...oldModule.exports };
 
 									Object.assign(oldModule.exports, newModule.exports);

@@ -100,6 +100,7 @@
 		"--vscode-diffEditor-removedLineBackground",
 		"--vscode-diffEditor-removedTextBackground",
 		"--vscode-diffEditor-removedTextBorder",
+		"--vscode-diffEditor-unchangedCodeBackground",
 		"--vscode-diffEditor-unchangedRegionBackground",
 		"--vscode-diffEditor-unchangedRegionForeground",
 		"--vscode-diffEditorGutter-insertedLineBackground",

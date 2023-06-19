@@ -31,8 +31,19 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 		'unchangedRegion',
 		{ regions: [], originalDecorationIds: [], modifiedDecorationIds: [] }
 	);
-	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived('unchangedRegions', r =>
-		this._hideUnchangedRegions.read(r) ? this._unchangedRegions.read(r).regions : []
+	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived('unchangedRegions', r => {
+		if (this.hideUnchangedRegions.read(r)) {
+			return this._unchangedRegions.read(r).regions;
+		} else {
+			// Reset state
+			transaction(tx => {
+				for (const r of this._unchangedRegions.get().regions) {
+					r.setState(0, 0, tx);
+				}
+			});
+			return [];
+		}
+	}
 	);
 
 	public readonly syncedMovedTexts = observableValue<MovedText | undefined>('syncedMovedText', undefined);
@@ -41,7 +52,7 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 		public readonly model: IDiffEditorModel,
 		ignoreTrimWhitespace: IObservable<boolean>,
 		maxComputationTimeMs: IObservable<number>,
-		private readonly _hideUnchangedRegions: IObservable<boolean>,
+		public readonly hideUnchangedRegions: IObservable<boolean>,
 		private readonly _showMoves: IObservable<boolean>,
 		documentDiffProvider: IDocumentDiffProvider,
 	) {
@@ -74,7 +85,7 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 			}
 
 			const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
-			const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
+			const result = applyOriginalEdits(this._lastDiff!, textEdits, model.original, model.modified);
 			if (result) {
 				this._lastDiff = result;
 				this._diff.set(DiffState.fromDiffResult(this._lastDiff), undefined);
@@ -171,6 +182,9 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 	}
 
 	public ensureModifiedLineIsVisible(lineNumber: number, tx: ITransaction): void {
+		if (this.diff.get()?.mappings.length === 0) {
+			return;
+		}
 		const unchangedRegions = this._unchangedRegions.get().regions;
 		for (const r of unchangedRegions) {
 			if (r.getHiddenModifiedRange(undefined).contains(lineNumber)) {
@@ -181,6 +195,9 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 	}
 
 	public ensureOriginalLineIsVisible(lineNumber: number, tx: ITransaction): void {
+		if (this.diff.get()?.mappings.length === 0) {
+			return;
+		}
 		const unchangedRegions = this._unchangedRegions.get().regions;
 		for (const r of unchangedRegions) {
 			if (r.getHiddenOriginalRange(undefined).contains(lineNumber)) {
@@ -251,8 +268,10 @@ export class UnchangedRegion {
 			let modStart = mapping.modifiedRange.startLineNumber;
 			let length = mapping.originalRange.length;
 
-			if (origStart === 1 && length > minContext + minHiddenLineCount) {
-				length -= minContext;
+			if (origStart === 1 && modStart === 1 && length > minContext + minHiddenLineCount) {
+				if (length < originalLineCount) {
+					length -= minContext;
+				}
 				result.push(new UnchangedRegion(origStart, modStart, length, 0, 0));
 			} else if (origStart + length === originalLineCount + 1 && length > minContext + minHiddenLineCount) {
 				origStart += minContext;

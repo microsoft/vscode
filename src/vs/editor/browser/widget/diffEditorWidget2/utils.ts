@@ -264,6 +264,8 @@ export interface CSSStyle {
 	height: number | string;
 	width: number | string;
 	top: number | string;
+	visibility: 'visible' | 'hidden' | 'collapse';
+	display: 'block' | 'inline' | 'inline-block' | 'flex' | 'none';
 }
 
 export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof CSSStyle]: CSSStyle[TKey] | IObservable<CSSStyle[TKey] | undefined> | undefined }>) {

@@ -8,7 +8,8 @@
 }
 
 .diff-hidden-lines {
-	transform: translate(0px, -8px);
+	height: 0px; /* The children each have a fixed height, the transform confuses the browser */
+	transform: translate(0px, -10px);
 	font-size: 13px;
 	line-height: 14px;
 }
@@ -33,6 +34,19 @@
 
 .diff-hidden-lines .bottom {
 	transform: translate(0px, -6px);
+}
+
+.diff-unchanged-lines {
+	background: var(--vscode-diffEditor-unchangedCodeBackground);
+}
+
+.noModificationsOverlay {
+	z-index: 1;
+	background: var(--vscode-editor-background);
+
+	display: flex;
+	justify-content: center;
+	align-items: center;
 }
 
 

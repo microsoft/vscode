@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { h } from 'vs/base/browser/dom';
+import { $, h } from 'vs/base/browser/dom';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { findLast } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -25,7 +25,7 @@ import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/line
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
 import { UnchangedRangesFeature } from 'vs/editor/browser/widget/diffEditorWidget2/unchangedRanges';
-import { ObservableElementSizeObserver, applyObservableDecorations, deepMerge, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { ObservableElementSizeObserver, applyObservableDecorations, applyStyle, deepMerge, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 import { EditorOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
@@ -68,6 +68,7 @@ const diffEditorDefaultOptions: ValidDiffEditorBaseOptions = {
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
+		h('div.noModificationsOverlay@overlay', { style: { position: 'absolute', height: '100%', visibility: 'hidden', } }, [$('span', {}, 'No Changes')]),
 		h('div.editor.original@original', { style: { position: 'absolute', height: '100%' } }),
 		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%' } }),
 	]);
@@ -190,6 +191,11 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			this._originalEditor,
 			this._modifiedEditor,
 		));
+
+		this._register(applyStyle(this.elements.overlay, {
+			width: this._layoutInfo.map((i, r) => i.originalEditor.width + (this._options.read(r).renderSideBySide ? 0 : i.modifiedEditor.width)),
+			visibility: this._diffModel.map((m, r) => (m && m.hideUnchangedRegions.read(r) && m.diff.read(r)?.mappings.length === 0) ? 'visible' : 'hidden'),
+		}));
 	}
 
 	private readonly _layoutInfo = derived('modifiedEditorLayoutInfo', (reader) => {
