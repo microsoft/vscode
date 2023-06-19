@@ -472,7 +472,7 @@ impl DevTunnels {
 					}
 
 					if let Some(d) = e.get_details() {
-						let detail = d.detail.unwrap_or("unknown".to_string());
+						let detail = d.detail.unwrap_or_else(|| "unknown".to_string());
 						return Err(AnyError::from(TunnelCreationFailed(
 							name.to_string(),
 							detail,
