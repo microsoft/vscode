@@ -125,19 +125,26 @@ export class RecorderContribution implements IWorkbenchContribution {
 				});
 
 				const formData = new FormData();
-				formData.set('file', blob);
+				const file = new File([blob], 'input.webm', { type: 'audio/webm' });
+
+				formData.set('file', file);
 				formData.set('model', 'whisper-1');
 
-				const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-					method: 'POST',
-					body: formData,
-					headers: {
-						'Authorization': `Bearer ${values![0]}`,
-						'Content-Type': 'multipart/form-data'
-					}
-				});
+				try {
+					const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+						method: 'POST',
+						body: formData,
+						headers: {
+							'Authorization': `Bearer ${values![0]}`
+						}
+					});
 
-				console.log(response);
+					const reply = await response.json();
+
+					dialogService.info(`You said: ${reply.text}`);
+				} catch (error) {
+					console.error(error);
+				}
 			}
 		});
 	}
