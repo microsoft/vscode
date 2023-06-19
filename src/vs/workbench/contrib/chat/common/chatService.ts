@@ -199,4 +199,6 @@ export interface IChatService {
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
+
+	transferChatSession(sessionProviderId: number, toWorkspace: URI): void;
 }
