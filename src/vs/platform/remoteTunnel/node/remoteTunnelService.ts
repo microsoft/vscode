@@ -340,13 +340,13 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 					}
 				});
 				if (!this.environmentService.isBuilt) {
-					onOutput('Building tunnel CLI from sources and run', false);
-					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}`, false);
+					onOutput('Building tunnel CLI from sources and run\n', false);
+					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}\n`, false);
 					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), stdio });
 				} else {
-					onOutput('Running tunnel CLI', false);
+					onOutput('Running tunnel CLI\n', false);
 					const tunnelCommand = this.getTunnelCommandLocation();
-					onOutput(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}`, false);
+					onOutput(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}\n`, false);
 					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir(), stdio });
 				}
 
