@@ -11,7 +11,8 @@ import { clamp } from 'vs/base/common/numbers';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import * as dom from 'vs/base/browser/dom';
 
-const HEADER_HEIGHT = 30;
+const TOP_HEIGHT = 30;
+const BOTTOM_HEIGHT = 24;
 const MIN_HEIGHT = 24;
 
 export abstract class ResizableContentWidget extends Disposable implements IContentWidget {
@@ -21,7 +22,7 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 
 	protected readonly _resizableNode = this._register(new ResizableHTMLElement());
 	protected _contentPosition: IContentWidgetPosition | null = null;
-	protected _position: Position | undefined;
+	// protected _position: Position | undefined;
 
 	private _isResizing: boolean = false;
 
@@ -60,12 +61,12 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 	}
 
 	get position(): Position | undefined {
-		return this._position;
+		return this._contentPosition?.position ? Position.lift(this._contentPosition.position) : undefined;
 	}
 
-	set position(position: Position | undefined) {
-		this._position = position;
-	}
+	// set position(position: Position | undefined) {
+	// 	this._position = position;
+	// }
 
 	protected _availableVerticalSpaceAbove(position: IPosition): number | undefined {
 		const editorDomNode = this._editor.getDomNode();
@@ -74,7 +75,7 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 			return;
 		}
 		const editorBox = dom.getDomNodePagePosition(editorDomNode);
-		return editorBox.top + mouseBox.top - HEADER_HEIGHT;
+		return editorBox.top + mouseBox.top - TOP_HEIGHT;
 	}
 
 	protected _availableVerticalSpaceBelow(position: IPosition): number | undefined {
@@ -86,7 +87,7 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 		const editorBox = dom.getDomNodePagePosition(editorDomNode);
 		const bodyBox = dom.getClientArea(document.body);
 		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
-		return bodyBox.height - mouseBottom;
+		return bodyBox.height - mouseBottom - BOTTOM_HEIGHT;
 	}
 
 	protected _findPositionPreference(widgetHeight: number, showAtPosition: IPosition): ContentWidgetPositionPreference | undefined {
