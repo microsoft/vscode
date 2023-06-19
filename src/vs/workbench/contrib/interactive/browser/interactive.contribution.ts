@@ -96,7 +96,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				providerDisplayName: 'Interactive Notebook',
 				displayName: 'Interactive',
 				filenamePattern: ['*.interactive'],
-				exclusive: true
+				exclusive: true,
+				externalEditor: true
 			}));
 		}
 

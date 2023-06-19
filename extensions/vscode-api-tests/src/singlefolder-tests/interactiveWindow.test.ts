@@ -73,7 +73,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		await saveAllFilesAndCloseAll();
 	});
 
-	test.skip('Can open an interactive window and execute from input box', async () => {
+	test('Can open an interactive window and execute from input box', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const { notebookEditor, inputUri } = await createInteractiveWindow(defaultKernel);
 
@@ -89,7 +89,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		assert.strictEqual(notebookEditor.notebook.cellAt(0).kind, vscode.NotebookCellKind.Code);
 	});
 
-	test.skip('Interactive window scrolls after execute', async () => {
+	test('Interactive window scrolls after execute', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const { notebookEditor } = await createInteractiveWindow(defaultKernel);
 
@@ -103,7 +103,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 
 	});
 
-	test.skip('Interactive window has the correct kernel', async () => {
+	test('Interactive window has the correct kernel', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		await createInteractiveWindow(defaultKernel);
 
