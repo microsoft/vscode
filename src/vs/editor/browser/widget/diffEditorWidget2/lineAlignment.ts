@@ -335,8 +335,21 @@ export class ViewZoneManager extends Disposable {
 			scrollState.restore(this._modifiedEditor);
 		}));
 
-		this._register(this._originalEditor.onDidScrollChange(e => { this._modifiedEditor.setScrollLeft(e.scrollLeft); }));
-		this._register(this._modifiedEditor.onDidScrollChange(e => { this._originalEditor.setScrollLeft(e.scrollLeft); }));
+		let ignoreChange = false;
+		this._register(this._originalEditor.onDidScrollChange(e => {
+			if (e.scrollLeftChanged && !ignoreChange) {
+				ignoreChange = true;
+				this._modifiedEditor.setScrollLeft(e.scrollLeft);
+				ignoreChange = false;
+			}
+		}));
+		this._register(this._modifiedEditor.onDidScrollChange(e => {
+			if (e.scrollLeftChanged && !ignoreChange) {
+				ignoreChange = true;
+				this._originalEditor.setScrollLeft(e.scrollLeft);
+				ignoreChange = false;
+			}
+		}));
 
 		this._originalScrollTop = observableFromEvent(this._originalEditor.onDidScrollChange, () => this._originalEditor.getScrollTop());
 		this._modifiedScrollTop = observableFromEvent(this._modifiedEditor.onDidScrollChange, () => this._modifiedEditor.getScrollTop());
