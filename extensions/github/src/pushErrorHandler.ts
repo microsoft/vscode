@@ -127,7 +127,14 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 
 		if (error.gitErrorCode === GitErrorCodes.PermissionDenied) {
 			await this.handlePermissionDeniedError(repository, remote, refspec, owner, repo);
-			this.sendTelemetryEvent('PermissionDenied');
+
+			/* __GDPR__
+				"pushErrorHandler" : {
+					"owner": "lszomoru",
+					"handler": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('pushErrorHandler', { handler: 'PermissionDenied' });
 
 			return true;
 		}
@@ -135,12 +142,25 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 		// Push protection
 		if (/GH009: Secrets detected!/i.test(error.stderr)) {
 			await this.handlePushProtectionError(owner, repo, error.stderr);
-			this.sendTelemetryEvent('PushRejected.PushProtection');
+
+			/* __GDPR__
+				"pushErrorHandler" : {
+					"owner": "lszomoru",
+					"handler": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('pushErrorHandler', { handler: 'PushRejected.PushProtection' });
 
 			return true;
 		}
 
-		this.sendTelemetryEvent('None');
+		/* __GDPR__
+			"pushErrorHandler" : {
+				"owner": "lszomoru",
+				"handler": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryReporter.sendTelemetryEvent('pushErrorHandler', { handler: 'None' });
 
 		return false;
 	}
@@ -296,16 +316,6 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 		if (answer === learnMore) {
 			commands.executeCommand('vscode.open', 'https://aka.ms/vscode-github-push-protection');
 		}
-	}
-
-	private sendTelemetryEvent(handler: string): void {
-		/* __GDPR__
-			"pushErrorHandler" : {
-				"owner": "lszomoru",
-				"handler": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryReporter.sendTelemetryEvent('pushErrorHandler', { handler });
 	}
 
 	dispose() {
