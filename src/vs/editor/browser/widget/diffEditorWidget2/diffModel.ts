@@ -74,7 +74,7 @@ export class DiffModel extends Disposable implements IDiffEditorViewModel {
 			}
 
 			const textEdits = TextEditInfo.fromModelContentChanges(e.changes);
-			const result = applyModifiedEdits(this._lastDiff!, textEdits, model.original, model.modified);
+			const result = applyOriginalEdits(this._lastDiff!, textEdits, model.original, model.modified);
 			if (result) {
 				this._lastDiff = result;
 				this._diff.set(DiffState.fromDiffResult(this._lastDiff), undefined);
