@@ -1240,10 +1240,10 @@
   resolved "https://registry.yarnpkg.com/@ungap/promise-all-settled/-/promise-all-settled-1.1.2.tgz#aa58042711d6e3275dd37dc597e5d31e8c290a44"
   integrity sha512-sL/cEvJWAnClXw0wHk85/2L0G6Sj8UB0Ctc1TEMbKSsmpRosqhwj9gWgFRZSrBr2f9tiXISwNhCPmlfqUqyb9Q==
 
-"@vscode/gulp-electron@^1.35.0":
-  version "1.35.0"
-  resolved "https://registry.yarnpkg.com/@vscode/gulp-electron/-/gulp-electron-1.35.0.tgz#b66aa307b1edefb0b37988faf29b82ab9974c466"
-  integrity sha512-FjRdAlfJBflFs28RYBaJ3gK/LHFZ4T34nP/FnKZrwNjWq5ojDC9WiwOMDHaG7wP7AKBcxh267Gz2epghMeO1ng==
+"@vscode/gulp-electron@^1.36.0":
+  version "1.36.0"
+  resolved "https://registry.yarnpkg.com/@vscode/gulp-electron/-/gulp-electron-1.36.0.tgz#b2895c4bafaa0cf2b13042aa654e9fdd1f3a90cd"
+  integrity sha512-zGNnxN2mccAa0fgyjUn0+HUX4sv4syUfoLQru3/QAQYki1oeqnkPpCXZxhismFmWpXwTwsf5sXeh1AOs8uyU0g==
   dependencies:
     "@electron/get" "^2.0.2"
     "@octokit/rest" "^18.0.14"
@@ -1258,6 +1258,7 @@
     rcedit "^0.3.0"
     rimraf "^2.4.2"
     semver "^4.3.4"
+    sumchecker "^3.0.1"
     temp "^0.8.3"
     vinyl "^3.0.0"
     vinyl-fs "^3.0.3"
