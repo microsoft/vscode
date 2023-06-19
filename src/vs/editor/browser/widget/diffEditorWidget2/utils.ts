@@ -171,6 +171,21 @@ function easeOutExpo(t: number, b: number, c: number, d: number): number {
 	return t === d ? b + c : c * (-Math.pow(2, -10 * t / d) + 1) + b;
 }
 
+export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
+	const result = {} as T;
+	for (const key in source1) {
+		result[key] = source1[key];
+	}
+	for (const key in source2) {
+		const source2Value = source2[key];
+		if (typeof result[key] === 'object' && source2Value && typeof source2Value === 'object') {
+			result[key] = deepMerge<any>(result[key], source2Value);
+		} else {
+			result[key] = source2Value as any;
+		}
+	}
+	return result;
+}
 
 export abstract class ViewZoneOverlayWidget extends Disposable {
 	constructor(
