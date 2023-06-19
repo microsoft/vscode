@@ -111,11 +111,11 @@ function __preserve_fish_prompt --on-event fish_prompt
 		__init_vscode_shell_integration
 	else
 		if functions --query __vsc_fish_prompt
-			# There is no fish_prompt set, so stick with the default
 			functions --erase __preserve_fish_prompt
-			# Now __vsc_fish_prompt is guaranteed to be defined
 			__init_vscode_shell_integration
 		else
+			# There is no fish_prompt set, so stick with the default
+			# Now __vsc_fish_prompt is guaranteed to be defined
 			function __vsc_fish_prompt
 				echo -n (whoami)@(prompt_hostname) (prompt_pwd) '~> '
 			end
