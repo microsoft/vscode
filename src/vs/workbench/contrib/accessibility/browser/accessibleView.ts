@@ -21,6 +21,10 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDisposable } from 'xterm';
 
+const enum DIMENSION_DEFAULT {
+	WIDTH = .4,
+	HEIGHT = .2
+}
 
 export interface IAccessibleContentProvider {
 	id: string;
@@ -92,7 +96,7 @@ class AccessibleView extends Disposable {
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
 
-		const fragment = localize('exit-tip', 'Exit this menu via the Escape key.\n') + provider.provideContent();
+		const fragment = provider.provideContent() + localize('exit-tip', 'Exit this menu via the Escape key.\n');
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
@@ -124,8 +128,8 @@ class AccessibleView extends Disposable {
 		const windowWidth = window.innerWidth;
 		const windowHeight = window.innerHeight;
 
-		const width = windowWidth * .4;
-		const height = Math.min(.4 * windowHeight, this._editorWidget.getContentHeight());
+		const width = windowWidth * DIMENSION_DEFAULT.WIDTH;
+		const height = Math.min(windowHeight * DIMENSION_DEFAULT.HEIGHT, this._editorWidget.getContentHeight());
 		this._editorWidget.layout({ width, height });
 		const top = Math.round((windowHeight - height) / 2);
 		this._editorContainer.style.top = `${top}px`;

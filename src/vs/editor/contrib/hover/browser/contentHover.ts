@@ -24,13 +24,18 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
+
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+
+	getWidgetContents(): string | undefined { return withNullAsUndefined(this._widget.getDomNode()?.textContent); }
+
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 

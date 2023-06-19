@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityHelpAction, AccessibilityViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import * as strings from 'vs/base/common/strings';
 import * as platform from 'vs/base/common/platform';
@@ -26,6 +26,8 @@ import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
@@ -133,4 +135,45 @@ class EditorAccessibilityHelpContribution extends Disposable {
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);
 
+
+
+class HoverAccessibileViewContribution extends Disposable {
+	static ID: 'hoverAccessibleViewContribution';
+	constructor() {
+		super();
+		this._register(AccessibilityViewAction.addImplementation(105, 'hover', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+			if (!editor) {
+				return false;
+			}
+			const controller = ModesHoverController.get(editor);
+			const hoverContent = withNullAsUndefined(controller?.getWidgetContents());
+			if (!controller || !hoverContent) {
+				return false;
+			}
+			function provideContent(): string {
+				return hoverContent!;
+			}
+			const provider = accessibleViewService.registerProvider({
+				id: 'hover',
+				provideContent,
+				onClose() {
+					provider.dispose();
+					controller.focus();
+				},
+				onKeyDown(e: IKeyboardEvent) {
+
+				},
+				options: { ariaLabel: localize('hoverAccessibleView', "Hover Accessible View") }
+			});
+			accessibleViewService.show('hover');
+			return true;
+		}));
+	}
+}
+
+const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContributionsRegistry.registerWorkbenchContribution(HoverAccessibileViewContribution, LifecyclePhase.Eventually);
 

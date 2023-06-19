@@ -40,6 +40,9 @@ export class ModesHoverController implements IEditorContribution {
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ContentHoverController | null;
+
+	getWidgetContents(): string | undefined { return this._contentWidget?.getWidgetContents(); }
+
 	private _glyphWidget: MarginHoverWidget | null;
 
 	private _isMouseDown: boolean;
@@ -47,6 +50,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
+
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
