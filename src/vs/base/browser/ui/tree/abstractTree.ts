@@ -1491,6 +1491,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 
 	override setFocus(indexes: number[], browserEvent?: UIEvent, fromAPI = false): void {
 		super.setFocus(indexes, browserEvent);
+
 		if (!fromAPI) {
 			this.focusTrait.set(indexes.map(i => this.element(i)), browserEvent);
 		}
