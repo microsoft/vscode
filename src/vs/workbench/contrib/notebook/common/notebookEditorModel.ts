@@ -105,11 +105,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
 			return this._workingCopy?.isReadonly();
 		} else {
-			const readonly = this._filesConfigurationService.isReadonly(this.resource);
-			if (readonly) {
-				return readonly;
-			}
-			return false;
+			return this._filesConfigurationService.isReadonly(this.resource);
 		}
 	}
 
