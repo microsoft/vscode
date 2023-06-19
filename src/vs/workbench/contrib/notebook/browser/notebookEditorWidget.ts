@@ -1023,41 +1023,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 	}
 
-	// private _registerNotebookActionsToolbar() {
-	// 	const store = new DisposableStore();
-	// 	let currentLabel = convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
-
-	// 	const render = () => {
-	// 		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorWorkbenchToolbar, this, this.scopedContextKeyService, this._notebookOptions, this._notebookTopToolbarContainer));
-
-	// 		store.add(this._notebookTopToolbar.onDidChangeVisibility(() => {
-	// 			if (this._dimension && this._isVisible) {
-	// 				this.layout(this._dimension);
-	// 			}
-	// 		}));
-	// 	};
-
-	// 	render();
-
-	// 	this._register(this.configurationService.onDidChangeConfiguration(e => {
-	// 		if (!e.affectsConfiguration(NotebookSetting.globalToolbarShowLabel)) {
-	// 			return;
-	// 		}
-	// 		const newRenderLabel = convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
-
-	// 		if (newRenderLabel !== currentLabel && (newRenderLabel === RenderLabel.Dynamic || currentLabel === RenderLabel.Dynamic)) {
-	// 			// switch to the other implementation
-	// 			store.clear();
-	// 			this._notebookTopToolbar.dispose();
-	// 			DOM.clearNode(this._notebookTopToolbarContainer);
-	// 			currentLabel = newRenderLabel;
-	// 			render();
-	// 		}
-	// 	}));
-
-	// 	this._register(store);
-	// }
-
 	private _updateOutputRenderers() {
 		if (!this.viewModel || !this._webview) {
 			return;

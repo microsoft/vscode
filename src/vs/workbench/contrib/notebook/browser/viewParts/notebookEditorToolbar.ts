@@ -464,7 +464,6 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 		this._notebookLeftToolbar.setActions([], []);
 
-		// this._primaryActions.forEach(action => action.renderLabel = true);
 		this._primaryActions = primaryActions.map(action => ({
 			action: action,
 			size: (action instanceof Separator ? 1 : 0),
@@ -476,8 +475,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 		this._notebookRightToolbar.setActions(primaryRightActions, []);
 		this._secondaryActions = secondaryActions;
-		// flush to make sure it can be updated later
-		// this._primaryActions = [];
+
 
 		if (this._dimension && this._dimension.width >= 0 && this._dimension.height >= 0) {
 			this._cacheItemSizes(this._notebookLeftToolbar);
@@ -545,11 +543,76 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 }
 
 export function workbenchCalculateActions(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] } {
-	let currentSize = 0;
+	return actionOverflowHelper(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth, false);
+}
+
+export function workbenchDynamicCalculateActions(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] } {
+
+	if (initialPrimaryActions.length === 0) {
+		return { primaryActions: [], secondaryActions: initialSecondaryActions };
+	}
+
+	// find true length of array, add 1 for each primary actions, ignoring an item when size = 0
+	const visibleActionLength = initialPrimaryActions.filter(action => action.size !== 0).length;
+
+	// step 1: try to fit all primary actions
+	const totalWidthWithLabels = initialPrimaryActions.map(action => action.size).reduce((a, b) => a + b, 0) + (visibleActionLength - 1) * ACTION_PADDING;
+	if (totalWidthWithLabels <= leftToolbarContainerMaxWidth) {
+		initialPrimaryActions.forEach(action => {
+			action.renderLabel = true;
+		});
+		return {
+			primaryActions: initialPrimaryActions.map(action => action.action),
+			secondaryActions: initialSecondaryActions
+		};
+	}
+
+	// step 2: check if they fit without labels
+	if ((visibleActionLength * ICON_ONLY_ACTION_WIDTH + (visibleActionLength - 1) * ACTION_PADDING) > leftToolbarContainerMaxWidth) {
+		initialPrimaryActions.forEach(action => { action.renderLabel = false; });
+		return actionOverflowHelper(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth, true);
+	}
+
+	// step 3: render as many actions as possible with labels, rest without.
+	let sum = 0;
+	let lastActionWithLabel = -1;
+	for (let i = 0; i < initialPrimaryActions.length; i++) {
+		sum += initialPrimaryActions[i].size + ACTION_PADDING;
+
+		if (initialPrimaryActions[i].action instanceof Separator) {
+			// find group separator
+			const remainingItems = initialPrimaryActions.slice(i + 1);
+			const newTotalSum = sum + (remainingItems.length === 0 ? 0 : (remainingItems.length * ICON_ONLY_ACTION_WIDTH + (remainingItems.length - 1) * ACTION_PADDING));
+			if (newTotalSum <= leftToolbarContainerMaxWidth) {
+				lastActionWithLabel = i;
+			}
+		} else {
+			continue;
+		}
+	}
+
+	// icons only don't fit either
+	if (lastActionWithLabel < 0) {
+		initialPrimaryActions.forEach(action => { action.renderLabel = false; });
+		return actionOverflowHelper(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth, true);
+	}
+
+	// render labels for the actions that have space
+	initialPrimaryActions.slice(0, lastActionWithLabel + 1).forEach(action => { action.renderLabel = true; });
+	initialPrimaryActions.slice(lastActionWithLabel + 1).forEach(action => { action.renderLabel = false; });
+	return {
+		primaryActions: initialPrimaryActions.map(action => action.action),
+		secondaryActions: initialSecondaryActions
+	};
+}
+
+function actionOverflowHelper(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number, iconOnly: boolean): { primaryActions: IAction[]; secondaryActions: IAction[] } {
 	const renderActions: IActionModel[] = [];
 	const overflow: IAction[] = [];
-	let containerFull = false;
+
+	let currentSize = 0;
 	let nonZeroAction = false;
+	let containerFull = false;
 
 	if (initialPrimaryActions.length === 0) {
 		return { primaryActions: [], secondaryActions: initialSecondaryActions };
@@ -557,7 +620,7 @@ export function workbenchCalculateActions(initialPrimaryActions: IActionModel[],
 
 	for (let i = 0; i < initialPrimaryActions.length; i++) {
 		const actionModel = initialPrimaryActions[i];
-		const itemSize = actionModel.size;
+		const itemSize = iconOnly ? (actionModel.size === 0 ? 0 : ICON_ONLY_ACTION_WIDTH) : actionModel.size;
 
 		// if two separators in a row, ignore the second
 		if (actionModel.action instanceof Separator && renderActions.length > 0 && renderActions[renderActions.length - 1].action instanceof Separator) {
@@ -569,7 +632,8 @@ export function workbenchCalculateActions(initialPrimaryActions: IActionModel[],
 			continue;
 		}
 
-		if (currentSize + itemSize <= leftToolbarContainerMaxWidth && !containerFull) { // if next item fits within left container width, push to rendered actions
+
+		if (currentSize + itemSize <= leftToolbarContainerMaxWidth && !containerFull) {
 			currentSize += ACTION_PADDING + itemSize;
 			renderActions.push(actionModel);
 			if (itemSize !== 0) {
@@ -611,108 +675,13 @@ export function workbenchCalculateActions(initialPrimaryActions: IActionModel[],
 		overflow.push(new Separator());
 	}
 
-	return {
-		primaryActions: renderActions.map(action => action.action),
-		secondaryActions: [...overflow, ...initialSecondaryActions]
-	};
-}
-
-export function workbenchDynamicCalculateActions(initialPrimaryActions: IActionModel[], initialSecondaryActions: IAction[], leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] } {
-	if (initialPrimaryActions.length === 0) {
-		return { primaryActions: [], secondaryActions: initialSecondaryActions };
-	}
-
-	// find true length of array, add 1 for each primary actions, ignoring an item when size = 0
-	const visibleActionLength = initialPrimaryActions.filter(action => action.size !== 0).length;
-
-	// step 1: try to fit all primary actions
-	const totalWidthWithLabels = initialPrimaryActions.map(action => action.size).reduce((a, b) => a + b, 0) + (visibleActionLength - 1) * ACTION_PADDING;
-	if (totalWidthWithLabels <= leftToolbarContainerMaxWidth) {
-		initialPrimaryActions.forEach(action => {
-			action.renderLabel = true;
-		});
-		return {
-			primaryActions: initialPrimaryActions.map(action => action.action),
-			secondaryActions: initialSecondaryActions
-		};
-	}
-
-	// step 2: check if they fit without labels
-	if ((visibleActionLength * ICON_ONLY_ACTION_WIDTH + (visibleActionLength - 1) * ACTION_PADDING) > leftToolbarContainerMaxWidth) {
-		return calculateIconOverflow(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
-	}
-
-	// step 3: render as many actions as possible with labels, rest without.
-	let sum = 0;
-	let lastActionWithLabel = -1;
-	for (let i = 0; i < initialPrimaryActions.length; i++) {
-		sum += initialPrimaryActions[i].size + ACTION_PADDING;
-
-		if (initialPrimaryActions[i].action instanceof Separator) {
-			// find group separator
-			const remainingItems = initialPrimaryActions.slice(i + 1);
-			const newTotalSum = sum + (remainingItems.length === 0 ? 0 : (remainingItems.length * ICON_ONLY_ACTION_WIDTH + (remainingItems.length - 1) * ACTION_PADDING));
-			if (newTotalSum <= leftToolbarContainerMaxWidth) {
-				lastActionWithLabel = i;
-			}
-		} else {
-			continue;
+	if (iconOnly) {
+		// if icon only mode, don't render both (+ code) and (+ markdown) buttons. remove of markdown action
+		const markdownIndex = renderActions.findIndex(a => a.action.id === 'notebook.cell.insertMarkdownCellBelow');
+		if (markdownIndex !== -1) {
+			renderActions.splice(markdownIndex, 1);
 		}
 	}
-
-	// icons only don't fit either
-	// todo: don't quite understand this bit
-	if (lastActionWithLabel < 0) {
-		return calculateIconOverflow(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
-	}
-
-
-	initialPrimaryActions.slice(0, lastActionWithLabel + 1).forEach(action => { action.renderLabel = true; });
-	initialPrimaryActions.slice(lastActionWithLabel + 1).forEach(action => { action.renderLabel = false; });
-	return {
-		primaryActions: initialPrimaryActions.map(action => action.action),
-		secondaryActions: initialSecondaryActions
-	};
-}
-
-function calculateIconOverflow(initialPrimaryActions: any[], initialSecondaryActions: any[], leftToolbarContainerMaxWidth: number) {
-	initialPrimaryActions.forEach(action => { action.renderLabel = false; });
-	const renderActions: IActionModel[] = [];
-	const overflow: IAction[] = [];
-
-	let currentSize = 0;
-	for (let i = 0; i < initialPrimaryActions.length; i++) {
-		const actionModel = initialPrimaryActions[i];
-		const itemSize = ICON_ONLY_ACTION_WIDTH;
-
-		if (currentSize + itemSize <= leftToolbarContainerMaxWidth) {
-			currentSize += ACTION_PADDING + itemSize;
-			renderActions.push(actionModel);
-		} else {
-			overflow.push(actionModel.action);
-		}
-	}
-
-	for (let i = (renderActions.length - 1); i !== 0; i--) {
-		const temp = renderActions[i];
-		if (temp.size === 0) {
-			continue;
-		}
-		if (temp.action instanceof Separator) {
-			renderActions.splice(i, 1);
-		}
-		break;
-	}
-
-
-	if (renderActions.length && renderActions[renderActions.length - 1].action instanceof Separator) {
-		renderActions.pop();
-	}
-
-	if (overflow.length !== 0) {
-		overflow.push(new Separator());
-	}
-
 
 	return {
 		primaryActions: renderActions.map(action => action.action),
