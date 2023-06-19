@@ -187,6 +187,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 			return undefined;
 		}
 
+		const filename = this.getName() + '.ipynb';
 		const pathCandidate = joinPath(await this._fileDialogService.defaultFilePath(), 'scratch.ipynb');
 
 		const target = await this._fileDialogService.pickFileToSave(pathCandidate, options?.availableFileSystems);

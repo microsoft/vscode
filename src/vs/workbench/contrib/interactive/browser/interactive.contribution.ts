@@ -396,7 +396,7 @@ registerAction2(class extends Action2 {
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));
 
-		logService.info('Open new interactive window:', notebookUri.toString(), inputUri.toString());
+		logService.debug('Open new interactive window:', notebookUri.toString(), inputUri.toString());
 
 		if (id) {
 			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, viewType: 'interactive' }).all;
