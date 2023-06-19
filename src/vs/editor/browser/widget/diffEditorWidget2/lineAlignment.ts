@@ -53,6 +53,7 @@ export class ViewZoneManager extends Disposable {
 		private readonly _diffModel: IObservable<DiffModel | undefined>,
 		private readonly _renderSideBySide: IObservable<boolean>,
 		private readonly _diffEditorWidget: DiffEditorWidget2,
+		private readonly _canIgnoreViewZoneUpdateEvent: () => boolean,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
@@ -62,11 +63,11 @@ export class ViewZoneManager extends Disposable {
 
 		const originalViewZonesChanged = observableSignalFromEvent(
 			'origViewZonesChanged',
-			e => this._originalEditor.onDidChangeViewZones((args) => { if (!isChangingViewZones) { e(args); } })
+			e => this._originalEditor.onDidChangeViewZones((args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { e(args); } })
 		);
 		const modifiedViewZonesChanged = observableSignalFromEvent(
 			'modViewZonesChanged',
-			e => this._modifiedEditor.onDidChangeViewZones((args) => { if (!isChangingViewZones) { e(args); } })
+			e => this._modifiedEditor.onDidChangeViewZones((args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { e(args); } })
 		);
 
 		const originalModelTokenizationCompleted = this._diffModel.map(m =>
@@ -116,6 +117,7 @@ export class ViewZoneManager extends Disposable {
 					afterLineNumber: 0,
 					domNode: document.createElement('div'),
 					heightInPx: modifiedTopPaddingVal,
+					showInHiddenAreas: true,
 				});
 			}
 			const originalTopPaddingVal = this._originalTopPadding.read(reader);
@@ -124,6 +126,7 @@ export class ViewZoneManager extends Disposable {
 					afterLineNumber: 0,
 					domNode: document.createElement('div'),
 					heightInPx: originalTopPaddingVal,
+					showInHiddenAreas: true,
 				});
 			}
 
@@ -232,6 +235,7 @@ export class ViewZoneManager extends Disposable {
 						domNode: createFakeLinesDiv(),
 						heightInPx: a.modifiedHeightInPx,
 						marginDomNode,
+						showInHiddenAreas: true,
 					});
 				} else {
 					const delta = a.modifiedHeightInPx - a.originalHeightInPx;
@@ -244,6 +248,7 @@ export class ViewZoneManager extends Disposable {
 							afterLineNumber: a.originalRange.endLineNumberExclusive - 1,
 							domNode: createFakeLinesDiv(),
 							heightInPx: delta,
+							showInHiddenAreas: true,
 						});
 					} else {
 						if (syncedMovedText?.lineRangeMapping.modifiedRange.contains(a.modifiedRange.endLineNumberExclusive - 1)) {
@@ -266,6 +271,7 @@ export class ViewZoneManager extends Disposable {
 							domNode: createFakeLinesDiv(),
 							heightInPx: -delta,
 							marginDomNode,
+							showInHiddenAreas: true,
 						});
 					}
 				}
@@ -328,6 +334,9 @@ export class ViewZoneManager extends Disposable {
 
 			scrollState.restore(this._modifiedEditor);
 		}));
+
+		this._register(this._originalEditor.onDidScrollChange(e => { this._modifiedEditor.setScrollLeft(e.scrollLeft); }));
+		this._register(this._modifiedEditor.onDidScrollChange(e => { this._originalEditor.setScrollLeft(e.scrollLeft); }));
 
 		this._originalScrollTop = observableFromEvent(this._originalEditor.onDidScrollChange, () => this._originalEditor.getScrollTop());
 		this._modifiedScrollTop = observableFromEvent(this._modifiedEditor.onDidScrollChange, () => this._modifiedEditor.getScrollTop());

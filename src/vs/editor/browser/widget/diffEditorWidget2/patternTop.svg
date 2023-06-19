@@ -1,5 +1,0 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='30' height='8' preserveAspectRatio='none'>
-	<g transform='translate(0, 0), scale(1.5, 1)'>
-		<path d='M 0 10 L 0 5 Q 5 10 10 5 Q 15 0 20 5 L 20 10' style='fill:white' />
-	</g>
-</svg>

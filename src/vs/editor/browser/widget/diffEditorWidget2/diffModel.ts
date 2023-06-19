@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ITransaction, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
+import { IObservable, IReader, ISettableObservable, ITransaction, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
 import { isDefined } from 'vs/base/common/types';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -279,10 +279,14 @@ export class UnchangedRegion {
 	}
 
 	private readonly _visibleLineCountTop = observableValue<number>('visibleLineCountTop', 0);
-	public readonly visibleLineCountTop: IObservable<number> = this._visibleLineCountTop;
+	public readonly visibleLineCountTop: ISettableObservable<number> = this._visibleLineCountTop;
 
 	private readonly _visibleLineCountBottom = observableValue<number>('visibleLineCountBottom', 0);
-	public readonly visibleLineCountBottom: IObservable<number> = this._visibleLineCountBottom;
+	public readonly visibleLineCountBottom: ISettableObservable<number> = this._visibleLineCountBottom;
+
+	private readonly _shouldHideControls = derived('isVisible', reader => this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
+
+	public readonly isDragged = observableValue<boolean>('isDragged', false);
 
 	constructor(
 		public readonly originalLineNumber: number,
@@ -293,6 +297,10 @@ export class UnchangedRegion {
 	) {
 		this._visibleLineCountTop.set(visibleLineCountTop, undefined);
 		this._visibleLineCountBottom.set(visibleLineCountBottom, undefined);
+	}
+
+	public shouldHideControls(reader: IReader | undefined): boolean {
+		return this._shouldHideControls.read(reader);
 	}
 
 	public getHiddenOriginalRange(reader: IReader | undefined): LineRange {
@@ -309,14 +317,22 @@ export class UnchangedRegion {
 		);
 	}
 
-	public showMoreAbove(tx: ITransaction | undefined): void {
-		const maxVisibleLineCountTop = this.lineCount - this._visibleLineCountBottom.get();
-		this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + 10, maxVisibleLineCountTop), tx);
+	public getMaxVisibleLineCountTop() {
+		return this.lineCount - this._visibleLineCountBottom.get();
 	}
 
-	public showMoreBelow(tx: ITransaction | undefined): void {
+	public getMaxVisibleLineCountBottom() {
+		return this.lineCount - this._visibleLineCountTop.get();
+	}
+
+	public showMoreAbove(count = 10, tx: ITransaction | undefined): void {
+		const maxVisibleLineCountTop = this.getMaxVisibleLineCountTop();
+		this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + count, maxVisibleLineCountTop), tx);
+	}
+
+	public showMoreBelow(count = 10, tx: ITransaction | undefined): void {
 		const maxVisibleLineCountBottom = this.lineCount - this._visibleLineCountTop.get();
-		this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + 10, maxVisibleLineCountBottom), tx);
+		this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + count, maxVisibleLineCountBottom), tx);
 	}
 
 	public showAll(tx: ITransaction | undefined): void {
