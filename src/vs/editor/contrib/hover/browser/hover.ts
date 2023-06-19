@@ -51,7 +51,6 @@ export class ModesHoverController implements IEditorContribution {
 	private _isHoverSticky!: boolean;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
 
-
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
 	}
