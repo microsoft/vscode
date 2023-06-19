@@ -33,32 +33,21 @@ import { join } from 'path';
 import { memoize } from 'vs/base/common/decorators';
 
 export function traceRpc(_target: any, key: string, descriptor: any) {
-	let fnKey: string | null = null;
-	let fn: Function | null = null;
-
-	if (typeof descriptor.value === 'function') {
-		fnKey = 'value';
-		fn = descriptor.value;
-
-		if (fn!.length !== 0) {
-			console.warn('Memoize should only be used in functions with zero parameters');
-		}
-	}
-
-	if (!fn) {
+	if (typeof descriptor.value !== 'function') {
 		throw new Error('not supported');
 	}
-
-	descriptor[fnKey!] = async function (...args: any[]) {
+	const fnKey = 'value';
+	const fn = descriptor.value;
+	descriptor[fnKey] = async function (...args: any[]) {
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
-			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fnKey}(${args.map(e => JSON.stringify(e)).join(', ')})`);
+			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
 		}
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		const result = await fn!.apply(this, args);
+		const result = await fn.apply(this, args);
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
-			this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fnKey}`, result);
+			this.traceRpcArgs.logService.trace(`[RPC Response] PtyService#${fn.name}`, result);
 		}
 		return result;
 	};

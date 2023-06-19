@@ -155,11 +155,9 @@ export class SuggestEnabledInput extends Widget {
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
 		const editorOptions: IEditorConstructionOptions = mixin(
-			getSimpleEditorOptions(),
+			getSimpleEditorOptions(configurationService),
 			getSuggestEnabledInputOptions(ariaLabel));
 		editorOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
-		editorOptions.accessibilitySupport = configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
-		editorOptions.cursorBlinking = configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);
 
