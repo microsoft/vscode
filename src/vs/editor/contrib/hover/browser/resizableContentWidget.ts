@@ -111,12 +111,4 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 	_resize(dimension: dom.Dimension): void {
 		this._resizableNode.layout(dimension.height, dimension.width);
 	}
-
-	beforeOnDidWillResize() {
-		return;
-	}
-
-	afterOnDidResize() {
-		return;
-	}
 }
