@@ -63,19 +63,19 @@ export function migrateEmmetExtensionsPath() {
 	// Update Global setting if the value type is string or the value is null
 	if (typeof config?.globalValue === 'string') {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.globalValue], true);
-	} else if (config?.globalValue === null) {
+	} else if (config?.globalValue === null || config?.globalValue === undefined) {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], true);
 	}
 	// Update Workspace setting if the value type is string or the value is null
 	if (typeof config?.workspaceValue === 'string') {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceValue], false);
-	} else if (config?.workspaceValue === null) {
+	} else if (config?.workspaceValue === null || config?.workspaceValue === undefined) {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], false);
 	}
 	// Update WorkspaceFolder setting if the value type is string or the value is null
 	if (typeof config?.workspaceFolderValue === 'string') {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceFolderValue]);
-	} else if (config?.workspaceFolderValue === null) {
+	} else if (config?.workspaceFolderValue === null || config?.workspaceFolderValue === undefined) {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', []);
 	}
 }
