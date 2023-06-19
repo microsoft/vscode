@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-hover .resizable-hover {
+.monaco-hover {
 	z-index: 50;
 }
 
-.monaco-hover {
+.monaco-hover-container {
 	cursor: default;
 	position: absolute;
 	overflow: hidden;
-	z-index: 50;
 	user-select: text;
 	-webkit-user-select: text;
 	box-sizing: initial;
@@ -19,52 +18,52 @@
 	line-height: 1.5em;
 }
 
-.monaco-hover.hidden {
+.monaco-hover-container.hidden {
 	display: none;
 }
 
-.monaco-hover a:hover:not(.disabled) {
+.monaco-hover-container a:hover:not(.disabled) {
 	cursor: pointer;
 }
 
-.monaco-hover .hover-contents:not(.html-hover-contents) {
+.monaco-hover-container .hover-contents:not(.html-hover-contents) {
 	padding: 4px 8px;
 }
 
-.monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
+.monaco-hover-container .markdown-hover > .hover-contents:not(.code-hover-contents) {
 	word-wrap: break-word;
 }
 
-.monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) hr {
+.monaco-hover-container .markdown-hover > .hover-contents:not(.code-hover-contents) hr {
 	min-width: 100%;
 }
 
-.monaco-hover p,
-.monaco-hover .code,
-.monaco-hover ul,
-.monaco-hover h1,
-.monaco-hover h2,
-.monaco-hover h3,
-.monaco-hover h4,
-.monaco-hover h5,
-.monaco-hover h6 {
+.monaco-hover-container p,
+.monaco-hover-container .code,
+.monaco-hover-container ul,
+.monaco-hover-container h1,
+.monaco-hover-container h2,
+.monaco-hover-container h3,
+.monaco-hover-container h4,
+.monaco-hover-container h5,
+.monaco-hover-container h6 {
 	margin: 8px 0;
 }
 
-.monaco-hover h1,
-.monaco-hover h2,
-.monaco-hover h3,
-.monaco-hover h4,
-.monaco-hover h5,
-.monaco-hover h6 {
+.monaco-hover-container h1,
+.monaco-hover-container h2,
+.monaco-hover-container h3,
+.monaco-hover-container h4,
+.monaco-hover-container h5,
+.monaco-hover-container h6 {
 	line-height: 1.1;
 }
 
-.monaco-hover code {
+.monaco-hover-container code {
 	font-family: var(--monaco-monospace-font);
 }
 
-.monaco-hover hr {
+.monaco-hover-container hr {
 	box-sizing: border-box;
 	border-left: 0px;
 	border-right: 0px;
@@ -75,87 +74,87 @@
 	height: 1px;
 }
 
-.monaco-hover p:first-child,
-.monaco-hover .code:first-child,
-.monaco-hover ul:first-child {
+.monaco-hover-container p:first-child,
+.monaco-hover-container .code:first-child,
+.monaco-hover-container ul:first-child {
 	margin-top: 0;
 }
 
-.monaco-hover p:last-child,
-.monaco-hover .code:last-child,
-.monaco-hover ul:last-child {
+.monaco-hover-container p:last-child,
+.monaco-hover-container .code:last-child,
+.monaco-hover-container ul:last-child {
 	margin-bottom: 0;
 }
 
 /* MarkupContent Layout */
-.monaco-hover ul {
+.monaco-hover-container ul {
 	padding-left: 20px;
 }
-.monaco-hover ol {
+.monaco-hover-container ol {
 	padding-left: 20px;
 }
 
-.monaco-hover li > p {
+.monaco-hover-container li > p {
 	margin-bottom: 0;
 }
 
-.monaco-hover li > ul {
+.monaco-hover-container li > ul {
 	margin-top: 0;
 }
 
-.monaco-hover code {
+.monaco-hover-container code {
 	border-radius: 3px;
 	padding: 0 0.4em;
 }
 
-.monaco-hover .monaco-tokenized-source {
-	white-space: pre-wrap;
+.monaco-hover-container .monaco-tokenized-source {
+white-space: pre-wrap;
 }
 
-.monaco-hover .hover-row.status-bar {
+.monaco-hover-container .hover-row.status-bar {
 	font-size: 12px;
 	line-height: 22px;
 }
 
-.monaco-hover .hover-row.status-bar .info {
+.monaco-hover-container .hover-row.status-bar .info {
 	font-style: italic;
 	padding: 0px 8px;
 }
 
-.monaco-hover .hover-row.status-bar .actions {
+.monaco-hover-container .hover-row.status-bar .actions {
 	display: flex;
 	padding: 0px 8px;
 }
 
-.monaco-hover .hover-row.status-bar .actions .action-container {
+.monaco-hover-container .hover-row.status-bar .actions .action-container {
 	margin-right: 16px;
 	cursor: pointer;
 }
 
-.monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
+.monaco-hover-container .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
 }
 
-.monaco-hover .markdown-hover .hover-contents .codicon {
+.monaco-hover-container .markdown-hover .hover-contents .codicon {
 	color: inherit;
 	font-size: inherit;
 	vertical-align: middle;
 }
 
-.monaco-hover .hover-contents a.code-link:hover,
-.monaco-hover .hover-contents a.code-link {
+.monaco-hover-container .hover-contents a.code-link:hover,
+.monaco-hover-container .hover-contents a.code-link {
 	color: inherit;
 }
 
-.monaco-hover .hover-contents a.code-link:before {
+.monaco-hover-container .hover-contents a.code-link:before {
 	content: '(';
 }
 
-.monaco-hover .hover-contents a.code-link:after {
+.monaco-hover-container .hover-contents a.code-link:after {
 	content: ')';
 }
 
-.monaco-hover .hover-contents a.code-link > span {
+.monaco-hover-container .hover-contents a.code-link > span {
 	text-decoration: underline;
 	/** Hack to force underline to show **/
 	border-bottom: 1px solid transparent;
@@ -163,12 +162,12 @@
 	color: var(--vscode-textLink-foreground);
 }
 
-.monaco-hover .hover-contents a.code-link > span:hover {
+.monaco-hover-container .hover-contents a.code-link > span:hover {
 	color: var(--vscode-textLink-activeForeground);
 }
 
 /** Spans in markdown hovers need a margin-bottom to avoid looking cramped: https://github.com/microsoft/vscode/issues/101496 **/
-.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span {
+.monaco-hover-container .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span {
 	margin-bottom: 4px;
 	display: inline-block;
 }
