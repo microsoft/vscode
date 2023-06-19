@@ -54,6 +54,7 @@ export interface IAccessibleViewOptions {
 	readMoreUrl?: string;
 	language?: string;
 	type: AccessibleViewType;
+	dimensions?: { width: number; height: number };
 }
 
 class AccessibleView extends Disposable {
@@ -139,17 +140,17 @@ class AccessibleView extends Disposable {
 				provider.onKeyDown?.(e);
 			}));
 			this._register(this._editorWidget.onDidBlurEditorText(() => this._contextViewService.hideContextView()));
-			this._register(this._editorWidget.onDidContentSizeChange(() => this._layout()));
+			this._register(this._editorWidget.onDidContentSizeChange(() => this._layout(provider)));
 			this._editorWidget.updateOptions({ ariaLabel: provider.options.ariaLabel });
 			this._editorWidget.focus();
 		});
 		return toDisposable(() => provider.onClose());
 	}
 
-	private _layout(): void {
+	private _layout(provider: IAccessibleContentProvider): void {
 		const windowWidth = window.innerWidth;
-		const width = windowWidth * DIMENSION_DEFAULT.WIDTH;
-		this._editorWidget.layout({ width, height: this._editorWidget.getContentHeight() });
+		const width = provider.options.dimensions?.width || windowWidth * DIMENSION_DEFAULT.WIDTH;
+		this._editorWidget.layout({ width, height: provider.options.dimensions?.height || this._editorWidget.getContentHeight() });
 		const left = Math.round((windowWidth - width) / 2);
 		this._editorContainer.style.left = `${left}px`;
 	}
