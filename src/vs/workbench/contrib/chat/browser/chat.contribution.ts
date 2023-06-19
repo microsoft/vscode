@@ -38,7 +38,7 @@ import '../common/chatColors';
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { registerClearActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { AccessibilityViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
@@ -160,7 +160,7 @@ class ChatAccessibileViewContribution extends Disposable {
 					widget.reveal(focused, true);
 					provider.dispose();
 				},
-				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript' }
+				options: { ariaLabel: nls.localize('chatAccessibleView', "Chat Accessible View"), language: 'typescript', type: AccessibleViewType.View }
 			});
 			accessibleViewService.show('panelChat');
 			return true;

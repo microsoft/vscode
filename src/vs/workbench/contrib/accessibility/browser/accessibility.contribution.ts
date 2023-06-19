@@ -14,7 +14,7 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityHelpAction, AccessibilityViewAction, registerAccessibilityConfiguration } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
-import { AccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewService, AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import * as strings from 'vs/base/common/strings';
 import * as platform from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,7 +34,7 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 		this._editor.focus();
 		this.dispose();
 	}
-	options: IAccessibleViewOptions = { isHelpMenu: true, ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.HelpMenu, ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
 	id: string = 'editor';
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -152,7 +152,7 @@ class HoverAccessibileViewContribution extends Disposable {
 					provider.dispose();
 					controller.focus();
 				},
-				options: { ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript' }
+				options: { ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript', type: AccessibleViewType.View }
 			});
 			accessibleViewService.show('hover');
 			return true;

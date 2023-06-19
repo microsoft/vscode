@@ -10,7 +10,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 
@@ -79,7 +79,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 			}
 			provider.dispose();
 		},
-		options: { isHelpMenu: true, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
+		options: { type: AccessibleViewType.HelpMenu, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
 	});
 	accessibleViewService.show(type);
 }
