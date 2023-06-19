@@ -387,8 +387,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'profiles',
-					title: localize('gettingStarted.profiles.title', "Customize your workspace with Profiles"),
-					description: localize('gettingStarted.profiles.description.interpolated', "Profiles let you customize the numerous settings and extensions in VS Code and quickly switch between them. Create your own profile from scratch or use the predefined set of templates for your specific workflow.\n{0}", Button(localize('tryProfiles', "Try Profiles"), 'command:workbench.profiles.actions.createProfile')),
+					title: localize('gettingStarted.profiles.title', "Customize VS Code with Profiles"),
+					description: localize('gettingStarted.profiles.description.interpolated', "Profiles let you create sets of VS Code customizations that include settings, extensions and UI state. Create your own profile from scratch or use the predefined set of profile templates for your specific workflow.\n{0}", Button(localize('tryProfiles', "Try Profiles"), 'command:workbench.profiles.actions.createProfile')),
 					media: {
 						type: 'svg', altText: 'VS Code Profiles', path: 'profiles.svg'
 					},
