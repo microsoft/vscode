@@ -102,12 +102,12 @@ export function registerChatActions() {
 		static ID: 'chatAccessibilityHelpContribution';
 		constructor() {
 			super();
-			this._register(AccessibilityHelpAction.addImplementation(105, 'chat', async accessor => {
+			this._register(AccessibilityHelpAction.addImplementation(105, 'panelChat', async accessor => {
 				const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 				if (!codeEditor) {
 					return;
 				}
-				runAccessibilityHelpAction(accessor, codeEditor, 'chat');
+				runAccessibilityHelpAction(accessor, codeEditor, 'panelChat');
 			}, CONTEXT_IN_CHAT_INPUT));
 		}
 	}

@@ -44,7 +44,9 @@ export interface IAccessibleViewService {
 
 export interface IAccessibleViewOptions {
 	ariaLabel: string;
+	isHelpMenu?: boolean;
 }
+
 
 class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
@@ -95,8 +97,11 @@ class AccessibleView extends Disposable {
 	}
 
 	private _render(provider: IAccessibleContentProvider, container: HTMLElement): IDisposable {
+		const settingKey = `accessibility.verbosity.${provider.id}`;
+		const value = this._configurationService.getValue(settingKey);
 
-		const fragment = provider.provideContent() + localize('exit-tip', 'Exit this menu via the Escape key.\n');
+		const disableHelpHint = provider.options.isHelpMenu && value ? localize('disable-help-hint', '\nTo disable the `accessibility.verbosity` hint for this feature, press D now.\n') : '\n';
+		const fragment = provider.provideContent() + disableHelpHint + localize('exit-tip', 'Exit this menu via the Escape key.');
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: 'accessible-view', fragment })).then((model) => {
 			if (!model) {
@@ -112,6 +117,8 @@ class AccessibleView extends Disposable {
 			this._register(this._editorWidget.onKeyUp((e) => {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
+				} else if (e.keyCode === KeyCode.KeyD) {
+					this._configurationService.updateValue(settingKey, false);
 				}
 				e.stopPropagation();
 				provider.onKeyDown?.(e);

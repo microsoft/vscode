@@ -37,7 +37,7 @@ class AccessibilityHelpProvider extends Disposable implements IAccessibleContent
 		this._editor.focus();
 		this.dispose();
 	}
-	options: IAccessibleViewOptions = { ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
+	options: IAccessibleViewOptions = { isHelpMenu: true, ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
 	id: string = 'editor';
 	onKeyDown(e: IKeyboardEvent): void {
 		if (e.keyCode === KeyCode.KeyH) {
@@ -141,7 +141,7 @@ class HoverAccessibileViewContribution extends Disposable {
 	static ID: 'hoverAccessibleViewContribution';
 	constructor() {
 		super();
-		this._register(AccessibilityViewAction.addImplementation(105, 'hover', accessor => {
+		this._register(AccessibilityViewAction.addImplementation(90, 'hover', accessor => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();

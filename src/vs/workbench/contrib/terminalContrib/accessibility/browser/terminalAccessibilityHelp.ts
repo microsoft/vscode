@@ -29,7 +29,7 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		this._instance.focus();
 		this.dispose();
 	}
-	options: IAccessibleViewOptions = { ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
+	options: IAccessibleViewOptions = { isHelpMenu: true, ariaLabel: localize('terminal-help-label', "terminal accessibility help") };
 	id: string = 'terminal';
 
 	constructor(
