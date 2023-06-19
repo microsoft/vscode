@@ -24,8 +24,8 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IDisposable } from 'xterm';
 
 const enum DIMENSION_DEFAULT {
-	WIDTH = .4,
-	HEIGHT = .2
+	WIDTH = .6,
+	HEIGHT = 200
 }
 
 export interface IAccessibleContentProvider {
@@ -125,7 +125,6 @@ class AccessibleView extends Disposable {
 				model.setLanguage(provider.options.language);
 			}
 			container.appendChild(this._editorContainer);
-			this._layout();
 			this._register(this._editorWidget.onKeyUp((e) => {
 				if (e.keyCode === KeyCode.Escape) {
 					this._contextViewService.hideContextView();
@@ -149,13 +148,8 @@ class AccessibleView extends Disposable {
 
 	private _layout(): void {
 		const windowWidth = window.innerWidth;
-		const windowHeight = window.innerHeight;
-
 		const width = windowWidth * DIMENSION_DEFAULT.WIDTH;
-		const height = Math.min(windowHeight * DIMENSION_DEFAULT.HEIGHT, this._editorWidget.getContentHeight());
-		this._editorWidget.layout({ width, height });
-		const top = Math.round((windowHeight - height) / 2);
-		this._editorContainer.style.top = `${top}px`;
+		this._editorWidget.layout({ width, height: this._editorWidget.getContentHeight() });
 		const left = Math.round((windowWidth - width) / 2);
 		this._editorContainer.style.left = `${left}px`;
 	}
