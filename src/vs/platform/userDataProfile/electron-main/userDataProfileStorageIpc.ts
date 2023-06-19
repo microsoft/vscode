@@ -13,6 +13,7 @@ import { IBaseSerializableStorageRequest } from 'vs/platform/storage/common/stor
 import { IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ValueChangeSource } from 'vs/base/parts/storage/common/storage';
 
 export class ProfileStorageChangesListenerChannel extends Disposable implements IServerChannel {
 
@@ -66,7 +67,7 @@ export class ProfileStorageChangesListenerChannel extends Disposable implements 
 		keys = keys.filter(key => key !== TARGET_KEY);
 		if (keys.length) {
 			const keyTargets = loadKeyTargets(this.storageMainService.applicationStorage.storage);
-			profileStorageValueChanges.push({ profile: this.userDataProfilesService.defaultProfile, changes: keys.map(key => ({ key, scope: StorageScope.PROFILE, target: keyTargets[key] })) });
+			profileStorageValueChanges.push({ profile: this.userDataProfilesService.defaultProfile, changes: keys.map(key => ({ key, scope: StorageScope.PROFILE, target: keyTargets[key], source: ValueChangeSource.PART })) });
 		}
 		this.triggerEvents(targetChangedProfiles, profileStorageValueChanges);
 	}
@@ -81,7 +82,7 @@ export class ProfileStorageChangesListenerChannel extends Disposable implements 
 			const keys = profileChanges.keys.filter(key => key !== TARGET_KEY);
 			if (keys.length) {
 				const keyTargets = loadKeyTargets(profileChanges.storage.storage);
-				profileStorageValueChanges.set(profileId, { profile: profileChanges.profile, changes: keys.map(key => ({ key, scope: StorageScope.PROFILE, target: keyTargets[key] })) });
+				profileStorageValueChanges.set(profileId, { profile: profileChanges.profile, changes: keys.map(key => ({ key, scope: StorageScope.PROFILE, target: keyTargets[key], source: ValueChangeSource.PART })) });
 			}
 		}
 		this.triggerEvents(targetChangedProfiles, [...profileStorageValueChanges.values()]);

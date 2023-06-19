@@ -8,6 +8,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
+import { ValueChangeSource } from 'vs/base/parts/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -136,9 +137,9 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 					// Run URI conversion on the stored state
 					replaceUris(value);
 					// Write the stored state to the storage service
-					this.storageService.store(key, value, StorageScope.WORKSPACE, StorageTarget.USER);
+					this.storageService.store(key, value, StorageScope.WORKSPACE, StorageTarget.USER, ValueChangeSource.EXTERNAL);
 				} catch {
-					this.storageService.store(key, storage[key], StorageScope.WORKSPACE, StorageTarget.USER);
+					this.storageService.store(key, storage[key], StorageScope.WORKSPACE, StorageTarget.USER, ValueChangeSource.EXTERNAL);
 				}
 			}
 		}
