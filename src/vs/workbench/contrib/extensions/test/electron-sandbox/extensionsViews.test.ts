@@ -500,6 +500,7 @@ suite('ExtensionsViews Tests', () => {
 
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...actual));
 		const experimentTarget = <SinonStub>instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
+			malicious: [], deprecated: {},
 			search: [{
 				query: 'search-me',
 				preferredResults: [
