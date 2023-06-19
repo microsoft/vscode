@@ -129,7 +129,6 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 
 		const a = this.editorToolbar.primaryActions.find(a => a.action.id === action.id);
 		if (!a || a.renderLabel) {
-			// render new action with label to get a correct full width.
 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action, undefined) : undefined;
 		} else {
 			return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
@@ -141,24 +140,7 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 		const initialSecondaryActions = this.editorToolbar.secondaryActions;
 
 		return workbenchDynamicCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
-
-
-
-		// const rawActions = workbenchDynamicCalculateActions(initialPrimaryActions, initialSecondaryActions, leftToolbarContainerMaxWidth);
-
-		// // get rid of potential extra separators
-		// // const formattedPrimary = this.formatActions(rawActions.primaryActions);
-
-		// return {
-		// 	primaryActions: rawActions.primaryActions,
-		// 	secondaryActions: rawActions.secondaryActions
-		// };
 	}
-
-	//get rid of separators
-	// private formatActions(primaryActions: IActionModel[]): IAction[] {
-	// 	throw new Error('Method not implemented.');
-	// }
 }
 
 export class NotebookEditorWorkbenchToolbar extends Disposable {
@@ -491,7 +473,6 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 				const existing = this._primaryActions.find(a => a.action.id === action.id);
 				if (existing) {
 					existing.size = toolbar.getItemWidth(i);
-					// existing.renderLabel = true;
 				}
 			}
 		}

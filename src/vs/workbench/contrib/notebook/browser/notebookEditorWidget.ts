@@ -65,13 +65,11 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-// import { NotebookEditorWorkbenchToolbar, RenderLabel, RenderLabelWithFallback, convertConfiguration } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorToolbar';
 import { NotebookEditorWorkbenchToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorToolbar';
 import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorWidgetContextKeys';
 import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookOverviewRuler';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-// import { CellEditType, CellKind, INotebookSearchOptions, NotebookSetting, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellEditType, CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUPTUT_INPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
